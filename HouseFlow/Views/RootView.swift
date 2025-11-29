@@ -12,15 +12,25 @@ struct RootView: View {
                 .onChange(of: appViewModel.showCreateHouse) { _, _ in
                     // Trigger view update
                 }
+                .onChange(of: appViewModel.showJoinHouse) { _, _ in
+                    // Trigger view update
+                }
+                .onChange(of: appViewModel.showAuth) { _, _ in
+                    // Trigger view update
+                }
         }
     }
     
     private var currentView: some View {
         Group {
-            if !appViewModel.isAuthenticated {
+            if !appViewModel.isAuthenticated && !appViewModel.showAuth {
                 OnboardingView()
+            } else if appViewModel.showAuth {
+                AuthView()
             } else if appViewModel.showCreateHouse {
                 CreateHouseView()
+            } else if appViewModel.showJoinHouse {
+                JoinHouseView()
             } else if !appViewModel.hasSelectedHouse {
                 HouseSelectionView()
             } else {
@@ -30,10 +40,14 @@ struct RootView: View {
     }
     
     private var currentViewId: String {
-        if !appViewModel.isAuthenticated {
+        if !appViewModel.isAuthenticated && !appViewModel.showAuth {
             return "onboarding"
+        } else if appViewModel.showAuth {
+            return "auth"
         } else if appViewModel.showCreateHouse {
             return "createHouse"
+        } else if appViewModel.showJoinHouse {
+            return "joinHouse"
         } else if !appViewModel.hasSelectedHouse {
             return "houseSelection"
         } else {

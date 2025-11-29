@@ -9,6 +9,8 @@ class AppViewModel: ObservableObject {
     @Published var isAuthenticated: Bool = false
     @Published var hasSelectedHouse: Bool = false
     @Published var showCreateHouse: Bool = false
+    @Published var showJoinHouse: Bool = false
+    @Published var showAuth: Bool = false
     @Published var currentUser: User?
     @Published var houseName: String = ""
     @Published var chores: [Chore] = []
@@ -36,9 +38,15 @@ class AppViewModel: ObservableObject {
         sampleUsers.max(by: { $0.points < $1.points }) ?? sampleUsers[0]
     }
     
+    func showAuthScreen() {
+        navigationDirection = .forward
+        showAuth = true
+    }
+    
     func authenticate() {
         navigationDirection = .forward
         isAuthenticated = true
+        showAuth = false
         currentUser = sampleUsers[0] // Set Mahmut as current user for demo
         initializeChores()
     }
@@ -58,6 +66,25 @@ class AppViewModel: ObservableObject {
     func backToHouseSelection() {
         navigationDirection = .backward
         showCreateHouse = false
+        showJoinHouse = false
+    }
+    
+    func showJoinHouseScreen() {
+        navigationDirection = .forward
+        showJoinHouse = true
+    }
+    
+    func joinHouse(with code: String) -> Bool {
+        // Demo için basit kod kontrolü - gerçek uygulamada API çağrısı olurdu
+        let validCodes = ["HOUSE123", "DEMO456", "TEST789"]
+        if validCodes.contains(code.uppercased()) {
+            hasSelectedHouse = true
+            showJoinHouse = false
+            navigationDirection = .forward
+            houseName = "Joined House" // Demo house name
+            return true
+        }
+        return false
     }
     
     func createHouse(name: String, type: String, memberCount: Int) {
@@ -72,6 +99,8 @@ class AppViewModel: ObservableObject {
         isAuthenticated = false
         hasSelectedHouse = false
         showCreateHouse = false
+        showJoinHouse = false
+        showAuth = false
         currentUser = nil
         houseName = ""
         chores = []

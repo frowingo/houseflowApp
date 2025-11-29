@@ -90,7 +90,7 @@ struct OnboardingView: View {
             Button(action: {
                 if currentPage == onboardingPages.count - 1 {
                     withAnimation(.easeInOut(duration: 0.3)) {
-                        appViewModel.authenticate()
+                        appViewModel.showAuthScreen()
                     }
                 }
             }) {

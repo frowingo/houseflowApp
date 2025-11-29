@@ -5,11 +5,14 @@ struct CreateHouseView: View {
     @State private var houseName = ""
     @State private var selectedHouseType: HouseType = .studentHouse
     @State private var memberCount = 3
+    @State private var showSummaryPopup = false
+    @State private var showInviteCodePopup = false
+    @State private var generatedInviteCode = ""
     
     enum HouseType: String, CaseIterable {
-        case studentHouse = "Öğrenci Evi"
-        case sharedHouse = "Paylaşımlı Ev"
-        case dormRoom = "Yurt Odası"
+        case studentHouse = "Student House"
+        case sharedHouse = "Shared House"
+        case dormRoom = "Dorm Room"
     }
     
     var body: some View {
@@ -31,11 +34,11 @@ struct CreateHouseView: View {
                 }
                 .padding(.horizontal, 24)
                 
-                Text("Yeni Ev Oluştur")
+                Text("Create New House")
                     .font(.largeTitle)
                     .fontWeight(.bold)
                 
-                Text("Ev bilgilerinizi girerek başlayın")
+                Text("Start by entering your home details")
                     .font(.subheadline)
                     .foregroundColor(.secondary)
                     .multilineTextAlignment(.center)
@@ -46,12 +49,12 @@ struct CreateHouseView: View {
                 VStack(spacing: 32) {
                     // House Name Section
                     VStack(alignment: .leading, spacing: 16) {
-                        Text("Ev İsmi")
+                        Text("House Name")
                             .font(.headline)
                             .fontWeight(.semibold)
                         
                         VStack(alignment: .leading, spacing: 8) {
-                            TextField("Ev ismi girin", text: $houseName)
+                            TextField("Enter House Name", text: $houseName)
                                 .font(.body)
                                 .padding(.horizontal, 16)
                                 .padding(.vertical, 14)
@@ -69,7 +72,7 @@ struct CreateHouseView: View {
                                 }
                             
                             if !houseName.isEmpty {
-                                Text("\(houseName.count)/30 karakter")
+                                Text("\(houseName.count)/30 char")
                                     .font(.caption2)
                                     .foregroundColor(.secondary)
                                     .transition(.opacity.combined(with: .move(edge: .top)))
@@ -80,7 +83,7 @@ struct CreateHouseView: View {
                     
                     // House Type Section
                     VStack(alignment: .leading, spacing: 16) {
-                        Text("Ev Tipi")
+                        Text("House Type")
                             .font(.headline)
                             .fontWeight(.semibold)
                         
@@ -101,7 +104,7 @@ struct CreateHouseView: View {
                     
                     // Member Count Section
                     VStack(alignment: .leading, spacing: 20) {
-                        Text("Kişi Sayısı")
+                        Text("Person Count")
                             .font(.headline)
                             .fontWeight(.semibold)
                         
@@ -224,14 +227,10 @@ struct CreateHouseView: View {
             // Create Button
             Button(action: {
                 withAnimation(.easeInOut(duration: 0.3)) {
-                    appViewModel.createHouse(
-                        name: houseName,
-                        type: selectedHouseType.rawValue,
-                        memberCount: memberCount
-                    )
+                    showSummaryPopup = true
                 }
             }) {
-                Text("Evi Oluştur")
+                Text("Create Home")
                     .font(.headline)
                     .foregroundColor(isFormValid ? .white : .gray)
                     .frame(maxWidth: .infinity)
@@ -245,6 +244,49 @@ struct CreateHouseView: View {
             .padding(.bottom, 50)
         }
         .navigationBarHidden(true)
+        .overlay(
+            Group {
+                if showSummaryPopup {
+                    HouseSummaryPopup(
+                        houseName: houseName,
+                        houseType: selectedHouseType.rawValue,
+                        memberCount: memberCount,
+                        onConfirm: {
+                            showSummaryPopup = false
+                            generatedInviteCode = generateInviteCode()
+                            showInviteCodePopup = true
+                        },
+                        onCancel: {
+                            showSummaryPopup = false
+                        }
+                    )
+                    .transition(.scale.combined(with: .opacity))
+                }
+                
+                if showInviteCodePopup {
+                    InviteCodePopup(
+                        inviteCode: generatedInviteCode,
+                        houseName: houseName,
+                        onContinue: {
+                            showInviteCodePopup = false
+                            appViewModel.createHouse(
+                                name: houseName,
+                                type: selectedHouseType.rawValue,
+                                memberCount: memberCount
+                            )
+                        }
+                    )
+                    .transition(.scale.combined(with: .opacity))
+                }
+            }
+            .animation(.easeInOut(duration: 0.3), value: showSummaryPopup)
+            .animation(.easeInOut(duration: 0.3), value: showInviteCodePopup)
+        )
+    }
+    
+    private func generateInviteCode() -> String {
+        let characters = "abcdefghijklmnopqrstuvwxyazABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789!*"
+        return String((0..<8).map { _ in characters.randomElement()! })
     }
     
     private var isFormValid: Bool {
@@ -310,6 +352,245 @@ struct Triangle: Shape {
         path.closeSubpath()
         
         return path
+    }
+}
+
+struct HouseSummaryPopup: View {
+    let houseName: String
+    let houseType: String
+    let memberCount: Int
+    let onConfirm: () -> Void
+    let onCancel: () -> Void
+    
+    var body: some View {
+        ZStack {
+            // Background overlay
+            Color.black.opacity(0.4)
+                .ignoresSafeArea()
+                .onTapGesture {
+                    onCancel()
+                }
+            
+            // Popup content
+            VStack(spacing: 24) {
+                // Header
+                VStack(spacing: 8) {
+                    Image(systemName: "house.circle.fill")
+                        .font(.system(size: 50))
+                        .foregroundColor(.blue)
+                    
+                    Text("Summary")
+                        .font(.title2)
+                        .fontWeight(.bold)
+                    
+                    Text("Review the information for the home to be created")
+                        .font(.subheadline)
+                        .foregroundColor(.secondary)
+                        .multilineTextAlignment(.center)
+                }
+                
+                // Summary details
+                VStack(spacing: 16) {
+                    SummaryRow(title: "House Name", value: houseName)
+                    SummaryRow(title: "House Type", value: houseType)
+                    SummaryRow(title: "Person count", value: "\(memberCount) persons")
+                }
+                .padding(.vertical, 16)
+                
+                // Buttons
+                VStack(spacing: 12) {
+                    Button(action: onConfirm) {
+                        Text("Create House")
+                            .font(.headline)
+                            .foregroundColor(.white)
+                            .frame(maxWidth: .infinity)
+                            .frame(height: 50)
+                            .background(Color.blue)
+                            .cornerRadius(12)
+                    }
+                    
+                    Button(action: onCancel) {
+                        Text("Edit")
+                            .font(.subheadline)
+                            .foregroundColor(.blue)
+                    }
+                }
+            }
+            .padding(24)
+            .background(Color(.systemBackground))
+            .cornerRadius(20)
+            .shadow(color: Color.black.opacity(0.2), radius: 20, x: 0, y: 10)
+            .padding(.horizontal, 40)
+        }
+    }
+}
+
+struct InviteCodePopup: View {
+    let inviteCode: String
+    let houseName: String
+    let onContinue: () -> Void
+    @State private var showingShareSheet = false
+    
+    var body: some View {
+        ZStack {
+            // Background overlay
+            Color.black.opacity(0.4)
+                .ignoresSafeArea()
+            
+            // Popup content
+            VStack(spacing: 24) {
+                // Header
+                VStack(spacing: 8) {
+                    Image(systemName: "checkmark.circle.fill")
+                        .font(.system(size: 50))
+                        .foregroundColor(.green)
+                    
+                    Text("House Created! 🎉")
+                        .font(.title2)
+                        .fontWeight(.bold)
+                    
+                    Text("\(houseName) successfully created")
+                        .font(.subheadline)
+                        .foregroundColor(.secondary)
+                        .multilineTextAlignment(.center)
+                }
+                
+                // Invite code section
+                VStack(spacing: 16) {
+                    Text("Invite Code")
+                        .font(.headline)
+                        .fontWeight(.semibold)
+                    
+                    VStack(spacing: 12) {
+                        // Code display
+                        Text(inviteCode)
+                            .font(.system(size: 24, weight: .bold, design: .monospaced))
+                            .foregroundColor(.blue)
+                            .padding(.horizontal, 20)
+                            .padding(.vertical, 12)
+                            .background(Color.blue.opacity(0.1))
+                            .cornerRadius(12)
+                        
+                        // Action buttons
+                        HStack(spacing: 12) {
+                            // Copy button
+                            Button(action: {
+                                UIPasteboard.general.string = inviteCode
+                            }) {
+                                HStack(spacing: 6) {
+                                    Image(systemName: "doc.on.doc")
+                                        .font(.system(size: 14))
+                                    Text("Copy")
+                                        .font(.caption)
+                                        .fontWeight(.medium)
+                                }
+                                .foregroundColor(.blue)
+                                .padding(.horizontal, 12)
+                                .padding(.vertical, 8)
+                                .background(Color.blue.opacity(0.1))
+                                .cornerRadius(8)
+                            }
+                            
+                            // Share button
+                            Button(action: {
+                                showingShareSheet = true
+                            }) {
+                                HStack(spacing: 6) {
+                                    Image(systemName: "square.and.arrow.up")
+                                        .font(.system(size: 14))
+                                    Text("Share")
+                                        .font(.caption)
+                                        .fontWeight(.medium)
+                                }
+                                .foregroundColor(.white)
+                                .padding(.horizontal, 12)
+                                .padding(.vertical, 8)
+                                .background(Color.blue)
+                                .cornerRadius(8)
+                            }
+                        }
+                    }
+                    
+                    Text("You can invite your friends to your home by sharing this cod")
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+                        .multilineTextAlignment(.center)
+                        .padding(.horizontal, 16)
+                }
+                
+                // Continue button
+                Button(action: onContinue) {
+                    Text("Entire House")
+                        .font(.headline)
+                        .foregroundColor(.white)
+                        .frame(maxWidth: .infinity)
+                        .frame(height: 50)
+                        .background(Color.green)
+                        .cornerRadius(12)
+                }
+            }
+            .padding(24)
+            .background(Color(.systemBackground))
+            .cornerRadius(20)
+            .shadow(color: Color.black.opacity(0.2), radius: 20, x: 0, y: 10)
+            .padding(.horizontal, 40)
+        }
+        .sheet(isPresented: $showingShareSheet) {
+            ActivityViewController(
+                activityItems: [createShareMessage()],
+                applicationActivities: nil
+            )
+        }
+    }
+    
+    private func createShareMessage() -> String {
+        return """
+        🏠 \(houseName)'e katılmaya davetlisiniz!
+        
+        HouseFlow uygulamasını indirin ve aşağıdaki davet kodunu kullanın:
+        
+        🔑 Davet Kodu: \(inviteCode)
+        
+        Ev işlerini birlikte organize edelim! 🧹✨
+        """
+    }
+}
+
+struct SummaryRow: View {
+    let title: String
+    let value: String
+    
+    var body: some View {
+        HStack {
+            Text(title)
+                .font(.subheadline)
+                .foregroundColor(.secondary)
+            
+            Spacer()
+            
+            Text(value)
+                .font(.subheadline)
+                .fontWeight(.medium)
+                .foregroundColor(.primary)
+        }
+        .padding(.vertical, 4)
+    }
+}
+
+struct ActivityViewController: UIViewControllerRepresentable {
+    let activityItems: [Any]
+    let applicationActivities: [UIActivity]?
+    
+    func makeUIViewController(context: Context) -> UIActivityViewController {
+        let controller = UIActivityViewController(
+            activityItems: activityItems,
+            applicationActivities: applicationActivities
+        )
+        return controller
+    }
+    
+    func updateUIViewController(_ uiViewController: UIActivityViewController, context: Context) {
+        // No updates needed
     }
 }
 

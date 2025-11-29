@@ -38,7 +38,7 @@ struct HouseSelectionView: View {
                 
                 Button(action: {
                     withAnimation(.easeInOut(duration: 0.3)) {
-                        appViewModel.selectHouse(name: "Mahmut's Flat")
+                        appViewModel.showJoinHouseScreen()
                     }
                 }) {
                     HouseOptionCard(
