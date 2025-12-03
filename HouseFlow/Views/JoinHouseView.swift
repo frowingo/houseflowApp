@@ -155,6 +155,7 @@ struct JoinHouseView: View {
         }
         .background(Color(.systemBackground))
         .navigationBarHidden(true)
+        .dismissKeyboardOnTap()
         .onAppear {
             DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
                 isTextFieldFocused = true

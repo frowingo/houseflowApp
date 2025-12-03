@@ -179,9 +179,7 @@ struct AuthView: View {
         }
         .background(Color(.systemBackground))
         .navigationBarHidden(true)
-        .onTapGesture {
-            focusedField = nil
-        }
+        .dismissKeyboardOnTap()
     }
     
     private func authenticateWithSocial(_ platform: String) {

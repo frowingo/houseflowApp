@@ -244,6 +244,7 @@ struct CreateHouseView: View {
             .padding(.bottom, 50)
         }
         .navigationBarHidden(true)
+        .dismissKeyboardOnTap()
         .overlay(
             Group {
                 if showSummaryPopup {
