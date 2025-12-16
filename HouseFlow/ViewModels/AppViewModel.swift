@@ -119,7 +119,7 @@ class AppViewModel: ObservableObject {
     func toggleChoreCompletion(_ choreId: UUID) {
         if let index = chores.firstIndex(where: { $0.id == choreId }) {
             let currentChore = chores[index]
-            var newChore = Chore(
+            let newChore = Chore(
                 title: currentChore.title,
                 description: currentChore.description,
                 assignedTo: currentChore.assignedTo,
