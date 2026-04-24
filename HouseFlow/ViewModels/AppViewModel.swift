@@ -5,6 +5,7 @@ enum NavigationDirection {
     case forward, backward
 }
 
+@MainActor
 class AppViewModel: ObservableObject {
     @Published var isAuthenticated: Bool = false
     @Published var hasSelectedHouse: Bool = false
@@ -15,6 +16,12 @@ class AppViewModel: ObservableObject {
     @Published var houseName: String = ""
     @Published var chores: [Chore] = []
     @Published var navigationDirection: NavigationDirection = .forward
+
+    // MARK: - Auth State
+    @Published var isLoading: Bool = false
+    @Published var authError: String?
+
+    private let authService = AuthService.shared
     
     // Sample data for demo
     let sampleUsers = [
@@ -43,11 +50,48 @@ class AppViewModel: ObservableObject {
         showAuth = true
     }
     
+    // MARK: - Real Auth (API)
+
+    func login(email: String, password: String) async {
+        isLoading = true
+        authError = nil
+        do {
+            _ = try await authService.login(email: email, password: password)
+            didAuthenticate()
+        } catch {
+            authError = error.localizedDescription
+        }
+        isLoading = false
+    }
+
+    func signup(email: String, password: String, firstName: String, lastName: String) async {
+        isLoading = true
+        authError = nil
+        do {
+            _ = try await authService.signup(
+                email: email,
+                password: password,
+                firstName: firstName,
+                lastName: lastName
+            )
+            didAuthenticate()
+        } catch {
+            authError = error.localizedDescription
+        }
+        isLoading = false
+    }
+
+    // MARK: - Demo / Legacy
+
     func authenticate() {
+        didAuthenticate()
+    }
+
+    private func didAuthenticate() {
         navigationDirection = .forward
         isAuthenticated = true
         showAuth = false
-        currentUser = sampleUsers[0] // Set Mahmut as current user for demo
+        currentUser = sampleUsers[0]
         initializeChores()
     }
     
@@ -95,6 +139,7 @@ class AppViewModel: ObservableObject {
     }
     
     func logout() {
+        authService.logout()
         navigationDirection = .backward
         isAuthenticated = false
         hasSelectedHouse = false
