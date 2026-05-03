@@ -4,120 +4,164 @@ struct AuthView: View {
     @EnvironmentObject private var appViewModel: AppViewModel
     @FocusState private var focusedField: AuthField?
 
-    // MARK: - Mode
-
     @State private var isSignUp = false
-
-    // MARK: - Form fields
-
     @State private var firstName = ""
     @State private var lastName = ""
     @State private var email = ""
     @State private var password = ""
 
+    // MARK: - Body
+
     var body: some View {
-        ScrollView {
-            VStack(spacing: AppDesign.Spacing.xxl) {
-                headerSection
-                modeSwitcher
-                formSection
-                if let error = appViewModel.authError {
-                    errorBanner(message: error)
+        ZStack(alignment: .bottom) {
+            heroGradient.ignoresSafeArea()
+
+            VStack(spacing: 0) {
+                heroSection
+
+                ScrollView(showsIndicators: false) {
+                    VStack(spacing: AppDesign.Spacing.xxl) {
+                        modeSwitcher
+                        formFields
+                        if let error = appViewModel.authError {
+                            errorBanner(message: error)
+                        }
+                        primaryButton
+                        dividerRow
+                        socialRow
+                    }
+                    .padding(.horizontal, AppDesign.Spacing.xxl)
+                    .padding(.top, AppDesign.Spacing.xxxl)
+                    .padding(.bottom, 48)
                 }
-                socialLoginSection
-                actionButtonsSection
+                .frame(maxHeight: .infinity)
+                .background(Color(.systemBackground))
+                .clipShape(UnevenRoundedRectangle(topLeadingRadius: 32, topTrailingRadius: 32))
+            }
+
+            // Toast
+            if let msg = appViewModel.successToast {
+                toastBanner(message: msg)
+                    .padding(.horizontal, AppDesign.Spacing.xxl)
+                    .padding(.bottom, 36)
+                    .transition(.move(edge: .bottom).combined(with: .opacity))
+                    .zIndex(10)
             }
         }
-        .background(AppDesign.Colors.background)
-        .navigationBarHidden(true)
+        .animation(.spring(response: 0.4, dampingFraction: 0.8), value: appViewModel.successToast)
         .dismissKeyboardOnTap()
         .onChange(of: isSignUp) { _ in
             appViewModel.authError = nil
-            firstName = ""
-            lastName = ""
-            email = ""
-            password = ""
+            firstName = ""; lastName = ""; email = ""; password = ""
         }
     }
 
-    // MARK: - Header Section
+    // MARK: - Gradient
 
-    private var headerSection: some View {
-        VStack(spacing: AppDesign.Spacing.md) {
-            Image(systemName: "house.circle.fill")
-                .font(.system(size: 48))
-                .foregroundColor(AppDesign.Colors.primary)
+    private var heroGradient: LinearGradient {
+        LinearGradient(
+            colors: [Color.orange, Color.orange.opacity(0.72)],
+            startPoint: .topLeading,
+            endPoint: .bottomTrailing
+        )
+    }
+
+    // MARK: - Hero Section
+
+    private var heroSection: some View {
+        VStack(spacing: AppDesign.Spacing.lg) {
+            ZStack {
+                Circle()
+                    .fill(Color.white.opacity(0.18))
+                    .frame(width: 84, height: 84)
+                Circle()
+                    .fill(Color.white.opacity(0.10))
+                    .frame(width: 104, height: 104)
+                Image(systemName: "house.fill")
+                    .font(.system(size: 36, weight: .semibold))
+                    .foregroundColor(.white)
+            }
 
             VStack(spacing: AppDesign.Spacing.xs) {
-                Text(isSignUp ? "Create Account" : "Welcome Back!")
-                    .font(.system(size: 28, weight: .bold, design: .rounded))
-
-                Text(isSignUp
-                     ? "Join HouseFlow and start managing your shared home"
-                     : "Sign in to your HouseFlow account and manage your shared home effortlessly")
-                    .font(AppDesign.Typography.subheadline)
-                    .foregroundColor(AppDesign.Colors.textSecondary)
-                    .multilineTextAlignment(.center)
-                    .padding(.horizontal, AppDesign.Spacing.xxl)
+                Text("HouseFlow")
+                    .font(.system(size: 30, weight: .bold, design: .rounded))
+                    .foregroundColor(.white)
+                Text("Your home, in sync")
+                    .font(.system(size: 15))
+                    .foregroundColor(.white.opacity(0.72))
             }
         }
-        .padding(.top, AppDesign.Spacing.xl)
+        .padding(.top, AppDesign.Spacing.xxxl)
+        .padding(.bottom, AppDesign.Spacing.huge)
     }
 
     // MARK: - Mode Switcher
 
     private var modeSwitcher: some View {
-        HStack(spacing: 0) {
+        HStack(spacing: 4) {
             modeTab(title: "Sign In", selected: !isSignUp) { isSignUp = false }
             modeTab(title: "Sign Up", selected: isSignUp)  { isSignUp = true  }
         }
-        .background(AppDesign.Colors.surface)
-        .cornerRadius(AppDesign.CornerRadius.md)
-        .padding(.horizontal, AppDesign.Spacing.xxl)
+        .padding(4)
+        .background(Color(.systemGray6))
+        .cornerRadius(AppDesign.CornerRadius.lg)
     }
 
     private func modeTab(title: String, selected: Bool, action: @escaping () -> Void) -> some View {
-        Button(action: action) {
+        Button(action: { withAnimation(AppDesign.Animation.standard) { action() } }) {
             Text(title)
-                .font(AppDesign.Typography.headline)
-                .foregroundColor(selected ? .white : AppDesign.Colors.textSecondary)
+                .font(.system(size: 15, weight: .semibold))
+                .foregroundColor(selected ? AppDesign.Colors.primary : AppDesign.Colors.textSecondary)
                 .frame(maxWidth: .infinity)
-                .frame(height: 40)
-                .background(selected ? AppDesign.Colors.primary : Color.clear)
-                .cornerRadius(AppDesign.CornerRadius.md)
+                .frame(height: 36)
+                .background(
+                    Group {
+                        if selected {
+                            RoundedRectangle(cornerRadius: AppDesign.CornerRadius.md)
+                                .fill(Color(.systemBackground))
+                                .shadow(color: Color.black.opacity(0.08), radius: 6, x: 0, y: 2)
+                        }
+                    }
+                )
         }
     }
 
-    // MARK: - Form Section
+    // MARK: - Form Fields
 
-    private var formSection: some View {
+    @ViewBuilder
+    private var formFields: some View {
         VStack(spacing: AppDesign.Spacing.lg) {
             if isSignUp {
-                ModernTextField(
-                    title: "First Name",
-                    text: $firstName,
-                    placeholder: "Your first name",
-                    icon: "person.circle.fill",
-                    keyboardType: .default,
-                    focusedField: $focusedField,
-                    fieldType: .name
-                )
-
-                ModernTextField(
-                    title: "Last Name",
-                    text: $lastName,
-                    placeholder: "Your last name",
-                    icon: "person.circle.fill",
-                    keyboardType: .default,
-                    focusedField: $focusedField,
-                    fieldType: .name
-                )
+                HStack(spacing: AppDesign.Spacing.md) {
+                    ModernTextField(
+                        title: "First Name",
+                        text: $firstName,
+                        placeholder: "First",
+                        icon: "person.fill",
+                        keyboardType: .default,
+                        focusedField: $focusedField,
+                        fieldType: .firstName
+                    )
+                    ModernTextField(
+                        title: "Last Name",
+                        text: $lastName,
+                        placeholder: "Last",
+                        icon: "person.fill",
+                        keyboardType: .default,
+                        focusedField: $focusedField,
+                        fieldType: .lastName
+                    )
+                }
+                .transition(.asymmetric(
+                    insertion: .push(from: .top).combined(with: .opacity),
+                    removal: .push(from: .bottom).combined(with: .opacity)
+                ))
             }
 
             ModernTextField(
                 title: "Email Address",
                 text: $email,
-                placeholder: "your.email@example.com",
+                placeholder: "your@email.com",
                 icon: "envelope.fill",
                 keyboardType: .emailAddress,
                 focusedField: $focusedField,
@@ -133,60 +177,70 @@ struct AuthView: View {
                 fieldType: .password
             )
         }
-        .padding(.horizontal, AppDesign.Spacing.xl)
+        .animation(AppDesign.Animation.standard, value: isSignUp)
     }
 
-    // MARK: - Error Banner
+    // MARK: - Primary Button
 
-    private func errorBanner(message: String) -> some View {
-        HStack(spacing: AppDesign.Spacing.sm) {
-            Image(systemName: "exclamationmark.triangle.fill")
-                .foregroundColor(.red)
-            Text(message)
-                .font(AppDesign.Typography.subheadline)
-                .foregroundColor(.red)
-                .multilineTextAlignment(.leading)
-            Spacer()
+    private var primaryButton: some View {
+        Button(action: handlePrimaryAction) {
+            ZStack {
+                if appViewModel.isLoading {
+                    ProgressView()
+                        .progressViewStyle(CircularProgressViewStyle(tint: .white))
+                } else {
+                    HStack(spacing: AppDesign.Spacing.sm) {
+                        Image(systemName: isSignUp ? "person.badge.plus.fill" : "arrow.right.circle.fill")
+                            .font(.system(size: 18, weight: .semibold))
+                        Text(isSignUp ? "Create Account" : "Sign In")
+                            .font(.system(size: 17, weight: .bold))
+                    }
+                    .foregroundColor(.white)
+                }
+            }
+            .frame(maxWidth: .infinity)
+            .frame(height: 54)
+            .background(
+                Group {
+                    if isFormValid && !appViewModel.isLoading {
+                        heroGradient
+                    } else {
+                        LinearGradient(colors: [Color(.systemGray4)], startPoint: .leading, endPoint: .trailing)
+                    }
+                }
+            )
+            .cornerRadius(AppDesign.CornerRadius.xl)
+            .shadow(
+                color: isFormValid ? AppDesign.Colors.primary.opacity(0.38) : .clear,
+                radius: 12, x: 0, y: 6
+            )
         }
-        .padding(AppDesign.Spacing.md)
-        .background(Color.red.opacity(0.1))
-        .cornerRadius(AppDesign.CornerRadius.md)
-        .padding(.horizontal, AppDesign.Spacing.xl)
+        .disabled(!isFormValid || appViewModel.isLoading)
+        .animation(AppDesign.Animation.quick, value: isFormValid)
     }
 
-    // MARK: - Social Login Section
+    // MARK: - Divider
 
-    private var socialLoginSection: some View {
-        VStack(spacing: AppDesign.Spacing.md) {
-            dividerWithText
-            socialButtonsRow
-        }
-        .padding(.horizontal, AppDesign.Spacing.xxl)
-    }
-
-    private var dividerWithText: some View {
-        HStack {
-            Rectangle()
-                .frame(height: 1)
-                .foregroundColor(AppDesign.Colors.textSecondary.opacity(0.3))
-            Text("or continue with")
+    private var dividerRow: some View {
+        HStack(spacing: AppDesign.Spacing.md) {
+            Rectangle().frame(height: 1).foregroundColor(Color(.systemGray5))
+            Text("or")
                 .font(AppDesign.Typography.caption)
                 .foregroundColor(AppDesign.Colors.textSecondary)
-                .padding(.horizontal, AppDesign.Spacing.lg)
-            Rectangle()
-                .frame(height: 1)
-                .foregroundColor(AppDesign.Colors.textSecondary.opacity(0.3))
+            Rectangle().frame(height: 1).foregroundColor(Color(.systemGray5))
         }
     }
 
-    private var socialButtonsRow: some View {
+    // MARK: - Social Login
+
+    private var socialRow: some View {
         HStack(spacing: AppDesign.Spacing.lg) {
             SocialLoginButton(
                 icon: "globe",
                 name: "Google",
                 backgroundColor: .white,
                 foregroundColor: .black,
-                borderColor: .gray.opacity(0.3)
+                borderColor: Color(.systemGray4)
             ) { authenticateWithSocial("Google") }
 
             SocialLoginButton(
@@ -205,63 +259,51 @@ struct AuthView: View {
         }
     }
 
-    // MARK: - Action Buttons Section
+    // MARK: - Error Banner
 
-    private var actionButtonsSection: some View {
-        VStack(spacing: AppDesign.Spacing.md) {
-            primaryButton
-            demoModeButton
+    private func errorBanner(message: String) -> some View {
+        HStack(spacing: AppDesign.Spacing.sm) {
+            Image(systemName: "exclamationmark.triangle.fill")
+                .foregroundColor(AppDesign.Colors.error)
+            Text(message)
+                .font(AppDesign.Typography.subheadline)
+                .foregroundColor(AppDesign.Colors.error)
+                .multilineTextAlignment(.leading)
+            Spacer()
         }
-        .padding(.horizontal, AppDesign.Spacing.xxl)
-        .padding(.bottom, AppDesign.Spacing.xxl)
+        .padding(AppDesign.Spacing.md)
+        .background(AppDesign.Colors.error.opacity(0.08))
+        .cornerRadius(AppDesign.CornerRadius.md)
     }
 
-    private var primaryButton: some View {
-        Button(action: handlePrimaryAction) {
-            HStack(spacing: AppDesign.Spacing.md) {
-                if appViewModel.isLoading {
-                    ProgressView()
-                        .progressViewStyle(CircularProgressViewStyle(tint: .white))
-                        .scaleEffect(0.85)
-                } else {
-                    Image(systemName: isSignUp ? "person.badge.plus" : "person.circle.fill")
-                        .font(.system(size: 20))
-                    Text(isSignUp ? "Create Account" : "Sign In")
-                        .font(AppDesign.Typography.headline)
-                }
+    // MARK: - Toast
+
+    private func toastBanner(message: String) -> some View {
+        HStack(spacing: AppDesign.Spacing.md) {
+            ZStack {
+                Circle()
+                    .fill(Color.white.opacity(0.25))
+                    .frame(width: 36, height: 36)
+                Image(systemName: "checkmark")
+                    .font(.system(size: 16, weight: .bold))
+                    .foregroundColor(.white)
             }
-            .foregroundColor(.white)
-            .frame(maxWidth: .infinity)
-            .frame(height: 52)
-            .background(
-                LinearGradient(
-                    colors: [AppDesign.Colors.primary, AppDesign.Colors.primary.opacity(0.8)],
-                    startPoint: .leading,
-                    endPoint: .trailing
-                )
+            Text(message)
+                .font(.system(size: 15, weight: .semibold))
+                .foregroundColor(.white)
+            Spacer()
+        }
+        .padding(.horizontal, AppDesign.Spacing.lg)
+        .padding(.vertical, AppDesign.Spacing.md)
+        .background(
+            LinearGradient(
+                colors: [Color(red: 0.12, green: 0.72, blue: 0.46), Color(red: 0.08, green: 0.58, blue: 0.52)],
+                startPoint: .leading,
+                endPoint: .trailing
             )
-            .cornerRadius(AppDesign.CornerRadius.lg)
-            .shadow(color: AppDesign.Colors.primary.opacity(0.3), radius: 8, x: 0, y: 4)
-        }
-        .disabled(!isFormValid || appViewModel.isLoading)
-        .opacity(isFormValid && !appViewModel.isLoading ? 1.0 : 0.6)
-    }
-
-    private var demoModeButton: some View {
-        Button(action: handleDemoMode) {
-            HStack(spacing: AppDesign.Spacing.sm) {
-                Image(systemName: "play.circle.fill")
-                    .font(.system(size: 19))
-                Text("Demo Mode")
-                    .font(AppDesign.Typography.headline)
-            }
-            .foregroundColor(AppDesign.Colors.primary)
-            .frame(maxWidth: .infinity)
-            .frame(height: 48)
-            .background(AppDesign.Colors.primary.opacity(0.1))
-            .cornerRadius(AppDesign.CornerRadius.md)
-        }
-        .disabled(appViewModel.isLoading)
+        )
+        .cornerRadius(AppDesign.CornerRadius.xl)
+        .shadow(color: Color.black.opacity(0.18), radius: 14, x: 0, y: 6)
     }
 
     // MARK: - Actions
@@ -282,19 +324,9 @@ struct AuthView: View {
         }
     }
 
-    private func handleDemoMode() {
-        focusedField = nil
-        withAnimation(AppDesign.Animation.standard) {
-            appViewModel.authenticate()
-        }
-    }
-
     private func authenticateWithSocial(_ platform: String) {
         focusedField = nil
         // Social auth — to be implemented
-        withAnimation(AppDesign.Animation.standard) {
-            appViewModel.authenticate()
-        }
     }
 
     private var isFormValid: Bool {

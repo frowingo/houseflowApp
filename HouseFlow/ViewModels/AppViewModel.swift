@@ -20,6 +20,7 @@ class AppViewModel: ObservableObject {
     // MARK: - Auth State
     @Published var isLoading: Bool = false
     @Published var authError: String?
+    @Published var successToast: String?
 
     private let authService = AuthService.shared
     
@@ -57,11 +58,15 @@ class AppViewModel: ObservableObject {
         authError = nil
         do {
             _ = try await authService.login(email: email, password: password)
+            isLoading = false
+            successToast = "Welcome back! 👋"
+            try? await Task.sleep(for: .milliseconds(1400))
+            successToast = nil
             didAuthenticate()
         } catch {
             authError = error.localizedDescription
+            isLoading = false
         }
-        isLoading = false
     }
 
     func signup(email: String, password: String, firstName: String, lastName: String) async {
@@ -74,17 +79,15 @@ class AppViewModel: ObservableObject {
                 firstName: firstName,
                 lastName: lastName
             )
+            isLoading = false
+            successToast = "Account created! 🎉"
+            try? await Task.sleep(for: .milliseconds(1400))
+            successToast = nil
             didAuthenticate()
         } catch {
             authError = error.localizedDescription
+            isLoading = false
         }
-        isLoading = false
-    }
-
-    // MARK: - Demo / Legacy
-
-    func authenticate() {
-        didAuthenticate()
     }
 
     private func didAuthenticate() {
