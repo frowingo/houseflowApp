@@ -148,8 +148,21 @@ struct JoinHouseView: View {
     
     private var actionSection: some View {
         VStack(spacing: AppDesign.Spacing.lg) {
+            if let error = appViewModel.houseError {
+                HStack(spacing: AppDesign.Spacing.sm) {
+                    Image(systemName: "exclamationmark.triangle.fill")
+                        .foregroundColor(AppDesign.Colors.error)
+                    Text(error)
+                        .font(AppDesign.Typography.subheadline)
+                        .foregroundColor(AppDesign.Colors.error)
+                        .multilineTextAlignment(.leading)
+                    Spacer()
+                }
+                .padding(AppDesign.Spacing.md)
+                .background(AppDesign.Colors.error.opacity(0.08))
+                .cornerRadius(AppDesign.CornerRadius.md)
+            }
             joinButton
-            demoCodesHint
         }
         .padding(.horizontal, AppDesign.Spacing.xl)
         .padding(.bottom, AppDesign.Spacing.xxl)
@@ -164,7 +177,7 @@ struct JoinHouseView: View {
                         .foregroundColor(.white)
                 }
                 
-                Text(isValidating ? "Checking..." : "Join House")
+                Text(isValidating ? "Joining..." : "Join House")
                     .font(AppDesign.Typography.headline)
             }
             .foregroundColor(.white)
@@ -177,22 +190,6 @@ struct JoinHouseView: View {
         .disabled(inviteCode.isEmpty || isValidating)
     }
     
-    private var demoCodesHint: some View {
-        VStack(spacing: AppDesign.Spacing.xs) {
-            Text("Demo Codes:")
-                .font(AppDesign.Typography.caption2)
-                .foregroundColor(AppDesign.Colors.textSecondary)
-            
-            Text("HOUSE123 • DEMO456 • TEST789")
-                .font(AppDesign.Typography.caption2)
-                .foregroundColor(AppDesign.Colors.primary)
-                .onTapGesture {
-                    inviteCode = "HOUSE123"
-                }
-        }
-        .padding(.top, AppDesign.Spacing.sm)
-    }
-    
     // MARK: - Actions
     
     private func joinHouse() {
@@ -200,17 +197,18 @@ struct JoinHouseView: View {
         
         isValidating = true
         isTextFieldFocused = false
-        
-        DispatchQueue.main.asyncAfter(deadline: .now() + 1.5) {
-            let success = appViewModel.joinHouse(with: inviteCode)
-            
-            withAnimation(AppDesign.Animation.standard) {
-                if !success {
+        appViewModel.houseError = nil
+
+        Task {
+            if let house = await appViewModel.joinHouseAPI(inviteCode: inviteCode) {
+                appViewModel.finalizeHouseSelection(house: house)
+            } else {
+                withAnimation(AppDesign.Animation.standard) {
                     showError = true
                     isTextFieldFocused = true
                 }
-                isValidating = false
             }
+            isValidating = false
         }
     }
 }

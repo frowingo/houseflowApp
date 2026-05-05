@@ -9,12 +9,16 @@ struct CreateHouseView: View {
     @State private var memberCount = 3
     @State private var showSummaryPopup = false
     @State private var showInviteCodePopup = false
-    @State private var generatedInviteCode = ""
+    @State private var createdHouse: HouseResponse?
     
     var body: some View {
         VStack(spacing: AppDesign.Spacing.xxl) {
             headerSection
             formScrollView
+            if let error = appViewModel.houseError {
+                houseErrorBanner(message: error)
+                    .padding(.horizontal, AppDesign.Spacing.xxl)
+            }
             createButton
         }
         .navigationBarHidden(true)
@@ -162,6 +166,23 @@ struct CreateHouseView: View {
         .padding(.horizontal, AppDesign.Spacing.xxl)
         .padding(.bottom, 50)
     }
+
+    // MARK: - Error Banner
+
+    private func houseErrorBanner(message: String) -> some View {
+        HStack(spacing: AppDesign.Spacing.sm) {
+            Image(systemName: "exclamationmark.triangle.fill")
+                .foregroundColor(AppDesign.Colors.error)
+            Text(message)
+                .font(AppDesign.Typography.subheadline)
+                .foregroundColor(AppDesign.Colors.error)
+                .multilineTextAlignment(.leading)
+            Spacer()
+        }
+        .padding(AppDesign.Spacing.md)
+        .background(AppDesign.Colors.error.opacity(0.08))
+        .cornerRadius(AppDesign.CornerRadius.md)
+    }
     
     // MARK: - Popups Overlay
     
@@ -174,8 +195,18 @@ struct CreateHouseView: View {
                     memberCount: memberCount,
                     onConfirm: {
                         showSummaryPopup = false
-                        generatedInviteCode = generateInviteCode()
-                        showInviteCodePopup = true
+                        Task {
+                            if let house = await appViewModel.createHouseAPI(
+                                name: houseName,
+                                type: selectedHouseType.apiValue,
+                                maxMemberCount: memberCount
+                            ) {
+                                createdHouse = house
+                                withAnimation(AppDesign.Animation.standard) {
+                                    showInviteCodePopup = true
+                                }
+                            }
+                        }
                     },
                     onCancel: {
                         showSummaryPopup = false
@@ -184,17 +215,13 @@ struct CreateHouseView: View {
                 .transition(.scale.combined(with: .opacity))
             }
             
-            if showInviteCodePopup {
+            if showInviteCodePopup, let house = createdHouse {
                 InviteCodePopup(
-                    inviteCode: generatedInviteCode,
-                    houseName: houseName,
+                    inviteCode: house.inviteCode,
+                    houseName: house.name,
                     onContinue: {
                         showInviteCodePopup = false
-                        appViewModel.createHouse(
-                            name: houseName,
-                            type: selectedHouseType.rawValue,
-                            memberCount: memberCount
-                        )
+                        appViewModel.finalizeHouseSelection(house: house)
                     }
                 )
                 .transition(.scale.combined(with: .opacity))
@@ -205,11 +232,6 @@ struct CreateHouseView: View {
     }
     
     // MARK: - Helper Methods
-    
-    private func generateInviteCode() -> String {
-        let characters = "abcdefghijklmnopqrstuvwxyazABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789!*"
-        return String((0..<8).map { _ in characters.randomElement()! })
-    }
     
     private var isFormValid: Bool {
         !houseName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty

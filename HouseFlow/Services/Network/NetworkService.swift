@@ -106,6 +106,49 @@ final class NetworkService {
             throw NetworkError.unknown(http.statusCode)
         }
     }
+
+    // MARK: - Authenticated GET with query parameters
+
+    func get<Success: Decodable>(
+        path: String,
+        queryItems: [URLQueryItem] = [],
+        successType: Success.Type,
+        token: String
+    ) async throws -> Success {
+        guard var components = URLComponents(
+            url: AppEnvironment.current.baseURL.appendingPathComponent(path),
+            resolvingAgainstBaseURL: true
+        ) else { throw NetworkError.invalidURL }
+
+        if !queryItems.isEmpty {
+            components.queryItems = queryItems
+        }
+
+        guard let url = components.url else { throw NetworkError.invalidURL }
+
+        var request = URLRequest(url: url)
+        request.httpMethod = "GET"
+        request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
+
+        let (data, response) = try await session.data(for: request)
+
+        guard let http = response as? HTTPURLResponse else {
+            throw NetworkError.unknown(-1)
+        }
+
+        if (200...399).contains(http.statusCode) {
+            do {
+                return try decoder.decode(Success.self, from: data)
+            } catch {
+                throw NetworkError.decodingError(error)
+            }
+        } else {
+            if let errorBody = try? decoder.decode(APIErrorResponse.self, from: data) {
+                throw NetworkError.serverError(errorBody.error)
+            }
+            throw NetworkError.unknown(http.statusCode)
+        }
+    }
 }
 
 // MARK: - Shared error response shape

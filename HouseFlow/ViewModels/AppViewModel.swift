@@ -22,7 +22,14 @@ class AppViewModel: ObservableObject {
     @Published var authError: String?
     @Published var successToast: String?
 
+    // MARK: - House State
+    @Published var currentHouse: HouseResponse?
+    @Published var currentHouseDetails: HouseDetailsResponse?
+    @Published var houseIsLoading: Bool = false
+    @Published var houseError: String?
+
     private let authService = AuthService.shared
+    private let houseService = HouseService.shared
     
     // Sample data for demo
     let sampleUsers = [
@@ -120,25 +127,61 @@ class AppViewModel: ObservableObject {
         navigationDirection = .forward
         showJoinHouse = true
     }
-    
-    func joinHouse(with code: String) -> Bool {
-        // Demo için basit kod kontrolü - gerçek uygulamada API çağrısı olurdu
-        let validCodes = ["HOUSE123", "DEMO456", "TEST789"]
-        if validCodes.contains(code.uppercased()) {
-            hasSelectedHouse = true
-            showJoinHouse = false
-            navigationDirection = .forward
-            houseName = "Joined House" // Demo house name
-            return true
+
+    // MARK: - House API
+
+    /// Calls POST house/create. Returns the created house on success, nil on failure (sets houseError).
+    func createHouseAPI(name: String, type: Int, maxMemberCount: Int) async -> HouseResponse? {
+        houseIsLoading = true
+        houseError = nil
+        do {
+            let house = try await houseService.createHouse(name: name, type: type, maxMemberCount: maxMemberCount)
+            currentHouse = house
+            houseIsLoading = false
+            return house
+        } catch {
+            houseError = error.localizedDescription
+            houseIsLoading = false
+            return nil
         }
-        return false
     }
-    
-    func createHouse(name: String, type: String, memberCount: Int) {
+
+    /// Calls POST house/join. Returns the joined house on success, nil on failure (sets houseError).
+    func joinHouseAPI(inviteCode: String) async -> HouseResponse? {
+        houseIsLoading = true
+        houseError = nil
+        do {
+            let house = try await houseService.joinHouse(inviteCode: inviteCode)
+            currentHouse = house
+            houseIsLoading = false
+            return house
+        } catch {
+            houseError = error.localizedDescription
+            houseIsLoading = false
+            return nil
+        }
+    }
+
+    /// Calls GET house/details. Stores result in currentHouseDetails.
+    func fetchHouseDetails(houseId: String) async {
+        do {
+            currentHouseDetails = try await houseService.fetchDetails(houseId: houseId)
+        } catch {
+            // Non-blocking — dashboard falls back to cached state
+            print("[HouseDetails] fetch failed: \(error.localizedDescription)")
+        }
+    }
+
+    /// Finalizes navigation after a successful create or join.
+    func finalizeHouseSelection(house: HouseResponse) {
+        currentHouse = house
+        houseName = house.name
         navigationDirection = .forward
-        houseName = name
         hasSelectedHouse = true
         showCreateHouse = false
+        showJoinHouse = false
+        // Kick off details fetch in background
+        Task { await fetchHouseDetails(houseId: house.id) }
     }
     
     func logout() {
@@ -150,6 +193,8 @@ class AppViewModel: ObservableObject {
         showJoinHouse = false
         showAuth = false
         currentUser = nil
+        currentHouse = nil
+        currentHouseDetails = nil
         houseName = ""
         chores = []
     }
