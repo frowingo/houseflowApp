@@ -94,3 +94,20 @@ struct ChoreStatusHistory: Decodable, Identifiable {
     let updater: String
     let dateTime: String
 }
+
+// MARK: - HouseChoreDTO helpers
+
+extension HouseChoreDTO {
+    /// Converts `dueDate` (ISO-8601) into a human-readable due label.
+    var dueLabelString: String {
+        let iso = ISO8601DateFormatter()
+        iso.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+        let date = iso.date(from: dueDate) ?? ISO8601DateFormatter().date(from: dueDate)
+        guard let date else { return "Upcoming" }
+        let cal = Calendar.current
+        if cal.isDateInToday(date)     { return "Today" }
+        if date < Date()               { return "Overdue" }
+        if cal.isDate(date, equalTo: Date(), toGranularity: .weekOfYear) { return "This week" }
+        return "Upcoming"
+    }
+}

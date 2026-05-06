@@ -89,6 +89,7 @@ struct OnboardingView: View {
             // Get Started Button - Only active on last page
             Button(action: {
                 if currentPage == onboardingPages.count - 1 {
+                    UserDefaults.standard.set(true, forKey: "hasSeenOnboarding")
                     withAnimation(.easeInOut(duration: 0.3)) {
                         appViewModel.showAuthScreen()
                     }

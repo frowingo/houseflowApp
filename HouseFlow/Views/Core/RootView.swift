@@ -2,6 +2,7 @@ import SwiftUI
 
 struct RootView: View {
     @EnvironmentObject private var appViewModel: AppViewModel
+    @AppStorage("hasSeenOnboarding") private var hasSeenOnboarding = false
     
     var body: some View {
         NavigationStack {
@@ -9,23 +10,34 @@ struct RootView: View {
                 .id(currentViewId)
                 .transition(currentTransition)
                 .animation(.easeOut(duration: 0.4), value: currentViewId)
-                .onChange(of: appViewModel.showCreateHouse) { _, _ in
-                    // Trigger view update
-                }
-                .onChange(of: appViewModel.showJoinHouse) { _, _ in
-                    // Trigger view update
-                }
-                .onChange(of: appViewModel.showAuth) { _, _ in
-                    // Trigger view update
-                }
+                .onChange(of: appViewModel.showCreateHouse) { _, _ in }
+                .onChange(of: appViewModel.showJoinHouse) { _, _ in }
+                .onChange(of: appViewModel.showAuth) { _, _ in }
+                .onChange(of: appViewModel.showHouseLoading) { _, _ in }
+                .onChange(of: appViewModel.showHouseError) { _, _ in }
+                .onChange(of: appViewModel.isInitializing) { _, _ in }
         }
+        .overlay(alignment: .top) {
+            if let message = appViewModel.toastMessage {
+                ToastView(message: message, isError: appViewModel.toastIsError)
+                    .padding(.top, 60)
+                    .transition(.move(edge: .top).combined(with: .opacity))
+                    .zIndex(999)
+                    .animation(AppDesign.Animation.standard, value: appViewModel.toastMessage)
+            }
+        }
+        .animation(AppDesign.Animation.standard, value: appViewModel.toastMessage)
     }
     
     private var currentView: some View {
         Group {
-            if !appViewModel.isAuthenticated && !appViewModel.showAuth {
+            if appViewModel.isInitializing || appViewModel.showHouseLoading {
+                HouseLoadingView()
+            } else if appViewModel.showHouseError {
+                HouseErrorView()
+            } else if !hasSeenOnboarding {
                 OnboardingView()
-            } else if appViewModel.showAuth {
+            } else if !appViewModel.isAuthenticated || appViewModel.showAuth {
                 AuthView()
             } else if appViewModel.showCreateHouse {
                 CreateHouseView()
@@ -40,9 +52,13 @@ struct RootView: View {
     }
     
     private var currentViewId: String {
-        if !appViewModel.isAuthenticated && !appViewModel.showAuth {
+        if appViewModel.isInitializing || appViewModel.showHouseLoading {
+            return "houseLoading"
+        } else if appViewModel.showHouseError {
+            return "houseError"
+        } else if !hasSeenOnboarding {
             return "onboarding"
-        } else if appViewModel.showAuth {
+        } else if !appViewModel.isAuthenticated || appViewModel.showAuth {
             return "auth"
         } else if appViewModel.showCreateHouse {
             return "createHouse"

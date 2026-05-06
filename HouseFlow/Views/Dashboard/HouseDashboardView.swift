@@ -20,7 +20,7 @@ struct HouseDashboardView: View {
                     .padding(.horizontal, AppDesign.Spacing.xxl)
                 
                 TodaysChoresCard(
-                    chores: appViewModel.chores,
+                    chores: appViewModel.dashboardChores,
                     appViewModel: appViewModel,
                     onChoreDetailTap: { chore in
                         selectedChore = chore
@@ -29,7 +29,7 @@ struct HouseDashboardView: View {
                 )
                 .padding(.horizontal, AppDesign.Spacing.xxl)
                 
-                HouseMembersCard(members: appViewModel.sampleUsers)
+                HouseMembersCard(members: appViewModel.dashboardMembers)
                     .padding(.horizontal, AppDesign.Spacing.xxl)
                 
                 // Spacer for floating button
@@ -58,7 +58,7 @@ struct HouseDashboardView: View {
                 }
             }
             
-            Text("Here's your house today")
+            Text(appViewModel.currentHouseDetails?.name ?? appViewModel.houseName)
                 .font(AppDesign.Typography.subheadline)
                 .foregroundColor(AppDesign.Colors.textSecondary)
         }

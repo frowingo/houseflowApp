@@ -30,6 +30,7 @@ final class AuthService {
             successType: AuthTokenResponse.self
         )
         keychain.authToken = response.token
+        keychain.userEmail = email
         return response
     }
 
@@ -45,6 +46,7 @@ final class AuthService {
             successType: AuthTokenResponse.self
         )
         keychain.authToken = response.token
+        keychain.userEmail = email
         return response
     }
 
@@ -76,6 +78,21 @@ final class AuthService {
         )
     }
 
+    // MARK: - Is Authenticated
+
+    /// GET auth/isAuth — Bearer token only, returns { "success": bool }
+    func isAuth() async throws -> IsAuthResponse {
+        guard let token = keychain.authToken else {
+            throw NetworkError.serverError("No token stored.")
+        }
+        return try await network.get(
+            path: "auth/isAuth",
+            queryItems: [],
+            successType: IsAuthResponse.self,
+            token: token
+        )
+    }
+
     // MARK: - Helpers
 
     var isLoggedIn: Bool {
@@ -84,5 +101,6 @@ final class AuthService {
 
     func logout() {
         keychain.authToken = nil
+        keychain.userEmail = nil
     }
 }

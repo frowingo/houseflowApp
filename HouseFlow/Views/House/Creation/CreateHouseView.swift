@@ -8,17 +8,11 @@ struct CreateHouseView: View {
     @State private var selectedHouseType: HouseTypeCard.HouseType = .studentHouse
     @State private var memberCount = 3
     @State private var showSummaryPopup = false
-    @State private var showInviteCodePopup = false
-    @State private var createdHouse: HouseResponse?
     
     var body: some View {
         VStack(spacing: AppDesign.Spacing.xxl) {
             headerSection
             formScrollView
-            if let error = appViewModel.houseError {
-                houseErrorBanner(message: error)
-                    .padding(.horizontal, AppDesign.Spacing.xxl)
-            }
             createButton
         }
         .navigationBarHidden(true)
@@ -167,23 +161,6 @@ struct CreateHouseView: View {
         .padding(.bottom, 50)
     }
 
-    // MARK: - Error Banner
-
-    private func houseErrorBanner(message: String) -> some View {
-        HStack(spacing: AppDesign.Spacing.sm) {
-            Image(systemName: "exclamationmark.triangle.fill")
-                .foregroundColor(AppDesign.Colors.error)
-            Text(message)
-                .font(AppDesign.Typography.subheadline)
-                .foregroundColor(AppDesign.Colors.error)
-                .multilineTextAlignment(.leading)
-            Spacer()
-        }
-        .padding(AppDesign.Spacing.md)
-        .background(AppDesign.Colors.error.opacity(0.08))
-        .cornerRadius(AppDesign.CornerRadius.md)
-    }
-    
     // MARK: - Popups Overlay
     
     private var popupsOverlay: some View {
@@ -196,16 +173,11 @@ struct CreateHouseView: View {
                     onConfirm: {
                         showSummaryPopup = false
                         Task {
-                            if let house = await appViewModel.createHouseAPI(
+                            await appViewModel.beginCreateHouseFlow(
                                 name: houseName,
                                 type: selectedHouseType.apiValue,
                                 maxMemberCount: memberCount
-                            ) {
-                                createdHouse = house
-                                withAnimation(AppDesign.Animation.standard) {
-                                    showInviteCodePopup = true
-                                }
-                            }
+                            )
                         }
                     },
                     onCancel: {
@@ -214,21 +186,8 @@ struct CreateHouseView: View {
                 )
                 .transition(.scale.combined(with: .opacity))
             }
-            
-            if showInviteCodePopup, let house = createdHouse {
-                InviteCodePopup(
-                    inviteCode: house.inviteCode,
-                    houseName: house.name,
-                    onContinue: {
-                        showInviteCodePopup = false
-                        appViewModel.finalizeHouseSelection(house: house)
-                    }
-                )
-                .transition(.scale.combined(with: .opacity))
-            }
         }
         .animation(AppDesign.Animation.standard, value: showSummaryPopup)
-        .animation(AppDesign.Animation.standard, value: showInviteCodePopup)
     }
     
     // MARK: - Helper Methods

@@ -70,6 +70,7 @@ final class KeychainService {
 
 extension KeychainService {
     static let authTokenKey = "authToken"
+    static let userEmailKey  = "userEmail"
 
     var authToken: String? {
         get { load(forKey: Self.authTokenKey) }
@@ -78,6 +79,17 @@ extension KeychainService {
                 save(token, forKey: Self.authTokenKey)
             } else {
                 delete(forKey: Self.authTokenKey)
+            }
+        }
+    }
+
+    var userEmail: String? {
+        get { load(forKey: Self.userEmailKey) }
+        set {
+            if let email = newValue {
+                save(email, forKey: Self.userEmailKey)
+            } else {
+                delete(forKey: Self.userEmailKey)
             }
         }
     }

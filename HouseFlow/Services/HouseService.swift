@@ -33,7 +33,7 @@ final class HouseService {
         }
         return try await network.get(
             path: "house/details",
-            queryItems: [URLQueryItem(name: "HouseId", value: houseId)],
+            queryItems: [URLQueryItem(name: "houseId", value: houseId)],
             successType: HouseDetailsResponse.self,
             token: token
         )

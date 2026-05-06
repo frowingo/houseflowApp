@@ -126,6 +126,8 @@ final class NetworkService {
 
         guard let url = components.url else { throw NetworkError.invalidURL }
 
+        print("[NetworkService] GET \(url.absoluteString)")
+
         var request = URLRequest(url: url)
         request.httpMethod = "GET"
         request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")

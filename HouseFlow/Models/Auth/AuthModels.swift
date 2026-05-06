@@ -39,3 +39,30 @@ struct AuthTokenResponse: Decodable {
 struct MessageResponse: Decodable {
     let message: String
 }
+
+struct IsAuthResponse: Decodable {
+    let success: Bool
+}
+
+// MARK: - User Profile
+
+struct UserProfileResponse: Decodable {
+    let id: String
+    let firstName: String
+    let lastName: String
+    let email: String
+    let imageUrl: String
+    let age: Int
+    let role: Int
+    let isActive: Bool
+    let isVerifyEmail: Bool
+    let isVerifyPhone: Bool
+    let phoneNumber: String
+    let houseIds: [String]
+    let failedLoginAttempts: Int
+    let createdOn: String
+    let updatedOn: String
+    let lastLogin: String
+
+    var fullName: String { "\(firstName) \(lastName)" }
+}
