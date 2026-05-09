@@ -69,8 +69,10 @@ final class KeychainService {
 // MARK: - Typed Keys
 
 extension KeychainService {
-    static let authTokenKey = "authToken"
-    static let userEmailKey  = "userEmail"
+    static let authTokenKey    = "authToken"
+    static let userEmailKey    = "userEmail"
+    static let userFirstNameKey = "userFirstName"
+    static let userLastNameKey  = "userLastName"
 
     var authToken: String? {
         get { load(forKey: Self.authTokenKey) }
@@ -90,6 +92,28 @@ extension KeychainService {
                 save(email, forKey: Self.userEmailKey)
             } else {
                 delete(forKey: Self.userEmailKey)
+            }
+        }
+    }
+
+    var userFirstName: String? {
+        get { load(forKey: Self.userFirstNameKey) }
+        set {
+            if let value = newValue {
+                save(value, forKey: Self.userFirstNameKey)
+            } else {
+                delete(forKey: Self.userFirstNameKey)
+            }
+        }
+    }
+
+    var userLastName: String? {
+        get { load(forKey: Self.userLastNameKey) }
+        set {
+            if let value = newValue {
+                save(value, forKey: Self.userLastNameKey)
+            } else {
+                delete(forKey: Self.userLastNameKey)
             }
         }
     }

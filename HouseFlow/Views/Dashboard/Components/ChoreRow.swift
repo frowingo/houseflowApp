@@ -8,9 +8,9 @@ struct ChoreRow: View {
     var body: some View {
         HStack(spacing: AppDesign.Spacing.lg) {
             // Status icon - fixed width column
-            Image(systemName: chore.isDone ? "checkmark.circle.fill" : "circle")
+            Image(systemName: choreStatus.iconName)
                 .font(.system(size: AppDesign.Size.iconMedium))
-                .foregroundColor(chore.isDone ? AppDesign.Colors.success : AppDesign.Colors.textSecondary)
+                .foregroundColor(choreStatus.color)
                 .frame(width: 24)
             
             // Task title - flexible column
@@ -27,15 +27,15 @@ struct ChoreRow: View {
                 .frame(width: AppDesign.Size.avatarSmall)
             
             // Status badge - fixed width column
-            Text(chore.isDone ? "Done" : "Pending")
+            Text(choreStatus.displayName)
                 .font(AppDesign.Typography.caption)
                 .fontWeight(.medium)
                 .padding(.horizontal, AppDesign.Spacing.sm)
                 .padding(.vertical, AppDesign.Spacing.xs)
-                .background(chore.isDone ? AppDesign.Colors.success.opacity(0.2) : dueColor.opacity(0.2))
-                .foregroundColor(chore.isDone ? AppDesign.Colors.success : dueColor)
+                .background(choreStatus.color.opacity(0.15))
+                .foregroundColor(choreStatus.color)
                 .cornerRadius(AppDesign.CornerRadius.sm)
-                .frame(width: 70)
+                .frame(width: 80)
             
             // Detail button - fixed width column
             Button(action: onDetailTap) {
@@ -49,15 +49,8 @@ struct ChoreRow: View {
         .padding(.horizontal, AppDesign.Spacing.xs)
     }
     
-    private var dueColor: Color {
-        switch chore.dueLabel {
-        case "Overdue":
-            return AppDesign.Colors.error
-        case "Today":
-            return AppDesign.Colors.warning
-        default:
-            return AppDesign.Colors.primary
-        }
+    private var choreStatus: ChoreStatus {
+        ChoreStatus(rawValue: chore.status) ?? .draft
     }
 }
 

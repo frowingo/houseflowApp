@@ -15,11 +15,11 @@ struct TodaysChoresCard: View {
     @State private var iconPressed = false
     
     var todaysChores: [Chore] {
-        chores.filter { $0.dueLabel == "Today" || $0.dueLabel == "Overdue" }
+        chores
     }
     
     var completedCount: Int {
-        todaysChores.filter { $0.isDone }.count
+        todaysChores.filter { $0.status == ChoreStatus.completed.rawValue }.count
     }
     
     var totalCount: Int {
@@ -285,25 +285,27 @@ struct ModernChoreRow: View {
     var body: some View {
         HStack(spacing: AppDesign.Spacing.lg) {
             // Status indicator with pulse
+            let choreStatus = ChoreStatus(rawValue: chore.status) ?? .draft
+            let isCompleted = choreStatus == .completed
             ZStack {
-                if !chore.isDone {
+                if !isCompleted {
                     Circle()
-                        .fill(dueColor.opacity(0.2))
+                        .fill(choreStatus.color.opacity(0.15))
                         .frame(width: 32, height: 32)
                 }
                 
-                Image(systemName: chore.isDone ? "checkmark.circle.fill" : "circle.dashed")
+                Image(systemName: isCompleted ? "checkmark.circle.fill" : choreStatus.iconName)
                     .font(.system(size: 24))
                     .foregroundStyle(
                         LinearGradient(
-                            colors: chore.isDone ? 
+                            colors: isCompleted ?
                                 [AppDesign.Colors.success, AppDesign.Colors.secondary] :
-                                [dueColor, dueColor.opacity(0.6)],
+                                [choreStatus.color, choreStatus.color.opacity(0.6)],
                             startPoint: .topLeading,
                             endPoint: .bottomTrailing
                         )
                     )
-                    .rotationEffect(.degrees(chore.isDone ? 0 : -15))
+                    .rotationEffect(.degrees(isCompleted ? 0 : -15))
             }
             .frame(width: 32)
             
@@ -311,8 +313,8 @@ struct ModernChoreRow: View {
             VStack(alignment: .leading, spacing: 4) {
                 Text(chore.title)
                     .font(AppDesign.Typography.bodyBold)
-                    .foregroundColor(chore.isDone ? AppDesign.Colors.textSecondary : AppDesign.Colors.textPrimary)
-                    .strikethrough(chore.isDone)
+                    .foregroundColor(isCompleted ? AppDesign.Colors.textSecondary : AppDesign.Colors.textPrimary)
+                    .strikethrough(isCompleted)
                 
                 HStack(spacing: AppDesign.Spacing.sm) {
                     UserAvatar(user: chore.assignedTo, size: 20)
@@ -323,19 +325,19 @@ struct ModernChoreRow: View {
                     
                     Spacer()
                     
-                    // Priority badge
+                    // Status badge
+                    let choreStatus = ChoreStatus(rawValue: chore.status) ?? .draft
                     HStack(spacing: 4) {
-                        Circle()
-                            .fill(dueColor)
-                            .frame(width: 6, height: 6)
-                        
-                        Text(chore.dueLabel)
+                        Image(systemName: choreStatus.iconName)
+                            .font(.system(size: 9, weight: .bold))
+                        Text(choreStatus.displayName)
                             .font(AppDesign.Typography.caption)
                             .fontWeight(.medium)
                     }
+                    .foregroundColor(choreStatus.color)
                     .padding(.horizontal, AppDesign.Spacing.sm)
                     .padding(.vertical, 4)
-                    .background(dueColor.opacity(0.15))
+                    .background(choreStatus.color.opacity(0.15))
                     .cornerRadius(AppDesign.CornerRadius.sm)
                 }
             }
@@ -388,15 +390,8 @@ struct ModernChoreRow: View {
         )
     }
     
-    private var dueColor: Color {
-        switch chore.dueLabel {
-        case "Overdue":
-            return AppDesign.Colors.error
-        case "Today":
-            return AppDesign.Colors.warning
-        default:
-            return AppDesign.Colors.primary
-        }
+    private var choreStatusObj: ChoreStatus {
+        ChoreStatus(rawValue: chore.status) ?? .draft
     }
 }
 

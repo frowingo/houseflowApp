@@ -72,14 +72,18 @@ class AppViewModel: ObservableObject {
     private let authService = AuthService.shared
     private let houseService = HouseService.shared
     private let userService = UserService.shared
+    private let choreService = ChoreService.shared
     private let keychain = KeychainService.shared
+
+    /// The server-assigned ID of the logged-in user (used to gate chore status edits).
+    @Published var currentUserId: String?
     
     // Sample data for demo
     let sampleUsers = [
-        User(name: "Mahmut", points: 12),
-        User(name: "Jane", points: 8),
-        User(name: "Abdüllatif", points: 10),
-        User(name: "Katya", points: 6)
+        User(firstName: "Mahmut", lastName: "Yılmaz", points: 12),
+        User(firstName: "Jane", lastName: "Doe", points: 8),
+        User(firstName: "Abdüllatif", lastName: "Kaya", points: 10),
+        User(firstName: "Katya", lastName: "Ivanova", points: 6)
     ]
     
     var sampleChores: [Chore] {
@@ -140,7 +144,10 @@ class AppViewModel: ObservableObject {
             return
         }
 
-        currentUser = User(name: profile.fullName, points: 0)
+        keychain.userFirstName = profile.firstName
+        keychain.userLastName = profile.lastName
+        currentUserId = profile.id
+        currentUser = User(firstName: profile.firstName, lastName: profile.lastName, apiId: profile.id, points: 0)
 
         // Step 3: Load house details (first house in houseIds)
         guard let firstHouseId = profile.houseIds.first else {
@@ -239,6 +246,10 @@ class AppViewModel: ObservableObject {
         do {
             let profile = try await userService.getByEmail(email)
             currentHouseDetails = nil
+            keychain.userFirstName = profile.firstName
+            keychain.userLastName = profile.lastName
+            currentUserId = profile.id
+            currentUser = User(firstName: profile.firstName, lastName: profile.lastName, apiId: profile.id, points: 0)
 
             guard let firstHouseId = profile.houseIds.first else {
                 // No house yet → house selection
@@ -440,6 +451,7 @@ class AppViewModel: ObservableObject {
         isInitializing = false
         showAuth = false
         currentUser = nil
+        currentUserId = nil
         currentHouse = nil
         currentHouseDetails = nil
         houseName = ""
@@ -452,7 +464,7 @@ class AppViewModel: ObservableObject {
     /// House members mapped from `currentHouseDetails`, falls back to sample data.
     var dashboardMembers: [User] {
         guard let details = currentHouseDetails else { return sampleUsers }
-        return details.members.map { User(name: $0.fullName, points: 0) }
+        return details.members.map { User(firstName: $0.firstName, lastName: $0.lastName, apiId: $0.id, points: 0) }
     }
 
     /// Chores mapped from `currentHouseDetails`, falls back to in-memory chores.
@@ -461,14 +473,21 @@ class AppViewModel: ObservableObject {
         return details.chores.map { dto in
             let assignedUser = details.members
                 .first(where: { $0.id == dto.assignedTo })
-                .map { User(name: $0.fullName, points: 0) }
-                ?? User(name: "Unassigned")
+                .map { User(firstName: $0.firstName, lastName: $0.lastName, apiId: $0.id, points: 0) }
+                ?? User(name: dto.assignedTo.isEmpty ? "Unassigned" : dto.assignedTo)
+            let label = dto.dueLabelString
             return Chore(
+                choreApiId: dto.id,
+                houseId: dto.houseId,
+                assignedToId: dto.assignedTo,
                 title: dto.title,
                 description: dto.description,
                 assignedTo: assignedUser,
-                dueLabel: dto.dueLabelString,
-                isDone: dto.isCompleted
+                dueLabel: label,
+                dueDate: dto.dueDate,
+                isDone: dto.isCompleted,
+                status: dto.status,
+                level: dto.level
             )
         }
     }
@@ -485,15 +504,79 @@ class AppViewModel: ObservableObject {
     
     func toggleChoreCompletion(_ choreId: UUID) {
         if let index = chores.firstIndex(where: { $0.id == choreId }) {
-            let currentChore = chores[index]
-            let newChore = Chore(
-                title: currentChore.title,
-                description: currentChore.description,
-                assignedTo: currentChore.assignedTo,
-                dueLabel: currentChore.dueLabel,
-                isDone: !currentChore.isDone
+            let c = chores[index]
+            chores[index] = Chore(
+                choreApiId: c.choreApiId,
+                houseId: c.houseId,
+                assignedToId: c.assignedToId,
+                title: c.title,
+                description: c.description,
+                assignedTo: c.assignedTo,
+                dueLabel: c.dueLabel,
+                isDone: !c.isDone,
+                status: c.isDone ? 0 : 3,
+                level: c.level
             )
-            chores[index] = newChore
+        }
+    }
+
+    // MARK: - Chore API
+
+    /// Refreshes house details after any chore mutation.
+    func refreshHouseDetails() async {
+        guard let houseId = currentHouseDetails?.id ?? currentHouse?.id else { return }
+        do {
+            let details = try await houseService.fetchDetails(houseId: houseId)
+            currentHouseDetails = details
+            houseName = details.name
+        } catch {
+            showToast(message: error.localizedDescription, isError: true)
+        }
+    }
+
+    /// Creates a chore via the API, then refreshes house details.
+    func createChore(
+        assignedToId: String,
+        description: String,
+        dueDate: Date,
+        houseId: String,
+        isRecurring: Bool,
+        level: ChoreLevel,
+        recurringInterval: Int,
+        title: String
+    ) async {
+        let formatter = DateFormatter()
+        formatter.dateFormat = "yyyy-MM-dd HH:mm:ss"
+        let dueDateStr = formatter.string(from: dueDate)
+        do {
+            _ = try await choreService.createChore(
+                assignedTo: assignedToId,
+                description: description,
+                dueDate: dueDateStr,
+                houseId: houseId,
+                isRecurring: isRecurring,
+                level: level,
+                recurringInterval: recurringInterval,
+                title: title
+            )
+            await refreshHouseDetails()
+            showToast(message: "Chore created!", isError: false)
+        } catch {
+            showToast(message: error.localizedDescription, isError: true)
+        }
+    }
+
+    /// Updates the status of a single chore via the API, then refreshes.
+    func updateChoreStatus(choreApiId: String, houseId: String, status: ChoreStatus) async {
+        do {
+            try await choreService.updateChoreStatus(
+                houseId: houseId,
+                chores: [ChoreStatusUpdateItem(choreId: choreApiId, status: status.rawValue)]
+            )
+            await refreshHouseDetails()
+            showToast(message: "Status updated!", isError: false)
+        } catch {
+            showToast(message: error.localizedDescription, isError: true)
         }
     }
 }

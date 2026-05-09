@@ -46,7 +46,7 @@ struct HouseDashboardView: View {
     private var headerSection: some View {
         VStack(alignment: .leading, spacing: AppDesign.Spacing.sm) {
             HStack {
-                Text("Hi, \(appViewModel.currentUser?.name ?? "User") 👋")
+                Text("Hi, \(appViewModel.currentUser?.firstName ?? "User") 👋")
                     .font(AppDesign.Typography.title2)
                 
                 Spacer()
