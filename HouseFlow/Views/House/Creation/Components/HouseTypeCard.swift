@@ -19,6 +19,15 @@ struct HouseTypeCard: View {
             case .dormRoom: return "building.2.fill"
             }
         }
+
+        /// API integer value: StudentHouse=1, SharedHouse=2, DormRoom=3
+        var apiValue: Int {
+            switch self {
+            case .studentHouse: return 1
+            case .sharedHouse:  return 2
+            case .dormRoom:     return 3
+            }
+        }
     }
     
     var body: some View {

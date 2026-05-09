@@ -17,12 +17,22 @@ extension View {
 @main
 struct HouseFlowApp: App {
     @StateObject private var appViewModel = AppViewModel()
+    @Environment(\.scenePhase) private var scenePhase
 
     var body: some Scene {
         WindowGroup {
             RootView()
                 .environmentObject(appViewModel)
-                .preferredColorScheme(.light) // Force light mode
+                .preferredColorScheme(.light)
+                .task {
+                    // Cold start: attempt silent auto-login
+                    await appViewModel.performAutoLogin()
+                }
+        }
+        .onChange(of: scenePhase) { _, newPhase in
+            if newPhase == .active {
+                Task { await appViewModel.performAutoLogin() }
+            }
         }
     }
 }

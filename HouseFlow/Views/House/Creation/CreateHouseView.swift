@@ -8,8 +8,6 @@ struct CreateHouseView: View {
     @State private var selectedHouseType: HouseTypeCard.HouseType = .studentHouse
     @State private var memberCount = 3
     @State private var showSummaryPopup = false
-    @State private var showInviteCodePopup = false
-    @State private var generatedInviteCode = ""
     
     var body: some View {
         VStack(spacing: AppDesign.Spacing.xxl) {
@@ -162,7 +160,7 @@ struct CreateHouseView: View {
         .padding(.horizontal, AppDesign.Spacing.xxl)
         .padding(.bottom, 50)
     }
-    
+
     // MARK: - Popups Overlay
     
     private var popupsOverlay: some View {
@@ -174,8 +172,13 @@ struct CreateHouseView: View {
                     memberCount: memberCount,
                     onConfirm: {
                         showSummaryPopup = false
-                        generatedInviteCode = generateInviteCode()
-                        showInviteCodePopup = true
+                        Task {
+                            await appViewModel.beginCreateHouseFlow(
+                                name: houseName,
+                                type: selectedHouseType.apiValue,
+                                maxMemberCount: memberCount
+                            )
+                        }
                     },
                     onCancel: {
                         showSummaryPopup = false
@@ -183,33 +186,11 @@ struct CreateHouseView: View {
                 )
                 .transition(.scale.combined(with: .opacity))
             }
-            
-            if showInviteCodePopup {
-                InviteCodePopup(
-                    inviteCode: generatedInviteCode,
-                    houseName: houseName,
-                    onContinue: {
-                        showInviteCodePopup = false
-                        appViewModel.createHouse(
-                            name: houseName,
-                            type: selectedHouseType.rawValue,
-                            memberCount: memberCount
-                        )
-                    }
-                )
-                .transition(.scale.combined(with: .opacity))
-            }
         }
         .animation(AppDesign.Animation.standard, value: showSummaryPopup)
-        .animation(AppDesign.Animation.standard, value: showInviteCodePopup)
     }
     
     // MARK: - Helper Methods
-    
-    private func generateInviteCode() -> String {
-        let characters = "abcdefghijklmnopqrstuvwxyazABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789!*"
-        return String((0..<8).map { _ in characters.randomElement()! })
-    }
     
     private var isFormValid: Bool {
         !houseName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty

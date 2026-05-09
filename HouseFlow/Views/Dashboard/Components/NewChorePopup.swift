@@ -1,234 +1,359 @@
 import SwiftUI
 
-/// Yeni görev oluşturma popup component'i
+private let accentOrange = Color(red: 1.0, green: 0.48, blue: 0.15)
+
+/// Premium new-chore creation sheet with API integration.
 struct NewChorePopup: View {
     let appViewModel: AppViewModel
     let onDismiss: () -> Void
-    @State private var choreName = ""
-    @State private var choreDescription = ""
-    @State private var selectedUser: User? = nil
-    @State private var selectedDueLabel = "Today"
-    
-    let dueLabelOptions = ["Today", "Tomorrow", "This week", "Next week"]
-    
+
+    @State private var title = ""
+    @State private var description = ""
+    @State private var selectedMember: User? = nil
+    @State private var selectedLevel: ChoreLevel = .easy
+    @State private var dueDate: Date = Calendar.current.startOfDay(for: Date())
+    @State private var isRecurring: Bool = false
+    @State private var recurringInterval: Int = 7
+    @State private var intervalText: String = "7"
+    @State private var isCreating: Bool = false
+
+    private var members: [User] { appViewModel.dashboardMembers }
+    private var houseId: String { appViewModel.currentHouseDetails?.id ?? "" }
+
+    private var canCreate: Bool {
+        !title.trimmingCharacters(in: .whitespaces).isEmpty
+            && selectedMember?.apiId != nil
+            && !houseId.isEmpty
+    }
+
     var body: some View {
         ZStack {
-            // Background overlay
-            Color.black.opacity(0.4)
+            Color.black.opacity(0.55)
                 .ignoresSafeArea()
-                .onTapGesture {
-                    onDismiss()
+                .onTapGesture { if !isCreating { onDismiss() } }
+
+            VStack(spacing: 0) {
+                topBar
+
+                ScrollView(showsIndicators: false) {
+                    VStack(spacing: AppDesign.Spacing.xl) {
+                        titleField
+                        descriptionField
+                        memberPicker
+                        levelPicker
+                        dueDatePicker
+                        recurringSection
+                    }
+                    .padding(.horizontal, AppDesign.Spacing.xl)
+                    .padding(.vertical, AppDesign.Spacing.xl)
                 }
-            
-            // Popup content
-            VStack(spacing: AppDesign.Spacing.xxl) {
-                headerSection
-                formFieldsSection
-                actionButtonsSection
+                .frame(maxHeight: 460)
+
+                actionButtons
             }
-            .padding(AppDesign.Spacing.xxl)
-            .background(AppDesign.Colors.background)
-            .cornerRadius(AppDesign.CornerRadius.xl)
-            .shadow(
-                color: AppDesign.Shadow.heavy.color,
-                radius: AppDesign.Shadow.heavy.radius,
-                x: AppDesign.Shadow.heavy.x,
-                y: AppDesign.Shadow.heavy.y
+            .background(
+                ZStack {
+                    AppDesign.Colors.background
+                    LinearGradient(
+                        colors: [accentOrange.opacity(0.04), Color.clear],
+                        startPoint: .top, endPoint: .center
+                    )
+                }
             )
-            .padding(.horizontal, AppDesign.Spacing.huge)
+            .cornerRadius(AppDesign.CornerRadius.xl)
+            .shadow(color: Color.black.opacity(0.25), radius: 30, x: 0, y: 16)
+            .padding(.horizontal, AppDesign.Spacing.xl)
         }
-        .onAppear {
-            selectedUser = appViewModel.sampleUsers.first
+        .onAppear { selectedMember = members.first }
+        .animation(AppDesign.Animation.standard, value: isCreating)
+    }
+
+    // MARK: - Top Bar
+
+    private var topBar: some View {
+        ZStack {
+            LinearGradient(
+                colors: [accentOrange, accentOrange.opacity(0.75)],
+                startPoint: .leading, endPoint: .trailing
+            )
+            // Background decorative icon
+            Image(systemName: "sparkles")
+                .font(.system(size: 56, weight: .bold))
+                .foregroundColor(.white.opacity(0.12))
+
+            HStack(spacing: AppDesign.Spacing.md) {
+                Text("New Chore")
+                    .font(AppDesign.Typography.headline)
+                    .foregroundColor(.white)
+                Spacer()
+                Button(action: onDismiss) {
+                    Image(systemName: "xmark")
+                        .font(.system(size: 13, weight: .bold))
+                        .foregroundColor(.white.opacity(0.9))
+                        .frame(width: 26, height: 26)
+                        .background(Color.white.opacity(0.2))
+                        .clipShape(Circle())
+                }
+            }
+            .padding(.horizontal, AppDesign.Spacing.xl)
+            .padding(.vertical, 12)
+        }
+        .frame(height: 52)
+    }
+
+    // MARK: - Fields
+
+    private var titleField: some View {
+        formField(icon: "pencil", label: "Task Name") {
+            TextField("What needs to be done?", text: $title)
+                .font(AppDesign.Typography.body)
+                .padding(AppDesign.Spacing.md)
+                .background(
+                    RoundedRectangle(cornerRadius: AppDesign.CornerRadius.md)
+                        .fill(AppDesign.Colors.secondaryBackground)
+                        .overlay(
+                            RoundedRectangle(cornerRadius: AppDesign.CornerRadius.md)
+                                .stroke(title.isEmpty ? Color.clear : accentOrange.opacity(0.5), lineWidth: 1.5)
+                        )
+                )
         }
     }
-    
-    // MARK: - Header Section
-    
-    private var headerSection: some View {
-        VStack(spacing: AppDesign.Spacing.sm) {
+
+    private var descriptionField: some View {
+        formField(icon: "text.alignleft", label: "Description") {
+            TextField("Add details (optional)", text: $description, axis: .vertical)
+                .font(AppDesign.Typography.body)
+                .lineLimit(2...4)
+                .padding(AppDesign.Spacing.md)
+                .background(
+                    RoundedRectangle(cornerRadius: AppDesign.CornerRadius.md)
+                        .fill(AppDesign.Colors.secondaryBackground)
+                        .overlay(
+                            RoundedRectangle(cornerRadius: AppDesign.CornerRadius.md)
+                                .stroke(description.isEmpty ? Color.clear : accentOrange.opacity(0.5), lineWidth: 1.5)
+                        )
+                )
+        }
+    }
+
+    private var memberPicker: some View {
+        formField(icon: "person.fill", label: "Assign To") {
+            ScrollView(.horizontal, showsIndicators: false) {
+                HStack(spacing: AppDesign.Spacing.md) {
+                    ForEach(members) { member in
+                        let isSel = selectedMember?.id == member.id
+                        Button { withAnimation(AppDesign.Animation.quick) { selectedMember = member } } label: {
+                            VStack(spacing: 6) {
+                                ZStack(alignment: .topTrailing) {
+                                    // Outer selection ring
+                                    Circle()
+                                        .stroke(isSel ? accentOrange : Color.clear, lineWidth: 3)
+                                        .frame(width: 48, height: 48)
+                                    UserAvatar(user: member, size: 40)
+                                        .padding(4)
+                                        .background(Circle().fill(isSel ? accentOrange.opacity(0.15) : Color.clear))
+                                    // Checkmark badge
+                                    if isSel {
+                                        ZStack {
+                                            Circle().fill(Color.white).frame(width: 18, height: 18)
+                                            Image(systemName: "checkmark.circle.fill")
+                                                .font(.system(size: 18, weight: .bold))
+                                                .foregroundColor(accentOrange)
+                                        }
+                                        .offset(x: 4, y: -4)
+                                        .transition(.scale.combined(with: .opacity))
+                                    }
+                                }
+                                .frame(width: 52, height: 52)
+                                Text(member.firstName)
+                                    .font(.system(size: 11, weight: isSel ? .bold : .medium))
+                                    .foregroundColor(isSel ? accentOrange : AppDesign.Colors.textSecondary)
+                                    .lineLimit(1)
+                            }
+                            .padding(.horizontal, 8).padding(.vertical, 8)
+                            .background(
+                                RoundedRectangle(cornerRadius: AppDesign.CornerRadius.md)
+                                    .fill(isSel ? accentOrange.opacity(0.08) : Color.clear)
+                            )
+                        }
+                        .buttonStyle(.plain)
+                        .animation(AppDesign.Animation.quick, value: isSel)
+                    }
+                }
+                .padding(.horizontal, 2)
+            }
+        }
+    }
+
+    private var levelPicker: some View {
+        formField(icon: "flame.fill", label: "Difficulty") {
+            HStack(spacing: AppDesign.Spacing.sm) {
+                ForEach([ChoreLevel.easy, .medium, .hard], id: \.rawValue) { lvl in
+                    let isSel = selectedLevel == lvl
+                    Button { withAnimation(AppDesign.Animation.quick) { selectedLevel = lvl } } label: {
+                        HStack(spacing: 6) {
+                            Image(systemName: lvl.iconName).font(.system(size: 12, weight: .semibold))
+                            Text(lvl.displayName).font(.system(size: 13, weight: .semibold))
+                        }
+                        .foregroundColor(isSel ? .white : lvl.color)
+                        .padding(.horizontal, AppDesign.Spacing.md)
+                        .padding(.vertical, 9)
+                        .frame(maxWidth: .infinity)
+                        .background(
+                            RoundedRectangle(cornerRadius: AppDesign.CornerRadius.md)
+                                .fill(isSel ? lvl.color : lvl.color.opacity(0.12))
+                        )
+                    }
+                    .buttonStyle(.plain)
+                }
+            }
+        }
+    }
+
+    private var dueDatePicker: some View {
+        formField(icon: "calendar", label: "Due Date") {
+            DatePicker("", selection: $dueDate, in: Date()..., displayedComponents: .date)
+                .datePickerStyle(.compact)
+                .labelsHidden()
+                .tint(accentOrange)
+                .padding(.horizontal, AppDesign.Spacing.md)
+                .padding(.vertical, AppDesign.Spacing.sm)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .background(
+                    RoundedRectangle(cornerRadius: AppDesign.CornerRadius.md)
+                        .fill(AppDesign.Colors.secondaryBackground)
+                )
+        }
+    }
+
+    private var recurringSection: some View {
+        VStack(alignment: .leading, spacing: AppDesign.Spacing.sm) {
             HStack {
-                Image(systemName: "plus.circle.fill")
-                    .font(.system(size: AppDesign.Size.iconLarge))
-                    .foregroundColor(AppDesign.Colors.primary)
-                
-                Text("New Chore")
-                    .font(AppDesign.Typography.title2)
-                
+                sectionLabel(icon: "arrow.clockwise", text: "Recurring")
                 Spacer()
-                
-                Button(action: onDismiss) {
-                    Image(systemName: "xmark.circle.fill")
-                        .font(.system(size: AppDesign.Size.iconLarge))
+                Toggle("", isOn: $isRecurring).labelsHidden().tint(accentOrange)
+            }
+            if isRecurring {
+                HStack(spacing: AppDesign.Spacing.sm) {
+                    Text("Every")
+                        .font(AppDesign.Typography.subheadline)
+                        .foregroundColor(AppDesign.Colors.textSecondary)
+                    TextField("7", text: $intervalText)
+                        .keyboardType(.numberPad)
+                        .font(AppDesign.Typography.bodyBold)
+                        .multilineTextAlignment(.center)
+                        .frame(width: 56)
+                        .padding(.vertical, 8)
+                        .background(AppDesign.Colors.secondaryBackground)
+                        .cornerRadius(AppDesign.CornerRadius.sm)
+                        .onChange(of: intervalText) { _, val in recurringInterval = Int(val) ?? recurringInterval }
+                    Text("days")
+                        .font(AppDesign.Typography.subheadline)
                         .foregroundColor(AppDesign.Colors.textSecondary)
                 }
-            }
-            
-            Divider()
-        }
-    }
-    
-    // MARK: - Form Fields Section
-    
-    private var formFieldsSection: some View {
-        VStack(spacing: AppDesign.Spacing.lg) {
-            // Chore name
-            VStack(alignment: .leading, spacing: AppDesign.Spacing.sm) {
-                Text("Task Name")
-                    .font(AppDesign.Typography.subheadline)
-                    .fontWeight(.semibold)
-                    .foregroundColor(AppDesign.Colors.textSecondary)
-                
-                TextField("Enter task name", text: $choreName)
-                    .font(AppDesign.Typography.body)
-                    .padding(.horizontal, AppDesign.Spacing.md)
-                    .padding(.vertical, AppDesign.Spacing.md)
-                    .background(AppDesign.Colors.secondaryBackground)
-                    .cornerRadius(AppDesign.CornerRadius.sm)
-            }
-            
-            // Chore description
-            VStack(alignment: .leading, spacing: AppDesign.Spacing.sm) {
-                Text("Description")
-                    .font(AppDesign.Typography.subheadline)
-                    .fontWeight(.semibold)
-                    .foregroundColor(AppDesign.Colors.textSecondary)
-                
-                TextField("Enter task description", text: $choreDescription, axis: .vertical)
-                    .font(AppDesign.Typography.body)
-                    .lineLimit(3...5)
-                    .padding(.horizontal, AppDesign.Spacing.md)
-                    .padding(.vertical, AppDesign.Spacing.md)
-                    .background(AppDesign.Colors.secondaryBackground)
-                    .cornerRadius(AppDesign.CornerRadius.sm)
-            }
-            
-            // Assign to user
-            VStack(alignment: .leading, spacing: AppDesign.Spacing.sm) {
-                Text("Assign To")
-                    .font(AppDesign.Typography.subheadline)
-                    .fontWeight(.semibold)
-                    .foregroundColor(AppDesign.Colors.textSecondary)
-                
-                ScrollView(.horizontal, showsIndicators: false) {
-                    HStack(spacing: AppDesign.Spacing.md) {
-                        ForEach(appViewModel.sampleUsers, id: \.name) { user in
-                            Button(action: {
-                                selectedUser = user
-                            }) {
-                                VStack(spacing: 6) {
-                                    UserAvatar(user: user, size: AppDesign.Size.avatarMedium)
-                                    Text(user.name)
-                                        .font(AppDesign.Typography.caption)
-                                        .fontWeight(.medium)
-                                }
-                                .padding(.horizontal, AppDesign.Spacing.sm)
-                                .padding(.vertical, 6)
-                                .background(
-                                    selectedUser?.name == user.name ?
-                                    AppDesign.Colors.primary.opacity(0.2) : Color.clear
-                                )
-                                .cornerRadius(AppDesign.CornerRadius.md)
-                                .overlay(
-                                    RoundedRectangle(cornerRadius: AppDesign.CornerRadius.md)
-                                        .stroke(
-                                            selectedUser?.name == user.name ?
-                                            AppDesign.Colors.primary : Color.clear,
-                                            lineWidth: 2
-                                        )
-                                )
-                            }
-                            .foregroundColor(AppDesign.Colors.textPrimary)
-                        }
-                    }
-                    .padding(.horizontal, 4)
-                }
-            }
-            
-            // Due date
-            VStack(alignment: .leading, spacing: AppDesign.Spacing.sm) {
-                Text("Due")
-                    .font(AppDesign.Typography.subheadline)
-                    .fontWeight(.semibold)
-                    .foregroundColor(AppDesign.Colors.textSecondary)
-                
-                HStack(spacing: AppDesign.Spacing.sm) {
-                    ForEach(dueLabelOptions, id: \.self) { option in
-                        Button(action: {
-                            selectedDueLabel = option
-                        }) {
-                            Text(option)
-                                .font(AppDesign.Typography.caption)
-                                .fontWeight(.medium)
-                                .padding(.horizontal, AppDesign.Spacing.md)
-                                .padding(.vertical, 6)
-                                .background(
-                                    selectedDueLabel == option ?
-                                    AppDesign.Colors.primary : Color(.systemGray5)
-                                )
-                                .foregroundColor(
-                                    selectedDueLabel == option ? .white : AppDesign.Colors.textPrimary
-                                )
-                                .cornerRadius(AppDesign.CornerRadius.lg)
-                        }
-                    }
-                }
+                .transition(.opacity.combined(with: .move(edge: .top)))
             }
         }
+        .animation(AppDesign.Animation.quick, value: isRecurring)
     }
-    
-    // MARK: - Action Buttons Section
-    
-    private var actionButtonsSection: some View {
+
+    // MARK: - Action Buttons
+
+    private var actionButtons: some View {
         HStack(spacing: AppDesign.Spacing.md) {
             Button(action: onDismiss) {
                 Text("Cancel")
                     .font(AppDesign.Typography.headline)
-                    .foregroundColor(AppDesign.Colors.primary)
+                    .foregroundColor(AppDesign.Colors.textSecondary)
                     .frame(maxWidth: .infinity)
-                    .frame(height: AppDesign.Size.buttonHeight)
-                    .background(AppDesign.Colors.primary.opacity(0.1))
+                    .frame(height: AppDesign.Size.buttonHeightSmall)
+                    .background(AppDesign.Colors.secondaryBackground)
                     .cornerRadius(AppDesign.CornerRadius.md)
             }
-            
-            Button(action: createChore) {
-                Text("Create Chore")
-                    .font(AppDesign.Typography.headline)
-                    .foregroundColor(.white)
-                    .frame(maxWidth: .infinity)
-                    .frame(height: AppDesign.Size.buttonHeight)
-                    .background(canCreateChore ? AppDesign.Colors.primary : Color.gray)
-                    .cornerRadius(AppDesign.CornerRadius.md)
+            Button(action: submitChore) {
+                HStack(spacing: AppDesign.Spacing.sm) {
+                    if isCreating {
+                        ProgressView().scaleEffect(0.8).tint(.white)
+                    } else {
+                        Image(systemName: "checkmark.circle.fill").font(.system(size: 16, weight: .semibold))
+                    }
+                    Text("Create").font(AppDesign.Typography.headline)
+                }
+                .foregroundColor(.white)
+                .frame(maxWidth: .infinity)
+                .frame(height: AppDesign.Size.buttonHeightSmall)
+                .background(
+                    canCreate
+                        ? LinearGradient(colors: [accentOrange, accentOrange.opacity(0.75)], startPoint: .leading, endPoint: .trailing)
+                        : LinearGradient(colors: [Color.gray.opacity(0.4), Color.gray.opacity(0.4)], startPoint: .leading, endPoint: .trailing)
+                )
+                .cornerRadius(AppDesign.CornerRadius.md)
             }
-            .disabled(!canCreateChore)
+            .disabled(!canCreate || isCreating)
+        }
+        .padding(.horizontal, AppDesign.Spacing.xl)
+        .padding(.vertical, AppDesign.Spacing.lg)
+        .background(AppDesign.Colors.background.shadow(color: Color.black.opacity(0.06), radius: 8, x: 0, y: -4))
+    }
+
+    // MARK: - Helpers
+
+    @ViewBuilder
+    private func formField<Content: View>(icon: String, label: String, @ViewBuilder content: () -> Content) -> some View {
+        VStack(alignment: .leading, spacing: AppDesign.Spacing.sm) {
+            sectionLabel(icon: icon, text: label)
+            content()
         }
     }
-    
-    // MARK: - Helper Properties & Methods
-    
-    private var canCreateChore: Bool {
-        !choreName.isEmpty && selectedUser != nil
+
+    private func sectionLabel(icon: String, text: String) -> some View {
+        Label(text, systemImage: icon)
+            .font(.system(size: 11, weight: .semibold))
+            .foregroundColor(accentOrange)
+            .textCase(.uppercase)
+            .tracking(0.5)
     }
-    
-    private func createChore() {
-        guard let user = selectedUser, !choreName.isEmpty else { return }
-        
-        let newChore = Chore(
-            title: choreName,
-            description: choreDescription,
-            assignedTo: user,
-            dueLabel: selectedDueLabel
-        )
-        
-        // Demo: Just add to current chores list
-        appViewModel.chores.append(newChore)
-        
-        onDismiss()
+
+    private func submitChore() {
+        guard let memberId = selectedMember?.apiId, !houseId.isEmpty else { return }
+        isCreating = true
+        Task {
+            await appViewModel.createChore(
+                assignedToId: memberId,
+                description: description,
+                dueDate: dueDate,
+                houseId: houseId,
+                isRecurring: isRecurring,
+                level: selectedLevel,
+                recurringInterval: isRecurring ? recurringInterval : 0,
+                title: title.trimmingCharacters(in: .whitespaces)
+            )
+            isCreating = false
+            onDismiss()
+        }
     }
 }
 
+// MARK: - ChoreLevel UI Helpers
+
+extension ChoreLevel {
+    var displayName: String {
+        switch self { case .easy: return "Easy"; case .medium: return "Medium"; case .hard: return "Hard" }
+    }
+    var iconName: String {
+        switch self { case .easy: return "leaf.fill"; case .medium: return "flame.fill"; case .hard: return "bolt.fill" }
+    }
+    var color: Color {
+        switch self {
+        case .easy:   return Color(red: 0.2, green: 0.75, blue: 0.4)
+        case .medium: return Color(red: 1.0, green: 0.48, blue: 0.15)
+        case .hard:   return Color(red: 0.9, green: 0.2, blue: 0.25)
+        }
+    }
+}
+
+// MARK: - Preview
+
 #Preview {
-    NewChorePopup(
-        appViewModel: AppViewModel(),
-        onDismiss: {}
-    )
+    NewChorePopup(appViewModel: AppViewModel(), onDismiss: {})
 }

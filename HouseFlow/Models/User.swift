@@ -2,18 +2,33 @@ import Foundation
 
 struct User: Identifiable, Codable {
     let id = UUID()
+    /// The server-assigned user ID (nil for locally created / preview users).
+    let apiId: String?
     let name: String
+    let firstName: String
+    let lastName: String
     let initials: String
     let points: Int
-    
+
+    init(firstName: String, lastName: String, apiId: String? = nil, points: Int = 0) {
+        self.apiId = apiId
+        self.firstName = firstName
+        self.lastName = lastName
+        self.name = "\(firstName) \(lastName)"
+        self.points = points
+        self.initials = String(firstName.prefix(1)) + String(lastName.prefix(1))
+    }
+
+    /// Convenience init for preview/sample data where only a full name is available.
     init(name: String, points: Int = 0) {
+        let components = name.split(separator: " ", maxSplits: 1)
+        self.apiId = nil
+        self.firstName = components.first.map(String.init) ?? name
+        self.lastName = components.dropFirst().first.map(String.init) ?? ""
         self.name = name
         self.points = points
-        
-        // Generate initials from name
-        let nameComponents = name.split(separator: " ")
-        if nameComponents.count >= 2 {
-            self.initials = String(nameComponents[0].prefix(1)) + String(nameComponents[1].prefix(1))
+        if components.count >= 2 {
+            self.initials = String(components[0].prefix(1)) + String(components[1].prefix(1))
         } else {
             self.initials = String(name.prefix(2))
         }

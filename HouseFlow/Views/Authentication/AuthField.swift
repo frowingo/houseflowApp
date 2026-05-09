@@ -6,4 +6,6 @@ enum AuthField: Hashable {
     case password
     case phone
     case name
+    case firstName
+    case lastName
 }

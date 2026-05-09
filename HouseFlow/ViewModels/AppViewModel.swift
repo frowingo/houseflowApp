@@ -5,6 +5,38 @@ enum NavigationDirection {
     case forward, backward
 }
 
+enum HouseLoadingPhase: Equatable {
+    case creating
+    case joining
+    case loadingDetails
+    case checkingAuth
+    case loadingUser
+    case loadingHouse
+
+    var title: String {
+        switch self {
+        case .creating:       return "Creating Your House"
+        case .joining:        return "Joining House"
+        case .loadingDetails: return "Almost There!"
+        case .checkingAuth:   return "Welcome Back!"
+        case .loadingUser:    return "Loading Profile"
+        case .loadingHouse:   return "Loading Your Home"
+        }
+    }
+
+    var subtitle: String {
+        switch self {
+        case .creating:       return "Setting up your new home..."
+        case .joining:        return "Connecting you to the house..."
+        case .loadingDetails: return "Loading your house details..."
+        case .checkingAuth:   return "Verifying your session..."
+        case .loadingUser:    return "Fetching your account details..."
+        case .loadingHouse:   return "Almost ready, hang on..."
+        }
+    }
+}
+
+@MainActor
 class AppViewModel: ObservableObject {
     @Published var isAuthenticated: Bool = false
     @Published var hasSelectedHouse: Bool = false
@@ -15,13 +47,43 @@ class AppViewModel: ObservableObject {
     @Published var houseName: String = ""
     @Published var chores: [Chore] = []
     @Published var navigationDirection: NavigationDirection = .forward
+
+    // MARK: - Auth State
+    @Published var isLoading: Bool = false
+    @Published var authError: String?
+    @Published var successToast: String?
+
+    // MARK: - House State
+    @Published var currentHouse: HouseResponse?
+    @Published var currentHouseDetails: HouseDetailsResponse?
+    @Published var houseIsLoading: Bool = false
+    @Published var houseError: String?
+
+    // MARK: - House Loading Screen State
+    @Published var isInitializing: Bool = true
+    @Published var showHouseLoading: Bool = false
+    @Published var houseLoadingPhase: HouseLoadingPhase = .checkingAuth
+    @Published var showHouseError: Bool = false
+
+    // MARK: - Toast State
+    @Published var toastMessage: String? = nil
+    @Published var toastIsError: Bool = true
+
+    private let authService = AuthService.shared
+    private let houseService = HouseService.shared
+    private let userService = UserService.shared
+    private let choreService = ChoreService.shared
+    private let keychain = KeychainService.shared
+
+    /// The server-assigned ID of the logged-in user (used to gate chore status edits).
+    @Published var currentUserId: String?
     
     // Sample data for demo
     let sampleUsers = [
-        User(name: "Mahmut", points: 12),
-        User(name: "Jane", points: 8),
-        User(name: "Abdüllatif", points: 10),
-        User(name: "Katya", points: 6)
+        User(firstName: "Mahmut", lastName: "Yılmaz", points: 12),
+        User(firstName: "Jane", lastName: "Doe", points: 8),
+        User(firstName: "Abdüllatif", lastName: "Kaya", points: 10),
+        User(firstName: "Katya", lastName: "Ivanova", points: 6)
     ]
     
     var sampleChores: [Chore] {
@@ -42,13 +104,182 @@ class AppViewModel: ObservableObject {
         navigationDirection = .forward
         showAuth = true
     }
-    
-    func authenticate() {
+
+    // MARK: - Auto Login
+
+    /// Called on app foreground. If a valid token+email are stored, silently authenticates
+    /// and navigates straight to the dashboard. No-op if already authenticated.
+    func performAutoLogin() async {
+        guard !isAuthenticated,
+              let email = keychain.userEmail,
+              keychain.authToken != nil else {
+            isInitializing = false
+            return
+        }
+
+        houseLoadingPhase = .checkingAuth
         navigationDirection = .forward
-        isAuthenticated = true
+        showHouseLoading = true
+        isInitializing = false
+
+        // Step 1: Verify token
+        do {
+            let result = try await authService.isAuth()
+            guard result.success else {
+                failAutoLogin(message: "Oturumunuz sona ermiş. Lütfen tekrar giriş yapın.")
+                return
+            }
+        } catch {
+            failAutoLogin(message: error.localizedDescription)
+            return
+        }
+
+        // Step 2: Load user profile
+        houseLoadingPhase = .loadingUser
+        let profile: UserProfileResponse
+        do {
+            profile = try await userService.getByEmail(email)
+        } catch {
+            failAutoLogin(message: error.localizedDescription)
+            return
+        }
+
+        keychain.userFirstName = profile.firstName
+        keychain.userLastName = profile.lastName
+        currentUserId = profile.id
+        currentUser = User(firstName: profile.firstName, lastName: profile.lastName, apiId: profile.id, points: 0)
+
+        // Step 3: Load house details (first house in houseIds)
+        guard let firstHouseId = profile.houseIds.first else {
+            // Authenticated but no house yet → house selection screen
+            isAuthenticated = true
+            showHouseLoading = false
+            return
+        }
+
+        houseLoadingPhase = .loadingHouse
+        do {
+            let details = try await houseService.fetchDetails(houseId: firstHouseId)
+            currentHouseDetails = details
+            houseName = details.name
+            try? await Task.sleep(for: .milliseconds(600))
+            showHouseLoading = false
+            isAuthenticated = true
+            hasSelectedHouse = true
+        } catch {
+            showHouseLoading = false
+            let message: String
+            if case NetworkError.serverError(let msg) = error {
+                message = msg
+            } else {
+                message = error.localizedDescription
+            }
+            showToast(message: message, isError: true)
+            showHouseError = true
+        }
+    }
+
+    private func failAutoLogin(message: String) {
+        showHouseLoading = false
+        isInitializing = false
+        showAuth = true
+        showToast(message: message, isError: true)
+    }
+
+    // MARK: - Real Auth (API)
+
+    func login(email: String, password: String) async {
+        isLoading = true
+        authError = nil
+        do {
+            _ = try await authService.login(email: email, password: password)
+            isLoading = false
+            successToast = "Welcome back! 👋"
+            try? await Task.sleep(for: .milliseconds(1400))
+            successToast = nil
+            didAuthenticate()
+        } catch {
+            authError = error.localizedDescription
+            isLoading = false
+        }
+    }
+
+    func signup(email: String, password: String, firstName: String, lastName: String) async {
+        isLoading = true
+        authError = nil
+        do {
+            _ = try await authService.signup(
+                email: email,
+                password: password,
+                firstName: firstName,
+                lastName: lastName
+            )
+            isLoading = false
+            successToast = "Account created! 🎉"
+            try? await Task.sleep(for: .milliseconds(1400))
+            successToast = nil
+            didAuthenticate()
+        } catch {
+            authError = error.localizedDescription
+            isLoading = false
+        }
+    }
+
+    private func didAuthenticate() {
+        Task { await didAuthenticateAsync() }
+    }
+
+    private func didAuthenticateAsync() async {
+        navigationDirection = .forward
         showAuth = false
-        currentUser = sampleUsers[0] // Set Mahmut as current user for demo
-        initializeChores()
+        houseLoadingPhase = .loadingUser
+        showHouseLoading = true
+
+        guard let email = keychain.userEmail else {
+            // No email stored — just go to house selection
+            isAuthenticated = true
+            showHouseLoading = false
+            return
+        }
+
+        // Fetch user profile
+        do {
+            let profile = try await userService.getByEmail(email)
+            currentHouseDetails = nil
+            keychain.userFirstName = profile.firstName
+            keychain.userLastName = profile.lastName
+            currentUserId = profile.id
+            currentUser = User(firstName: profile.firstName, lastName: profile.lastName, apiId: profile.id, points: 0)
+
+            guard let firstHouseId = profile.houseIds.first else {
+                // No house yet → house selection
+                isAuthenticated = true
+                showHouseLoading = false
+                return
+            }
+
+            // Has a house → fetch details
+            houseLoadingPhase = .loadingHouse
+            let details = try await houseService.fetchDetails(houseId: firstHouseId)
+            currentHouseDetails = details
+            houseName = details.name
+            try? await Task.sleep(for: .milliseconds(600))
+
+            isAuthenticated = true
+            hasSelectedHouse = true
+            showHouseLoading = false
+
+        } catch {
+            let message: String
+            if case NetworkError.serverError(let msg) = error {
+                message = msg
+            } else {
+                message = error.localizedDescription
+            }
+            showToast(message: message, isError: true)
+            showHouseLoading = false
+            showHouseError = true
+        }
     }
     
     func selectHouse(name: String) {
@@ -73,37 +304,192 @@ class AppViewModel: ObservableObject {
         navigationDirection = .forward
         showJoinHouse = true
     }
-    
-    func joinHouse(with code: String) -> Bool {
-        // Demo için basit kod kontrolü - gerçek uygulamada API çağrısı olurdu
-        let validCodes = ["HOUSE123", "DEMO456", "TEST789"]
-        if validCodes.contains(code.uppercased()) {
-            hasSelectedHouse = true
-            showJoinHouse = false
-            navigationDirection = .forward
-            houseName = "Joined House" // Demo house name
-            return true
-        }
-        return false
-    }
-    
-    func createHouse(name: String, type: String, memberCount: Int) {
+
+    // MARK: - House API (Full Flow)
+
+    /// Full create-house flow: shows loading screen → POST → GET details → dashboard.
+    /// On any error, navigates back to CreateHouseView and shows a toast.
+    func beginCreateHouseFlow(name: String, type: Int, maxMemberCount: Int) async {
+        houseLoadingPhase = .creating
         navigationDirection = .forward
-        houseName = name
+        showCreateHouse = false
+        showHouseLoading = true
+        houseError = nil
+
+        do {
+            let house = try await houseService.createHouse(name: name, type: type, maxMemberCount: maxMemberCount)
+            currentHouse = house
+
+            houseLoadingPhase = .loadingDetails
+
+            let details = try await houseService.fetchDetails(houseId: house.id)
+            currentHouseDetails = details
+            houseName = house.name
+
+            // Brief pause so the user can read the "Almost There!" phase
+            try? await Task.sleep(for: .milliseconds(700))
+
+            navigationDirection = .forward
+            hasSelectedHouse = true
+            showHouseLoading = false
+
+        } catch {
+            navigationDirection = .backward
+            showHouseLoading = false
+            showCreateHouse = true
+            showToast(message: error.localizedDescription, isError: true)
+        }
+    }
+
+    /// Full join-house flow: shows loading screen → POST → GET details → dashboard.
+    /// On any error, navigates back to JoinHouseView and shows a toast.
+    func beginJoinHouseFlow(inviteCode: String) async {
+        houseLoadingPhase = .joining
+        navigationDirection = .forward
+        showJoinHouse = false
+        showHouseLoading = true
+        houseError = nil
+
+        do {
+            let house = try await houseService.joinHouse(inviteCode: inviteCode)
+            currentHouse = house
+
+            houseLoadingPhase = .loadingDetails
+
+            let details = try await houseService.fetchDetails(houseId: house.id)
+            currentHouseDetails = details
+            houseName = house.name
+
+            try? await Task.sleep(for: .milliseconds(700))
+
+            navigationDirection = .forward
+            hasSelectedHouse = true
+            showHouseLoading = false
+
+        } catch {
+            navigationDirection = .backward
+            showHouseLoading = false
+            showJoinHouse = true
+            showToast(message: error.localizedDescription, isError: true)
+        }
+    }
+
+    // MARK: - Toast
+
+    func showToast(message: String, isError: Bool = true) {
+        toastMessage = message
+        toastIsError = isError
+        Task {
+            try? await Task.sleep(for: .seconds(4))
+            toastMessage = nil
+        }
+    }
+
+    // MARK: - House API (Legacy helpers)
+
+    /// Calls POST house/create. Returns the created house on success, nil on failure (sets houseError).
+    func createHouseAPI(name: String, type: Int, maxMemberCount: Int) async -> HouseResponse? {
+        houseIsLoading = true
+        houseError = nil
+        do {
+            let house = try await houseService.createHouse(name: name, type: type, maxMemberCount: maxMemberCount)
+            currentHouse = house
+            houseIsLoading = false
+            return house
+        } catch {
+            houseError = error.localizedDescription
+            houseIsLoading = false
+            return nil
+        }
+    }
+
+    /// Calls POST house/join. Returns the joined house on success, nil on failure (sets houseError).
+    func joinHouseAPI(inviteCode: String) async -> HouseResponse? {
+        houseIsLoading = true
+        houseError = nil
+        do {
+            let house = try await houseService.joinHouse(inviteCode: inviteCode)
+            currentHouse = house
+            houseIsLoading = false
+            return house
+        } catch {
+            houseError = error.localizedDescription
+            houseIsLoading = false
+            return nil
+        }
+    }
+
+    /// Calls GET house/details. Stores result in currentHouseDetails.
+    func fetchHouseDetails(houseId: String) async {
+        do {
+            currentHouseDetails = try await houseService.fetchDetails(houseId: houseId)
+        } catch {
+            print("[HouseDetails] fetch failed: \(error.localizedDescription)")
+        }
+    }
+
+    /// Finalizes navigation after a successful create or join (legacy path).
+    func finalizeHouseSelection(house: HouseResponse) {
+        currentHouse = house
+        houseName = house.name
+        navigationDirection = .forward
         hasSelectedHouse = true
         showCreateHouse = false
+        showJoinHouse = false
+        Task { await fetchHouseDetails(houseId: house.id) }
     }
     
     func logout() {
+        authService.logout()
         navigationDirection = .backward
         isAuthenticated = false
         hasSelectedHouse = false
         showCreateHouse = false
         showJoinHouse = false
+        showHouseLoading = false
+        showHouseError = false
+        isInitializing = false
         showAuth = false
         currentUser = nil
+        currentUserId = nil
+        currentHouse = nil
+        currentHouseDetails = nil
         houseName = ""
         chores = []
+        toastMessage = nil
+    }
+
+    // MARK: - Dashboard Data (mapped from API details)
+
+    /// House members mapped from `currentHouseDetails`, falls back to sample data.
+    var dashboardMembers: [User] {
+        guard let details = currentHouseDetails else { return sampleUsers }
+        return details.members.map { User(firstName: $0.firstName, lastName: $0.lastName, apiId: $0.id, points: 0) }
+    }
+
+    /// Chores mapped from `currentHouseDetails`, falls back to in-memory chores.
+    var dashboardChores: [Chore] {
+        guard let details = currentHouseDetails else { return chores }
+        return details.chores.map { dto in
+            let assignedUser = details.members
+                .first(where: { $0.id == dto.assignedTo })
+                .map { User(firstName: $0.firstName, lastName: $0.lastName, apiId: $0.id, points: 0) }
+                ?? User(name: dto.assignedTo.isEmpty ? "Unassigned" : dto.assignedTo)
+            let label = dto.dueLabelString
+            return Chore(
+                choreApiId: dto.id,
+                houseId: dto.houseId,
+                assignedToId: dto.assignedTo,
+                title: dto.title,
+                description: dto.description,
+                assignedTo: assignedUser,
+                dueLabel: label,
+                dueDate: dto.dueDate,
+                isDone: dto.isCompleted,
+                status: dto.status,
+                level: dto.level
+            )
+        }
     }
     
     private func initializeChores() {
@@ -118,15 +504,79 @@ class AppViewModel: ObservableObject {
     
     func toggleChoreCompletion(_ choreId: UUID) {
         if let index = chores.firstIndex(where: { $0.id == choreId }) {
-            let currentChore = chores[index]
-            let newChore = Chore(
-                title: currentChore.title,
-                description: currentChore.description,
-                assignedTo: currentChore.assignedTo,
-                dueLabel: currentChore.dueLabel,
-                isDone: !currentChore.isDone
+            let c = chores[index]
+            chores[index] = Chore(
+                choreApiId: c.choreApiId,
+                houseId: c.houseId,
+                assignedToId: c.assignedToId,
+                title: c.title,
+                description: c.description,
+                assignedTo: c.assignedTo,
+                dueLabel: c.dueLabel,
+                isDone: !c.isDone,
+                status: c.isDone ? 0 : 3,
+                level: c.level
             )
-            chores[index] = newChore
+        }
+    }
+
+    // MARK: - Chore API
+
+    /// Refreshes house details after any chore mutation.
+    func refreshHouseDetails() async {
+        guard let houseId = currentHouseDetails?.id ?? currentHouse?.id else { return }
+        do {
+            let details = try await houseService.fetchDetails(houseId: houseId)
+            currentHouseDetails = details
+            houseName = details.name
+        } catch {
+            showToast(message: error.localizedDescription, isError: true)
+        }
+    }
+
+    /// Creates a chore via the API, then refreshes house details.
+    func createChore(
+        assignedToId: String,
+        description: String,
+        dueDate: Date,
+        houseId: String,
+        isRecurring: Bool,
+        level: ChoreLevel,
+        recurringInterval: Int,
+        title: String
+    ) async {
+        let formatter = DateFormatter()
+        formatter.dateFormat = "yyyy-MM-dd HH:mm:ss"
+        let dueDateStr = formatter.string(from: dueDate)
+        do {
+            _ = try await choreService.createChore(
+                assignedTo: assignedToId,
+                description: description,
+                dueDate: dueDateStr,
+                houseId: houseId,
+                isRecurring: isRecurring,
+                level: level,
+                recurringInterval: recurringInterval,
+                title: title
+            )
+            await refreshHouseDetails()
+            showToast(message: "Chore created!", isError: false)
+        } catch {
+            showToast(message: error.localizedDescription, isError: true)
+        }
+    }
+
+    /// Updates the status of a single chore via the API, then refreshes.
+    func updateChoreStatus(choreApiId: String, houseId: String, status: ChoreStatus) async {
+        do {
+            try await choreService.updateChoreStatus(
+                houseId: houseId,
+                chores: [ChoreStatusUpdateItem(choreId: choreApiId, status: status.rawValue)]
+            )
+            await refreshHouseDetails()
+            showToast(message: "Status updated!", isError: false)
+        } catch {
+            showToast(message: error.localizedDescription, isError: true)
         }
     }
 }
