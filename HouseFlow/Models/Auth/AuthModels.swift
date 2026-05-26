@@ -36,12 +36,36 @@ struct AuthTokenResponse: Decodable {
     let token: String
 }
 
+struct ForgotPasswordResponse: Decodable {
+    let success: Bool
+}
+
 struct MessageResponse: Decodable {
     let message: String
 }
 
 struct IsAuthResponse: Decodable {
+    let data: IsAuthUserData?
     let success: Bool
+}
+
+struct IsAuthUserData: Decodable {
+    let age: Int
+    let createdOn: String
+    let email: String
+    let firstName: String
+    let houseIds: [String]
+    let id: String
+    let imageUrl: String
+    let isActive: Bool
+    let isVerifyEmail: Bool
+    let isVerifyPhone: Bool
+    let lastLogin: String
+    let lastName: String
+    let phoneNumber: String
+    let updatedOn: String
+
+    var fullName: String { "\(firstName) \(lastName)" }
 }
 
 // MARK: - User Profile

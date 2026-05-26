@@ -9,6 +9,7 @@ struct AuthView: View {
     @State private var lastName = ""
     @State private var email = ""
     @State private var password = ""
+    @State private var showForgotPassword = false
 
     // MARK: - Body
 
@@ -50,6 +51,9 @@ struct AuthView: View {
         }
         .animation(.spring(response: 0.4, dampingFraction: 0.8), value: appViewModel.successToast)
         .dismissKeyboardOnTap()
+        .fullScreenCover(isPresented: $showForgotPassword) {
+            ForgotPasswordView()
+        }
         .onChange(of: isSignUp) { _ in
             appViewModel.authError = nil
             firstName = ""; lastName = ""; email = ""; password = ""
@@ -176,6 +180,18 @@ struct AuthView: View {
                 focusedField: $focusedField,
                 fieldType: .password
             )
+
+            if !isSignUp {
+                HStack {
+                    Spacer()
+                    Button("Forgot Password?") {
+                        showForgotPassword = true
+                    }
+                    .font(.system(size: 14, weight: .medium))
+                    .foregroundColor(AppDesign.Colors.primary)
+                }
+                .transition(.opacity)
+            }
         }
         .animation(AppDesign.Animation.standard, value: isSignUp)
     }

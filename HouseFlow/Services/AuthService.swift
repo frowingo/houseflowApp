@@ -53,12 +53,12 @@ final class AuthService {
     // MARK: - Forgot Password
 
     /// POST auth/forget
-    func forgotPassword(email: String) async throws -> MessageResponse {
+    func forgotPassword(email: String) async throws -> ForgotPasswordResponse {
         let body = ForgotPasswordRequest(email: email)
         return try await network.request(
             path: "auth/forget",
             body: body,
-            successType: MessageResponse.self
+            successType: ForgotPasswordResponse.self
         )
     }
 
@@ -80,7 +80,7 @@ final class AuthService {
 
     // MARK: - Is Authenticated
 
-    /// GET auth/isAuth — Bearer token only, returns { "success": bool }
+    /// GET auth/isAuth — Bearer token only, returns { "success": bool, "data": { ...user } }
     func isAuth() async throws -> IsAuthResponse {
         guard let token = keychain.authToken else {
             throw NetworkError.serverError("No token stored.")

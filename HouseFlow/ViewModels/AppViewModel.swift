@@ -71,7 +71,6 @@ class AppViewModel: ObservableObject {
 
     private let authService = AuthService.shared
     private let houseService = HouseService.shared
-    private let userService = UserService.shared
     private let choreService = ChoreService.shared
     private let keychain = KeychainService.shared
 
@@ -107,11 +106,10 @@ class AppViewModel: ObservableObject {
 
     // MARK: - Auto Login
 
-    /// Called on app foreground. If a valid token+email are stored, silently authenticates
+    /// Called on app foreground. If a valid token is stored, silently authenticates
     /// and navigates straight to the dashboard. No-op if already authenticated.
     func performAutoLogin() async {
         guard !isAuthenticated,
-              let email = keychain.userEmail,
               keychain.authToken != nil else {
             isInitializing = false
             return
@@ -123,31 +121,22 @@ class AppViewModel: ObservableObject {
         isInitializing = false
 
         // Step 1: Verify token
+        let profile: IsAuthUserData
         do {
             let result = try await authService.isAuth()
-            guard result.success else {
+            guard result.success, let userData = result.data else {
                 failAutoLogin(message: "Oturumunuz sona ermiş. Lütfen tekrar giriş yapın.")
                 return
             }
+            profile = userData
         } catch {
             failAutoLogin(message: error.localizedDescription)
             return
         }
 
-        // Step 2: Load user profile
+        // Step 2: Update local cache and in-memory user state
         houseLoadingPhase = .loadingUser
-        let profile: UserProfileResponse
-        do {
-            profile = try await userService.getByEmail(email)
-        } catch {
-            failAutoLogin(message: error.localizedDescription)
-            return
-        }
-
-        keychain.userFirstName = profile.firstName
-        keychain.userLastName = profile.lastName
-        currentUserId = profile.id
-        currentUser = User(firstName: profile.firstName, lastName: profile.lastName, apiId: profile.id, points: 0)
+        applyAuthenticatedUser(profile)
 
         // Step 3: Load house details (first house in houseIds)
         guard let firstHouseId = profile.houseIds.first else {
@@ -194,9 +183,6 @@ class AppViewModel: ObservableObject {
         do {
             _ = try await authService.login(email: email, password: password)
             isLoading = false
-            successToast = "Welcome back! 👋"
-            try? await Task.sleep(for: .milliseconds(1400))
-            successToast = nil
             didAuthenticate()
         } catch {
             authError = error.localizedDescription
@@ -215,13 +201,38 @@ class AppViewModel: ObservableObject {
                 lastName: lastName
             )
             isLoading = false
-            successToast = "Account created! 🎉"
-            try? await Task.sleep(for: .milliseconds(1400))
-            successToast = nil
             didAuthenticate()
         } catch {
             authError = error.localizedDescription
             isLoading = false
+        }
+    }
+
+    func forgotPassword(email: String) async -> Bool {
+        isLoading = true
+        authError = nil
+        do {
+            let response = try await authService.forgotPassword(email: email)
+            isLoading = false
+            return response.success
+        } catch {
+            authError = error.localizedDescription
+            isLoading = false
+            return false
+        }
+    }
+
+    func resetPassword(email: String, code: String, newPassword: String) async -> Bool {
+        isLoading = true
+        authError = nil
+        do {
+            _ = try await authService.resetPassword(email: email, code: code, newPassword: newPassword)
+            isLoading = false
+            return true
+        } catch {
+            authError = error.localizedDescription
+            isLoading = false
+            return false
         }
     }
 
@@ -235,21 +246,15 @@ class AppViewModel: ObservableObject {
         houseLoadingPhase = .loadingUser
         showHouseLoading = true
 
-        guard let email = keychain.userEmail else {
-            // No email stored — just go to house selection
-            isAuthenticated = true
-            showHouseLoading = false
-            return
-        }
-
-        // Fetch user profile
+        // Fetch authenticated user from auth/isAuth response
         do {
-            let profile = try await userService.getByEmail(email)
+            let result = try await authService.isAuth()
+            guard result.success, let profile = result.data else {
+                throw NetworkError.serverError("Authenticated user could not be resolved.")
+            }
+
             currentHouseDetails = nil
-            keychain.userFirstName = profile.firstName
-            keychain.userLastName = profile.lastName
-            currentUserId = profile.id
-            currentUser = User(firstName: profile.firstName, lastName: profile.lastName, apiId: profile.id, points: 0)
+            applyAuthenticatedUser(profile)
 
             guard let firstHouseId = profile.houseIds.first else {
                 // No house yet → house selection
@@ -280,6 +285,14 @@ class AppViewModel: ObservableObject {
             showHouseLoading = false
             showHouseError = true
         }
+    }
+
+    private func applyAuthenticatedUser(_ profile: IsAuthUserData) {
+        keychain.userEmail = profile.email
+        keychain.userFirstName = profile.firstName
+        keychain.userLastName = profile.lastName
+        currentUserId = profile.id
+        currentUser = User(firstName: profile.firstName, lastName: profile.lastName, apiId: profile.id, points: 0)
     }
     
     func selectHouse(name: String) {
