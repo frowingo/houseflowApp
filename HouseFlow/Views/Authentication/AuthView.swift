@@ -9,6 +9,7 @@ struct AuthView: View {
     @State private var lastName = ""
     @State private var email = ""
     @State private var password = ""
+    @State private var showForgotPassword = false
 
     // MARK: - Body
 
@@ -38,6 +39,7 @@ struct AuthView: View {
                 .background(Color(.systemBackground))
                 .clipShape(UnevenRoundedRectangle(topLeadingRadius: 32, topTrailingRadius: 32))
             }
+            .ignoresSafeArea(.container, edges: .bottom)
 
             // Toast
             if let msg = appViewModel.successToast {
@@ -50,6 +52,9 @@ struct AuthView: View {
         }
         .animation(.spring(response: 0.4, dampingFraction: 0.8), value: appViewModel.successToast)
         .dismissKeyboardOnTap()
+        .fullScreenCover(isPresented: $showForgotPassword) {
+            ForgotPasswordView()
+        }
         .onChange(of: isSignUp) { _ in
             appViewModel.authError = nil
             firstName = ""; lastName = ""; email = ""; password = ""
@@ -176,6 +181,18 @@ struct AuthView: View {
                 focusedField: $focusedField,
                 fieldType: .password
             )
+
+            if !isSignUp {
+                HStack {
+                    Spacer()
+                    Button("Forgot Password?") {
+                        showForgotPassword = true
+                    }
+                    .font(.system(size: 14, weight: .medium))
+                    .foregroundColor(AppDesign.Colors.primary)
+                }
+                .transition(.opacity)
+            }
         }
         .animation(AppDesign.Animation.standard, value: isSignUp)
     }
@@ -236,26 +253,34 @@ struct AuthView: View {
     private var socialRow: some View {
         HStack(spacing: AppDesign.Spacing.lg) {
             SocialLoginButton(
-                icon: "globe",
                 name: "Google",
                 backgroundColor: .white,
                 foregroundColor: .black,
-                borderColor: Color(.systemGray4)
-            ) { authenticateWithSocial("Google") }
+                borderColor: Color(.systemGray4),
+                action: { authenticateWithSocial("Google") }
+            ) {
+                GoogleLogoView(size: 22)
+            }
 
             SocialLoginButton(
-                icon: "applelogo",
                 name: "Apple",
                 backgroundColor: .black,
-                foregroundColor: .white
-            ) { authenticateWithSocial("Apple") }
+                foregroundColor: .white,
+                action: { authenticateWithSocial("Apple") }
+            ) {
+                Image(systemName: "applelogo")
+                    .font(.system(size: 20))
+                    .foregroundColor(.white)
+            }
 
             SocialLoginButton(
-                icon: "camera.fill",
                 name: "Snapchat",
                 backgroundColor: Color.yellow,
-                foregroundColor: .black
-            ) { authenticateWithSocial("Snapchat") }
+                foregroundColor: .black,
+                action: { authenticateWithSocial("Snapchat") }
+            ) {
+                SnapchatGhostView(size: 20, color: .black)
+            }
         }
     }
 
