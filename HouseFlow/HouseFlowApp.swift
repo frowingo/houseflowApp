@@ -30,8 +30,10 @@ struct HouseFlowApp: App {
                 }
         }
         .onChange(of: scenePhase) { _, newPhase in
-            if newPhase == .active {
-                Task { await appViewModel.performAutoLogin() }
+            if newPhase == .background {
+                appViewModel.handleBackground()
+            } else if newPhase == .active {
+                Task { await appViewModel.handleForeground() }
             }
         }
     }

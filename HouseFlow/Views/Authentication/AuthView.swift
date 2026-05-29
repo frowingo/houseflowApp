@@ -39,6 +39,7 @@ struct AuthView: View {
                 .background(Color(.systemBackground))
                 .clipShape(UnevenRoundedRectangle(topLeadingRadius: 32, topTrailingRadius: 32))
             }
+            .ignoresSafeArea(.container, edges: .bottom)
 
             // Toast
             if let msg = appViewModel.successToast {
@@ -252,26 +253,34 @@ struct AuthView: View {
     private var socialRow: some View {
         HStack(spacing: AppDesign.Spacing.lg) {
             SocialLoginButton(
-                icon: "globe",
                 name: "Google",
                 backgroundColor: .white,
                 foregroundColor: .black,
-                borderColor: Color(.systemGray4)
-            ) { authenticateWithSocial("Google") }
+                borderColor: Color(.systemGray4),
+                action: { authenticateWithSocial("Google") }
+            ) {
+                GoogleLogoView(size: 22)
+            }
 
             SocialLoginButton(
-                icon: "applelogo",
                 name: "Apple",
                 backgroundColor: .black,
-                foregroundColor: .white
-            ) { authenticateWithSocial("Apple") }
+                foregroundColor: .white,
+                action: { authenticateWithSocial("Apple") }
+            ) {
+                Image(systemName: "applelogo")
+                    .font(.system(size: 20))
+                    .foregroundColor(.white)
+            }
 
             SocialLoginButton(
-                icon: "camera.fill",
                 name: "Snapchat",
                 backgroundColor: Color.yellow,
-                foregroundColor: .black
-            ) { authenticateWithSocial("Snapchat") }
+                foregroundColor: .black,
+                action: { authenticateWithSocial("Snapchat") }
+            ) {
+                SnapchatGhostView(size: 20, color: .black)
+            }
         }
     }
 

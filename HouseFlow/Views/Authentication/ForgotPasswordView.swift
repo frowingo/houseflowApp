@@ -106,6 +106,7 @@ struct ForgotPasswordView: View {
 
                         if phase == .codeEntry || phase == .resetting {
                             codeEntrySection
+                                .padding(.top, -AppDesign.Spacing.md)
                         }
                     }
                     .padding(.horizontal, AppDesign.Spacing.xxl)
@@ -116,6 +117,7 @@ struct ForgotPasswordView: View {
                 .background(Color(.systemBackground))
                 .clipShape(UnevenRoundedRectangle(topLeadingRadius: 32, topTrailingRadius: 32))
             }
+            .ignoresSafeArea(.container, edges: .bottom)
 
             backButton
 
@@ -144,30 +146,30 @@ struct ForgotPasswordView: View {
     // MARK: - Hero Section
 
     private var heroSection: some View {
-        VStack(spacing: AppDesign.Spacing.lg) {
+        VStack(spacing: AppDesign.Spacing.md) {
             ZStack {
                 Circle()
                     .fill(Color.white.opacity(0.18))
-                    .frame(width: 84, height: 84)
+                    .frame(width: 70, height: 70)
                 Circle()
                     .fill(Color.white.opacity(0.10))
-                    .frame(width: 104, height: 104)
+                    .frame(width: 88, height: 88)
                 Image(systemName: "lock.rotation")
-                    .font(.system(size: 34, weight: .semibold))
+                    .font(.system(size: 28, weight: .semibold))
                     .foregroundColor(.white)
             }
 
             VStack(spacing: AppDesign.Spacing.xs) {
                 Text("Forgot Password?")
-                    .font(.system(size: 28, weight: .bold, design: .rounded))
+                    .font(.system(size: 24, weight: .bold, design: .rounded))
                     .foregroundColor(.white)
                 Text("We'll send you a reset code")
-                    .font(.system(size: 15))
+                    .font(.system(size: 14))
                     .foregroundColor(.white.opacity(0.72))
             }
         }
-        .padding(.top, AppDesign.Spacing.xxxl)
-        .padding(.bottom, AppDesign.Spacing.huge)
+        .padding(.top, AppDesign.Spacing.xl)
+        .padding(.bottom, AppDesign.Spacing.xxl)
     }
 
     // MARK: - Back Button
@@ -316,6 +318,7 @@ struct ForgotPasswordView: View {
 
             case .codeEntry, .resetting:
                 statusCircle(icon: "checkmark.circle.fill", color: .green)
+                    .scaleEffect(0.78)
                     .transition(.scale(scale: 0.3).combined(with: .opacity))
 
             case .failed:

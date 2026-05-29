@@ -60,7 +60,9 @@ class AppViewModel: ObservableObject {
     @Published var houseError: String?
 
     // MARK: - House Loading Screen State
-    @Published var isInitializing: Bool = true
+    // Start in loading state only if a token exists — avoids a flash of the
+    // loading screen when there is nothing to verify.
+    @Published var isInitializing: Bool = KeychainService.shared.authToken != nil
     @Published var showHouseLoading: Bool = false
     @Published var houseLoadingPhase: HouseLoadingPhase = .checkingAuth
     @Published var showHouseError: Bool = false
@@ -76,6 +78,12 @@ class AppViewModel: ObservableObject {
 
     /// The server-assigned ID of the logged-in user (used to gate chore status edits).
     @Published var currentUserId: String?
+
+    // MARK: - Background Session Tracking
+    /// Timestamp of when the app last entered the background.
+    private var backgroundedAt: Date? = nil
+    /// How long the app must be in the background before re-running the auth check on foreground.
+    private let backgroundRefreshThreshold: TimeInterval = 15 * 60 // 15 minutes
     
     // Sample data for demo
     let sampleUsers = [
@@ -104,13 +112,41 @@ class AppViewModel: ObservableObject {
         showAuth = true
     }
 
+    // MARK: - Scene Phase Handlers
+
+    /// Call when the app moves to the background.
+    func handleBackground() {
+        backgroundedAt = Date()
+    }
+
+    /// Call when the app returns to the foreground.
+    /// Only triggers the auth/data refresh if the app was backgrounded long enough.
+    /// Cold-start auth is handled separately by `performAutoLogin()` via `.task`.
+    func handleForeground() async {
+        guard let backgroundedAt else {
+            // No recorded background time means this is part of the cold-start sequence;
+            // `performAutoLogin()` via .task already handles that case.
+            return
+        }
+        let elapsed = Date().timeIntervalSince(backgroundedAt)
+        self.backgroundedAt = nil
+        if elapsed >= backgroundRefreshThreshold {
+            await performAutoLogin()
+        }
+    }
+
     // MARK: - Auto Login
 
     /// Called on app foreground. If a valid token is stored, silently authenticates
     /// and navigates straight to the dashboard. No-op if already authenticated.
     func performAutoLogin() async {
-        guard !isAuthenticated,
-              keychain.authToken != nil else {
+        // Fast-path: no token in keychain → nothing to verify, go straight to auth.
+        guard keychain.authToken != nil else {
+            isInitializing = false
+            return
+        }
+        // Already in an authenticated session → nothing to do.
+        guard !isAuthenticated else {
             isInitializing = false
             return
         }
