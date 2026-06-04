@@ -308,7 +308,7 @@ struct ForgotPasswordView: View {
     @ViewBuilder
     private var statusIconSection: some View {
         VStack(spacing: AppDesign.Spacing.md) {
-            switch phase {
+            switch phase { 
             case .loading:
                 ProgressView()
                     .progressViewStyle(CircularProgressViewStyle(tint: Color.orange))

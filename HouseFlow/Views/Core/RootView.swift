@@ -46,7 +46,7 @@ struct RootView: View {
             } else if !appViewModel.hasSelectedHouse {
                 HouseSelectionView()
             } else {
-                HouseDashboardView()
+                MainTabView()
             }
         }
     }
@@ -67,7 +67,7 @@ struct RootView: View {
         } else if !appViewModel.hasSelectedHouse {
             return "houseSelection"
         } else {
-            return "dashboard"
+            return "mainTab"
         }
     }
     

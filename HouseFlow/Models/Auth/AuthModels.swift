@@ -90,3 +90,18 @@ struct UserProfileResponse: Decodable {
 
     var fullName: String { "\(firstName) \(lastName)" }
 }
+
+// MARK: - Update User Profile
+
+struct UpdateProfileRequest: Encodable {
+    let imageUrl: String?
+    let age: Int?
+    let firstName: String?
+    let isVerifyEmail: Bool?
+    let isVerifyPhone: Bool?
+    let lastName: String?
+    let phoneNumber: String?
+}
+
+// PUT user/profile returns the updated user object directly (flat, no wrapper)
+typealias UpdateProfileResponse = IsAuthUserData

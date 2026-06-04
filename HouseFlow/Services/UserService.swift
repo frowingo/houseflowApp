@@ -22,4 +22,21 @@ final class UserService {
             token: token
         )
     }
+
+    // MARK: - Update User Profile
+
+    /// PUT user/profile/{id}?userId=<userId>  — requires Bearer token
+    func updateProfile(userId: String, request: UpdateProfileRequest) async throws -> UpdateProfileResponse {
+        guard let token = keychain.authToken else {
+            throw NetworkError.serverError("Not authenticated.")
+        }
+        return try await network.authenticatedRequest(
+            path: "user/profile/\(userId)",
+            method: "PUT",
+            queryItems: [URLQueryItem(name: "userId", value: userId)],
+            body: request,
+            successType: UpdateProfileResponse.self,
+            token: token
+        )
+    }
 }

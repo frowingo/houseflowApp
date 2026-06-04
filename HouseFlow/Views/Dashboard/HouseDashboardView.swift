@@ -32,8 +32,8 @@ struct HouseDashboardView: View {
                 HouseMembersCard(members: appViewModel.dashboardMembers)
                     .padding(.horizontal, AppDesign.Spacing.xxl)
                 
-                // Spacer for floating button
-                Spacer(minLength: 100)
+                // Spacer for floating button + tab bar clearance
+                Spacer(minLength: 140)
             }
         }
         .overlay(floatingActionButton, alignment: .bottomTrailing)
@@ -74,7 +74,7 @@ struct HouseDashboardView: View {
             handleNewChoreButtonTap()
         }
         .padding(.trailing, AppDesign.Spacing.xxl)
-        .padding(.bottom, 30)
+        .padding(.bottom, 110)
     }
     
     // MARK: - Popups Overlay
@@ -91,7 +91,7 @@ struct HouseDashboardView: View {
                     }
                 )
             }
-            
+
             if showNewChore {
                 NewChorePopup(
                     appViewModel: appViewModel,
@@ -101,7 +101,7 @@ struct HouseDashboardView: View {
                     }
                 )
             }
-            
+
             if showLogoutConfirmation {
                 LogoutConfirmationPopup(
                     onConfirm: {
@@ -115,6 +115,15 @@ struct HouseDashboardView: View {
                     }
                 )
             }
+        }
+        .onChange(of: showChoreDetail)      { _, v in setOverlay(v) }
+        .onChange(of: showNewChore)         { _, v in setOverlay(v) }
+        .onChange(of: showLogoutConfirmation) { _, v in setOverlay(v) }
+    }
+
+    private func setOverlay(_ visible: Bool) {
+        withAnimation(AppDesign.Animation.standard) {
+            appViewModel.isOverlayPresented = visible
         }
     }
     
