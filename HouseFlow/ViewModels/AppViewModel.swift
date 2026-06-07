@@ -335,7 +335,7 @@ class AppViewModel: ObservableObject {
         keychain.userLastName = profile.lastName
         currentUserId = profile.id
         currentUserProfile = profile
-        currentUser = User(firstName: profile.firstName, lastName: profile.lastName, apiId: profile.id, points: 0)
+        currentUser = User(firstName: profile.firstName, lastName: profile.lastName, apiId: profile.id, points: 0, imageUrl: profile.imageUrl.isEmpty ? nil : profile.imageUrl)
     }
     
     func selectHouse(name: String) {
@@ -368,8 +368,30 @@ class AppViewModel: ObservableObject {
             throw NetworkError.serverError("User not authenticated.")
         }
         let response = try await UserService.shared.updateProfile(userId: userId, request: request)
+        guard response.success, let data = response.data else {
+            throw NetworkError.serverError(response.error ?? "Update failed.")
+        }
         await MainActor.run {
-            applyAuthenticatedUser(response)
+            // Merge updated fields back into the cached IsAuthUserData profile
+            if var profile = currentUserProfile {
+                profile = IsAuthUserData(
+                    birthDate: data.birthDay,
+                    createdOn: data.createdOn,
+                    email: data.email,
+                    firstName: data.firstName,
+                    houseIds: data.houseIds,
+                    id: data.id,
+                    imageUrl: data.imageUrl,
+                    isActive: data.isActive,
+                    isVerifyEmail: data.isVerifyEmail,
+                    isVerifyPhone: data.isVerifyPhone,
+                    lastLogin: data.lastLogin,
+                    lastName: data.lastName,
+                    phoneNumber: data.phoneNumber,
+                    updatedOn: data.updatedOn
+                )
+                applyAuthenticatedUser(profile)
+            }
         }
     }
 
@@ -535,9 +557,9 @@ class AppViewModel: ObservableObject {
         return details.members.map { member in
             // Use fresh profile data for the current user so updates reflect immediately
             if member.id == currentUserId, let profile = currentUserProfile {
-                return User(firstName: profile.firstName, lastName: profile.lastName, apiId: member.id, points: 0)
+                return User(firstName: profile.firstName, lastName: profile.lastName, apiId: member.id, points: 0, imageUrl: profile.imageUrl.isEmpty ? nil : profile.imageUrl)
             }
-            return User(firstName: member.firstName, lastName: member.lastName, apiId: member.id, points: 0)
+            return User(firstName: member.firstName, lastName: member.lastName, apiId: member.id, points: 0, imageUrl: member.imageUrl.isEmpty ? nil : member.imageUrl)
         }
     }
 
@@ -550,9 +572,9 @@ class AppViewModel: ObservableObject {
             if let matched = matchedMember {
                 // Use fresh profile for the current user
                 if matched.id == currentUserId, let profile = currentUserProfile {
-                    assignedUser = User(firstName: profile.firstName, lastName: profile.lastName, apiId: matched.id, points: 0)
+                    assignedUser = User(firstName: profile.firstName, lastName: profile.lastName, apiId: matched.id, points: 0, imageUrl: profile.imageUrl.isEmpty ? nil : profile.imageUrl)
                 } else {
-                    assignedUser = User(firstName: matched.firstName, lastName: matched.lastName, apiId: matched.id, points: 0)
+                    assignedUser = User(firstName: matched.firstName, lastName: matched.lastName, apiId: matched.id, points: 0, imageUrl: matched.imageUrl.isEmpty ? nil : matched.imageUrl)
                 }
             } else {
                 assignedUser = User(name: dto.assignedTo.isEmpty ? "Unassigned" : dto.assignedTo)

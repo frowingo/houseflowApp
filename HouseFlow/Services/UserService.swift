@@ -23,6 +23,36 @@ final class UserService {
         )
     }
 
+    // MARK: - Get Image
+
+    /// GET user/getImage?publicId=<publicId>  — requires Bearer token
+    func getImage(publicId: String) async throws -> GetImageResponse {
+        guard let token = keychain.authToken else {
+            throw NetworkError.serverError("Not authenticated.")
+        }
+        return try await network.get(
+            path: "user/getImage",
+            queryItems: [URLQueryItem(name: "publicId", value: publicId)],
+            successType: GetImageResponse.self,
+            token: token
+        )
+    }
+
+    // MARK: - Get Images
+
+    /// GET user/getImages?category=<category>  — requires Bearer token
+    func getImages(category: String) async throws -> GetImagesResponse {
+        guard let token = keychain.authToken else {
+            throw NetworkError.serverError("Not authenticated.")
+        }
+        return try await network.get(
+            path: "user/getImages",
+            queryItems: [URLQueryItem(name: "category", value: category)],
+            successType: GetImagesResponse.self,
+            token: token
+        )
+    }
+
     // MARK: - Update User Profile
 
     /// PUT user/profile/{id}?userId=<userId>  — requires Bearer token

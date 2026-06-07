@@ -56,13 +56,13 @@ struct ProfileView: View {
             if showAvatarPicker {
                 AvatarPickerPopup(
                     initials: initials,
-                    selectedId: $selectedAvatarId,
                     onDismiss: {
                         withAnimation(AppDesign.Animation.standard) {
                             showAvatarPicker = false
                         }
                     }
                 )
+                .environmentObject(appViewModel)
                 .transition(.opacity.combined(with: .scale(scale: 0.96)))
                 .zIndex(10)
             }
@@ -159,21 +159,51 @@ struct ProfileView: View {
                                 value: avatarPulse
                             )
 
-                        // Avatar fill
+                        // White background circle
                         Circle()
-                            .fill(
-                                LinearGradient(
-                                    colors: avatarOptions[selectedAvatarId].colors,
-                                    startPoint: .topLeading,
-                                    endPoint: .bottomTrailing
-                                )
-                            )
+                            .fill(Color.white)
                             .frame(width: 96, height: 96)
 
-                        // Initials
-                        Text(initials)
-                            .font(.system(size: 38, weight: .bold, design: .rounded))
-                            .foregroundStyle(.white)
+                        // Avatar fill
+                        Group {
+                            if let imageUrl = appViewModel.currentUserProfile?.imageUrl,
+                               !imageUrl.isEmpty,
+                               let url = URL(string: imageUrl) {
+                                AsyncImage(url: url) { phase in
+                                    switch phase {
+                                    case .success(let img):
+                                        img.resizable().scaledToFill()
+                                    default:
+                                        Circle()
+                                            .fill(
+                                                LinearGradient(
+                                                    colors: avatarOptions[selectedAvatarId].colors,
+                                                    startPoint: .topLeading,
+                                                    endPoint: .bottomTrailing
+                                                )
+                                            )
+                                    }
+                                }
+                            } else {
+                                Circle()
+                                    .fill(
+                                        LinearGradient(
+                                            colors: avatarOptions[selectedAvatarId].colors,
+                                            startPoint: .topLeading,
+                                            endPoint: .bottomTrailing
+                                        )
+                                    )
+                            }
+                        }
+                        .frame(width: 96, height: 96)
+                        .clipShape(Circle())
+
+                        // Initials (only shown when no imageUrl)
+                        if (appViewModel.currentUserProfile?.imageUrl ?? "").isEmpty {
+                            Text(initials)
+                                .font(.system(size: 38, weight: .bold, design: .rounded))
+                                .foregroundStyle(.white)
+                        }
 
                         // Camera badge (bottom-right)
                         ZStack {
@@ -365,7 +395,7 @@ struct ProfileView: View {
             cardDivider
             infoRow(icon: "phone.fill",         tint: Color(red: 0.2, green: 0.7, blue: 0.4),   label: "Phone",      value: phoneDisplay)
             cardDivider
-            infoRow(icon: "birthday.cake.fill", tint: Color(red: 0.9, green: 0.45, blue: 0.1),  label: "Age",        value: ageDisplay)
+            infoRow(icon: "birthday.cake.fill", tint: Color(red: 0.9, green: 0.45, blue: 0.1),  label: "Birthdate",  value: birthDateDisplay)
 
             // Edit Profile button inside card
             Divider().padding(.horizontal, AppDesign.Spacing.lg)
@@ -628,9 +658,19 @@ struct ProfileView: View {
         return p.phoneNumber
     }
 
-    private var ageDisplay: String {
-        guard let p = appViewModel.currentUserProfile, p.age > 0 else { return "—" }
-        return "\(p.age)"
+    private var birthDateDisplay: String {
+        guard let p = appViewModel.currentUserProfile, let bd = p.birthDate, !bd.isEmpty else { return "—" }
+        let isoFormatter = ISO8601DateFormatter()
+        isoFormatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+        let date = isoFormatter.date(from: bd) ?? {
+            isoFormatter.formatOptions = [.withInternetDateTime]
+            return isoFormatter.date(from: bd)
+        }()
+        guard let birth = date else { return "—" }
+        let display = DateFormatter()
+        display.dateStyle = .medium
+        display.timeStyle = .none
+        return display.string(from: birth)
     }
 
     private var memberSince: String {
@@ -652,7 +692,7 @@ struct ProfileView: View {
         if !p.firstName.isEmpty    { score += 0.2 }
         if !p.lastName.isEmpty     { score += 0.2 }
         if !p.phoneNumber.isEmpty  { score += 0.2 }
-        if p.age > 0               { score += 0.2 }
+        if p.birthDate != nil       { score += 0.2 }
         if p.isVerifyEmail == true { score += 0.2 }
         return score
     }
@@ -672,12 +712,17 @@ struct ProfileView: View {
 // MARK: - Avatar Picker Popup
 
 struct AvatarPickerPopup: View {
+    @EnvironmentObject private var appViewModel: AppViewModel
     let initials: String
-    @Binding var selectedId: Int
     let onDismiss: () -> Void
 
+    @State private var images: [UserImageData] = []
+    @State private var isLoading = false
+    @State private var selectedImage: UserImageData? = nil
+    @State private var isSaving = false
+    @State private var saveError: String? = nil
+
     private let columns = [
-        GridItem(.flexible()),
         GridItem(.flexible()),
         GridItem(.flexible()),
         GridItem(.flexible())
@@ -689,10 +734,10 @@ struct AvatarPickerPopup: View {
         ZStack {
             Color.black.opacity(0.55)
                 .ignoresSafeArea()
-                .onTapGesture { onDismiss() }
+                .onTapGesture { if !isSaving { onDismiss() } }
 
             VStack(spacing: 0) {
-                // Top bar — matches ChoreDetailPopup style
+                // Top bar
                 ZStack {
                     LinearGradient(
                         colors: [accentOrange, accentOrange.opacity(0.7)],
@@ -708,12 +753,12 @@ struct AvatarPickerPopup: View {
                             Text("Choose Avatar")
                                 .font(.system(size: 15, weight: .bold))
                                 .foregroundColor(.white)
-                            Text("Tap a colour to apply")
+                            Text("Select an image to apply")
                                 .font(.system(size: 12, weight: .medium))
                                 .foregroundColor(.white.opacity(0.75))
                         }
                         Spacer()
-                        Button(action: onDismiss) {
+                        Button { if !isSaving { onDismiss() } } label: {
                             Image(systemName: "xmark")
                                 .font(.system(size: 13, weight: .bold))
                                 .foregroundColor(.white.opacity(0.9))
@@ -729,28 +774,79 @@ struct AvatarPickerPopup: View {
 
                 // Grid body
                 ScrollView(showsIndicators: false) {
-                    LazyVGrid(columns: columns, spacing: AppDesign.Spacing.lg) {
-                        ForEach(avatarOptions) { option in
-                            avatarCell(option: option)
+                    if isLoading {
+                        ProgressView()
+                            .tint(accentOrange)
+                            .scaleEffect(1.2)
+                            .frame(maxWidth: .infinity, minHeight: 180)
+                    } else if images.isEmpty {
+                        VStack(spacing: AppDesign.Spacing.sm) {
+                            Image(systemName: "photo.on.rectangle.angled")
+                                .font(.system(size: 36))
+                                .foregroundStyle(AppDesign.Colors.textTertiary)
+                            Text("No images found")
+                                .font(AppDesign.Typography.subheadline)
+                                .foregroundStyle(AppDesign.Colors.textTertiary)
                         }
+                        .frame(maxWidth: .infinity, minHeight: 180)
+                    } else {
+                        LazyVGrid(columns: columns, spacing: AppDesign.Spacing.md) {
+                            ForEach(images, id: \.publicId) { image in
+                                imageCell(image: image)
+                            }
+                        }
+                        .padding(.horizontal, AppDesign.Spacing.xl)
+                        .padding(.vertical, AppDesign.Spacing.xl)
                     }
-                    .padding(.horizontal, AppDesign.Spacing.xl)
-                    .padding(.vertical, AppDesign.Spacing.xl)
                 }
-                .frame(maxHeight: 300)
+                .frame(maxHeight: 340)
 
-                // Footer note + close — matches ChoreDetailPopup dismissButton
-                VStack(spacing: AppDesign.Spacing.md) {
-                    HStack(spacing: 6) {
-                        Image(systemName: "clock.badge")
-                            .font(.system(size: 12))
-                        Text("Photo upload coming soon")
-                            .font(.system(size: 12, weight: .medium))
+                // Error
+                if let error = saveError {
+                    HStack(spacing: AppDesign.Spacing.sm) {
+                        Image(systemName: "exclamationmark.triangle.fill")
+                        Text(error)
+                            .font(AppDesign.Typography.caption)
+                        Spacer()
                     }
-                    .foregroundStyle(AppDesign.Colors.textTertiary)
+                    .foregroundStyle(AppDesign.Colors.error)
+                    .padding(AppDesign.Spacing.md)
+                    .background(
+                        RoundedRectangle(cornerRadius: AppDesign.CornerRadius.md)
+                            .fill(AppDesign.Colors.error.opacity(0.1))
+                    )
+                    .padding(.horizontal, AppDesign.Spacing.xl)
+                }
 
-                    Button(action: onDismiss) {
-                        Text("Close")
+                // Footer
+                VStack(spacing: AppDesign.Spacing.sm) {
+                    Button {
+                        Task { await save() }
+                    } label: {
+                        HStack(spacing: AppDesign.Spacing.sm) {
+                            if isSaving {
+                                ProgressView().scaleEffect(0.85).tint(.white)
+                            } else {
+                                Image(systemName: "checkmark.circle.fill")
+                                    .font(.system(size: 16, weight: .semibold))
+                            }
+                            Text(isSaving ? "Saving…" : "Save Changes")
+                                .font(AppDesign.Typography.headline)
+                        }
+                        .foregroundColor(.white)
+                        .frame(maxWidth: .infinity)
+                        .frame(height: AppDesign.Size.buttonHeightSmall)
+                        .background(
+                            selectedImage == nil || isSaving
+                                ? LinearGradient(colors: [Color.gray.opacity(0.5), Color.gray.opacity(0.4)], startPoint: .leading, endPoint: .trailing)
+                                : LinearGradient(colors: [accentOrange, accentOrange.opacity(0.75)], startPoint: .leading, endPoint: .trailing)
+                        )
+                        .cornerRadius(AppDesign.CornerRadius.md)
+                    }
+                    .disabled(selectedImage == nil || isSaving)
+
+                    Button { if !isSaving { onDismiss() } } label: {
+                        Text("Cancel")
                             .font(AppDesign.Typography.headline)
                             .foregroundColor(AppDesign.Colors.textSecondary)
                             .frame(maxWidth: .infinity)
@@ -776,65 +872,122 @@ struct AvatarPickerPopup: View {
             .shadow(color: Color.black.opacity(0.25), radius: 30, x: 0, y: 16)
             .padding(.horizontal, AppDesign.Spacing.xl)
         }
+        .animation(AppDesign.Animation.standard, value: isSaving)
+        .task { await fetchImages() }
     }
 
+    // MARK: - Image Cell
+
     @ViewBuilder
-    private func avatarCell(option: AvatarOption) -> some View {
-        let isSelected = option.id == selectedId
+    private func imageCell(image: UserImageData) -> some View {
+        let isSelected = selectedImage?.publicId == image.publicId
         Button {
             withAnimation(AppDesign.Animation.spring) {
-                selectedId = option.id
+                selectedImage = image
             }
         } label: {
-            VStack(spacing: 6) {
-                ZStack {
-                    Circle()
-                        .strokeBorder(
-                            LinearGradient(
-                                colors: option.colors,
-                                startPoint: .topLeading,
-                                endPoint: .bottomTrailing
-                            ),
-                            lineWidth: isSelected ? 3 : 0
-                        )
-                        .frame(width: 68, height: 68)
-
-                    Circle()
-                        .fill(
-                            LinearGradient(
-                                colors: option.colors,
-                                startPoint: .topLeading,
-                                endPoint: .bottomTrailing
-                            )
-                        )
-                        .frame(width: isSelected ? 56 : 62, height: isSelected ? 56 : 62)
-
-                    if isSelected {
-                        Image(systemName: "checkmark")
-                            .font(.system(size: 22, weight: .bold))
-                            .foregroundStyle(.white)
-                    } else {
-                        Text(initials)
-                            .font(.system(size: 20, weight: .bold, design: .rounded))
-                            .foregroundStyle(.white)
+            ZStack(alignment: .bottomTrailing) {
+                AsyncImage(url: URL(string: image.fileURL)) { phase in
+                    switch phase {
+                    case .success(let img):
+                        img.resizable().scaledToFill()
+                    case .failure:
+                        ZStack {
+                            Color(AppDesign.Colors.secondaryBackground)
+                            Image(systemName: "photo")
+                                .foregroundStyle(AppDesign.Colors.textTertiary)
+                        }
+                    default:
+                        ZStack {
+                            Color(AppDesign.Colors.secondaryBackground)
+                            ProgressView().tint(accentOrange)
+                        }
                     }
                 }
-                .shadow(
-                    color: (option.colors.first ?? .clear).opacity(isSelected ? 0.45 : 0.2),
-                    radius: isSelected ? 10 : 6,
-                    x: 0, y: 4
+                .frame(width: 90, height: 90)
+                .clipShape(RoundedRectangle(cornerRadius: 14))
+                .overlay(
+                    RoundedRectangle(cornerRadius: 14)
+                        .strokeBorder(
+                            isSelected ? accentOrange : Color.clear,
+                            lineWidth: 3
+                        )
                 )
-                .scaleEffect(isSelected ? 1.05 : 1.0)
+                .scaleEffect(isSelected ? 1.04 : 1.0)
 
-                Text(option.label)
-                    .font(.system(size: 11, weight: isSelected ? .bold : .medium))
-                    .foregroundStyle(isSelected
-                        ? (option.colors.first ?? AppDesign.Colors.textPrimary)
-                        : AppDesign.Colors.textTertiary)
+                if isSelected {
+                    ZStack {
+                        Circle()
+                            .fill(accentOrange)
+                            .frame(width: 22, height: 22)
+                        Image(systemName: "checkmark")
+                            .font(.system(size: 11, weight: .bold))
+                            .foregroundStyle(.white)
+                    }
+                    .offset(x: 4, y: 4)
+                }
             }
+            .shadow(
+                color: (isSelected ? accentOrange : Color.black).opacity(isSelected ? 0.35 : 0.1),
+                radius: isSelected ? 8 : 4,
+                x: 0, y: 3
+            )
         }
         .buttonStyle(.plain)
         .animation(AppDesign.Animation.spring, value: isSelected)
+    }
+
+    // MARK: - Fetch
+
+    private func fetchImages() async {
+        isLoading = true
+        saveError = nil
+        do {
+            let response = try await UserService.shared.getImages(category: "profile/superhero")
+            await MainActor.run {
+                images = response.data
+                // Pre-select current imageUrl if it matches one of the fetched images
+                if let currentUrl = appViewModel.currentUserProfile?.imageUrl,
+                   let match = response.data.first(where: { $0.fileURL == currentUrl }) {
+                    selectedImage = match
+                }
+                isLoading = false
+            }
+        } catch {
+            await MainActor.run {
+                saveError = error.localizedDescription
+                isLoading = false
+            }
+        }
+    }
+
+    // MARK: - Save
+
+    private func save() async {
+        guard let image = selectedImage else { return }
+        isSaving = true
+        saveError = nil
+        let request = UpdateProfileRequest(
+            imageUrl: image.fileURL,
+            birthDay: nil,
+            firstName: nil,
+            isVerifyEmail: nil,
+            isVerifyPhone: nil,
+            lastName: nil,
+            phoneNumber: nil
+        )
+        do {
+            try await appViewModel.updateProfile(request)
+            await MainActor.run {
+                isSaving = false
+                onDismiss()
+            }
+        } catch {
+            await MainActor.run {
+                isSaving = false
+                saveError = error.localizedDescription
+            }
+        }
     }
 }
 
@@ -847,7 +1000,7 @@ struct EditProfilePopup: View {
     @State private var firstName: String = ""
     @State private var lastName: String = ""
     @State private var phoneNumber: String = ""
-    @State private var age: String = ""
+    @State private var birthDate: Date = Calendar.current.date(byAdding: .year, value: -25, to: Date()) ?? Date()
     @State private var isSaving = false
     @State private var saveError: String?
 
@@ -927,10 +1080,25 @@ struct EditProfilePopup: View {
                                       placeholder: "Phone Number", text: $phoneNumber,
                                       keyboard: .phonePad)
                             Divider().padding(.leading, 66)
-                            editField(icon: "birthday.cake.fill",
-                                      tint: Color(red: 0.9, green: 0.45, blue: 0.1),
-                                      placeholder: "Age", text: $age,
-                                      keyboard: .numberPad)
+                            HStack(spacing: AppDesign.Spacing.md) {
+                                ZStack {
+                                    RoundedRectangle(cornerRadius: 8)
+                                        .fill(Color(red: 0.9, green: 0.45, blue: 0.1).opacity(0.13))
+                                        .frame(width: 34, height: 34)
+                                    Image(systemName: "birthday.cake.fill")
+                                        .font(.system(size: 14, weight: .medium))
+                                        .foregroundStyle(Color(red: 0.9, green: 0.45, blue: 0.1))
+                                }
+                                Text("Birthdate")
+                                    .font(AppDesign.Typography.subheadline)
+                                    .foregroundStyle(AppDesign.Colors.textSecondary)
+                                Spacer()
+                                DatePicker("", selection: $birthDate, in: ...Date(), displayedComponents: .date)
+                                    .labelsHidden()
+                                    .tint(Color(red: 0.9, green: 0.45, blue: 0.1))
+                            }
+                            .padding(.horizontal, AppDesign.Spacing.lg)
+                            .padding(.vertical, 14)
                         }
 
                         if let error = saveError {
@@ -1104,7 +1272,16 @@ struct EditProfilePopup: View {
         firstName   = p.firstName
         lastName    = p.lastName
         phoneNumber = p.phoneNumber
-        age         = p.age > 0 ? "\(p.age)" : ""
+        if let bd = p.birthDate, !bd.isEmpty {
+            let isoFormatter = ISO8601DateFormatter()
+            isoFormatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+            if let parsed = isoFormatter.date(from: bd) {
+                birthDate = parsed
+            } else {
+                isoFormatter.formatOptions = [.withInternetDateTime]
+                if let parsed = isoFormatter.date(from: bd) { birthDate = parsed }
+            }
+        }
     }
 
     // MARK: - Save (PUT user/profile)
@@ -1112,9 +1289,12 @@ struct EditProfilePopup: View {
     private func save() async {
         isSaving  = true
         saveError = nil
+        let isoFormatter = ISO8601DateFormatter()
+        isoFormatter.formatOptions = [.withInternetDateTime]
+        let birthDateString = isoFormatter.string(from: birthDate)
         let request = UpdateProfileRequest(
             imageUrl:      nil,
-            age:           Int(age),
+            birthDay:      birthDateString,
             firstName:     firstName.isEmpty   ? nil : firstName,
             isVerifyEmail: nil,
             isVerifyPhone: nil,

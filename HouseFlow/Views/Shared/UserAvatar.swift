@@ -1,17 +1,35 @@
 import SwiftUI
 
-/// Kullanıcı avatarı component'i - initials ile dairesel avatar gösterir
+/// Kullanıcı avatarı component'i - imageUrl varsa gösterir, yoksa initials fallback
 struct UserAvatar: View {
     let user: User
     let size: CGFloat
-    
+
     var body: some View {
+        Group {
+            if let urlString = user.imageUrl, !urlString.isEmpty, let url = URL(string: urlString) {
+                AsyncImage(url: url) { phase in
+                    switch phase {
+                    case .success(let img):
+                        img.resizable().scaledToFill()
+                    default:
+                        initialsView
+                    }
+                }
+            } else {
+                initialsView
+            }
+        }
+        .frame(width: size, height: size)
+        .clipShape(Circle())
+    }
+
+    private var initialsView: some View {
         Text(user.initials)
             .font(.system(size: size * 0.4, weight: .semibold))
             .foregroundColor(.white)
             .frame(width: size, height: size)
             .background(AppDesign.Colors.primary)
-            .clipShape(Circle())
     }
 }
 

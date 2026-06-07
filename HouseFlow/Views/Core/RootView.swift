@@ -17,6 +17,7 @@ struct RootView: View {
                 .onChange(of: appViewModel.showHouseError) { _, _ in }
                 .onChange(of: appViewModel.isInitializing) { _, _ in }
         }
+        .dismissKeyboardOnTap()
         .overlay(alignment: .top) {
             if let message = appViewModel.toastMessage {
                 ToastView(message: message, isError: appViewModel.toastIsError)

@@ -57,7 +57,7 @@ struct HouseMemberDTO: Decodable, Identifiable {
     let isVerifyEmail: Bool
     let isVerifyPhone: Bool
     let phoneNumber: String
-    let age: Int
+    let birthDate: String?
     let houseIds: [String]
     let createdOn: String
     let updatedOn: String
