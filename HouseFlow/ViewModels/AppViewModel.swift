@@ -79,6 +79,12 @@ class AppViewModel: ObservableObject {
     /// The server-assigned ID of the logged-in user (used to gate chore status edits).
     @Published var currentUserId: String?
 
+    /// Full server profile of the logged-in user (used for profile display & edit).
+    @Published var currentUserProfile: IsAuthUserData?
+
+    /// Set to true whenever a modal / popup is covering the screen so the tab bar hides.
+    @Published var isOverlayPresented: Bool = false
+
     // MARK: - Background Session Tracking
     /// Timestamp of when the app last entered the background.
     private var backgroundedAt: Date? = nil
@@ -328,7 +334,8 @@ class AppViewModel: ObservableObject {
         keychain.userFirstName = profile.firstName
         keychain.userLastName = profile.lastName
         currentUserId = profile.id
-        currentUser = User(firstName: profile.firstName, lastName: profile.lastName, apiId: profile.id, points: 0)
+        currentUserProfile = profile
+        currentUser = User(firstName: profile.firstName, lastName: profile.lastName, apiId: profile.id, points: 0, imageUrl: profile.imageUrl.isEmpty ? nil : profile.imageUrl)
     }
     
     func selectHouse(name: String) {
@@ -352,6 +359,40 @@ class AppViewModel: ObservableObject {
     func showJoinHouseScreen() {
         navigationDirection = .forward
         showJoinHouse = true
+    }
+
+    // MARK: - User Profile Update
+
+    func updateProfile(_ request: UpdateProfileRequest) async throws {
+        guard let userId = currentUserId else {
+            throw NetworkError.serverError("User not authenticated.")
+        }
+        let response = try await UserService.shared.updateProfile(userId: userId, request: request)
+        guard response.success, let data = response.data else {
+            throw NetworkError.serverError(response.error ?? "Update failed.")
+        }
+        await MainActor.run {
+            // Merge updated fields back into the cached IsAuthUserData profile
+            if var profile = currentUserProfile {
+                profile = IsAuthUserData(
+                    birthDate: data.birthDay,
+                    createdOn: data.createdOn,
+                    email: data.email,
+                    firstName: data.firstName,
+                    houseIds: data.houseIds,
+                    id: data.id,
+                    imageUrl: data.imageUrl,
+                    isActive: data.isActive,
+                    isVerifyEmail: data.isVerifyEmail,
+                    isVerifyPhone: data.isVerifyPhone,
+                    lastLogin: data.lastLogin,
+                    lastName: data.lastName,
+                    phoneNumber: data.phoneNumber,
+                    updatedOn: data.updatedOn
+                )
+                applyAuthenticatedUser(profile)
+            }
+        }
     }
 
     // MARK: - House API (Full Flow)
@@ -513,17 +554,31 @@ class AppViewModel: ObservableObject {
     /// House members mapped from `currentHouseDetails`, falls back to sample data.
     var dashboardMembers: [User] {
         guard let details = currentHouseDetails else { return sampleUsers }
-        return details.members.map { User(firstName: $0.firstName, lastName: $0.lastName, apiId: $0.id, points: 0) }
+        return details.members.map { member in
+            // Use fresh profile data for the current user so updates reflect immediately
+            if member.id == currentUserId, let profile = currentUserProfile {
+                return User(firstName: profile.firstName, lastName: profile.lastName, apiId: member.id, points: 0, imageUrl: profile.imageUrl.isEmpty ? nil : profile.imageUrl)
+            }
+            return User(firstName: member.firstName, lastName: member.lastName, apiId: member.id, points: 0, imageUrl: member.imageUrl.isEmpty ? nil : member.imageUrl)
+        }
     }
 
     /// Chores mapped from `currentHouseDetails`, falls back to in-memory chores.
     var dashboardChores: [Chore] {
         guard let details = currentHouseDetails else { return chores }
         return details.chores.map { dto in
-            let assignedUser = details.members
-                .first(where: { $0.id == dto.assignedTo })
-                .map { User(firstName: $0.firstName, lastName: $0.lastName, apiId: $0.id, points: 0) }
-                ?? User(name: dto.assignedTo.isEmpty ? "Unassigned" : dto.assignedTo)
+            let matchedMember = details.members.first(where: { $0.id == dto.assignedTo })
+            let assignedUser: User
+            if let matched = matchedMember {
+                // Use fresh profile for the current user
+                if matched.id == currentUserId, let profile = currentUserProfile {
+                    assignedUser = User(firstName: profile.firstName, lastName: profile.lastName, apiId: matched.id, points: 0, imageUrl: profile.imageUrl.isEmpty ? nil : profile.imageUrl)
+                } else {
+                    assignedUser = User(firstName: matched.firstName, lastName: matched.lastName, apiId: matched.id, points: 0, imageUrl: matched.imageUrl.isEmpty ? nil : matched.imageUrl)
+                }
+            } else {
+                assignedUser = User(name: dto.assignedTo.isEmpty ? "Unassigned" : dto.assignedTo)
+            }
             let label = dto.dueLabelString
             return Chore(
                 choreApiId: dto.id,

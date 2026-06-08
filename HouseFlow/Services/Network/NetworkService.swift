@@ -107,6 +107,51 @@ final class NetworkService {
         }
     }
 
+    // MARK: - Authenticated request with query parameters and body
+
+    func authenticatedRequest<Body: Encodable, Success: Decodable>(
+        path: String,
+        method: String = "PUT",
+        queryItems: [URLQueryItem],
+        body: Body,
+        successType: Success.Type,
+        token: String
+    ) async throws -> Success {
+        guard var components = URLComponents(
+            url: AppEnvironment.current.baseURL.appendingPathComponent(path),
+            resolvingAgainstBaseURL: true
+        ) else { throw NetworkError.invalidURL }
+
+        components.queryItems = queryItems
+
+        guard let url = components.url else { throw NetworkError.invalidURL }
+
+        var request = URLRequest(url: url)
+        request.httpMethod = method
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
+        request.httpBody = try encoder.encode(body)
+
+        let (data, response) = try await session.data(for: request)
+
+        guard let http = response as? HTTPURLResponse else {
+            throw NetworkError.unknown(-1)
+        }
+
+        if (200...399).contains(http.statusCode) {
+            do {
+                return try decoder.decode(Success.self, from: data)
+            } catch {
+                throw NetworkError.decodingError(error)
+            }
+        } else {
+            if let errorBody = try? decoder.decode(APIErrorResponse.self, from: data) {
+                throw NetworkError.serverError(errorBody.error)
+            }
+            throw NetworkError.unknown(http.statusCode)
+        }
+    }
+
     // MARK: - Authenticated GET with query parameters
 
     func get<Success: Decodable>(
