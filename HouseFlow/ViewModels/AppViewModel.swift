@@ -375,7 +375,7 @@ class AppViewModel: ObservableObject {
             // Merge updated fields back into the cached IsAuthUserData profile
             if var profile = currentUserProfile {
                 profile = IsAuthUserData(
-                    birthDate: data.birthDay,
+                    birthDate: data.birthDate,
                     createdOn: data.createdOn,
                     email: data.email,
                     firstName: data.firstName,

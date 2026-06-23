@@ -11,14 +11,14 @@ final class UserService {
     // MARK: - Get User By Email
 
     /// GET user/getByEmail?email=<email>  — requires Bearer token
-    func getByEmail(_ email: String) async throws -> UserProfileResponse {
+    func getByEmail(_ email: String) async throws -> UserResultModel {
         guard let token = keychain.authToken else {
             throw NetworkError.serverError("Not authenticated.")
         }
         return try await network.get(
             path: "user/getByEmail",
             queryItems: [URLQueryItem(name: "email", value: email)],
-            successType: UserProfileResponse.self,
+            successType: UserResultModel.self,
             token: token
         )
     }

@@ -72,7 +72,6 @@ struct ProfileView: View {
                     onDismiss: {
                         withAnimation(AppDesign.Animation.standard) {
                             showEditSheet = false
-                            appViewModel.isOverlayPresented = false
                         }
                     }
                 )
@@ -92,9 +91,7 @@ struct ProfileView: View {
         .animation(AppDesign.Animation.standard, value: showEditSheet)
         .animation(AppDesign.Animation.standard, value: showAbout)
         .onChange(of: showEditSheet) { _, v in
-            withAnimation(AppDesign.Animation.standard) {
-                appViewModel.isOverlayPresented = v
-            }
+            appViewModel.isOverlayPresented = v
         }
     }
 
@@ -963,7 +960,9 @@ struct AvatarPickerPopup: View {
 
     // MARK: - Save
 
+    @MainActor
     private func save() async {
+        guard !isSaving else { return }
         guard let image = selectedImage else { return }
         isSaving = true
         saveError = nil
@@ -971,22 +970,16 @@ struct AvatarPickerPopup: View {
             imageUrl: image.fileURL,
             birthDay: nil,
             firstName: nil,
-            isVerifyEmail: nil,
-            isVerifyPhone: nil,
             lastName: nil,
             phoneNumber: nil
         )
         do {
             try await appViewModel.updateProfile(request)
-            await MainActor.run {
-                isSaving = false
-                onDismiss()
-            }
+            await Task.yield()
+            onDismiss()
         } catch {
-            await MainActor.run {
-                isSaving = false
-                saveError = error.localizedDescription
-            }
+            isSaving = false
+            saveError = error.localizedDescription
         }
     }
 }
@@ -1286,7 +1279,9 @@ struct EditProfilePopup: View {
 
     // MARK: - Save (PUT user/profile)
 
+    @MainActor
     private func save() async {
+        guard !isSaving else { return }
         isSaving  = true
         saveError = nil
         let isoFormatter = ISO8601DateFormatter()
@@ -1296,14 +1291,12 @@ struct EditProfilePopup: View {
             imageUrl:      nil,
             birthDay:      birthDateString,
             firstName:     firstName.isEmpty   ? nil : firstName,
-            isVerifyEmail: nil,
-            isVerifyPhone: nil,
             lastName:      lastName.isEmpty    ? nil : lastName,
             phoneNumber:   phoneNumber.isEmpty ? nil : phoneNumber
         )
         do {
             try await appViewModel.updateProfile(request)
-            isSaving = false
+            await Task.yield()
             onDismiss()
         } catch {
             isSaving  = false

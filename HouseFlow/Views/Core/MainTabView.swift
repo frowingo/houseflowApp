@@ -1,14 +1,4 @@
 import SwiftUI
-import UIKit
-
-// MARK: - Screen corner radius helper
-
-private extension UIScreen {
-    /// Cihazın gerçek ekran köşe yarıçapı (tüm modellerde çalışır, yoksa 0)
-    var displayCornerRadius: CGFloat {
-        (value(forKey: "_displayCornerRadius") as? CGFloat) ?? 0
-    }
-}
 
 // MARK: - Tab Definition
 
@@ -110,13 +100,9 @@ struct CustomTabBar: View {
         .padding(.bottom, bottomInset + 20)
     }
 
-    // Margin between bar edge and screen edge (same on all sides)
-    private let edgeMargin: CGFloat = 12
-
-    // Runtime screen corner minus margin → concentric, perfect alignment on any device
+    // Avoid private screen-corner APIs here; this view is rebuilt when popups close.
     private var barCornerRadius: CGFloat {
-        let screenRadius = UIScreen.main.displayCornerRadius
-        return max(0, screenRadius - edgeMargin)
+        28
     }
 
     private var barShape: RoundedRectangle {

@@ -18,9 +18,12 @@ struct GamesHubView: View {
         GameInfo(id: 0, title: "Lucky Spin",
                  description: "Spin the wheel — fate picks who does the chore.",
                  icon: "arrow.2.circlepath", color: .orange, badge: "Group"),
-        GameInfo(id: 1, title: "Hot Potato",
-                 description: "Pass the bomb! Whoever holds it when it explodes does the chore.",
-                 icon: "flame.fill", color: .red, badge: "Group"),
+        GameInfo(id: 2, title: "Vault Rush",
+                 description: "Crack the bank vault, dodge the alarm, and leave the fall guy with the chore.",
+                 icon: "building.columns.fill", color: Color(hex: "0F172A"), badge: "Room"),
+        GameInfo(id: 3, title: "Skyline Dash",
+                 description: "Tap through shared gates. Hit one, and your run is over.",
+                 icon: "paperplane.fill", color: .cyan, badge: "Realtime"),
     ]
 
     private let columns = [
@@ -127,7 +130,8 @@ struct GamesHubView: View {
     private func destinationView(for id: Int) -> some View {
         switch id {
         case 0: LuckySpinView()
-        case 1: HotPotatoView()
+        case 2: VaultRushView()
+        case 3: SkylineDashView()
         default: EmptyView()
         }
     }
@@ -142,15 +146,34 @@ private struct HubGameCard: View {
             // Icon area — solid color fill
             ZStack {
                 LinearGradient(
-                    colors: [
-                        game.color.opacity(0.85),
-                        game.color.opacity(0.55),
-                    ],
+                    colors: bannerColors,
                     startPoint: .topLeading,
                     endPoint: .bottomTrailing
                 )
                 .frame(maxWidth: .infinity)
                 .frame(height: 120)
+
+                if game.id == 2 {
+                    Circle()
+                        .fill(Color.teal.opacity(0.18))
+                        .frame(width: 92, height: 92)
+                        .offset(x: 58, y: -38)
+
+                    Image(systemName: "dollarsign.circle.fill")
+                        .font(.system(size: 54, weight: .black))
+                        .foregroundStyle(Color.white.opacity(0.08))
+                        .offset(x: -54, y: 34)
+                } else if game.id == 3 {
+                    Circle()
+                        .fill(Color.white.opacity(0.16))
+                        .frame(width: 86, height: 86)
+                        .offset(x: -58, y: -34)
+
+                    RoundedRectangle(cornerRadius: 10)
+                        .fill(Color.white.opacity(0.14))
+                        .frame(width: 46, height: 118)
+                        .offset(x: 62, y: 0)
+                }
 
                 VStack(spacing: AppDesign.Spacing.sm) {
                     Image(systemName: game.icon)
@@ -186,6 +209,29 @@ private struct HubGameCard: View {
         .clipShape(RoundedRectangle(cornerRadius: AppDesign.CornerRadius.xl))
         .shadow(color: Color.black.opacity(0.06), radius: 8, x: 0, y: 2)
         .frame(maxHeight: .infinity, alignment: .top)
+    }
+
+    private var bannerColors: [Color] {
+        if game.id == 2 {
+            return [
+                Color(hex: "05070C"),
+                Color(hex: "111827"),
+                Color(hex: "134E4A"),
+            ]
+        }
+
+        if game.id == 3 {
+            return [
+                Color(hex: "0EA5E9"),
+                Color(hex: "2563EB"),
+                Color(hex: "312E81"),
+            ]
+        }
+
+        return [
+            game.color.opacity(0.85),
+            game.color.opacity(0.55),
+        ]
     }
 }
 

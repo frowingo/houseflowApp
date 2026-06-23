@@ -1,5 +1,125 @@
 import SwiftUI
 
+// MARK: - Lucky Spin Theme
+private enum LuckySpinTheme {
+    static let backgroundTop = Color(hex: "120A1F")
+    static let backgroundBottom = Color(hex: "05070C")
+    static let surface = Color.white.opacity(0.08)
+    static let elevated = Color.white.opacity(0.12)
+    static let border = Color.white.opacity(0.14)
+    static let textPrimary = Color.white.opacity(0.96)
+    static let textSecondary = Color.white.opacity(0.68)
+    static let textTertiary = Color.white.opacity(0.48)
+    static let gold = Color(hex: "F59E0B")
+    static let pink = Color(hex: "EC4899")
+    static let playerColors: [Color] = [
+        Color(hex: "F59E0B"),
+        Color(hex: "06B6D4"),
+        Color(hex: "8B5CF6"),
+        Color(hex: "EC4899"),
+        Color(hex: "22C55E"),
+        Color(hex: "EF4444"),
+    ]
+}
+
+// MARK: - Background
+private struct LuckySpinBackground: View {
+    var body: some View {
+        ZStack {
+            LinearGradient(
+                colors: [
+                    LuckySpinTheme.backgroundTop,
+                    Color(hex: "1A102C"),
+                    LuckySpinTheme.backgroundBottom,
+                ],
+                startPoint: .topLeading,
+                endPoint: .bottomTrailing
+            )
+
+            Circle()
+                .fill(LuckySpinTheme.gold.opacity(0.18))
+                .frame(width: 260, height: 260)
+                .blur(radius: 28)
+                .offset(x: 150, y: -260)
+
+            Circle()
+                .fill(LuckySpinTheme.pink.opacity(0.16))
+                .frame(width: 220, height: 220)
+                .blur(radius: 26)
+                .offset(x: -160, y: 260)
+        }
+    }
+}
+
+// MARK: - Badge
+private struct LuckySpinBadge: View {
+    let size: CGFloat
+
+    var body: some View {
+        ZStack {
+            RoundedRectangle(cornerRadius: AppDesign.CornerRadius.xl)
+                .fill(
+                    LinearGradient(
+                        colors: [LuckySpinTheme.gold, LuckySpinTheme.pink],
+                        startPoint: .topLeading,
+                        endPoint: .bottomTrailing
+                    )
+                )
+                .frame(width: size, height: size)
+                .shadow(color: LuckySpinTheme.gold.opacity(0.28), radius: 14, x: 0, y: 6)
+
+            Circle()
+                .stroke(Color.white.opacity(0.42), lineWidth: 3)
+                .frame(width: size * 0.58, height: size * 0.58)
+
+            ForEach(0..<8, id: \.self) { index in
+                Capsule()
+                    .fill(Color.white.opacity(0.72))
+                    .frame(width: size * 0.18, height: 4)
+                    .offset(x: size * 0.24)
+                    .rotationEffect(.degrees(Double(index) * 45))
+            }
+
+            Image(systemName: "arrow.2.circlepath")
+                .font(.system(size: size * 0.34, weight: .black))
+                .foregroundStyle(.white)
+        }
+    }
+}
+
+// MARK: - Rule Row
+private struct LuckyRuleRow: View {
+    let icon: String
+    let color: Color
+    let title: String
+    let detail: String
+
+    var body: some View {
+        HStack(spacing: AppDesign.Spacing.md) {
+            ZStack {
+                Circle()
+                    .fill(color.opacity(0.16))
+                    .frame(width: 36, height: 36)
+                Image(systemName: icon)
+                    .font(.system(size: 16, weight: .semibold))
+                    .foregroundStyle(color)
+            }
+
+            VStack(alignment: .leading, spacing: 2) {
+                Text(title)
+                    .font(AppDesign.Typography.bodyBold)
+                    .foregroundStyle(LuckySpinTheme.textPrimary)
+                Text(detail)
+                    .font(AppDesign.Typography.caption)
+                    .foregroundStyle(LuckySpinTheme.textSecondary)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+
+            Spacer()
+        }
+    }
+}
+
 // MARK: - Phase
 private enum LuckySpinPhase: Equatable {
     case setup
@@ -22,7 +142,9 @@ struct LuckySpinView: View {
 
     var body: some View {
         ZStack {
-            AppDesign.Colors.background.ignoresSafeArea()
+            LuckySpinBackground()
+                .ignoresSafeArea()
+
             switch phase {
             case .setup:
                 setupView.transition(.opacity)
@@ -35,6 +157,7 @@ struct LuckySpinView: View {
                 ))
             }
         }
+        .environment(\.colorScheme, .dark)
         .navigationBarBackButtonHidden(phase != .setup)
         .navigationBarTitleDisplayMode(.inline)
         .onDisappear { spinTask?.cancel() }
@@ -43,37 +166,87 @@ struct LuckySpinView: View {
     // MARK: - Setup
     private var setupView: some View {
         VStack(spacing: 0) {
-            spinSetupHeader
+            ScrollView(showsIndicators: false) {
+                VStack(spacing: AppDesign.Spacing.xl) {
+                    spinSetupHeader
+                    spinRoomPanel
+                    memberPanel
+                }
+                .padding(.horizontal, AppDesign.Spacing.lg)
+                .padding(.top, AppDesign.Spacing.xxl)
+                .padding(.bottom, AppDesign.Spacing.xxl)
+            }
+
+            spinButton
+        }
+    }
+
+    private var spinSetupHeader: some View {
+        VStack(spacing: AppDesign.Spacing.md) {
+            LuckySpinBadge(size: 104)
+
+            Text("Lucky Spin")
+                .font(AppDesign.Typography.title2)
+                .foregroundStyle(LuckySpinTheme.textPrimary)
+            Text("A neon wheel chooses who takes the chore. Add players, spin once, and let chance settle it.")
+                .font(AppDesign.Typography.subheadline)
+                .foregroundStyle(LuckySpinTheme.textSecondary)
+                .multilineTextAlignment(.center)
+                .fixedSize(horizontal: false, vertical: true)
+        }
+    }
+
+    private var spinRoomPanel: some View {
+        VStack(alignment: .leading, spacing: AppDesign.Spacing.md) {
+            HStack {
+                Label("Spin Room LS-777", systemImage: "sparkles")
+                    .font(AppDesign.Typography.headline)
+                    .foregroundStyle(LuckySpinTheme.textPrimary)
+                Spacer()
+                Text("\(members.count) players")
+                    .font(AppDesign.Typography.caption)
+                    .foregroundStyle(LuckySpinTheme.gold)
+                    .padding(.horizontal, AppDesign.Spacing.sm)
+                    .padding(.vertical, AppDesign.Spacing.xs)
+                    .background(LuckySpinTheme.gold.opacity(0.16))
+                    .clipShape(Capsule())
+            }
+
+            VStack(spacing: AppDesign.Spacing.sm) {
+                LuckyRuleRow(icon: "person.3.fill", color: .cyan, title: "Add the room", detail: "Keep at least two players on the wheel.")
+                LuckyRuleRow(icon: "arrow.2.circlepath", color: LuckySpinTheme.gold, title: "One clean spin", detail: "The pointer lands on one selected player.")
+                LuckyRuleRow(icon: "target", color: LuckySpinTheme.pink, title: "Winner takes chore", detail: "The selected player gets the assigned task.")
+            }
+        }
+        .padding(AppDesign.Spacing.lg)
+        .background(LuckySpinTheme.surface)
+        .overlay(
+            RoundedRectangle(cornerRadius: AppDesign.CornerRadius.xl)
+                .stroke(LuckySpinTheme.border, lineWidth: 1)
+        )
+        .clipShape(RoundedRectangle(cornerRadius: AppDesign.CornerRadius.xl))
+    }
+
+    private var memberPanel: some View {
+        VStack(alignment: .leading, spacing: AppDesign.Spacing.md) {
+            Text("Wheel Players")
+                .font(AppDesign.Typography.headline)
+                .foregroundStyle(LuckySpinTheme.textPrimary)
+
             LuckySpinMemberList(
                 members: $members,
                 newMemberName: $newMemberName,
                 showAddField: $showAddField,
                 onAddMember: addMember
             )
-            Spacer(minLength: AppDesign.Spacing.lg)
-            spinButton
         }
-    }
-
-    private var spinSetupHeader: some View {
-        VStack(spacing: AppDesign.Spacing.sm) {
-            ZStack {
-                Circle().fill(Color.orange.opacity(0.1)).frame(width: 80, height: 80)
-                Image(systemName: "arrow.2.circlepath")
-                    .font(.system(size: 36, weight: .medium))
-                    .foregroundStyle(Color.orange)
-            }
-            Text("Lucky Spin")
-                .font(AppDesign.Typography.title2)
-                .foregroundStyle(AppDesign.Colors.textPrimary)
-            Text("Add members, spin, and let fate decide!")
-                .font(AppDesign.Typography.subheadline)
-                .foregroundStyle(AppDesign.Colors.textSecondary)
-                .multilineTextAlignment(.center)
-        }
-        .padding(.top, AppDesign.Spacing.xxl)
-        .padding(.horizontal, AppDesign.Spacing.xl)
-        .padding(.bottom, AppDesign.Spacing.xl)
+        .padding(AppDesign.Spacing.lg)
+        .background(LuckySpinTheme.surface)
+        .overlay(
+            RoundedRectangle(cornerRadius: AppDesign.CornerRadius.xl)
+                .stroke(LuckySpinTheme.border, lineWidth: 1)
+        )
+        .clipShape(RoundedRectangle(cornerRadius: AppDesign.CornerRadius.xl))
     }
 
     private var spinButton: some View {
@@ -83,8 +256,17 @@ struct LuckySpinView: View {
                 .foregroundStyle(.white)
                 .frame(maxWidth: .infinity)
                 .frame(height: AppDesign.Size.buttonHeightLarge)
-                .background(members.count >= 2 ? Color.orange : Color.gray.opacity(0.4))
+                .background(
+                    LinearGradient(
+                        colors: members.count >= 2
+                            ? [LuckySpinTheme.gold, LuckySpinTheme.pink]
+                            : [Color.gray.opacity(0.45), Color.gray.opacity(0.35)],
+                        startPoint: .leading,
+                        endPoint: .trailing
+                    )
+                )
                 .clipShape(RoundedRectangle(cornerRadius: AppDesign.CornerRadius.lg))
+                .shadow(color: LuckySpinTheme.gold.opacity(members.count >= 2 ? 0.28 : 0), radius: 14, x: 0, y: 6)
         }
         .disabled(members.count < 2)
         .buttonStyle(ScaleButtonStyle())
@@ -94,12 +276,17 @@ struct LuckySpinView: View {
 
     // MARK: - Spinning
     private var spinningView: some View {
-        VStack(spacing: AppDesign.Spacing.xxl) {
+        VStack(spacing: AppDesign.Spacing.xl) {
             Spacer()
 
-            Text("Spinning...")
-                .font(AppDesign.Typography.headline)
-                .foregroundStyle(AppDesign.Colors.textSecondary)
+            VStack(spacing: AppDesign.Spacing.xs) {
+                Text("Spinning")
+                    .font(.system(size: 34, weight: .black))
+                    .foregroundStyle(LuckySpinTheme.textPrimary)
+                Text("The room is watching the pointer")
+                    .font(AppDesign.Typography.subheadline)
+                    .foregroundStyle(LuckySpinTheme.textSecondary)
+            }
 
             // Wheel + pointer
             ZStack(alignment: .top) {
@@ -109,14 +296,22 @@ struct LuckySpinView: View {
                 // Pointer pinned above center of wheel top
                 Image(systemName: "arrowtriangle.down.fill")
                     .font(.system(size: 30, weight: .bold))
-                    .foregroundStyle(Color.orange)
+                    .foregroundStyle(LuckySpinTheme.gold)
                     .shadow(color: Color.black.opacity(0.25), radius: 4, x: 0, y: 2)
                     .offset(y: -20)
             }
+            .padding(AppDesign.Spacing.xl)
+            .background(LuckySpinTheme.surface)
+            .overlay(
+                RoundedRectangle(cornerRadius: AppDesign.CornerRadius.xxl)
+                    .stroke(LuckySpinTheme.border, lineWidth: 1)
+            )
+            .clipShape(RoundedRectangle(cornerRadius: AppDesign.CornerRadius.xxl))
             .frame(width: 288, height: 330)
 
             Spacer()
         }
+        .padding(.horizontal, AppDesign.Spacing.lg)
     }
 
     // MARK: - Result
@@ -138,6 +333,7 @@ struct LuckySpinView: View {
     private func addMember() {
         let trimmed = newMemberName.trimmingCharacters(in: .whitespaces)
         guard !trimmed.isEmpty else { return }
+        guard !members.contains(where: { $0.caseInsensitiveCompare(trimmed) == .orderedSame }) else { return }
         withAnimation(.spring(response: 0.4, dampingFraction: 0.7)) {
             members.append(trimmed)
             newMemberName = ""
@@ -195,15 +391,16 @@ private struct SpinWheelView: View {
                 .rotationEffect(.degrees(rotation))
                 .shadow(color: Color.black.opacity(0.18), radius: 12, x: 0, y: 4)
 
-            // Center white cap
+            // Dark center cap
             Circle()
-                .fill(Color.white)
+                .fill(Color(hex: "111827"))
                 .frame(width: 46, height: 46)
-                .shadow(color: Color.black.opacity(0.12), radius: 6, x: 0, y: 2)
+                .overlay(Circle().stroke(Color.white.opacity(0.22), lineWidth: 2))
+                .shadow(color: Color.black.opacity(0.28), radius: 8, x: 0, y: 3)
 
             // Orange center dot
             Circle()
-                .fill(Color.orange)
+                .fill(LuckySpinTheme.gold)
                 .frame(width: 20, height: 20)
         }
     }
@@ -212,15 +409,6 @@ private struct SpinWheelView: View {
 // MARK: - Wheel Canvas
 private struct WheelCanvas: View {
     let members: [String]
-
-    private let segmentColors: [Color] = [
-        Color(hue: 0.08, saturation: 0.80, brightness: 0.92),  // orange
-        Color(hue: 0.58, saturation: 0.65, brightness: 0.80),  // blue
-        Color(hue: 0.36, saturation: 0.58, brightness: 0.70),  // green
-        Color(hue: 0.75, saturation: 0.52, brightness: 0.78),  // purple
-        Color(hue: 0.97, saturation: 0.68, brightness: 0.84),  // red
-        Color(hue: 0.14, saturation: 0.78, brightness: 0.90),  // yellow
-    ]
 
     var body: some View {
         Canvas { ctx, size in
@@ -236,7 +424,7 @@ private struct WheelCanvas: View {
                 let endDeg   = Double(i + 1) * segDeg - 90.0
                 let startA = Angle(degrees: startDeg)
                 let endA   = Angle(degrees: endDeg)
-                let color  = segmentColors[i % segmentColors.count]
+                let color  = LuckySpinTheme.playerColors[i % LuckySpinTheme.playerColors.count]
 
                 // Filled segment
                 var seg = Path()
@@ -277,7 +465,7 @@ private struct WheelCanvas: View {
                 x: cx - radius, y: cy - radius,
                 width: radius * 2, height: radius * 2
             ))
-            ctx.stroke(ring, with: .color(.white.opacity(0.7)), lineWidth: 3.5)
+            ctx.stroke(ring, with: .color(.white.opacity(0.82)), lineWidth: 4)
         }
     }
 }
@@ -292,19 +480,22 @@ private struct LuckySpinMemberList: View {
     var body: some View {
         VStack(spacing: AppDesign.Spacing.sm) {
             ForEach(members.indices, id: \.self) { index in
-                MemberListRow(name: members[index], color: .orange, canDelete: members.count > 2) {
+                MemberListRow(
+                    name: members[index],
+                    color: LuckySpinTheme.playerColors[index % LuckySpinTheme.playerColors.count],
+                    canDelete: members.count > 2
+                ) {
                     deleteMember(at: index)
                 }
             }
             addMemberControl
         }
-        .padding(.horizontal, AppDesign.Spacing.lg)
         .animation(.spring(response: 0.4, dampingFraction: 0.7), value: showAddField)
     }
 
     private func deleteMember(at index: Int) {
         withAnimation(.spring(response: 0.4, dampingFraction: 0.7)) {
-            members.remove(at: index)
+            _ = members.remove(at: index)
         }
     }
 
@@ -314,14 +505,19 @@ private struct LuckySpinMemberList: View {
             HStack(spacing: AppDesign.Spacing.md) {
                 TextField("Enter name...", text: $newMemberName)
                     .font(AppDesign.Typography.body)
+                    .foregroundStyle(LuckySpinTheme.textPrimary)
                     .padding(AppDesign.Spacing.md)
-                    .background(AppDesign.Colors.secondaryBackground)
+                    .background(LuckySpinTheme.elevated)
+                    .overlay(
+                        RoundedRectangle(cornerRadius: AppDesign.CornerRadius.md)
+                            .stroke(LuckySpinTheme.border, lineWidth: 1)
+                    )
                     .clipShape(RoundedRectangle(cornerRadius: AppDesign.CornerRadius.md))
                     .onSubmit { onAddMember() }
                 Button { onAddMember() } label: {
                     Image(systemName: "checkmark.circle.fill")
                         .font(.system(size: 30))
-                        .foregroundStyle(Color.orange)
+                        .foregroundStyle(LuckySpinTheme.gold)
                 }
             }
             .transition(.move(edge: .top).combined(with: .opacity))
@@ -331,10 +527,14 @@ private struct LuckySpinMemberList: View {
             } label: {
                 Label("Add Member", systemImage: "plus.circle")
                     .font(AppDesign.Typography.bodyBold)
-                    .foregroundStyle(Color.orange)
+                    .foregroundStyle(LuckySpinTheme.gold)
                     .frame(maxWidth: .infinity)
                     .padding(AppDesign.Spacing.md)
-                    .background(Color.orange.opacity(0.08))
+                    .background(LuckySpinTheme.gold.opacity(0.14))
+                    .overlay(
+                        RoundedRectangle(cornerRadius: AppDesign.CornerRadius.md)
+                            .stroke(LuckySpinTheme.border, lineWidth: 1)
+                    )
                     .clipShape(RoundedRectangle(cornerRadius: AppDesign.CornerRadius.md))
             }
             .transition(.opacity)
@@ -353,8 +553,11 @@ private struct LuckySpinResultContent: View {
         VStack(spacing: AppDesign.Spacing.xxxl) {
             Spacer()
             ZStack {
-                Circle().fill(Color.orange.opacity(0.12)).frame(width: 110, height: 110)
-                Text("🎯").font(.system(size: 58))
+                Circle().fill(LuckySpinTheme.gold.opacity(0.16)).frame(width: 118, height: 118)
+                Circle().stroke(Color.white.opacity(0.2), lineWidth: 2).frame(width: 118, height: 118)
+                Image(systemName: "target")
+                    .font(.system(size: 56, weight: .black))
+                    .foregroundStyle(LuckySpinTheme.gold)
             }
             .scaleEffect(resultAppeared ? 1 : 0.2)
             .animation(.spring(response: 0.55, dampingFraction: 0.48).delay(0.05), value: resultAppeared)
@@ -362,13 +565,13 @@ private struct LuckySpinResultContent: View {
             VStack(spacing: AppDesign.Spacing.sm) {
                 Text("Selected:")
                     .font(AppDesign.Typography.subheadline)
-                    .foregroundStyle(AppDesign.Colors.textSecondary)
+                    .foregroundStyle(LuckySpinTheme.textSecondary)
                 Text(winner)
                     .font(.system(size: 42, weight: .black))
-                    .foregroundStyle(Color.orange)
-                Text("This person does the chore 🧹")
+                    .foregroundStyle(LuckySpinTheme.gold)
+                Text("This player gets the chore")
                     .font(AppDesign.Typography.subheadline)
-                    .foregroundStyle(AppDesign.Colors.textSecondary)
+                    .foregroundStyle(LuckySpinTheme.textSecondary)
             }
             .opacity(resultAppeared ? 1 : 0)
             .offset(y: resultAppeared ? 0 : 20)
@@ -383,7 +586,13 @@ private struct LuckySpinResultContent: View {
                         .foregroundStyle(.white)
                         .frame(maxWidth: .infinity)
                         .frame(height: AppDesign.Size.buttonHeightLarge)
-                        .background(Color.orange)
+                        .background(
+                            LinearGradient(
+                                colors: [LuckySpinTheme.gold, LuckySpinTheme.pink],
+                                startPoint: .leading,
+                                endPoint: .trailing
+                            )
+                        )
                         .clipShape(RoundedRectangle(cornerRadius: AppDesign.CornerRadius.lg))
                 }
                 .buttonStyle(ScaleButtonStyle())
@@ -391,7 +600,7 @@ private struct LuckySpinResultContent: View {
                 Button { onDismiss() } label: {
                     Text("Main Menu")
                         .font(AppDesign.Typography.bodyBold)
-                        .foregroundStyle(AppDesign.Colors.textSecondary)
+                        .foregroundStyle(LuckySpinTheme.textSecondary)
                         .frame(maxWidth: .infinity)
                         .frame(height: AppDesign.Size.buttonHeight)
                 }
@@ -404,8 +613,8 @@ private struct LuckySpinResultContent: View {
     }
 }
 
-// MARK: - Member List Row (shared with HotPotatoView)
-struct MemberListRow: View {
+// MARK: - Lucky Member Row
+private struct MemberListRow: View {
     let name: String
     let color: Color
     let canDelete: Bool
@@ -421,7 +630,7 @@ struct MemberListRow: View {
             }
             Text(name)
                 .font(AppDesign.Typography.bodyBold)
-                .foregroundStyle(AppDesign.Colors.textPrimary)
+                .foregroundStyle(LuckySpinTheme.textPrimary)
             Spacer()
             if canDelete {
                 Button(action: onDelete) {
@@ -432,7 +641,11 @@ struct MemberListRow: View {
             }
         }
         .padding(AppDesign.Spacing.md)
-        .background(AppDesign.Colors.cardBackground)
+        .background(LuckySpinTheme.elevated)
+        .overlay(
+            RoundedRectangle(cornerRadius: AppDesign.CornerRadius.md)
+                .stroke(LuckySpinTheme.border, lineWidth: 1)
+        )
         .clipShape(RoundedRectangle(cornerRadius: AppDesign.CornerRadius.md))
     }
 }
