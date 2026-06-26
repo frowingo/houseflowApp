@@ -85,6 +85,8 @@ struct HouseChoreDTO: Decodable, Identifiable {
     let completedAt: String?
     let completedBy: String?
     let statusHistories: [ChoreStatusHistory]
+    let reviewRound: Int
+    let reviewVotes: [ChoreReviewVote]
 }
 
 struct ChoreStatusHistory: Decodable, Identifiable {

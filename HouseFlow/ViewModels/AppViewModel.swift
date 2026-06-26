@@ -591,7 +591,9 @@ class AppViewModel: ObservableObject {
                 dueDate: dto.dueDate,
                 isDone: dto.isCompleted,
                 status: dto.status,
-                level: dto.level
+                level: dto.level,
+                reviewRound: dto.reviewRound,
+                reviewVotes: dto.reviewVotes
             )
         }
     }
@@ -617,9 +619,12 @@ class AppViewModel: ObservableObject {
                 description: c.description,
                 assignedTo: c.assignedTo,
                 dueLabel: c.dueLabel,
+                dueDate: c.dueDate,
                 isDone: !c.isDone,
                 status: c.isDone ? 0 : 3,
-                level: c.level
+                level: c.level,
+                reviewRound: c.reviewRound,
+                reviewVotes: c.reviewVotes
             )
         }
     }
@@ -671,16 +676,100 @@ class AppViewModel: ObservableObject {
     }
 
     /// Updates the status of a single chore via the API, then refreshes.
-    func updateChoreStatus(choreApiId: String, houseId: String, status: ChoreStatus) async {
+    func updateChoreStatus(choreApiId: String, houseId: String, status: ChoreStatus) async -> Bool {
         do {
-            try await choreService.updateChoreStatus(
+            let didUpdate = try await choreService.updateChoreStatus(
                 houseId: houseId,
                 chores: [ChoreStatusUpdateItem(choreId: choreApiId, status: status.rawValue)]
             )
+            guard didUpdate else {
+                showToast(message: "Status could not be updated.", isError: true)
+                return false
+            }
             await refreshHouseDetails()
             showToast(message: "Status updated!", isError: false)
+            return true
         } catch {
             showToast(message: error.localizedDescription, isError: true)
+            return false
+        }
+    }
+
+    /// Submits the current user's vote for an in-review chore.
+    func reviewChore(choreApiId: String, isApproved: Bool) async -> Bool {
+        do {
+            let updatedChore = try await choreService.reviewChore(
+                choreId: choreApiId,
+                isApproved: isApproved
+            )
+            applyReviewResponse(updatedChore)
+            showToast(
+                message: isApproved ? "Chore approved!" : "Chore sent back to progress.",
+                isError: false
+            )
+            return true
+        } catch {
+            showToast(message: error.localizedDescription, isError: true)
+            return false
+        }
+    }
+
+    private func applyReviewResponse(_ response: ChoreReviewResponse) {
+        if let details = currentHouseDetails {
+            currentHouseDetails = HouseDetailsResponse(
+                id: details.id,
+                name: details.name,
+                inviteCode: details.inviteCode,
+                maxMemberCount: details.maxMemberCount,
+                ownerId: details.ownerId,
+                profileImage: details.profileImage,
+                type: details.type,
+                createdOn: details.createdOn,
+                updatedOn: details.updatedOn,
+                members: details.members,
+                chores: details.chores.map { dto in
+                    guard dto.id == response.id else { return dto }
+                    return HouseChoreDTO(
+                        id: dto.id,
+                        title: dto.title,
+                        description: dto.description,
+                        houseId: dto.houseId,
+                        houseOwnerId: dto.houseOwnerId,
+                        assignedTo: dto.assignedTo,
+                        dueDate: dto.dueDate,
+                        isCompleted: response.isCompleted,
+                        isRecurring: dto.isRecurring,
+                        level: dto.level,
+                        recurringInterval: dto.recurringInterval,
+                        status: response.status,
+                        createdOn: dto.createdOn,
+                        completedAt: dto.completedAt,
+                        completedBy: dto.completedBy,
+                        statusHistories: dto.statusHistories,
+                        reviewRound: response.reviewRound,
+                        reviewVotes: response.reviewVotes
+                    )
+                }
+            )
+        }
+
+        chores = chores.map { chore in
+            guard chore.choreApiId == response.id else { return chore }
+            return Chore(
+                choreApiId: chore.choreApiId,
+                houseId: chore.houseId,
+                assignedToId: chore.assignedToId,
+                title: chore.title,
+                description: chore.description,
+                assignedTo: chore.assignedTo,
+                dueLabel: chore.dueLabel,
+                dueDate: chore.dueDate,
+                isDone: response.isCompleted,
+                status: response.status,
+                level: chore.level,
+                reviewRound: response.reviewRound,
+                reviewVotes: response.reviewVotes
+            )
         }
     }
 }
