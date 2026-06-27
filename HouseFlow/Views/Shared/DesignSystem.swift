@@ -82,8 +82,7 @@ enum AppDesign {
     }
     
     // MARK: - Sizes
-    enum Size {
-        static let buttonHeight: CGFloat = 48
+    enum Size {        static let buttonHeight: CGFloat = 48
         static let buttonHeightSmall: CGFloat = 44
         static let buttonHeightLarge: CGFloat = 56
         static let avatarSmall: CGFloat = 32
@@ -94,5 +93,18 @@ enum AppDesign {
         static let iconMedium: CGFloat = 20
         static let iconLarge: CGFloat = 24
         static let iconExtraLarge: CGFloat = 60
+    }
+}
+
+// MARK: - Hex Color helper
+extension Color {
+    init(hex: String) {
+        let hex = hex.trimmingCharacters(in: CharacterSet.alphanumerics.inverted)
+        var int: UInt64 = 0
+        Scanner(string: hex).scanHexInt64(&int)
+        let r = Double((int >> 16) & 0xFF) / 255
+        let g = Double((int >>  8) & 0xFF) / 255
+        let b = Double( int        & 0xFF) / 255
+        self.init(red: r, green: g, blue: b)
     }
 }

@@ -46,18 +46,33 @@ final class ChoreService {
     // MARK: - Update Chore Status
 
     /// PUT /chore/status  — requires Bearer token
-    /// A 200 response indicates success; the response body is not used.
-    func updateChoreStatus(houseId: String, chores: [ChoreStatusUpdateItem]) async throws {
+    func updateChoreStatus(houseId: String, chores: [ChoreStatusUpdateItem]) async throws -> Bool {
         guard let token = keychain.authToken else {
             throw NetworkError.serverError("Not authenticated.")
         }
         let body = UpdateChoreStatusRequest(chores: chores, houseId: houseId)
-        // We only care about 200; decode into an empty placeholder.
-        _ = try await network.authenticatedRequest(
+        return try await network.authenticatedRequest(
             path: "chore/status",
             method: "PUT",
             body: body,
-            successType: EmptyResponse.self,
+            successType: Bool.self,
+            token: token
+        )
+    }
+
+    // MARK: - Review Chore
+
+    /// PUT /chore/review — requires Bearer token
+    func reviewChore(choreId: String, isApproved: Bool) async throws -> ChoreReviewResponse {
+        guard let token = keychain.authToken else {
+            throw NetworkError.serverError("Not authenticated.")
+        }
+        let body = ReviewChoreRequest(choreId: choreId, isApproved: isApproved)
+        return try await network.authenticatedRequest(
+            path: "chore/review",
+            method: "PUT",
+            body: body,
+            successType: ChoreReviewResponse.self,
             token: token
         )
     }
@@ -98,8 +113,3 @@ final class ChoreService {
         )
     }
 }
-
-// MARK: - Private helpers
-
-/// Used to satisfy the generic decode constraint when the response body is irrelevant.
-private struct EmptyResponse: Decodable {}

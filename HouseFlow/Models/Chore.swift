@@ -18,6 +18,8 @@ struct Chore: Identifiable, Codable {
     let status: Int
     /// Raw value of `ChoreLevel` (10=Easy, 20=Medium, 30=Hard).
     let level: Int
+    let reviewRound: Int
+    let reviewVotes: [ChoreReviewVote]
 
     init(
         choreApiId: String? = nil,
@@ -30,7 +32,9 @@ struct Chore: Identifiable, Codable {
         dueDate: String? = nil,
         isDone: Bool = false,
         status: Int = 0,
-        level: Int = 10
+        level: Int = 10,
+        reviewRound: Int = 0,
+        reviewVotes: [ChoreReviewVote] = []
     ) {
         self.choreApiId = choreApiId
         self.houseId = houseId
@@ -43,5 +47,7 @@ struct Chore: Identifiable, Codable {
         self.isDone = isDone
         self.status = status
         self.level = level
+        self.reviewRound = reviewRound
+        self.reviewVotes = reviewVotes
     }
 }

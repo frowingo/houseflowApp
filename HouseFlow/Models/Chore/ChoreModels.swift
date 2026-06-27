@@ -53,6 +53,31 @@ struct UpdateChoreStatusRequest: Encodable {
     let houseId: String
 }
 
+// MARK: - Review Chore
+
+struct ReviewChoreRequest: Encodable {
+    let choreId: String
+    let isApproved: Bool
+}
+
+struct ChoreReviewVote: Codable, Identifiable {
+    let id: String
+    let choreId: String
+    let houseId: String
+    let reviewRound: Int
+    let reviewerId: String
+    let isApproved: Bool
+    let createdOn: String
+}
+
+struct ChoreReviewResponse: Decodable, Identifiable {
+    let id: String
+    let status: Int
+    let reviewRound: Int
+    let isCompleted: Bool
+    let reviewVotes: [ChoreReviewVote]
+}
+
 // MARK: - Chore Response
 
 struct ChoreResponse: Decodable, Identifiable {
@@ -72,6 +97,8 @@ struct ChoreResponse: Decodable, Identifiable {
     let completedAt: String?
     let completedBy: String?
     let statusHistories: [ChoreStatusHistoryResponse]
+    let reviewRound: Int
+    let reviewVotes: [ChoreReviewVote]
 }
 
 struct ChoreStatusHistoryResponse: Decodable, Identifiable {

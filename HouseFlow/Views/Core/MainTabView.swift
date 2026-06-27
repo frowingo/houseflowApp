@@ -1,14 +1,4 @@
 import SwiftUI
-import UIKit
-
-// MARK: - Screen corner radius helper
-
-private extension UIScreen {
-    /// Cihazın gerçek ekran köşe yarıçapı (tüm modellerde çalışır, yoksa 0)
-    var displayCornerRadius: CGFloat {
-        (value(forKey: "_displayCornerRadius") as? CGFloat) ?? 0
-    }
-}
 
 // MARK: - Tab Definition
 
@@ -42,23 +32,29 @@ struct MainTabView: View {
 
     var body: some View {
         GeometryReader { geo in
-            ZStack(alignment: .bottom) {
-                // Page content — no SwiftUI TabView so we control the bar fully
-                tabContent
-                    .ignoresSafeArea(.keyboard)
-
-                // Floating tab bar — hidden when any overlay/popup is active
-                if !appViewModel.isOverlayPresented {
-                    CustomTabBar(
-                        selectedTab: $selectedTab,
-                        bottomInset: geo.safeAreaInsets.bottom
-                    )
-                    .transition(.move(edge: .bottom).combined(with: .opacity))
+            // Page content — no SwiftUI TabView so we control the bar fully
+            tabContent
+                .ignoresSafeArea(.keyboard)
+                .overlay(alignment: .bottom) {
+                    tabBarOverlay(bottomInset: geo.safeAreaInsets.bottom)
                 }
-            }
         }
         .ignoresSafeArea(edges: .bottom)
         .ignoresSafeArea(.keyboard)
+    }
+
+    @ViewBuilder
+    private func tabBarOverlay(bottomInset: CGFloat) -> some View {
+        ZStack {
+            // Floating tab bar — hidden when any overlay/popup is active
+            if !appViewModel.isOverlayPresented {
+                CustomTabBar(
+                    selectedTab: $selectedTab,
+                    bottomInset: bottomInset
+                )
+                .transition(.move(edge: .bottom).combined(with: .opacity))
+            }
+        }
         .animation(AppDesign.Animation.standard, value: appViewModel.isOverlayPresented)
     }
 
@@ -110,13 +106,9 @@ struct CustomTabBar: View {
         .padding(.bottom, bottomInset + 20)
     }
 
-    // Margin between bar edge and screen edge (same on all sides)
-    private let edgeMargin: CGFloat = 12
-
-    // Runtime screen corner minus margin → concentric, perfect alignment on any device
+    // Avoid private screen-corner APIs here; this view is rebuilt when popups close.
     private var barCornerRadius: CGFloat {
-        let screenRadius = UIScreen.main.displayCornerRadius
-        return max(0, screenRadius - edgeMargin)
+        28
     }
 
     private var barShape: RoundedRectangle {

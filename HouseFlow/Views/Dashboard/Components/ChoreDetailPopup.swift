@@ -4,33 +4,96 @@ private let accentOrange = Color(red: 1.0, green: 0.48, blue: 0.15)
 
 /// Premium chore detail sheet.
 /// - Shows full status pipeline (Draft → Progress → InTest → Completed).
-/// - Status update controls are only visible when the logged-in user is the assignee.
+/// - Status progression is available to the assignee.
+/// - Review voting is available to the other house members.
 struct ChoreDetailPopup: View {
     let chore: Chore
     let appViewModel: AppViewModel
     let onDismiss: () -> Void
 
-    @State private var selectedStatus: ChoreStatus
     @State private var isUpdating: Bool = false
+    @State private var isReviewing: Bool = false
+    @State private var expandedReviewRounds: Set<Int> = []
 
     init(chore: Chore, appViewModel: AppViewModel, onDismiss: @escaping () -> Void) {
         self.chore = chore
         self.appViewModel = appViewModel
         self.onDismiss = onDismiss
-        _selectedStatus = State(initialValue: ChoreStatus(rawValue: chore.status) ?? .draft)
     }
 
     private var isAssignedToCurrentUser: Bool {
         guard let uid = appViewModel.currentUserId,
-              let aid = chore.assignedToId else { return false }
+              let aid = displayedChore.assignedToId else { return false }
         return uid == aid
+    }
+
+    private var isBusy: Bool {
+        isUpdating || isReviewing
+    }
+
+    private var displayedChore: Chore {
+        guard let choreApiId = chore.choreApiId else { return chore }
+        return appViewModel.dashboardChores.first(where: { $0.choreApiId == choreApiId }) ?? chore
+    }
+
+    private var currentStatus: ChoreStatus {
+        ChoreStatus(rawValue: displayedChore.status) ?? .draft
+    }
+
+    private var nextStatus: ChoreStatus? {
+        guard isAssignedToCurrentUser else { return nil }
+        switch currentStatus {
+        case .draft: return .progress
+        case .progress: return .inTest
+        case .inTest, .completed: return nil
+        }
+    }
+
+    private var currentRoundVotes: [ChoreReviewVote] {
+        displayedChore.reviewVotes.filter { $0.reviewRound == displayedChore.reviewRound }
+    }
+
+    private var currentUserVote: ChoreReviewVote? {
+        guard let currentUserId = appViewModel.currentUserId else { return nil }
+        return currentRoundVotes.first { $0.reviewerId == currentUserId }
+    }
+
+    private var canReview: Bool {
+        currentStatus == .inTest
+            && !isAssignedToCurrentUser
+            && appViewModel.currentUserId != nil
+            && currentUserVote == nil
+    }
+
+    private var eligibleReviewerCount: Int {
+        appViewModel.dashboardMembers.filter { $0.apiId != displayedChore.assignedToId }.count
+    }
+
+    private var reviewMembers: [User] {
+        appViewModel.dashboardMembers
+    }
+
+    private var reviewRoundNumbers: [Int] {
+        var rounds = Set(displayedChore.reviewVotes.map(\.reviewRound))
+        if displayedChore.reviewRound > 0 {
+            rounds.insert(displayedChore.reviewRound)
+        }
+        return rounds.sorted(by: >)
+    }
+
+    private var hasReviewRounds: Bool {
+        !reviewRoundNumbers.isEmpty
+    }
+
+    private var activeReviewRound: Int? {
+        currentStatus == .inTest && displayedChore.reviewRound > 0 ? displayedChore.reviewRound : nil
     }
 
     var body: some View {
         ZStack {
             Color.black.opacity(0.55)
                 .ignoresSafeArea()
-                .onTapGesture { if !isUpdating { onDismiss() } }
+                .onTapGesture { if !isBusy { onDismiss() } }
 
             VStack(spacing: 0) {
                 topBar
@@ -38,8 +101,11 @@ struct ChoreDetailPopup: View {
                     VStack(spacing: AppDesign.Spacing.xl) {
                         statusPipeline
                         infoSection
-                        if isAssignedToCurrentUser {
+                        if nextStatus != nil {
                             statusUpdateSection
+                        }
+                        if hasReviewRounds {
+                            reviewSection
                         }
                     }
                     .padding(.horizontal, AppDesign.Spacing.xl)
@@ -61,15 +127,17 @@ struct ChoreDetailPopup: View {
             .shadow(color: Color.black.opacity(0.25), radius: 30, x: 0, y: 16)
             .padding(.horizontal, AppDesign.Spacing.xl)
 
-            if isUpdating {
+            if isBusy {
                 Color.black.opacity(0.25).ignoresSafeArea()
                 VStack(spacing: AppDesign.Spacing.lg) {
                     ProgressView().scaleEffect(1.4).tint(.white)
-                    Text("Updating…").font(AppDesign.Typography.subheadline).foregroundColor(.white)
+                    Text(isReviewing ? "Submitting vote..." : "Updating...")
+                        .font(AppDesign.Typography.subheadline)
+                        .foregroundColor(.white)
                 }
             }
         }
-        .animation(AppDesign.Animation.standard, value: isUpdating)
+        .animation(AppDesign.Animation.standard, value: isBusy)
     }
 
     // MARK: - Top Bar
@@ -98,7 +166,7 @@ struct ChoreDetailPopup: View {
                 .background(Color.white.opacity(0.92))
                 .cornerRadius(AppDesign.CornerRadius.circle)
 
-                Text(chore.title)
+                Text(displayedChore.title)
                     .font(AppDesign.Typography.subheadline)
                     .fontWeight(.semibold)
                     .foregroundColor(.white)
@@ -129,8 +197,8 @@ struct ChoreDetailPopup: View {
             sectionLabel(icon: "arrow.triangle.2.circlepath", text: "Status")
             HStack(spacing: 0) {
                 ForEach(Array([ChoreStatus.draft, .progress, .inTest, .completed].enumerated()), id: \.offset) { index, step in
-                    let isCurrent = step.rawValue == chore.status
-                    let isPast    = step.rawValue < chore.status
+                    let isCurrent = step.rawValue == displayedChore.status
+                    let isPast    = step.rawValue < displayedChore.status
 
                     VStack(spacing: 6) {
                         ZStack {
@@ -151,7 +219,7 @@ struct ChoreDetailPopup: View {
 
                     if index < 3 {
                         Rectangle()
-                            .fill(step.rawValue < chore.status ? accentOrange.opacity(0.4) : AppDesign.Colors.secondaryBackground)
+                            .fill(step.rawValue < displayedChore.status ? accentOrange.opacity(0.4) : AppDesign.Colors.secondaryBackground)
                             .frame(height: 2)
                             .frame(maxWidth: .infinity)
                             .offset(y: -10)
@@ -177,11 +245,11 @@ struct ChoreDetailPopup: View {
             // Title + description
             VStack(alignment: .leading, spacing: AppDesign.Spacing.sm) {
                 sectionLabel(icon: "text.badge.checkmark", text: "Task")
-                Text(chore.title)
+                Text(displayedChore.title)
                     .font(AppDesign.Typography.title3)
                     .foregroundColor(AppDesign.Colors.textPrimary)
-                if !chore.description.isEmpty {
-                    Text(chore.description)
+                if !displayedChore.description.isEmpty {
+                    Text(displayedChore.description)
                         .font(AppDesign.Typography.body)
                         .foregroundColor(AppDesign.Colors.textSecondary)
                         .fixedSize(horizontal: false, vertical: true)
@@ -199,8 +267,8 @@ struct ChoreDetailPopup: View {
                 // Assignee
                 infoTile(icon: "person.fill", label: "Assigned To") {
                     HStack(spacing: AppDesign.Spacing.sm) {
-                        UserAvatar(user: chore.assignedTo, size: 28)
-                        Text(chore.assignedTo.firstName)
+                        UserAvatar(user: displayedChore.assignedTo, size: 28)
+                        Text(displayedChore.assignedTo.firstName)
                             .font(AppDesign.Typography.bodyBold)
                             .foregroundColor(AppDesign.Colors.textPrimary)
                     }
@@ -225,57 +293,44 @@ struct ChoreDetailPopup: View {
     private var statusUpdateSection: some View {
         VStack(alignment: .leading, spacing: AppDesign.Spacing.md) {
             sectionLabel(icon: "pencil.circle.fill", text: "Update Status")
-            Text("Move this chore to the next stage.")
+            Text("Move this chore to its next allowed stage.")
                 .font(AppDesign.Typography.caption)
                 .foregroundColor(AppDesign.Colors.textSecondary)
 
-            // Status selector pills
-            LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: AppDesign.Spacing.sm) {
-                ForEach([ChoreStatus.draft, .progress, .inTest, .completed], id: \.rawValue) { step in
-                    let isSel = selectedStatus == step
-                    Button { withAnimation(AppDesign.Animation.quick) { selectedStatus = step } } label: {
-                        HStack(spacing: 6) {
-                            Image(systemName: step.iconName).font(.system(size: 12, weight: .semibold))
-                            Text(step.displayName).font(.system(size: 13, weight: .semibold))
-                        }
-                        .foregroundColor(isSel ? .white : step.color)
-                        .frame(maxWidth: .infinity)
-                        .padding(.vertical, 10)
-                        .background(
-                            RoundedRectangle(cornerRadius: AppDesign.CornerRadius.md)
-                                .fill(isSel ? step.color : step.color.opacity(0.1))
-                                .overlay(
-                                    RoundedRectangle(cornerRadius: AppDesign.CornerRadius.md)
-                                        .stroke(isSel ? step.color : step.color.opacity(0.3), lineWidth: 1.5)
-                                )
-                        )
-                    }
-                    .buttonStyle(.plain)
+            if let nextStatus {
+                HStack(spacing: AppDesign.Spacing.md) {
+                    statusStage(currentStatus)
+                    Image(systemName: "arrow.right")
+                        .font(.system(size: 14, weight: .bold))
+                        .foregroundColor(AppDesign.Colors.textSecondary)
+                    statusStage(nextStatus)
                 }
-            }
 
-            // Save button
-            let statusChanged = selectedStatus.rawValue != chore.status
-            Button(action: saveStatus) {
-                HStack(spacing: AppDesign.Spacing.sm) {
-                    if isUpdating {
-                        ProgressView().scaleEffect(0.8).tint(.white)
-                    } else {
-                        Image(systemName: "checkmark.circle.fill").font(.system(size: 16, weight: .semibold))
+                Button(action: saveStatus) {
+                    HStack(spacing: AppDesign.Spacing.sm) {
+                        if isUpdating {
+                            ProgressView().scaleEffect(0.8).tint(.white)
+                        } else {
+                            Image(systemName: "arrow.right.circle.fill")
+                                .font(.system(size: 16, weight: .semibold))
+                        }
+                        Text("Move to \(nextStatus.displayName)")
+                            .font(AppDesign.Typography.headline)
                     }
-                    Text("Save Status").font(AppDesign.Typography.headline)
+                    .foregroundColor(.white)
+                    .frame(maxWidth: .infinity)
+                    .frame(height: AppDesign.Size.buttonHeightSmall)
+                    .background(
+                        LinearGradient(
+                            colors: [accentOrange, accentOrange.opacity(0.75)],
+                            startPoint: .leading,
+                            endPoint: .trailing
+                        )
+                    )
+                    .cornerRadius(AppDesign.CornerRadius.md)
                 }
-                .foregroundColor(.white)
-                .frame(maxWidth: .infinity)
-                .frame(height: AppDesign.Size.buttonHeightSmall)
-                .background(
-                    statusChanged
-                        ? LinearGradient(colors: [accentOrange, accentOrange.opacity(0.75)], startPoint: .leading, endPoint: .trailing)
-                        : LinearGradient(colors: [Color.gray.opacity(0.35), Color.gray.opacity(0.35)], startPoint: .leading, endPoint: .trailing)
-                )
-                .cornerRadius(AppDesign.CornerRadius.md)
+                .disabled(isBusy)
             }
-            .disabled(!statusChanged || isUpdating)
         }
         .padding(AppDesign.Spacing.lg)
         .background(
@@ -286,6 +341,168 @@ struct ChoreDetailPopup: View {
                         .stroke(accentOrange.opacity(0.2), lineWidth: 1)
                 )
         )
+    }
+
+    // MARK: - Review Section
+
+    private var reviewSection: some View {
+        VStack(alignment: .leading, spacing: AppDesign.Spacing.md) {
+            sectionLabel(icon: "checkmark.seal.fill", text: "Review Rounds")
+
+            ForEach(reviewRoundNumbers, id: \.self) { round in
+                reviewRoundCard(round)
+            }
+        }
+        .padding(AppDesign.Spacing.lg)
+        .background(
+            RoundedRectangle(cornerRadius: AppDesign.CornerRadius.lg)
+                .fill(AppDesign.Colors.secondaryBackground)
+                .overlay(
+                    RoundedRectangle(cornerRadius: AppDesign.CornerRadius.lg)
+                        .stroke(currentStatus.color.opacity(0.2), lineWidth: 1)
+                )
+        )
+    }
+
+    private func reviewRoundCard(_ round: Int) -> some View {
+        let isActive = activeReviewRound == round
+        let isExpanded = isActive || expandedReviewRounds.contains(round)
+
+        return VStack(alignment: .leading, spacing: AppDesign.Spacing.md) {
+            Button {
+                guard !isActive else { return }
+                withAnimation(AppDesign.Animation.quick) {
+                    if expandedReviewRounds.contains(round) {
+                        expandedReviewRounds.remove(round)
+                    } else {
+                        expandedReviewRounds.insert(round)
+                    }
+                }
+            } label: {
+                HStack(spacing: AppDesign.Spacing.sm) {
+                    VStack(alignment: .leading, spacing: 2) {
+                        HStack(spacing: 6) {
+                            Text("Round \(round)")
+                                .font(AppDesign.Typography.bodyBold)
+                            Text(isActive ? "Active" : "Resulted")
+                                .font(.system(size: 10, weight: .bold))
+                                .foregroundColor(isActive ? .white : AppDesign.Colors.textSecondary)
+                                .padding(.horizontal, 7)
+                                .padding(.vertical, 3)
+                                .background(isActive ? currentStatus.color : AppDesign.Colors.textSecondary.opacity(0.14))
+                                .cornerRadius(AppDesign.CornerRadius.circle)
+                        }
+                        Text("\(approvedVoteCount(for: round)) of \(eligibleReviewerCount) approved")
+                            .font(AppDesign.Typography.caption)
+                            .foregroundColor(AppDesign.Colors.textSecondary)
+                    }
+
+                    Spacer()
+
+                    if !isActive {
+                        Image(systemName: isExpanded ? "chevron.up" : "chevron.down")
+                            .font(.system(size: 12, weight: .bold))
+                            .foregroundColor(AppDesign.Colors.textSecondary)
+                    }
+                }
+                .foregroundColor(AppDesign.Colors.textPrimary)
+                .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+
+            if isExpanded {
+                reviewProgressBar(for: round)
+                reviewSummaryRow(for: round)
+                reviewMemberList(for: round)
+
+                if isActive {
+                    reviewActionArea
+                }
+            }
+        }
+        .padding(AppDesign.Spacing.md)
+        .background(AppDesign.Colors.background.opacity(0.68))
+        .cornerRadius(AppDesign.CornerRadius.md)
+    }
+
+    private var reviewActionArea: some View {
+        VStack(alignment: .leading, spacing: AppDesign.Spacing.md) {
+            if isAssignedToCurrentUser {
+                Label("Assigned users cannot vote on their own chore.", systemImage: "person.crop.circle.badge.exclamationmark")
+                    .font(AppDesign.Typography.caption)
+                    .foregroundColor(AppDesign.Colors.textSecondary)
+            } else if let vote = currentUserVote {
+                Label(
+                    vote.isApproved ? "You approved this chore." : "You rejected this chore.",
+                    systemImage: vote.isApproved ? "checkmark.circle.fill" : "xmark.circle.fill"
+                )
+                .font(AppDesign.Typography.bodyBold)
+                .foregroundColor(vote.isApproved ? AppDesign.Colors.success : AppDesign.Colors.error)
+            } else if canReview {
+                Text("Approve the completed work or send it back for another attempt.")
+                    .font(AppDesign.Typography.caption)
+                    .foregroundColor(AppDesign.Colors.textSecondary)
+
+                HStack(spacing: AppDesign.Spacing.md) {
+                    reviewButton(
+                        title: "Reject",
+                        icon: "xmark.circle.fill",
+                        color: AppDesign.Colors.error,
+                        isApproved: false
+                    )
+                    reviewButton(
+                        title: "Approve",
+                        icon: "checkmark.circle.fill",
+                        color: AppDesign.Colors.success,
+                        isApproved: true
+                    )
+                }
+            }
+        }
+    }
+
+    private func reviewProgressBar(for round: Int) -> some View {
+        GeometryReader { geometry in
+            let width = geometry.size.width
+            let approvedWidth = width * CGFloat(eligibleReviewerCount == 0 ? 0 : Double(approvedVoteCount(for: round)) / Double(eligibleReviewerCount))
+            let rejectedWidth = width * CGFloat(eligibleReviewerCount == 0 ? 0 : Double(rejectedVoteCount(for: round)) / Double(eligibleReviewerCount))
+
+            ZStack(alignment: .leading) {
+                RoundedRectangle(cornerRadius: AppDesign.CornerRadius.circle)
+                    .fill(AppDesign.Colors.textSecondary.opacity(0.16))
+
+                RoundedRectangle(cornerRadius: AppDesign.CornerRadius.circle)
+                    .fill(AppDesign.Colors.success)
+                    .frame(width: approvedWidth)
+
+                RoundedRectangle(cornerRadius: AppDesign.CornerRadius.circle)
+                    .fill(AppDesign.Colors.error)
+                    .frame(width: rejectedWidth)
+                    .offset(x: approvedWidth)
+
+                RoundedRectangle(cornerRadius: AppDesign.CornerRadius.circle)
+                    .stroke(AppDesign.Colors.textSecondary.opacity(0.18), lineWidth: 1)
+            }
+        }
+        .frame(height: 10)
+        .accessibilityLabel("Review progress")
+        .accessibilityValue("\(Int(reviewCompletionRatio(for: round) * 100)) percent voted")
+    }
+
+    private func reviewSummaryRow(for round: Int) -> some View {
+        HStack(spacing: AppDesign.Spacing.sm) {
+            reviewSummaryPill(title: "Approved", count: approvedVoteCount(for: round), color: AppDesign.Colors.success)
+            reviewSummaryPill(title: "Rejected", count: rejectedVoteCount(for: round), color: AppDesign.Colors.error)
+            reviewSummaryPill(title: "Waiting", count: pendingVoteCount(for: round), color: AppDesign.Colors.textSecondary)
+        }
+    }
+
+    private func reviewMemberList(for round: Int) -> some View {
+        VStack(spacing: AppDesign.Spacing.sm) {
+            ForEach(reviewMembers) { member in
+                reviewMemberRow(member, round: round)
+            }
+        }
     }
 
     // MARK: - Dismiss Button
@@ -308,26 +525,41 @@ struct ChoreDetailPopup: View {
     // MARK: - Helpers
 
     private func saveStatus() {
-        guard let choreApiId = chore.choreApiId,
-              let houseId = chore.houseId else { return }
+        guard let choreApiId = displayedChore.choreApiId,
+              let houseId = displayedChore.houseId,
+              let nextStatus else { return }
         isUpdating = true
         Task {
-            await appViewModel.updateChoreStatus(
+            let didUpdate = await appViewModel.updateChoreStatus(
                 choreApiId: choreApiId,
                 houseId: houseId,
-                status: selectedStatus
+                status: nextStatus
             )
             isUpdating = false
-            onDismiss()
+            if didUpdate {
+                onDismiss()
+            }
+        }
+    }
+
+    private func submitReview(isApproved: Bool) {
+        guard let choreApiId = displayedChore.choreApiId, canReview else { return }
+        isReviewing = true
+        Task {
+            _ = await appViewModel.reviewChore(
+                choreApiId: choreApiId,
+                isApproved: isApproved
+            )
+            isReviewing = false
         }
     }
 
     private var formattedDueDate: String {
-        guard let rawDate = chore.dueDate else { return chore.dueLabel }
+        guard let rawDate = displayedChore.dueDate else { return displayedChore.dueLabel }
         let iso = ISO8601DateFormatter()
         iso.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
         let date = iso.date(from: rawDate) ?? ISO8601DateFormatter().date(from: rawDate)
-        guard let date else { return chore.dueLabel }
+        guard let date else { return displayedChore.dueLabel }
         let fmt = DateFormatter()
         fmt.dateStyle = .medium
         fmt.timeStyle = .none
@@ -335,7 +567,7 @@ struct ChoreDetailPopup: View {
     }
 
     private var dueColor: Color {
-        switch chore.dueLabel {
+        switch displayedChore.dueLabel {
         case "Overdue": return AppDesign.Colors.error
         case "Today":   return AppDesign.Colors.warning
         default:        return AppDesign.Colors.primary
@@ -343,7 +575,7 @@ struct ChoreDetailPopup: View {
     }
 
     private var choreLevelObj: ChoreLevel {
-        ChoreLevel(rawValue: chore.level) ?? .easy
+        ChoreLevel(rawValue: displayedChore.level) ?? .easy
     }
 
     private func sectionLabel(icon: String, text: String) -> some View {
@@ -352,6 +584,131 @@ struct ChoreDetailPopup: View {
             .foregroundColor(accentOrange)
             .textCase(.uppercase)
             .tracking(0.5)
+    }
+
+    private func statusStage(_ status: ChoreStatus) -> some View {
+        Label(status.displayName, systemImage: status.iconName)
+            .font(.system(size: 12, weight: .semibold))
+            .foregroundColor(status.color)
+            .frame(maxWidth: .infinity)
+            .padding(.vertical, 10)
+            .background(status.color.opacity(0.1))
+            .cornerRadius(AppDesign.CornerRadius.md)
+    }
+
+    private func reviewButton(
+        title: String,
+        icon: String,
+        color: Color,
+        isApproved: Bool
+    ) -> some View {
+        Button {
+            submitReview(isApproved: isApproved)
+        } label: {
+            Label(title, systemImage: icon)
+                .font(AppDesign.Typography.bodyBold)
+                .foregroundColor(.white)
+                .frame(maxWidth: .infinity)
+                .frame(height: AppDesign.Size.buttonHeightSmall)
+                .background(color)
+                .cornerRadius(AppDesign.CornerRadius.md)
+        }
+        .disabled(isBusy)
+    }
+
+    private func votes(for round: Int) -> [ChoreReviewVote] {
+        displayedChore.reviewVotes.filter { $0.reviewRound == round }
+    }
+
+    private func vote(for member: User, round: Int) -> ChoreReviewVote? {
+        guard let apiId = member.apiId else { return nil }
+        return votes(for: round).first { $0.reviewerId == apiId }
+    }
+
+    private func approvedVoteCount(for round: Int) -> Int {
+        votes(for: round).filter(\.isApproved).count
+    }
+
+    private func rejectedVoteCount(for round: Int) -> Int {
+        votes(for: round).filter { !$0.isApproved }.count
+    }
+
+    private func pendingVoteCount(for round: Int) -> Int {
+        max(eligibleReviewerCount - votes(for: round).count, 0)
+    }
+
+    private func reviewCompletionRatio(for round: Int) -> Double {
+        guard eligibleReviewerCount > 0 else { return 1 }
+        return min(Double(votes(for: round).count) / Double(eligibleReviewerCount), 1)
+    }
+
+    private func reviewSummaryPill(title: String, count: Int, color: Color) -> some View {
+        HStack(spacing: 5) {
+            Circle()
+                .fill(color)
+                .frame(width: 7, height: 7)
+            Text("\(count)")
+                .font(.system(size: 11, weight: .bold))
+            Text(title)
+                .font(.system(size: 11, weight: .medium))
+                .lineLimit(1)
+                .minimumScaleFactor(0.8)
+        }
+        .foregroundColor(color)
+        .frame(maxWidth: .infinity)
+        .padding(.horizontal, 8)
+        .padding(.vertical, 7)
+        .background(color.opacity(0.1))
+        .cornerRadius(AppDesign.CornerRadius.sm)
+    }
+
+    private func reviewMemberRow(_ member: User, round: Int) -> some View {
+        let isAssignee = member.apiId == displayedChore.assignedToId
+        let vote = vote(for: member, round: round)
+        let status = reviewStatus(forAssignee: isAssignee, vote: vote)
+
+        return HStack(spacing: AppDesign.Spacing.sm) {
+            UserAvatar(user: member, size: 28)
+
+            VStack(alignment: .leading, spacing: 2) {
+                Text(member.name)
+                    .font(AppDesign.Typography.bodyBold)
+                    .foregroundColor(AppDesign.Colors.textPrimary)
+                    .lineLimit(1)
+                if isAssignee {
+                    Text("Assigned user")
+                        .font(AppDesign.Typography.caption)
+                        .foregroundColor(AppDesign.Colors.textSecondary)
+                }
+            }
+
+            Spacer(minLength: AppDesign.Spacing.sm)
+
+            Label(status.title, systemImage: status.icon)
+                .font(.system(size: 11, weight: .semibold))
+                .foregroundColor(status.color)
+                .padding(.horizontal, 8)
+                .padding(.vertical, 6)
+                .background(status.color.opacity(0.1))
+                .cornerRadius(AppDesign.CornerRadius.sm)
+        }
+        .padding(.horizontal, AppDesign.Spacing.sm)
+        .padding(.vertical, AppDesign.Spacing.sm)
+        .background(AppDesign.Colors.background.opacity(0.65))
+        .cornerRadius(AppDesign.CornerRadius.md)
+    }
+
+    private func reviewStatus(forAssignee isAssignee: Bool, vote: ChoreReviewVote?) -> (title: String, icon: String, color: Color) {
+        if isAssignee {
+            return ("No vote", "minus.circle.fill", AppDesign.Colors.textSecondary)
+        }
+        guard let vote else {
+            return ("Waiting", "clock.fill", AppDesign.Colors.textSecondary)
+        }
+        if vote.isApproved {
+            return ("Approved", "checkmark.circle.fill", AppDesign.Colors.success)
+        }
+        return ("Rejected", "xmark.circle.fill", AppDesign.Colors.error)
     }
 
     @ViewBuilder
