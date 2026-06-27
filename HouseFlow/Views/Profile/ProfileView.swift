@@ -28,6 +28,7 @@ struct ProfileView: View {
     @State private var showAbout = false
     @State private var avatarPulse = false
     @State private var selectedAvatarId: Int = 0
+    @State private var appeared = false
 
     // Brand colour — matches accentOrange in ChoreDetailPopup
     private let brandOrange   = Color(red: 1.0, green: 0.48, blue: 0.15)
@@ -36,21 +37,32 @@ struct ProfileView: View {
     var body: some View {
         ZStack {
             ScrollView(showsIndicators: false) {
-                VStack(spacing: 0) {
+                VStack(spacing: AppDesign.Spacing.xl) {
                     heroSection
 
                     VStack(spacing: AppDesign.Spacing.lg) {
                         statsStrip
+                            .opacity(appeared ? 1 : 0)
+                            .offset(y: appeared ? 0 : 20)
+                            .animation(.spring(response: 0.6, dampingFraction: 0.78).delay(0.12), value: appeared)
                         personalInfoCard
+                            .opacity(appeared ? 1 : 0)
+                            .offset(y: appeared ? 0 : 24)
+                            .animation(.spring(response: 0.6, dampingFraction: 0.78).delay(0.22), value: appeared)
                         accountCard
+                            .opacity(appeared ? 1 : 0)
+                            .offset(y: appeared ? 0 : 24)
+                            .animation(.spring(response: 0.6, dampingFraction: 0.78).delay(0.32), value: appeared)
                         settingsCard
+                            .opacity(appeared ? 1 : 0)
+                            .offset(y: appeared ? 0 : 24)
+                            .animation(.spring(response: 0.6, dampingFraction: 0.78).delay(0.42), value: appeared)
                     }
                     .padding(.horizontal, AppDesign.Spacing.lg)
-                    .padding(.top, AppDesign.Spacing.xl)
                     .padding(.bottom, 100)
                 }
+                .padding(.top, AppDesign.Spacing.xl)
             }
-            .ignoresSafeArea(edges: .top)
             .background(Color(.systemGroupedBackground).ignoresSafeArea())
 
             if showAvatarPicker {
@@ -93,42 +105,47 @@ struct ProfileView: View {
         .onChange(of: showEditSheet) { _, v in
             appViewModel.isOverlayPresented = v
         }
+        .onAppear {
+            withAnimation(.spring(response: 0.6, dampingFraction: 0.78).delay(0.05)) {
+                appeared = true
+            }
+        }
     }
 
     // MARK: - Hero
 
     private var heroSection: some View {
-        ZStack(alignment: .bottom) {
-            // Background gradient
-            LinearGradient(
-                colors: [brandOrange, brandOrangeDk],
-                startPoint: .topLeading,
-                endPoint: .bottomTrailing
-            )
-            .frame(height: 310)
+        ZStack(alignment: .bottomLeading) {
+            RoundedRectangle(cornerRadius: AppDesign.CornerRadius.xl)
+                .fill(
+                    LinearGradient(
+                        colors: [
+                            Color(hue: 0.08, saturation: 0.85, brightness: 0.95),
+                            Color(hue: 0.05, saturation: 0.75, brightness: 0.80),
+                        ],
+                        startPoint: .topLeading,
+                        endPoint: .bottomTrailing
+                    )
+                )
+                .frame(maxWidth: .infinity)
+                .frame(height: 190)
 
-            // Decorative blobs
+            Circle()
+                .fill(Color.white.opacity(0.12))
+                .frame(width: 160, height: 160)
+                .offset(x: 140, y: -46)
+
             Circle()
                 .fill(Color.white.opacity(0.08))
-                .frame(width: 230, height: 230)
-                .blur(radius: 12)
-                .offset(x: 110, y: -90)
+                .frame(width: 110, height: 110)
+                .offset(x: 250, y: 52)
 
-            Circle()
-                .fill(Color.white.opacity(0.05))
-                .frame(width: 170, height: 170)
-                .blur(radius: 8)
-                .offset(x: -100, y: 40)
+            Image(systemName: "person.crop.circle.fill")
+                .font(.system(size: 58, weight: .medium))
+                .foregroundStyle(Color.white.opacity(0.15))
+                .offset(x: 230, y: -50)
 
-            Circle()
-                .fill(Color(red: 0.65, green: 0.20, blue: 0.05).opacity(0.22))
-                .frame(width: 100, height: 100)
-                .blur(radius: 6)
-                .offset(x: 50, y: 55)
-
-            // Content
-            VStack(spacing: AppDesign.Spacing.md) {
-                // Tappable avatar
+            HStack(alignment: .bottom, spacing: AppDesign.Spacing.lg) {
                 Button {
                     withAnimation(AppDesign.Animation.standard) {
                         showAvatarPicker = true
@@ -227,38 +244,48 @@ struct ProfileView: View {
                         }
                         .offset(x: -36, y: 36)
                     }
-                    .shadow(color: Color.black.opacity(0.28), radius: 16, x: 0, y: 8)
+                    .shadow(color: Color.black.opacity(0.24), radius: 14, x: 0, y: 7)
                 }
                 .buttonStyle(.plain)
                 .onAppear { avatarPulse = true }
 
-                // Name & email
-                VStack(spacing: 5) {
+                VStack(alignment: .leading, spacing: AppDesign.Spacing.sm) {
                     Text(fullName)
                         .font(.system(size: 24, weight: .bold, design: .rounded))
                         .foregroundStyle(.white)
+                        .lineLimit(1)
+                        .minimumScaleFactor(0.72)
 
                     Text(appViewModel.currentUserProfile?.email ?? "—")
                         .font(.system(size: 14, weight: .medium))
                         .foregroundStyle(Color.white.opacity(0.72))
+                        .lineLimit(1)
+                        .minimumScaleFactor(0.72)
+
+                    HStack(spacing: AppDesign.Spacing.sm) {
+                        verificationPill(
+                            icon: "envelope.fill",
+                            label: "Email",
+                            verified: appViewModel.currentUserProfile?.isVerifyEmail == true
+                        )
+                        verificationPill(
+                            icon: "phone.fill",
+                            label: "Phone",
+                            verified: appViewModel.currentUserProfile?.isVerifyPhone == true
+                        )
+                    }
                 }
 
-                // Verification pills
-                HStack(spacing: AppDesign.Spacing.sm) {
-                    verificationPill(
-                        icon: "envelope.fill",
-                        label: "Email",
-                        verified: appViewModel.currentUserProfile?.isVerifyEmail == true
-                    )
-                    verificationPill(
-                        icon: "phone.fill",
-                        label: "Phone",
-                        verified: appViewModel.currentUserProfile?.isVerifyPhone == true
-                    )
-                }
-                .padding(.bottom, AppDesign.Spacing.xl)
+                Spacer(minLength: 0)
             }
+            .padding(.horizontal, AppDesign.Spacing.xl)
+            .padding(.bottom, AppDesign.Spacing.xl)
         }
+        .clipShape(RoundedRectangle(cornerRadius: AppDesign.CornerRadius.xl))
+        .shadow(color: Color.orange.opacity(0.35), radius: 16, x: 0, y: 6)
+        .padding(.horizontal, AppDesign.Spacing.lg)
+        .opacity(appeared ? 1 : 0)
+        .offset(y: appeared ? 0 : 12)
     }
 
     private func verificationPill(icon: String, label: String, verified: Bool) -> some View {

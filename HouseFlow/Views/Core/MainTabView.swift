@@ -32,23 +32,29 @@ struct MainTabView: View {
 
     var body: some View {
         GeometryReader { geo in
-            ZStack(alignment: .bottom) {
-                // Page content — no SwiftUI TabView so we control the bar fully
-                tabContent
-                    .ignoresSafeArea(.keyboard)
-
-                // Floating tab bar — hidden when any overlay/popup is active
-                if !appViewModel.isOverlayPresented {
-                    CustomTabBar(
-                        selectedTab: $selectedTab,
-                        bottomInset: geo.safeAreaInsets.bottom
-                    )
-                    .transition(.move(edge: .bottom).combined(with: .opacity))
+            // Page content — no SwiftUI TabView so we control the bar fully
+            tabContent
+                .ignoresSafeArea(.keyboard)
+                .overlay(alignment: .bottom) {
+                    tabBarOverlay(bottomInset: geo.safeAreaInsets.bottom)
                 }
-            }
         }
         .ignoresSafeArea(edges: .bottom)
         .ignoresSafeArea(.keyboard)
+    }
+
+    @ViewBuilder
+    private func tabBarOverlay(bottomInset: CGFloat) -> some View {
+        ZStack {
+            // Floating tab bar — hidden when any overlay/popup is active
+            if !appViewModel.isOverlayPresented {
+                CustomTabBar(
+                    selectedTab: $selectedTab,
+                    bottomInset: bottomInset
+                )
+                .transition(.move(edge: .bottom).combined(with: .opacity))
+            }
+        }
         .animation(AppDesign.Animation.standard, value: appViewModel.isOverlayPresented)
     }
 

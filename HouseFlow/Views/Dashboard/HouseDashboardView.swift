@@ -10,6 +10,7 @@ struct HouseDashboardView: View {
     @State private var buttonState: NewChoreButtonState = .collapsed
     @State private var buttonTimer: Timer?
     @State private var showLogoutConfirmation = false
+    @State private var appeared = false
     
     var body: some View {
         ZStack {
@@ -17,11 +18,14 @@ struct HouseDashboardView: View {
                 .ignoresSafeArea()
 
             ScrollView {
-                VStack(spacing: AppDesign.Spacing.xl) {
+                VStack(spacing: AppDesign.Spacing.lg) {
                     headerSection
 
                     AnnouncementCard()
                         .padding(.horizontal, AppDesign.Spacing.xl)
+                        .opacity(appeared ? 1 : 0)
+                        .offset(y: appeared ? 0 : 20)
+                        .animation(.spring(response: 0.6, dampingFraction: 0.78).delay(0.12), value: appeared)
                     
                     TodaysChoresCard(
                         chores: appViewModel.dashboardChores,
@@ -32,9 +36,15 @@ struct HouseDashboardView: View {
                         }
                     )
                     .padding(.horizontal, AppDesign.Spacing.xxl)
+                    .opacity(appeared ? 1 : 0)
+                    .offset(y: appeared ? 0 : 26)
+                    .animation(.spring(response: 0.6, dampingFraction: 0.78).delay(0.22), value: appeared)
                     
                     HouseMembersCard(members: appViewModel.dashboardMembers)
                         .padding(.horizontal, AppDesign.Spacing.xxl)
+                        .opacity(appeared ? 1 : 0)
+                        .offset(y: appeared ? 0 : 26)
+                        .animation(.spring(response: 0.6, dampingFraction: 0.78).delay(0.32), value: appeared)
                     
                     // Spacer for floating button + tab bar clearance
                     Spacer(minLength: 140)
@@ -44,6 +54,11 @@ struct HouseDashboardView: View {
             .overlay(popupsOverlay)
         }
         .navigationBarHidden(true)
+        .onAppear {
+            withAnimation(.spring(response: 0.6, dampingFraction: 0.78).delay(0.05)) {
+                appeared = true
+            }
+        }
     }
     
     // MARK: - Header Section
@@ -104,6 +119,9 @@ struct HouseDashboardView: View {
         .clipShape(RoundedRectangle(cornerRadius: AppDesign.CornerRadius.xl))
         .shadow(color: Color.orange.opacity(0.35), radius: 16, x: 0, y: 6)
         .padding(.horizontal, AppDesign.Spacing.xl)
+        .padding(.top, AppDesign.Spacing.xs)
+        .opacity(appeared ? 1 : 0)
+        .offset(y: appeared ? 0 : 12)
     }
     
     // MARK: - Floating Action Button
@@ -161,9 +179,7 @@ struct HouseDashboardView: View {
     }
 
     private func setOverlay(_ visible: Bool) {
-        withAnimation(AppDesign.Animation.standard) {
-            appViewModel.isOverlayPresented = visible
-        }
+        appViewModel.isOverlayPresented = visible
     }
     
     // MARK: - Helper Methods
