@@ -20,7 +20,7 @@ enum ChoreStatus: Int, Codable {
 struct CreateChoreRequest: Encodable {
     let assignedTo: String
     let description: String
-    let dueDate: String          // "2026-07-12 00:00:00"
+    let dueDate: String          // ISO-8601, e.g. "2026-07-12T00:00:00Z"
     let houseId: String
     let isRecurring: Bool
     let level: Int               // ChoreLevel raw value
@@ -60,7 +60,7 @@ struct ReviewChoreRequest: Encodable {
     let isApproved: Bool
 }
 
-struct ChoreReviewVote: Codable, Identifiable {
+struct ChoreReviewVote: Codable, Identifiable, Equatable {
     let id: String
     let choreId: String
     let houseId: String
@@ -70,7 +70,7 @@ struct ChoreReviewVote: Codable, Identifiable {
     let createdOn: String
 }
 
-struct ChoreReviewResponse: Decodable, Identifiable {
+struct ChoreReviewResponse: Decodable, Identifiable, Equatable {
     let id: String
     let status: Int
     let reviewRound: Int
@@ -80,7 +80,7 @@ struct ChoreReviewResponse: Decodable, Identifiable {
 
 // MARK: - Chore Response
 
-struct ChoreResponse: Decodable, Identifiable {
+struct ChoreResponse: Decodable, Identifiable, Equatable {
     let id: String
     let title: String
     let description: String
@@ -101,10 +101,47 @@ struct ChoreResponse: Decodable, Identifiable {
     let reviewVotes: [ChoreReviewVote]
 }
 
-struct ChoreStatusHistoryResponse: Decodable, Identifiable {
+struct ChoreStatusHistoryResponse: Decodable, Identifiable, Equatable {
     let id: String
     let choreId: String
     let status: Int
     let updater: String
     let dateTime: String
+}
+
+extension ChoreResponse {
+    var houseChoreDTO: HouseChoreDTO {
+        HouseChoreDTO(
+            id: id,
+            title: title,
+            description: description,
+            houseId: houseId,
+            houseOwnerId: houseOwnerId,
+            assignedTo: assignedTo,
+            dueDate: dueDate,
+            isCompleted: isCompleted,
+            isRecurring: isRecurring,
+            level: level,
+            recurringInterval: recurringInterval,
+            status: status,
+            createdOn: createdOn,
+            completedAt: completedAt,
+            completedBy: completedBy,
+            statusHistories: statusHistories.map(\.houseStatusHistory),
+            reviewRound: reviewRound,
+            reviewVotes: reviewVotes
+        )
+    }
+}
+
+private extension ChoreStatusHistoryResponse {
+    var houseStatusHistory: ChoreStatusHistory {
+        ChoreStatusHistory(
+            id: id,
+            choreId: choreId,
+            status: status,
+            updater: updater,
+            dateTime: dateTime
+        )
+    }
 }

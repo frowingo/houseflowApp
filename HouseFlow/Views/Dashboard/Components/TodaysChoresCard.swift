@@ -4,13 +4,12 @@ import SwiftUI
 /// Features: Swipe gestures, 3D transforms, particle effects, progress tracking
 struct TodaysChoresCard: View {
     let chores: [Chore]
-    let appViewModel: AppViewModel
     let onChoreDetailTap: (Chore) -> Void
     
-    @State private var selectedChoreId: UUID? = nil
-    @State private var choreOffsets: [UUID: CGFloat] = [:]
+    @State private var selectedChoreId: String? = nil
+    @State private var choreOffsets: [String: CGFloat] = [:]
     @State private var isExpanded = false
-    @State private var particleAnimations: [UUID: Bool] = [:]
+    @State private var particleAnimations: [String: Bool] = [:]
     @State private var pulseAnimation = false
     @State private var iconPressed = false
     
@@ -407,7 +406,6 @@ struct ModernChoreRow: View {
     
     return TodaysChoresCard(
         chores: viewModel.chores,
-        appViewModel: viewModel,
         onChoreDetailTap: { _ in }
     )
     .padding()
@@ -420,7 +418,6 @@ struct ModernChoreRow: View {
     
     return TodaysChoresCard(
         chores: viewModel.chores,
-        appViewModel: viewModel,
         onChoreDetailTap: { _ in }
     )
     .padding()

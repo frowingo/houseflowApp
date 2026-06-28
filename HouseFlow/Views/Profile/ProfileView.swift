@@ -69,9 +69,7 @@ struct ProfileView: View {
                 AvatarPickerPopup(
                     initials: initials,
                     onDismiss: {
-                        withAnimation(AppDesign.Animation.standard) {
-                            showAvatarPicker = false
-                        }
+                        dismissAvatarPicker()
                     }
                 )
                 .environmentObject(appViewModel)
@@ -82,9 +80,7 @@ struct ProfileView: View {
             if showEditSheet {
                 EditProfilePopup(
                     onDismiss: {
-                        withAnimation(AppDesign.Animation.standard) {
-                            showEditSheet = false
-                        }
+                        dismissEditSheet()
                     }
                 )
                 .environmentObject(appViewModel)
@@ -93,7 +89,7 @@ struct ProfileView: View {
 
             if showAbout {
                 AboutPopup {
-                    withAnimation(AppDesign.Animation.standard) { showAbout = false }
+                    dismissAbout()
                 }
                 .transition(.opacity.combined(with: .scale(scale: 0.96)))
                 .zIndex(12)
@@ -102,14 +98,58 @@ struct ProfileView: View {
         .animation(AppDesign.Animation.standard, value: showAvatarPicker)
         .animation(AppDesign.Animation.standard, value: showEditSheet)
         .animation(AppDesign.Animation.standard, value: showAbout)
-        .onChange(of: showEditSheet) { _, v in
-            appViewModel.isOverlayPresented = v
+        .onChange(of: showAvatarPicker) { _, _ in
+            syncOverlayPresentation()
+        }
+        .onChange(of: showEditSheet) { _, _ in
+            syncOverlayPresentation()
+        }
+        .onChange(of: showAbout) { _, _ in
+            syncOverlayPresentation()
+        }
+        .onDisappear {
+            appViewModel.isOverlayPresented = false
         }
         .onAppear {
             withAnimation(.spring(response: 0.6, dampingFraction: 0.78).delay(0.05)) {
                 appeared = true
             }
         }
+    }
+
+    private func dismissEditSheet() {
+        UIApplication.shared.sendAction(#selector(UIResponder.resignFirstResponder), to: nil, from: nil, for: nil)
+        DispatchQueue.main.async {
+            var transaction = Transaction()
+            transaction.disablesAnimations = true
+            withTransaction(transaction) {
+                showEditSheet = false
+            }
+        }
+    }
+
+    private func dismissAvatarPicker() {
+        DispatchQueue.main.async {
+            var transaction = Transaction()
+            transaction.disablesAnimations = true
+            withTransaction(transaction) {
+                showAvatarPicker = false
+            }
+        }
+    }
+
+    private func dismissAbout() {
+        DispatchQueue.main.async {
+            var transaction = Transaction()
+            transaction.disablesAnimations = true
+            withTransaction(transaction) {
+                showAbout = false
+            }
+        }
+    }
+
+    private func syncOverlayPresentation() {
+        appViewModel.isOverlayPresented = showAvatarPicker || showEditSheet || showAbout
     }
 
     // MARK: - Hero
@@ -183,30 +223,15 @@ struct ProfileView: View {
                             if let imageUrl = appViewModel.currentUserProfile?.imageUrl,
                                !imageUrl.isEmpty,
                                let url = URL(string: imageUrl) {
-                                AsyncImage(url: url) { phase in
-                                    switch phase {
-                                    case .success(let img):
-                                        img.resizable().scaledToFill()
-                                    default:
-                                        Circle()
-                                            .fill(
-                                                LinearGradient(
-                                                    colors: avatarOptions[selectedAvatarId].colors,
-                                                    startPoint: .topLeading,
-                                                    endPoint: .bottomTrailing
-                                                )
-                                            )
-                                    }
+                                CachedRemoteImage(url: url) { image in
+                                    image.resizable().scaledToFill()
+                                } placeholder: {
+                                    defaultAvatarFill
+                                } failure: {
+                                    defaultAvatarFill
                                 }
                             } else {
-                                Circle()
-                                    .fill(
-                                        LinearGradient(
-                                            colors: avatarOptions[selectedAvatarId].colors,
-                                            startPoint: .topLeading,
-                                            endPoint: .bottomTrailing
-                                        )
-                                    )
+                                defaultAvatarFill
                             }
                         }
                         .frame(width: 96, height: 96)
@@ -310,6 +335,17 @@ struct ProfileView: View {
                     lineWidth: 1
                 )
         )
+    }
+
+    private var defaultAvatarFill: some View {
+        Circle()
+            .fill(
+                LinearGradient(
+                    colors: avatarOptions[selectedAvatarId].colors,
+                    startPoint: .topLeading,
+                    endPoint: .bottomTrailing
+                )
+            )
     }
 
     // MARK: - Stats Strip
@@ -684,24 +720,12 @@ struct ProfileView: View {
 
     private var birthDateDisplay: String {
         guard let p = appViewModel.currentUserProfile, let bd = p.birthDate, !bd.isEmpty else { return "—" }
-        let isoFormatter = ISO8601DateFormatter()
-        isoFormatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
-        let date = isoFormatter.date(from: bd) ?? {
-            isoFormatter.formatOptions = [.withInternetDateTime]
-            return isoFormatter.date(from: bd)
-        }()
-        guard let birth = date else { return "—" }
-        let display = DateFormatter()
-        display.dateStyle = .medium
-        display.timeStyle = .none
-        return display.string(from: birth)
+        return HouseFlowDateFormatter.displayDate(from: bd)
     }
 
     private var memberSince: String {
         guard let iso = appViewModel.currentUserProfile?.createdOn, !iso.isEmpty else { return "—" }
-        let formatter = ISO8601DateFormatter()
-        formatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
-        guard let date = formatter.date(from: iso) else { return "—" }
+        guard let date = HouseFlowDateFormatter.parseAPIDate(iso) else { return "—" }
         let cal = Calendar.current
         let months = cal.dateComponents([.month], from: date, to: Date()).month ?? 0
         if months < 1 { return "New" }
@@ -722,14 +746,7 @@ struct ProfileView: View {
     }
 
     private func formattedDate(_ iso: String?) -> String {
-        guard let iso, !iso.isEmpty else { return "—" }
-        let formatter = ISO8601DateFormatter()
-        formatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
-        guard let date = formatter.date(from: iso) else { return "—" }
-        let display = DateFormatter()
-        display.dateStyle = .medium
-        display.timeStyle = .none
-        return display.string(from: date)
+        HouseFlowDateFormatter.displayDate(from: iso)
     }
 }
 
@@ -758,7 +775,7 @@ struct AvatarPickerPopup: View {
         ZStack {
             Color.black.opacity(0.55)
                 .ignoresSafeArea()
-                .onTapGesture { if !isSaving { onDismiss() } }
+                .onTapGesture { if !isSaving { requestDismiss() } }
 
             VStack(spacing: 0) {
                 // Top bar
@@ -782,7 +799,7 @@ struct AvatarPickerPopup: View {
                                 .foregroundColor(.white.opacity(0.75))
                         }
                         Spacer()
-                        Button { if !isSaving { onDismiss() } } label: {
+                        Button { if !isSaving { requestDismiss() } } label: {
                             Image(systemName: "xmark")
                                 .font(.system(size: 13, weight: .bold))
                                 .foregroundColor(.white.opacity(0.9))
@@ -869,7 +886,7 @@ struct AvatarPickerPopup: View {
                     }
                     .disabled(selectedImage == nil || isSaving)
 
-                    Button { if !isSaving { onDismiss() } } label: {
+                    Button { if !isSaving { requestDismiss() } } label: {
                         Text("Cancel")
                             .font(AppDesign.Typography.headline)
                             .foregroundColor(AppDesign.Colors.textSecondary)
@@ -911,21 +928,18 @@ struct AvatarPickerPopup: View {
             }
         } label: {
             ZStack(alignment: .bottomTrailing) {
-                AsyncImage(url: URL(string: image.fileURL)) { phase in
-                    switch phase {
-                    case .success(let img):
-                        img.resizable().scaledToFill()
-                    case .failure:
-                        ZStack {
-                            Color(AppDesign.Colors.secondaryBackground)
-                            Image(systemName: "photo")
-                                .foregroundStyle(AppDesign.Colors.textTertiary)
-                        }
-                    default:
-                        ZStack {
-                            Color(AppDesign.Colors.secondaryBackground)
-                            ProgressView().tint(accentOrange)
-                        }
+                CachedRemoteImage(url: URL(string: image.fileURL)) { remoteImage in
+                    remoteImage.resizable().scaledToFill()
+                } placeholder: {
+                    ZStack {
+                        Color(AppDesign.Colors.secondaryBackground)
+                        ProgressView().tint(accentOrange)
+                    }
+                } failure: {
+                    ZStack {
+                        Color(AppDesign.Colors.secondaryBackground)
+                        Image(systemName: "photo")
+                            .foregroundStyle(AppDesign.Colors.textTertiary)
                     }
                 }
                 .frame(width: 90, height: 90)
@@ -1002,11 +1016,17 @@ struct AvatarPickerPopup: View {
         )
         do {
             try await appViewModel.updateProfile(request)
-            await Task.yield()
-            onDismiss()
+            isSaving = false
+            requestDismiss()
         } catch {
             isSaving = false
             saveError = error.localizedDescription
+        }
+    }
+
+    private func requestDismiss() {
+        DispatchQueue.main.async {
+            onDismiss()
         }
     }
 }
@@ -1017,12 +1037,20 @@ struct EditProfilePopup: View {
     @EnvironmentObject private var appViewModel: AppViewModel
     let onDismiss: () -> Void
 
+    private enum EditField: Hashable {
+        case firstName
+        case lastName
+        case phoneNumber
+    }
+
     @State private var firstName: String = ""
     @State private var lastName: String = ""
     @State private var phoneNumber: String = ""
     @State private var birthDate: Date = Calendar.current.date(byAdding: .year, value: -25, to: Date()) ?? Date()
+    @State private var maximumBirthDate = Date()
     @State private var isSaving = false
     @State private var saveError: String?
+    @FocusState private var focusedField: EditField?
 
     private let accentOrange = Color(red: 1.0, green: 0.48, blue: 0.15)
 
@@ -1031,7 +1059,7 @@ struct EditProfilePopup: View {
             // Dim backdrop
             Color.black.opacity(0.55)
                 .ignoresSafeArea()
-                .onTapGesture { if !isSaving { onDismiss() } }
+                .onTapGesture { if !isSaving { requestDismiss() } }
 
             VStack(spacing: 0) {
                 // ── Top bar (ChoreDetailPopup style)
@@ -1067,7 +1095,7 @@ struct EditProfilePopup: View {
 
                         Spacer()
 
-                        Button { if !isSaving { onDismiss() } } label: {
+                        Button { if !isSaving { requestDismiss() } } label: {
                             Image(systemName: "xmark")
                                 .font(.system(size: 13, weight: .bold))
                                 .foregroundColor(.white.opacity(0.9))
@@ -1086,10 +1114,10 @@ struct EditProfilePopup: View {
                     VStack(spacing: AppDesign.Spacing.md) {
                         fieldSection(icon: "person.fill", tint: accentOrange, title: "Name") {
                             editField(icon: "person.fill", tint: accentOrange,
-                                      placeholder: "First Name", text: $firstName)
+                                      placeholder: "First Name", text: $firstName, field: .firstName)
                             Divider().padding(.leading, 66)
                             editField(icon: "person.fill", tint: accentOrange,
-                                      placeholder: "Last Name",  text: $lastName)
+                                      placeholder: "Last Name",  text: $lastName, field: .lastName)
                         }
 
                         fieldSection(icon: "info.circle.fill",
@@ -1098,6 +1126,7 @@ struct EditProfilePopup: View {
                             editField(icon: "phone.fill",
                                       tint: Color(red: 0.2, green: 0.7, blue: 0.4),
                                       placeholder: "Phone Number", text: $phoneNumber,
+                                      field: .phoneNumber,
                                       keyboard: .phonePad)
                             Divider().padding(.leading, 66)
                             HStack(spacing: AppDesign.Spacing.md) {
@@ -1113,7 +1142,7 @@ struct EditProfilePopup: View {
                                     .font(AppDesign.Typography.subheadline)
                                     .foregroundStyle(AppDesign.Colors.textSecondary)
                                 Spacer()
-                                DatePicker("", selection: $birthDate, in: ...Date(), displayedComponents: .date)
+                                DatePicker("", selection: $birthDate, in: ...maximumBirthDate, displayedComponents: .date)
                                     .labelsHidden()
                                     .tint(Color(red: 0.9, green: 0.45, blue: 0.1))
                             }
@@ -1173,7 +1202,7 @@ struct EditProfilePopup: View {
                     .disabled(isSaving)
                     .animation(AppDesign.Animation.quick, value: isSaving)
 
-                    Button { if !isSaving { onDismiss() } } label: {
+                    Button { if !isSaving { requestDismiss() } } label: {
                         Text("Cancel")
                             .font(AppDesign.Typography.headline)
                             .foregroundColor(AppDesign.Colors.textSecondary)
@@ -1255,6 +1284,7 @@ struct EditProfilePopup: View {
         tint: Color,
         placeholder: String,
         text: Binding<String>,
+        field: EditField,
         keyboard: UIKeyboardType = .default
     ) -> some View {
         HStack(spacing: AppDesign.Spacing.md) {
@@ -1269,6 +1299,7 @@ struct EditProfilePopup: View {
             TextField(placeholder, text: text)
                 .keyboardType(keyboard)
                 .font(AppDesign.Typography.subheadline)
+                .focused($focusedField, equals: field)
         }
         .padding(.horizontal, AppDesign.Spacing.lg)
         .padding(.vertical, 14)
@@ -1293,14 +1324,15 @@ struct EditProfilePopup: View {
         lastName    = p.lastName
         phoneNumber = p.phoneNumber
         if let bd = p.birthDate, !bd.isEmpty {
-            let isoFormatter = ISO8601DateFormatter()
-            isoFormatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
-            if let parsed = isoFormatter.date(from: bd) {
-                birthDate = parsed
-            } else {
-                isoFormatter.formatOptions = [.withInternetDateTime]
-                if let parsed = isoFormatter.date(from: bd) { birthDate = parsed }
-            }
+            if let parsed = HouseFlowDateFormatter.parseAPIDate(bd) { birthDate = parsed }
+        }
+    }
+
+    private func requestDismiss() {
+        focusedField = nil
+        UIApplication.shared.sendAction(#selector(UIResponder.resignFirstResponder), to: nil, from: nil, for: nil)
+        DispatchQueue.main.async {
+            onDismiss()
         }
     }
 
@@ -1311,9 +1343,7 @@ struct EditProfilePopup: View {
         guard !isSaving else { return }
         isSaving  = true
         saveError = nil
-        let isoFormatter = ISO8601DateFormatter()
-        isoFormatter.formatOptions = [.withInternetDateTime]
-        let birthDateString = isoFormatter.string(from: birthDate)
+        let birthDateString = HouseFlowDateFormatter.apiString(from: birthDate)
         let request = UpdateProfileRequest(
             imageUrl:      nil,
             birthDay:      birthDateString,
@@ -1323,8 +1353,8 @@ struct EditProfilePopup: View {
         )
         do {
             try await appViewModel.updateProfile(request)
-            await Task.yield()
-            onDismiss()
+            isSaving = false
+            requestDismiss()
         } catch {
             isSaving  = false
             saveError = error.localizedDescription
@@ -1344,7 +1374,7 @@ struct AboutPopup: View {
             // Dim backdrop
             Color.black.opacity(0.55)
                 .ignoresSafeArea()
-                .onTapGesture { onDismiss() }
+                .onTapGesture { requestDismiss() }
 
             VStack(spacing: 0) {
                 // ── Top bar (identical pattern to EditProfilePopup / AvatarPickerPopup)
@@ -1368,7 +1398,7 @@ struct AboutPopup: View {
                                 .foregroundColor(.white.opacity(0.75))
                         }
                         Spacer()
-                        Button(action: onDismiss) {
+                        Button(action: requestDismiss) {
                             Image(systemName: "xmark")
                                 .font(.system(size: 13, weight: .bold))
                                 .foregroundColor(.white.opacity(0.9))
@@ -1428,7 +1458,7 @@ struct AboutPopup: View {
                 .padding(.vertical, AppDesign.Spacing.xl)
 
                 // ── Footer (same as AvatarPickerPopup)
-                Button(action: onDismiss) {
+                Button(action: requestDismiss) {
                     Text("Kapat")
                         .font(AppDesign.Typography.headline)
                         .foregroundColor(AppDesign.Colors.textSecondary)
@@ -1457,6 +1487,12 @@ struct AboutPopup: View {
             .shadow(color: Color.black.opacity(0.25), radius: 30, x: 0, y: 16)
             .fixedSize(horizontal: false, vertical: true)
             .padding(.horizontal, AppDesign.Spacing.xl)
+        }
+    }
+
+    private func requestDismiss() {
+        DispatchQueue.main.async {
+            onDismiss()
         }
     }
 }

@@ -1,7 +1,7 @@
 import Foundation
 
-struct User: Identifiable, Codable {
-    let id = UUID()
+struct User: Identifiable, Codable, Equatable {
+    let id: String
     /// The server-assigned user ID (nil for locally created / preview users).
     let apiId: String?
     let name: String
@@ -11,7 +11,8 @@ struct User: Identifiable, Codable {
     let points: Int
     let imageUrl: String?
 
-    init(firstName: String, lastName: String, apiId: String? = nil, points: Int = 0, imageUrl: String? = nil) {
+    init(id: String? = nil, firstName: String, lastName: String, apiId: String? = nil, points: Int = 0, imageUrl: String? = nil) {
+        self.id = apiId ?? id ?? "\(firstName)-\(lastName)".lowercased()
         self.apiId = apiId
         self.firstName = firstName
         self.lastName = lastName
@@ -22,8 +23,9 @@ struct User: Identifiable, Codable {
     }
 
     /// Convenience init for preview/sample data where only a full name is available.
-    init(name: String, points: Int = 0, imageUrl: String? = nil) {
+    init(id: String? = nil, name: String, points: Int = 0, imageUrl: String? = nil) {
         let components = name.split(separator: " ", maxSplits: 1)
+        self.id = id ?? name.lowercased()
         self.apiId = nil
         self.firstName = components.first.map(String.init) ?? name
         self.lastName = components.dropFirst().first.map(String.init) ?? ""

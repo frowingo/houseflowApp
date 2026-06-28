@@ -45,7 +45,12 @@ class AppViewModel: ObservableObject {
     @Published var showAuth: Bool = false
     @Published var currentUser: User?
     @Published var houseName: String = ""
-    @Published var chores: [Chore] = []
+    @Published var chores: [Chore] = [] {
+        didSet {
+            guard currentHouseDetails == nil else { return }
+            setDashboardChores(chores)
+        }
+    }
     @Published var navigationDirection: NavigationDirection = .forward
 
     // MARK: - Auth State
@@ -55,7 +60,9 @@ class AppViewModel: ObservableObject {
 
     // MARK: - House State
     @Published var currentHouse: HouseResponse?
-    @Published var currentHouseDetails: HouseDetailsResponse?
+    @Published var currentHouseDetails: HouseDetailsResponse? {
+        didSet { rebuildDashboardCache() }
+    }
     @Published var houseIsLoading: Bool = false
     @Published var houseError: String?
 
@@ -80,16 +87,25 @@ class AppViewModel: ObservableObject {
     @Published var currentUserId: String?
 
     /// Full server profile of the logged-in user (used for profile display & edit).
-    @Published var currentUserProfile: IsAuthUserData?
+    @Published var currentUserProfile: IsAuthUserData? {
+        didSet { rebuildDashboardCache() }
+    }
 
     /// Set to true whenever a modal / popup is covering the screen so the tab bar hides.
     @Published var isOverlayPresented: Bool = false
+
+    @Published private(set) var dashboardMembers: [User] = []
+    @Published private(set) var dashboardChores: [Chore] = []
 
     // MARK: - Background Session Tracking
     /// Timestamp of when the app last entered the background.
     private var backgroundedAt: Date? = nil
     /// How long the app must be in the background before re-running the auth check on foreground.
     private let backgroundRefreshThreshold: TimeInterval = 15 * 60 // 15 minutes
+    private let houseDetailsRefreshCooldown: TimeInterval = 30
+    private var houseDetailsTasks: [String: Task<HouseDetailsResponse, Error>] = [:]
+    private var lastHouseDetailsFetchAt: [String: Date] = [:]
+    private var toastTask: Task<Void, Never>?
     
     // Sample data for demo
     let sampleUsers = [
@@ -101,12 +117,70 @@ class AppViewModel: ObservableObject {
     
     var sampleChores: [Chore] {
         [
-            Chore(title: "Take out the trash", description: "Empty all trash bins and take bags to the dumpster", assignedTo: sampleUsers[0], dueLabel: "Today"),
-            Chore(title: "Clean kitchen counter", description: "Wipe down all surfaces, clean sink and organize items", assignedTo: sampleUsers[1], dueLabel: "Today"),
-            Chore(title: "Vacuum living room", description: "Vacuum carpet and clean under furniture", assignedTo: sampleUsers[2], dueLabel: "Overdue"),
-            Chore(title: "Clean bathroom", description: "Clean toilet, shower, sink and mirror", assignedTo: sampleUsers[3], dueLabel: "This week"),
-            Chore(title: "Do laundry", description: "Wash, dry and fold clothes", assignedTo: sampleUsers[0], dueLabel: "Today", isDone: true)
+            Chore(id: "sample-take-trash", title: "Take out the trash", description: "Empty all trash bins and take bags to the dumpster", assignedTo: sampleUsers[0], dueLabel: "Today"),
+            Chore(id: "sample-kitchen-counter", title: "Clean kitchen counter", description: "Wipe down all surfaces, clean sink and organize items", assignedTo: sampleUsers[1], dueLabel: "Today"),
+            Chore(id: "sample-vacuum-living-room", title: "Vacuum living room", description: "Vacuum carpet and clean under furniture", assignedTo: sampleUsers[2], dueLabel: "Overdue"),
+            Chore(id: "sample-clean-bathroom", title: "Clean bathroom", description: "Clean toilet, shower, sink and mirror", assignedTo: sampleUsers[3], dueLabel: "This week"),
+            Chore(id: "sample-laundry", title: "Do laundry", description: "Wash, dry and fold clothes", assignedTo: sampleUsers[0], dueLabel: "Today", isDone: true)
         ]
+    }
+
+    init() {
+        rebuildDashboardCache()
+    }
+
+    private func setHouseName(_ name: String) {
+        guard houseName != name else { return }
+        houseName = name
+    }
+
+    private func setCurrentHouseDetails(_ details: HouseDetailsResponse?) {
+        guard currentHouseDetails != details else { return }
+        currentHouseDetails = details
+    }
+
+    private func setDashboardMembers(_ members: [User]) {
+        guard dashboardMembers != members else { return }
+        dashboardMembers = members
+    }
+
+    private func setDashboardChores(_ mappedChores: [Chore]) {
+        guard dashboardChores != mappedChores else { return }
+        dashboardChores = mappedChores
+    }
+
+    private func applyHouseDetails(_ details: HouseDetailsResponse, houseNameOverride: String? = nil) {
+        setCurrentHouseDetails(details)
+        setHouseName(houseNameOverride ?? details.name)
+    }
+
+    private func loadHouseDetails(houseId: String, forceRefresh: Bool = false) async throws -> HouseDetailsResponse {
+        if !forceRefresh,
+           currentHouseDetails?.id == houseId,
+           let fetchedAt = lastHouseDetailsFetchAt[houseId],
+           Date().timeIntervalSince(fetchedAt) < houseDetailsRefreshCooldown,
+           let details = currentHouseDetails {
+            return details
+        }
+
+        if let task = houseDetailsTasks[houseId] {
+            return try await task.value
+        }
+
+        let task = Task<HouseDetailsResponse, Error> {
+            try await HouseService.shared.fetchDetails(houseId: houseId)
+        }
+        houseDetailsTasks[houseId] = task
+
+        do {
+            let details = try await task.value
+            houseDetailsTasks[houseId] = nil
+            lastHouseDetailsFetchAt[houseId] = Date()
+            return details
+        } catch {
+            houseDetailsTasks[houseId] = nil
+            throw error
+        }
     }
     
     var weeklyLeader: User {
@@ -190,9 +264,8 @@ class AppViewModel: ObservableObject {
 
         houseLoadingPhase = .loadingHouse
         do {
-            let details = try await houseService.fetchDetails(houseId: firstHouseId)
-            currentHouseDetails = details
-            houseName = details.name
+            let details = try await loadHouseDetails(houseId: firstHouseId)
+            applyHouseDetails(details)
             try? await Task.sleep(for: .milliseconds(600))
             showHouseLoading = false
             isAuthenticated = true
@@ -295,7 +368,7 @@ class AppViewModel: ObservableObject {
                 throw NetworkError.serverError("Authenticated user could not be resolved.")
             }
 
-            currentHouseDetails = nil
+            setCurrentHouseDetails(nil)
             applyAuthenticatedUser(profile)
 
             guard let firstHouseId = profile.houseIds.first else {
@@ -307,9 +380,8 @@ class AppViewModel: ObservableObject {
 
             // Has a house → fetch details
             houseLoadingPhase = .loadingHouse
-            let details = try await houseService.fetchDetails(houseId: firstHouseId)
-            currentHouseDetails = details
-            houseName = details.name
+            let details = try await loadHouseDetails(houseId: firstHouseId)
+            applyHouseDetails(details)
             try? await Task.sleep(for: .milliseconds(600))
 
             isAuthenticated = true
@@ -336,11 +408,12 @@ class AppViewModel: ObservableObject {
         currentUserId = profile.id
         currentUserProfile = profile
         currentUser = User(firstName: profile.firstName, lastName: profile.lastName, apiId: profile.id, points: 0, imageUrl: profile.imageUrl.isEmpty ? nil : profile.imageUrl)
+        rebuildDashboardCache()
     }
     
     func selectHouse(name: String) {
         navigationDirection = .forward
-        houseName = name
+        setHouseName(name)
         hasSelectedHouse = true
         showCreateHouse = false
     }
@@ -412,9 +485,8 @@ class AppViewModel: ObservableObject {
 
             houseLoadingPhase = .loadingDetails
 
-            let details = try await houseService.fetchDetails(houseId: house.id)
-            currentHouseDetails = details
-            houseName = house.name
+            let details = try await loadHouseDetails(houseId: house.id, forceRefresh: true)
+            applyHouseDetails(details, houseNameOverride: house.name)
 
             // Brief pause so the user can read the "Almost There!" phase
             try? await Task.sleep(for: .milliseconds(700))
@@ -446,9 +518,8 @@ class AppViewModel: ObservableObject {
 
             houseLoadingPhase = .loadingDetails
 
-            let details = try await houseService.fetchDetails(houseId: house.id)
-            currentHouseDetails = details
-            houseName = house.name
+            let details = try await loadHouseDetails(houseId: house.id, forceRefresh: true)
+            applyHouseDetails(details, houseNameOverride: house.name)
 
             try? await Task.sleep(for: .milliseconds(700))
 
@@ -467,10 +538,28 @@ class AppViewModel: ObservableObject {
     // MARK: - Toast
 
     func showToast(message: String, isError: Bool = true) {
+        toastTask?.cancel()
         toastMessage = message
         toastIsError = isError
-        Task {
-            try? await Task.sleep(for: .seconds(4))
+        toastTask = Task { [weak self] in
+            do {
+                try await Task.sleep(for: .seconds(4))
+            } catch {
+                return
+            }
+            guard !Task.isCancelled else { return }
+            await MainActor.run {
+                guard self?.toastMessage == message else { return }
+                self?.toastMessage = nil
+                self?.toastTask = nil
+            }
+        }
+    }
+
+    private func clearToast() {
+        toastTask?.cancel()
+        toastTask = nil
+        if toastMessage != nil {
             toastMessage = nil
         }
     }
@@ -512,7 +601,7 @@ class AppViewModel: ObservableObject {
     /// Calls GET house/details. Stores result in currentHouseDetails.
     func fetchHouseDetails(houseId: String) async {
         do {
-            currentHouseDetails = try await houseService.fetchDetails(houseId: houseId)
+            applyHouseDetails(try await loadHouseDetails(houseId: houseId))
         } catch {
             print("[HouseDetails] fetch failed: \(error.localizedDescription)")
         }
@@ -521,7 +610,7 @@ class AppViewModel: ObservableObject {
     /// Finalizes navigation after a successful create or join (legacy path).
     func finalizeHouseSelection(house: HouseResponse) {
         currentHouse = house
-        houseName = house.name
+        setHouseName(house.name)
         navigationDirection = .forward
         hasSelectedHouse = true
         showCreateHouse = false
@@ -531,6 +620,11 @@ class AppViewModel: ObservableObject {
     
     func logout() {
         authService.logout()
+        houseDetailsTasks.values.forEach { $0.cancel() }
+        houseDetailsTasks.removeAll()
+        lastHouseDetailsFetchAt.removeAll()
+        toastTask?.cancel()
+        toastTask = nil
         navigationDirection = .backward
         isAuthenticated = false
         hasSelectedHouse = false
@@ -542,44 +636,34 @@ class AppViewModel: ObservableObject {
         showAuth = false
         currentUser = nil
         currentUserId = nil
+        currentUserProfile = nil
         currentHouse = nil
-        currentHouseDetails = nil
-        houseName = ""
+        setCurrentHouseDetails(nil)
+        setHouseName("")
         chores = []
-        toastMessage = nil
+        clearToast()
     }
 
     // MARK: - Dashboard Data (mapped from API details)
 
-    /// House members mapped from `currentHouseDetails`, falls back to sample data.
-    var dashboardMembers: [User] {
-        guard let details = currentHouseDetails else { return sampleUsers }
-        return details.members.map { member in
-            // Use fresh profile data for the current user so updates reflect immediately
-            if member.id == currentUserId, let profile = currentUserProfile {
-                return User(firstName: profile.firstName, lastName: profile.lastName, apiId: member.id, points: 0, imageUrl: profile.imageUrl.isEmpty ? nil : profile.imageUrl)
-            }
-            return User(firstName: member.firstName, lastName: member.lastName, apiId: member.id, points: 0, imageUrl: member.imageUrl.isEmpty ? nil : member.imageUrl)
+    private func rebuildDashboardCache() {
+        guard let details = currentHouseDetails else {
+            setDashboardMembers(sampleUsers)
+            setDashboardChores(chores)
+            return
         }
-    }
 
-    /// Chores mapped from `currentHouseDetails`, falls back to in-memory chores.
-    var dashboardChores: [Chore] {
-        guard let details = currentHouseDetails else { return chores }
-        return details.chores.map { dto in
-            let matchedMember = details.members.first(where: { $0.id == dto.assignedTo })
-            let assignedUser: User
-            if let matched = matchedMember {
-                // Use fresh profile for the current user
-                if matched.id == currentUserId, let profile = currentUserProfile {
-                    assignedUser = User(firstName: profile.firstName, lastName: profile.lastName, apiId: matched.id, points: 0, imageUrl: profile.imageUrl.isEmpty ? nil : profile.imageUrl)
-                } else {
-                    assignedUser = User(firstName: matched.firstName, lastName: matched.lastName, apiId: matched.id, points: 0, imageUrl: matched.imageUrl.isEmpty ? nil : matched.imageUrl)
-                }
-            } else {
-                assignedUser = User(name: dto.assignedTo.isEmpty ? "Unassigned" : dto.assignedTo)
-            }
-            let label = dto.dueLabelString
+        let members = details.members.map { member in
+            user(from: member)
+        }
+        let membersById = Dictionary(uniqueKeysWithValues: members.compactMap { user -> (String, User)? in
+            guard let apiId = user.apiId else { return nil }
+            return (apiId, user)
+        })
+
+        setDashboardMembers(members)
+        setDashboardChores(details.chores.map { dto in
+            let assignedUser = membersById[dto.assignedTo] ?? User(id: dto.assignedTo, name: dto.assignedTo.isEmpty ? "Unassigned" : dto.assignedTo)
             return Chore(
                 choreApiId: dto.id,
                 houseId: dto.houseId,
@@ -587,7 +671,7 @@ class AppViewModel: ObservableObject {
                 title: dto.title,
                 description: dto.description,
                 assignedTo: assignedUser,
-                dueLabel: label,
+                dueLabel: dto.dueLabelString,
                 dueDate: dto.dueDate,
                 isDone: dto.isCompleted,
                 status: dto.status,
@@ -595,23 +679,31 @@ class AppViewModel: ObservableObject {
                 reviewRound: dto.reviewRound,
                 reviewVotes: dto.reviewVotes
             )
+        })
+    }
+
+    private func user(from member: HouseMemberDTO) -> User {
+        if member.id == currentUserId, let profile = currentUserProfile {
+            return User(firstName: profile.firstName, lastName: profile.lastName, apiId: member.id, points: 0, imageUrl: profile.imageUrl.isEmpty ? nil : profile.imageUrl)
         }
+        return User(firstName: member.firstName, lastName: member.lastName, apiId: member.id, points: 0, imageUrl: member.imageUrl.isEmpty ? nil : member.imageUrl)
     }
     
     private func initializeChores() {
         chores = [
-            Chore(title: "Take out the trash", description: "Empty all trash bins and take bags to the dumpster", assignedTo: sampleUsers[0], dueLabel: "Today"),
-            Chore(title: "Clean kitchen counter", description: "Wipe down all surfaces, clean sink and organize items", assignedTo: sampleUsers[1], dueLabel: "Today"),
-            Chore(title: "Vacuum living room", description: "Vacuum carpet and clean under furniture", assignedTo: sampleUsers[2], dueLabel: "Overdue"),
-            Chore(title: "Clean bathroom", description: "Clean toilet, shower, sink and mirror", assignedTo: sampleUsers[3], dueLabel: "This week"),
-            Chore(title: "Do laundry", description: "Wash, dry and fold clothes", assignedTo: sampleUsers[0], dueLabel: "Today", isDone: true)
+            Chore(id: "sample-take-trash", title: "Take out the trash", description: "Empty all trash bins and take bags to the dumpster", assignedTo: sampleUsers[0], dueLabel: "Today"),
+            Chore(id: "sample-kitchen-counter", title: "Clean kitchen counter", description: "Wipe down all surfaces, clean sink and organize items", assignedTo: sampleUsers[1], dueLabel: "Today"),
+            Chore(id: "sample-vacuum-living-room", title: "Vacuum living room", description: "Vacuum carpet and clean under furniture", assignedTo: sampleUsers[2], dueLabel: "Overdue"),
+            Chore(id: "sample-clean-bathroom", title: "Clean bathroom", description: "Clean toilet, shower, sink and mirror", assignedTo: sampleUsers[3], dueLabel: "This week"),
+            Chore(id: "sample-laundry", title: "Do laundry", description: "Wash, dry and fold clothes", assignedTo: sampleUsers[0], dueLabel: "Today", isDone: true)
         ]
     }
     
-    func toggleChoreCompletion(_ choreId: UUID) {
+    func toggleChoreCompletion(_ choreId: String) {
         if let index = chores.firstIndex(where: { $0.id == choreId }) {
             let c = chores[index]
             chores[index] = Chore(
+                id: c.id,
                 choreApiId: c.choreApiId,
                 houseId: c.houseId,
                 assignedToId: c.assignedToId,
@@ -631,19 +723,17 @@ class AppViewModel: ObservableObject {
 
     // MARK: - Chore API
 
-    /// Refreshes house details after any chore mutation.
+    /// Refreshes house details when a full house payload is explicitly needed.
     func refreshHouseDetails() async {
         guard let houseId = currentHouseDetails?.id ?? currentHouse?.id else { return }
         do {
-            let details = try await houseService.fetchDetails(houseId: houseId)
-            currentHouseDetails = details
-            houseName = details.name
+            applyHouseDetails(try await loadHouseDetails(houseId: houseId, forceRefresh: true))
         } catch {
             showToast(message: error.localizedDescription, isError: true)
         }
     }
 
-    /// Creates a chore via the API, then refreshes house details.
+    /// Creates a chore via the API, then merges the returned chore into dashboard state.
     func createChore(
         assignedToId: String,
         description: String,
@@ -654,11 +744,9 @@ class AppViewModel: ObservableObject {
         recurringInterval: Int,
         title: String
     ) async {
-        let formatter = DateFormatter()
-        formatter.dateFormat = "yyyy-MM-dd HH:mm:ss"
-        let dueDateStr = formatter.string(from: dueDate)
+        let dueDateStr = HouseFlowDateFormatter.apiString(from: dueDate)
         do {
-            _ = try await choreService.createChore(
+            let createdChore = try await choreService.createChore(
                 assignedTo: assignedToId,
                 description: description,
                 dueDate: dueDateStr,
@@ -668,25 +756,25 @@ class AppViewModel: ObservableObject {
                 recurringInterval: recurringInterval,
                 title: title
             )
-            await refreshHouseDetails()
+            applyChoreResponse(createdChore)
             showToast(message: "Chore created!", isError: false)
         } catch {
             showToast(message: error.localizedDescription, isError: true)
         }
     }
 
-    /// Updates the status of a single chore via the API, then refreshes.
+    /// Updates the status of a single chore via the API, then merges the returned chore.
     func updateChoreStatus(choreApiId: String, houseId: String, status: ChoreStatus) async -> Bool {
         do {
-            let didUpdate = try await choreService.updateChoreStatus(
+            let updatedChores = try await choreService.updateChoreStatus(
                 houseId: houseId,
                 chores: [ChoreStatusUpdateItem(choreId: choreApiId, status: status.rawValue)]
             )
-            guard didUpdate else {
+            guard !updatedChores.isEmpty else {
                 showToast(message: "Status could not be updated.", isError: true)
                 return false
             }
-            await refreshHouseDetails()
+            updatedChores.forEach(applyChoreResponse)
             showToast(message: "Status updated!", isError: false)
             return true
         } catch {
@@ -702,7 +790,7 @@ class AppViewModel: ObservableObject {
                 choreId: choreApiId,
                 isApproved: isApproved
             )
-            applyReviewResponse(updatedChore)
+            applyChoreResponse(updatedChore)
             showToast(
                 message: isApproved ? "Chore approved!" : "Chore sent back to progress.",
                 isError: false
@@ -714,9 +802,15 @@ class AppViewModel: ObservableObject {
         }
     }
 
-    private func applyReviewResponse(_ response: ChoreReviewResponse) {
+    private func applyChoreResponse(_ response: ChoreResponse) {
         if let details = currentHouseDetails {
-            currentHouseDetails = HouseDetailsResponse(
+            let responseDTO = response.houseChoreDTO
+            let hasExistingChore = details.chores.contains { $0.id == response.id }
+            let mergedChores = hasExistingChore
+                ? details.chores.map { $0.id == response.id ? responseDTO : $0 }
+                : details.chores + [responseDTO]
+
+            setCurrentHouseDetails(HouseDetailsResponse(
                 id: details.id,
                 name: details.name,
                 inviteCode: details.inviteCode,
@@ -727,49 +821,35 @@ class AppViewModel: ObservableObject {
                 createdOn: details.createdOn,
                 updatedOn: details.updatedOn,
                 members: details.members,
-                chores: details.chores.map { dto in
-                    guard dto.id == response.id else { return dto }
-                    return HouseChoreDTO(
-                        id: dto.id,
-                        title: dto.title,
-                        description: dto.description,
-                        houseId: dto.houseId,
-                        houseOwnerId: dto.houseOwnerId,
-                        assignedTo: dto.assignedTo,
-                        dueDate: dto.dueDate,
-                        isCompleted: response.isCompleted,
-                        isRecurring: dto.isRecurring,
-                        level: dto.level,
-                        recurringInterval: dto.recurringInterval,
-                        status: response.status,
-                        createdOn: dto.createdOn,
-                        completedAt: dto.completedAt,
-                        completedBy: dto.completedBy,
-                        statusHistories: dto.statusHistories,
-                        reviewRound: response.reviewRound,
-                        reviewVotes: response.reviewVotes
-                    )
-                }
-            )
+                chores: mergedChores
+            ))
         }
 
-        chores = chores.map { chore in
-            guard chore.choreApiId == response.id else { return chore }
-            return Chore(
-                choreApiId: chore.choreApiId,
-                houseId: chore.houseId,
-                assignedToId: chore.assignedToId,
-                title: chore.title,
-                description: chore.description,
-                assignedTo: chore.assignedTo,
-                dueLabel: chore.dueLabel,
-                dueDate: chore.dueDate,
-                isDone: response.isCompleted,
-                status: response.status,
-                level: chore.level,
-                reviewRound: response.reviewRound,
-                reviewVotes: response.reviewVotes
-            )
+        let mergedChore = chore(from: response)
+        if let index = chores.firstIndex(where: { $0.choreApiId == response.id }) {
+            chores[index] = mergedChore
+        } else if currentHouseDetails == nil {
+            chores.append(mergedChore)
         }
+    }
+
+    private func chore(from response: ChoreResponse) -> Chore {
+        let assignedUser = dashboardMembers.first(where: { $0.apiId == response.assignedTo })
+            ?? User(id: response.assignedTo, name: response.assignedTo.isEmpty ? "Unassigned" : response.assignedTo)
+        return Chore(
+            choreApiId: response.id,
+            houseId: response.houseId,
+            assignedToId: response.assignedTo,
+            title: response.title,
+            description: response.description,
+            assignedTo: assignedUser,
+            dueLabel: HouseFlowDateFormatter.dueLabel(from: response.dueDate),
+            dueDate: response.dueDate,
+            isDone: response.isCompleted,
+            status: response.status,
+            level: response.level,
+            reviewRound: response.reviewRound,
+            reviewVotes: response.reviewVotes
+        )
     }
 }

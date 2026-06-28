@@ -29,7 +29,6 @@ struct HouseDashboardView: View {
                     
                     TodaysChoresCard(
                         chores: appViewModel.dashboardChores,
-                        appViewModel: appViewModel,
                         onChoreDetailTap: { chore in
                             selectedChore = chore
                             showChoreDetail = true
@@ -58,6 +57,9 @@ struct HouseDashboardView: View {
             withAnimation(.spring(response: 0.6, dampingFraction: 0.78).delay(0.05)) {
                 appeared = true
             }
+        }
+        .onDisappear {
+            stopButtonTimer()
         }
     }
     
@@ -143,8 +145,7 @@ struct HouseDashboardView: View {
                     chore: chore,
                     appViewModel: appViewModel,
                     onDismiss: {
-                        showChoreDetail = false
-                        selectedChore = nil
+                        dismissChoreDetail()
                     }
                 )
             }
@@ -153,8 +154,7 @@ struct HouseDashboardView: View {
                 NewChorePopup(
                     appViewModel: appViewModel,
                     onDismiss: {
-                        showNewChore = false
-                        resetButtonState()
+                        dismissNewChore()
                     }
                 )
             }
@@ -168,18 +168,51 @@ struct HouseDashboardView: View {
                         }
                     },
                     onCancel: {
-                        showLogoutConfirmation = false
+                        dismissLogoutConfirmation()
                     }
                 )
             }
         }
-        .onChange(of: showChoreDetail)      { _, v in setOverlay(v) }
-        .onChange(of: showNewChore)         { _, v in setOverlay(v) }
-        .onChange(of: showLogoutConfirmation) { _, v in setOverlay(v) }
+        .onChange(of: showChoreDetail) { _, _ in syncOverlayPresentation() }
+        .onChange(of: showNewChore) { _, _ in syncOverlayPresentation() }
+        .onChange(of: showLogoutConfirmation) { _, _ in syncOverlayPresentation() }
     }
 
-    private func setOverlay(_ visible: Bool) {
-        appViewModel.isOverlayPresented = visible
+    private func syncOverlayPresentation() {
+        appViewModel.isOverlayPresented = showChoreDetail || showNewChore || showLogoutConfirmation
+    }
+
+    private func dismissChoreDetail() {
+        DispatchQueue.main.async {
+            var transaction = Transaction()
+            transaction.disablesAnimations = true
+            withTransaction(transaction) {
+                showChoreDetail = false
+                selectedChore = nil
+            }
+        }
+    }
+
+    private func dismissNewChore() {
+        UIApplication.shared.sendAction(#selector(UIResponder.resignFirstResponder), to: nil, from: nil, for: nil)
+        DispatchQueue.main.async {
+            var transaction = Transaction()
+            transaction.disablesAnimations = true
+            withTransaction(transaction) {
+                showNewChore = false
+            }
+            resetButtonState()
+        }
+    }
+
+    private func dismissLogoutConfirmation() {
+        DispatchQueue.main.async {
+            var transaction = Transaction()
+            transaction.disablesAnimations = true
+            withTransaction(transaction) {
+                showLogoutConfirmation = false
+            }
+        }
     }
     
     // MARK: - Helper Methods
@@ -201,19 +234,25 @@ struct HouseDashboardView: View {
     }
     
     private func startButtonTimer() {
-        buttonTimer?.invalidate()
+        stopButtonTimer()
         buttonTimer = Timer.scheduledTimer(withTimeInterval: 3.0, repeats: false) { _ in
             withAnimation(AppDesign.Animation.spring) {
                 buttonState = .collapsed
             }
+            buttonTimer = nil
         }
     }
     
     private func resetButtonState() {
-        buttonTimer?.invalidate()
+        stopButtonTimer()
         withAnimation(AppDesign.Animation.spring) {
             buttonState = .collapsed
         }
+    }
+
+    private func stopButtonTimer() {
+        buttonTimer?.invalidate()
+        buttonTimer = nil
     }
 }
 

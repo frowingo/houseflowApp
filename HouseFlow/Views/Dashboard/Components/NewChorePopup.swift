@@ -7,15 +7,23 @@ struct NewChorePopup: View {
     let appViewModel: AppViewModel
     let onDismiss: () -> Void
 
+    private enum NewChoreField: Hashable {
+        case title
+        case description
+        case interval
+    }
+
     @State private var title = ""
     @State private var description = ""
     @State private var selectedMember: User? = nil
     @State private var selectedLevel: ChoreLevel = .easy
     @State private var dueDate: Date = Calendar.current.startOfDay(for: Date())
+    @State private var minimumDueDate = Date()
     @State private var isRecurring: Bool = false
     @State private var recurringInterval: Int = 7
     @State private var intervalText: String = "7"
     @State private var isCreating: Bool = false
+    @FocusState private var focusedField: NewChoreField?
 
     private var members: [User] { appViewModel.dashboardMembers }
     private var houseId: String { appViewModel.currentHouseDetails?.id ?? "" }
@@ -30,7 +38,7 @@ struct NewChorePopup: View {
         ZStack {
             Color.black.opacity(0.55)
                 .ignoresSafeArea()
-                .onTapGesture { if !isCreating { onDismiss() } }
+                .onTapGesture { if !isCreating { requestDismiss() } }
 
             VStack(spacing: 0) {
                 topBar
@@ -86,7 +94,7 @@ struct NewChorePopup: View {
                     .font(AppDesign.Typography.headline)
                     .foregroundColor(.white)
                 Spacer()
-                Button(action: onDismiss) {
+                Button { if !isCreating { requestDismiss() } } label: {
                     Image(systemName: "xmark")
                         .font(.system(size: 13, weight: .bold))
                         .foregroundColor(.white.opacity(0.9))
@@ -107,6 +115,7 @@ struct NewChorePopup: View {
         formField(icon: "pencil", label: "Task Name") {
             TextField("What needs to be done?", text: $title)
                 .font(AppDesign.Typography.body)
+                .focused($focusedField, equals: .title)
                 .padding(AppDesign.Spacing.md)
                 .background(
                     RoundedRectangle(cornerRadius: AppDesign.CornerRadius.md)
@@ -124,6 +133,7 @@ struct NewChorePopup: View {
             TextField("Add details (optional)", text: $description, axis: .vertical)
                 .font(AppDesign.Typography.body)
                 .lineLimit(2...4)
+                .focused($focusedField, equals: .description)
                 .padding(AppDesign.Spacing.md)
                 .background(
                     RoundedRectangle(cornerRadius: AppDesign.CornerRadius.md)
@@ -212,7 +222,7 @@ struct NewChorePopup: View {
 
     private var dueDatePicker: some View {
         formField(icon: "calendar", label: "Due Date") {
-            DatePicker("", selection: $dueDate, in: Date()..., displayedComponents: .date)
+            DatePicker("", selection: $dueDate, in: minimumDueDate..., displayedComponents: .date)
                 .datePickerStyle(.compact)
                 .labelsHidden()
                 .tint(accentOrange)
@@ -242,6 +252,7 @@ struct NewChorePopup: View {
                         .keyboardType(.numberPad)
                         .font(AppDesign.Typography.bodyBold)
                         .multilineTextAlignment(.center)
+                        .focused($focusedField, equals: .interval)
                         .frame(width: 56)
                         .padding(.vertical, 8)
                         .background(AppDesign.Colors.secondaryBackground)
@@ -261,7 +272,7 @@ struct NewChorePopup: View {
 
     private var actionButtons: some View {
         HStack(spacing: AppDesign.Spacing.md) {
-            Button(action: onDismiss) {
+            Button { if !isCreating { requestDismiss() } } label: {
                 Text("Cancel")
                     .font(AppDesign.Typography.headline)
                     .foregroundColor(AppDesign.Colors.textSecondary)
@@ -316,6 +327,8 @@ struct NewChorePopup: View {
 
     private func submitChore() {
         guard let memberId = selectedMember?.apiId, !houseId.isEmpty else { return }
+        focusedField = nil
+        UIApplication.shared.sendAction(#selector(UIResponder.resignFirstResponder), to: nil, from: nil, for: nil)
         isCreating = true
         Task {
             await appViewModel.createChore(
@@ -329,6 +342,14 @@ struct NewChorePopup: View {
                 title: title.trimmingCharacters(in: .whitespaces)
             )
             isCreating = false
+            requestDismiss()
+        }
+    }
+
+    private func requestDismiss() {
+        focusedField = nil
+        UIApplication.shared.sendAction(#selector(UIResponder.resignFirstResponder), to: nil, from: nil, for: nil)
+        DispatchQueue.main.async {
             onDismiss()
         }
     }

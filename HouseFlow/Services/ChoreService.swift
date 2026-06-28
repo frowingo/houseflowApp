@@ -46,7 +46,7 @@ final class ChoreService {
     // MARK: - Update Chore Status
 
     /// PUT /chore/status  — requires Bearer token
-    func updateChoreStatus(houseId: String, chores: [ChoreStatusUpdateItem]) async throws -> Bool {
+    func updateChoreStatus(houseId: String, chores: [ChoreStatusUpdateItem]) async throws -> [ChoreResponse] {
         guard let token = keychain.authToken else {
             throw NetworkError.serverError("Not authenticated.")
         }
@@ -55,7 +55,7 @@ final class ChoreService {
             path: "chore/status",
             method: "PUT",
             body: body,
-            successType: Bool.self,
+            successType: [ChoreResponse].self,
             token: token
         )
     }
@@ -63,7 +63,7 @@ final class ChoreService {
     // MARK: - Review Chore
 
     /// PUT /chore/review — requires Bearer token
-    func reviewChore(choreId: String, isApproved: Bool) async throws -> ChoreReviewResponse {
+    func reviewChore(choreId: String, isApproved: Bool) async throws -> ChoreResponse {
         guard let token = keychain.authToken else {
             throw NetworkError.serverError("Not authenticated.")
         }
@@ -72,7 +72,7 @@ final class ChoreService {
             path: "chore/review",
             method: "PUT",
             body: body,
-            successType: ChoreReviewResponse.self,
+            successType: ChoreResponse.self,
             token: token
         )
     }

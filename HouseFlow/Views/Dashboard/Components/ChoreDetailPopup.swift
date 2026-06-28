@@ -93,7 +93,7 @@ struct ChoreDetailPopup: View {
         ZStack {
             Color.black.opacity(0.55)
                 .ignoresSafeArea()
-                .onTapGesture { if !isBusy { onDismiss() } }
+                .onTapGesture { if !isBusy { requestDismiss() } }
 
             VStack(spacing: 0) {
                 topBar
@@ -175,7 +175,7 @@ struct ChoreDetailPopup: View {
 
                 Spacer()
 
-                Button(action: onDismiss) {
+                Button { if !isBusy { requestDismiss() } } label: {
                     Image(systemName: "xmark")
                         .font(.system(size: 13, weight: .bold))
                         .foregroundColor(.white.opacity(0.9))
@@ -508,7 +508,7 @@ struct ChoreDetailPopup: View {
     // MARK: - Dismiss Button
 
     private var dismissButton: some View {
-        Button(action: onDismiss) {
+        Button { if !isBusy { requestDismiss() } } label: {
             Text("Close")
                 .font(AppDesign.Typography.headline)
                 .foregroundColor(AppDesign.Colors.textSecondary)
@@ -537,8 +537,14 @@ struct ChoreDetailPopup: View {
             )
             isUpdating = false
             if didUpdate {
-                onDismiss()
+                requestDismiss()
             }
+        }
+    }
+
+    private func requestDismiss() {
+        DispatchQueue.main.async {
+            onDismiss()
         }
     }
 
@@ -556,14 +562,8 @@ struct ChoreDetailPopup: View {
 
     private var formattedDueDate: String {
         guard let rawDate = displayedChore.dueDate else { return displayedChore.dueLabel }
-        let iso = ISO8601DateFormatter()
-        iso.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
-        let date = iso.date(from: rawDate) ?? ISO8601DateFormatter().date(from: rawDate)
-        guard let date else { return displayedChore.dueLabel }
-        let fmt = DateFormatter()
-        fmt.dateStyle = .medium
-        fmt.timeStyle = .none
-        return fmt.string(from: date)
+        let formatted = HouseFlowDateFormatter.displayDate(from: rawDate)
+        return formatted == "—" ? displayedChore.dueLabel : formatted
     }
 
     private var dueColor: Color {

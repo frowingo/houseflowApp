@@ -31,7 +31,7 @@ struct HouseResponse: Decodable, Identifiable {
 
 // MARK: - House Details Response
 
-struct HouseDetailsResponse: Decodable {
+struct HouseDetailsResponse: Decodable, Equatable {
     let id: String
     let name: String
     let inviteCode: String
@@ -47,7 +47,7 @@ struct HouseDetailsResponse: Decodable {
 
 // MARK: - Member DTO
 
-struct HouseMemberDTO: Decodable, Identifiable {
+struct HouseMemberDTO: Decodable, Identifiable, Equatable {
     let id: String
     let firstName: String
     let lastName: String
@@ -68,7 +68,7 @@ struct HouseMemberDTO: Decodable, Identifiable {
 
 // MARK: - Chore DTO
 
-struct HouseChoreDTO: Decodable, Identifiable {
+struct HouseChoreDTO: Decodable, Identifiable, Equatable {
     let id: String
     let title: String
     let description: String
@@ -89,7 +89,7 @@ struct HouseChoreDTO: Decodable, Identifiable {
     let reviewVotes: [ChoreReviewVote]
 }
 
-struct ChoreStatusHistory: Decodable, Identifiable {
+struct ChoreStatusHistory: Decodable, Identifiable, Equatable {
     let id: String
     let choreId: String
     let status: Int
@@ -102,14 +102,6 @@ struct ChoreStatusHistory: Decodable, Identifiable {
 extension HouseChoreDTO {
     /// Converts `dueDate` (ISO-8601) into a human-readable due label.
     var dueLabelString: String {
-        let iso = ISO8601DateFormatter()
-        iso.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
-        let date = iso.date(from: dueDate) ?? ISO8601DateFormatter().date(from: dueDate)
-        guard let date else { return "Upcoming" }
-        let cal = Calendar.current
-        if cal.isDateInToday(date)     { return "Today" }
-        if date < Date()               { return "Overdue" }
-        if cal.isDate(date, equalTo: Date(), toGranularity: .weekOfYear) { return "This week" }
-        return "Upcoming"
+        HouseFlowDateFormatter.dueLabel(from: dueDate)
     }
 }

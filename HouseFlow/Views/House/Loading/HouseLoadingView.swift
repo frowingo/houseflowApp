@@ -7,6 +7,7 @@ struct HouseLoadingView: View {
     @State private var ringOpacity: Double = 0.08
     @State private var dotsPhase: Int = 0
     @State private var dotAnimating: Bool = false
+    @State private var dotsTimer: Timer?
 
     private let dotInterval: TimeInterval = 0.45
 
@@ -81,6 +82,9 @@ struct HouseLoadingView: View {
             startPulseAnimation()
             startDotsAnimation()
         }
+        .onDisappear {
+            stopDotsAnimation()
+        }
     }
 
     // MARK: - Animations
@@ -95,9 +99,15 @@ struct HouseLoadingView: View {
     }
 
     private func startDotsAnimation() {
-        Timer.scheduledTimer(withTimeInterval: dotInterval, repeats: true) { timer in
+        stopDotsAnimation()
+        dotsTimer = Timer.scheduledTimer(withTimeInterval: dotInterval, repeats: true) { _ in
             dotsPhase = (dotsPhase + 1) % 3
         }
+    }
+
+    private func stopDotsAnimation() {
+        dotsTimer?.invalidate()
+        dotsTimer = nil
     }
 }
 
