@@ -1,0 +1,145 @@
+import Foundation
+import Combine
+
+@MainActor
+final class AuthSessionStore: ObservableObject {
+    @Published var isAuthenticated = false
+    @Published var showAuth = false
+    @Published var currentUser: User?
+    @Published var isLoading = false
+    @Published var authError: String?
+    @Published var successToast: String?
+    @Published private(set) var currentUserId: String?
+    @Published private(set) var currentUserProfile: IsAuthUserData?
+
+    private let keychain = KeychainService.shared
+    private let authService = AuthService.shared
+    private let userService = UserService.shared
+
+    func login(email: String, password: String) async -> Bool {
+        isLoading = true
+        authError = nil
+        defer { isLoading = false }
+
+        do {
+            _ = try await authService.login(email: email, password: password)
+            return true
+        } catch {
+            authError = error.localizedDescription
+            return false
+        }
+    }
+
+    func signup(email: String, password: String, firstName: String, lastName: String) async -> Bool {
+        isLoading = true
+        authError = nil
+        defer { isLoading = false }
+
+        do {
+            _ = try await authService.signup(
+                email: email,
+                password: password,
+                firstName: firstName,
+                lastName: lastName
+            )
+            return true
+        } catch {
+            authError = error.localizedDescription
+            return false
+        }
+    }
+
+    func forgotPassword(email: String) async -> Bool {
+        isLoading = true
+        authError = nil
+        defer { isLoading = false }
+
+        do {
+            let response = try await authService.forgotPassword(email: email)
+            return response.success
+        } catch {
+            authError = error.localizedDescription
+            return false
+        }
+    }
+
+    func resetPassword(email: String, code: String, newPassword: String) async -> Bool {
+        isLoading = true
+        authError = nil
+        defer { isLoading = false }
+
+        do {
+            _ = try await authService.resetPassword(email: email, code: code, newPassword: newPassword)
+            return true
+        } catch {
+            authError = error.localizedDescription
+            return false
+        }
+    }
+
+    func resolveAuthenticatedUser(invalidMessage: String = "Authenticated user could not be resolved.") async throws -> IsAuthUserData {
+        let result = try await authService.isAuth()
+        guard result.success, let profile = result.data else {
+            throw NetworkError.serverError(invalidMessage)
+        }
+        applyAuthenticatedUser(profile)
+        return profile
+    }
+
+    func updateProfile(_ request: UpdateProfileRequest) async throws {
+        guard let userId = currentUserId else {
+            throw NetworkError.serverError("User not authenticated.")
+        }
+        let response = try await userService.updateProfile(userId: userId, request: request)
+        guard response.success, let data = response.data else {
+            throw NetworkError.serverError(response.error ?? "Update failed.")
+        }
+        applyAuthenticatedUser(IsAuthUserData(
+            birthDate: data.birthDate,
+            createdOn: data.createdOn,
+            email: data.email,
+            firstName: data.firstName,
+            houseIds: data.houseIds,
+            id: data.id,
+            imageUrl: data.imageUrl,
+            isActive: data.isActive,
+            isVerifyEmail: data.isVerifyEmail,
+            isVerifyPhone: data.isVerifyPhone,
+            lastLogin: data.lastLogin,
+            lastName: data.lastName,
+            phoneNumber: data.phoneNumber,
+            updatedOn: data.updatedOn
+        ))
+    }
+
+    func logout() {
+        authService.logout()
+        isAuthenticated = false
+        showAuth = false
+        isLoading = false
+        authError = nil
+        successToast = nil
+        clearUser()
+    }
+
+    func applyAuthenticatedUser(_ profile: IsAuthUserData) {
+        keychain.userEmail = profile.email
+        keychain.userFirstName = profile.firstName
+        keychain.userLastName = profile.lastName
+        currentUserId = profile.id
+        currentUserProfile = profile
+        currentUser = User(
+            firstName: profile.firstName,
+            lastName: profile.lastName,
+            apiId: profile.id,
+            points: 0,
+            imageUrl: profile.imageUrl.isEmpty ? nil : profile.imageUrl
+        )
+    }
+
+    func clearUser() {
+        currentUser = nil
+        currentUserId = nil
+        currentUserProfile = nil
+    }
+}
