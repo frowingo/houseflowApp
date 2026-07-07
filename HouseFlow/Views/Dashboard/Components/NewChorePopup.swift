@@ -90,7 +90,7 @@ struct NewChorePopup: View {
                 .foregroundColor(.white.opacity(0.12))
 
             HStack(spacing: AppDesign.Spacing.md) {
-                Text("New Chore")
+                Text(appViewModel.localized("new_chore_title"))
                     .font(AppDesign.Typography.headline)
                     .foregroundColor(.white)
                 Spacer()
@@ -112,8 +112,8 @@ struct NewChorePopup: View {
     // MARK: - Fields
 
     private var titleField: some View {
-        formField(icon: "pencil", label: "Task Name") {
-            TextField("What needs to be done?", text: $title)
+        formField(icon: "pencil", label: appViewModel.localized("new_chore_task_name_label")) {
+            TextField(appViewModel.localized("new_chore_task_name_placeholder"), text: $title)
                 .font(AppDesign.Typography.body)
                 .focused($focusedField, equals: .title)
                 .padding(AppDesign.Spacing.md)
@@ -129,8 +129,8 @@ struct NewChorePopup: View {
     }
 
     private var descriptionField: some View {
-        formField(icon: "text.alignleft", label: "Description") {
-            TextField("Add details (optional)", text: $description, axis: .vertical)
+        formField(icon: "text.alignleft", label: appViewModel.localized("new_chore_description_label")) {
+            TextField(appViewModel.localized("new_chore_description_placeholder"), text: $description, axis: .vertical)
                 .font(AppDesign.Typography.body)
                 .lineLimit(2...4)
                 .focused($focusedField, equals: .description)
@@ -147,7 +147,7 @@ struct NewChorePopup: View {
     }
 
     private var memberPicker: some View {
-        formField(icon: "person.fill", label: "Assign To") {
+        formField(icon: "person.fill", label: appViewModel.localized("new_chore_assign_to_label")) {
             ScrollView(.horizontal, showsIndicators: false) {
                 HStack(spacing: AppDesign.Spacing.md) {
                     ForEach(members) { member in
@@ -196,14 +196,14 @@ struct NewChorePopup: View {
     }
 
     private var levelPicker: some View {
-        formField(icon: "flame.fill", label: "Difficulty") {
+        formField(icon: "flame.fill", label: appViewModel.localized("new_chore_difficulty_label")) {
             HStack(spacing: AppDesign.Spacing.sm) {
                 ForEach([ChoreLevel.easy, .medium, .hard], id: \.rawValue) { lvl in
                     let isSel = selectedLevel == lvl
                     Button { withAnimation(AppDesign.Animation.quick) { selectedLevel = lvl } } label: {
                         HStack(spacing: 6) {
                             Image(systemName: lvl.iconName).font(.system(size: 12, weight: .semibold))
-                            Text(lvl.displayName).font(.system(size: 13, weight: .semibold))
+                            Text(appViewModel.localized(lvl.localizationKey)).font(.system(size: 13, weight: .semibold))
                         }
                         .foregroundColor(isSel ? .white : lvl.color)
                         .padding(.horizontal, AppDesign.Spacing.md)
@@ -221,7 +221,7 @@ struct NewChorePopup: View {
     }
 
     private var dueDatePicker: some View {
-        formField(icon: "calendar", label: "Due Date") {
+        formField(icon: "calendar", label: appViewModel.localized("new_chore_due_date_label")) {
             DatePicker("", selection: $dueDate, in: minimumDueDate..., displayedComponents: .date)
                 .datePickerStyle(.compact)
                 .labelsHidden()
@@ -239,13 +239,13 @@ struct NewChorePopup: View {
     private var recurringSection: some View {
         VStack(alignment: .leading, spacing: AppDesign.Spacing.sm) {
             HStack {
-                sectionLabel(icon: "arrow.clockwise", text: "Recurring")
+                sectionLabel(icon: "arrow.clockwise", text: appViewModel.localized("new_chore_recurring_label"))
                 Spacer()
                 Toggle("", isOn: $isRecurring).labelsHidden().tint(accentOrange)
             }
             if isRecurring {
                 HStack(spacing: AppDesign.Spacing.sm) {
-                    Text("Every")
+                    Text(appViewModel.localized("new_chore_every_label"))
                         .font(AppDesign.Typography.subheadline)
                         .foregroundColor(AppDesign.Colors.textSecondary)
                     TextField("7", text: $intervalText)
@@ -258,7 +258,7 @@ struct NewChorePopup: View {
                         .background(AppDesign.Colors.secondaryBackground)
                         .cornerRadius(AppDesign.CornerRadius.sm)
                         .onChange(of: intervalText) { _, val in recurringInterval = Int(val) ?? recurringInterval }
-                    Text("days")
+                    Text(appViewModel.localized("new_chore_days_label"))
                         .font(AppDesign.Typography.subheadline)
                         .foregroundColor(AppDesign.Colors.textSecondary)
                 }
@@ -273,7 +273,7 @@ struct NewChorePopup: View {
     private var actionButtons: some View {
         HStack(spacing: AppDesign.Spacing.md) {
             Button { if !isCreating { requestDismiss() } } label: {
-                Text("Cancel")
+                Text(appViewModel.localized("common_cancel"))
                     .font(AppDesign.Typography.headline)
                     .foregroundColor(AppDesign.Colors.textSecondary)
                     .frame(maxWidth: .infinity)
@@ -288,7 +288,7 @@ struct NewChorePopup: View {
                     } else {
                         Image(systemName: "checkmark.circle.fill").font(.system(size: 16, weight: .semibold))
                     }
-                    Text("Create").font(AppDesign.Typography.headline)
+                    Text(appViewModel.localized("common_create")).font(AppDesign.Typography.headline)
                 }
                 .foregroundColor(.white)
                 .frame(maxWidth: .infinity)
@@ -358,9 +358,6 @@ struct NewChorePopup: View {
 // MARK: - ChoreLevel UI Helpers
 
 extension ChoreLevel {
-    var displayName: String {
-        switch self { case .easy: return "Easy"; case .medium: return "Medium"; case .hard: return "Hard" }
-    }
     var iconName: String {
         switch self { case .easy: return "leaf.fill"; case .medium: return "flame.fill"; case .hard: return "bolt.fill" }
     }

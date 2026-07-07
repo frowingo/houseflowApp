@@ -2,6 +2,8 @@ import SwiftUI
 
 /// Tek bir görev satırını gösteren component
 struct ChoreRow: View {
+    @EnvironmentObject private var appViewModel: AppViewModel
+
     let chore: Chore
     let onDetailTap: () -> Void
     
@@ -27,7 +29,7 @@ struct ChoreRow: View {
                 .frame(width: AppDesign.Size.avatarSmall)
             
             // Status badge - fixed width column
-            Text(choreStatus.displayName)
+            Text(appViewModel.localized(choreStatus.localizationKey))
                 .font(AppDesign.Typography.caption)
                 .fontWeight(.medium)
                 .padding(.horizontal, AppDesign.Spacing.sm)

@@ -96,7 +96,13 @@ struct HouseDashboardView: View {
             // Text + logout button
             HStack(alignment: .bottom) {
                 VStack(alignment: .leading, spacing: AppDesign.Spacing.xs) {
-                    Text("Hi, \(appViewModel.currentUser?.firstName ?? "User") 👋")
+                    Text(appViewModel.localized(
+                        "dashboard_greeting_template",
+                        replacements: [
+                            "first_name": appViewModel.currentUser?.firstName
+                                ?? appViewModel.localized("common_user_fallback")
+                        ]
+                    ))
                         .font(AppDesign.Typography.title2)
                         .foregroundStyle(.white)
                     Text(appViewModel.currentHouseDetails?.name ?? appViewModel.houseName)

@@ -13,25 +13,25 @@ enum HouseLoadingPhase: Equatable {
     case loadingUser
     case loadingHouse
 
-    var title: String {
+    var titleKey: String {
         switch self {
-        case .creating:       return "Creating Your House"
-        case .joining:        return "Joining House"
-        case .loadingDetails: return "Almost There!"
-        case .checkingAuth:   return "Welcome Back!"
-        case .loadingUser:    return "Loading Profile"
-        case .loadingHouse:   return "Loading Your Home"
+        case .creating:       return "house_loading_creating_title"
+        case .joining:        return "house_loading_joining_title"
+        case .loadingDetails: return "house_loading_details_title"
+        case .checkingAuth:   return "house_loading_auth_title"
+        case .loadingUser:    return "house_loading_user_title"
+        case .loadingHouse:   return "house_loading_house_title"
         }
     }
 
-    var subtitle: String {
+    var subtitleKey: String {
         switch self {
-        case .creating:       return "Setting up your new home..."
-        case .joining:        return "Connecting you to the house..."
-        case .loadingDetails: return "Loading your house details..."
-        case .checkingAuth:   return "Verifying your session..."
-        case .loadingUser:    return "Fetching your account details..."
-        case .loadingHouse:   return "Almost ready, hang on..."
+        case .creating:       return "house_loading_creating_subtitle"
+        case .joining:        return "house_loading_joining_subtitle"
+        case .loadingDetails: return "house_loading_details_subtitle"
+        case .checkingAuth:   return "house_loading_auth_subtitle"
+        case .loadingUser:    return "house_loading_user_subtitle"
+        case .loadingHouse:   return "house_loading_house_subtitle"
         }
     }
 }
@@ -47,6 +47,7 @@ class AppViewModel: ObservableObject {
     private let houseStore = HouseSessionStore(isInitializing: KeychainService.shared.authToken != nil)
     private let dashboardStore = DashboardStore()
     private let choreStore = ChoreStore()
+    private let localizationStore = LocalizationStore()
     private var storeCancellables = Set<AnyCancellable>()
 
     /// The server-assigned ID of the logged-in user (used to gate chore status edits).
@@ -57,6 +58,7 @@ class AppViewModel: ObservableObject {
 
     var dashboardMembers: [User] { dashboardStore.members }
     var dashboardChores: [Chore] { dashboardStore.chores }
+    var currentLanguage: AppLanguage { localizationStore.language }
 
     var chores: [Chore] {
         get { choreStore.chores }
@@ -173,16 +175,37 @@ class AppViewModel: ObservableObject {
     
     // Sample data for demo
     var sampleUsers: [User] {
-        dashboardStore.sampleUsers
+        [
+            User(
+                firstName: localized("demo_user_mahmut_first_name"),
+                lastName: localized("demo_user_mahmut_last_name"),
+                points: 12
+            ),
+            User(
+                firstName: localized("demo_user_jane_first_name"),
+                lastName: localized("demo_user_jane_last_name"),
+                points: 8
+            ),
+            User(
+                firstName: localized("demo_user_abdullatif_first_name"),
+                lastName: localized("demo_user_abdullatif_last_name"),
+                points: 10
+            ),
+            User(
+                firstName: localized("demo_user_katya_first_name"),
+                lastName: localized("demo_user_katya_last_name"),
+                points: 6
+            )
+        ]
     }
     
     var sampleChores: [Chore] {
         [
-            Chore(id: "sample-take-trash", title: "Take out the trash", description: "Empty all trash bins and take bags to the dumpster", assignedTo: sampleUsers[0], dueLabel: "Today"),
-            Chore(id: "sample-kitchen-counter", title: "Clean kitchen counter", description: "Wipe down all surfaces, clean sink and organize items", assignedTo: sampleUsers[1], dueLabel: "Today"),
-            Chore(id: "sample-vacuum-living-room", title: "Vacuum living room", description: "Vacuum carpet and clean under furniture", assignedTo: sampleUsers[2], dueLabel: "Overdue"),
-            Chore(id: "sample-clean-bathroom", title: "Clean bathroom", description: "Clean toilet, shower, sink and mirror", assignedTo: sampleUsers[3], dueLabel: "This week"),
-            Chore(id: "sample-laundry", title: "Do laundry", description: "Wash, dry and fold clothes", assignedTo: sampleUsers[0], dueLabel: "Today", isDone: true)
+            Chore(id: "sample-take-trash", title: localized("demo_chore_take_trash_title"), description: localized("demo_chore_take_trash_description"), assignedTo: sampleUsers[0], dueLabel: "Today"),
+            Chore(id: "sample-kitchen-counter", title: localized("demo_chore_kitchen_counter_title"), description: localized("demo_chore_kitchen_counter_description"), assignedTo: sampleUsers[1], dueLabel: "Today"),
+            Chore(id: "sample-vacuum-living-room", title: localized("demo_chore_vacuum_living_room_title"), description: localized("demo_chore_vacuum_living_room_description"), assignedTo: sampleUsers[2], dueLabel: "Overdue"),
+            Chore(id: "sample-clean-bathroom", title: localized("demo_chore_clean_bathroom_title"), description: localized("demo_chore_clean_bathroom_description"), assignedTo: sampleUsers[3], dueLabel: "This week"),
+            Chore(id: "sample-laundry", title: localized("demo_chore_laundry_title"), description: localized("demo_chore_laundry_description"), assignedTo: sampleUsers[0], dueLabel: "Today", isDone: true)
         ]
     }
 
@@ -202,6 +225,9 @@ class AppViewModel: ObservableObject {
             .dropFirst()
             .sink { [weak self] profile in
                 guard let self else { return }
+                if let language = profile?.language {
+                    self.localizationStore.applyPreferredLanguage(language)
+                }
                 self.rebuildDashboardCache(details: self.currentHouseDetails, currentUserProfile: profile)
             }
             .store(in: &storeCancellables)
@@ -251,6 +277,16 @@ class AppViewModel: ObservableObject {
                 self.setDashboardChores(chores)
             }
             .store(in: &storeCancellables)
+
+        localizationStore.objectWillChange
+            .sink { [weak self] _ in
+                guard let self else { return }
+                if self.currentHouseDetails == nil {
+                    self.rebuildDashboardCache()
+                }
+                self.objectWillChange.send()
+            }
+            .store(in: &storeCancellables)
     }
 
     private func setCurrentHouseDetails(_ details: HouseDetailsResponse?) {
@@ -281,6 +317,8 @@ class AppViewModel: ObservableObject {
     /// Only triggers the auth/data refresh if the app was backgrounded long enough.
     /// Cold-start auth is handled separately by `performAutoLogin()` via `.task`.
     func handleForeground() async {
+        localizationStore.refreshIfNeeded()
+
         guard let backgroundedAt else {
             // No recorded background time means this is part of the cold-start sequence;
             // `performAutoLogin()` via .task already handles that case.
@@ -291,6 +329,54 @@ class AppViewModel: ObservableObject {
         if elapsed >= backgroundRefreshThreshold {
             await performAutoLogin()
         }
+    }
+
+    // MARK: - Localization
+
+    func prepareLocalization() {
+        localizationStore.start()
+    }
+
+    func localized(_ key: String) -> String {
+        localizationStore.value(for: key)
+    }
+
+    func localized(_ key: String, replacements: [String: String]) -> String {
+        localizationStore.value(for: key, replacements: replacements)
+    }
+
+    func localizedDueLabel(_ label: String) -> String {
+        switch label {
+        case "Today":
+            return localized("common_today")
+        case "Overdue":
+            return localized("common_overdue")
+        case "This week":
+            return localized("common_this_week")
+        case "Upcoming":
+            return localized("common_upcoming")
+        case "—":
+            return localized("common_empty_value")
+        default:
+            return label
+        }
+    }
+
+    func setLocalizationLanguage(_ language: AppLanguage) {
+        localizationStore.setLanguage(language)
+    }
+
+    func updateLocalizationLanguage(_ language: AppLanguage) async throws {
+        localizationStore.setLanguage(language)
+        let request = UpdateProfileRequest(
+            imageUrl: nil,
+            birthDay: nil,
+            firstName: nil,
+            lastName: nil,
+            phoneNumber: nil,
+            language: language.rawValue
+        )
+        try await updateProfile(request)
     }
 
     // MARK: - Auto Login
@@ -320,6 +406,7 @@ class AppViewModel: ObservableObject {
             let profile = try await authStore.resolveAuthenticatedUser(
                 invalidMessage: "Oturumunuz sona ermiş. Lütfen tekrar giriş yapın."
             )
+            localizationStore.applyPreferredLanguage(profile.language)
             isAuthenticated = true
             _ = try await houseStore.loadFirstHouseIfPresent(for: profile)
         } catch {
@@ -361,11 +448,12 @@ class AppViewModel: ObservableObject {
         navigationDirection = .forward
         showAuth = false
         houseLoadingPhase = .loadingUser
-        showHouseLoading = true
+            showHouseLoading = true
 
         do {
             setCurrentHouseDetails(nil)
             let profile = try await authStore.resolveAuthenticatedUser()
+            localizationStore.applyPreferredLanguage(profile.language)
             isAuthenticated = true
             _ = try await houseStore.loadFirstHouseIfPresent(for: profile)
         } catch {
@@ -453,7 +541,9 @@ class AppViewModel: ObservableObject {
     private func rebuildDashboardCache(details: HouseDetailsResponse?, currentUserProfile: IsAuthUserData?) {
         dashboardStore.rebuild(
             details: details,
-            fallbackChores: chores,
+            fallbackMembers: sampleUsers,
+            fallbackChores: chores.isEmpty ? sampleChores : chores,
+            fallbackUnassignedName: localized("common_unassigned"),
             currentUserId: currentUserId,
             currentUserProfile: currentUserProfile
         )
@@ -484,7 +574,7 @@ class AppViewModel: ObservableObject {
                 currentHouseDetails: currentHouseDetails,
                 dashboardMembers: dashboardMembers
             ))
-            showToast(message: "Chore created!", isError: false)
+            showToast(message: localized("chore_created_toast"), isError: false)
         } catch {
             showToast(message: error.localizedDescription, isError: true)
         }
@@ -501,11 +591,11 @@ class AppViewModel: ObservableObject {
                 dashboardMembers: dashboardMembers
             )
             guard result.didUpdate else {
-                showToast(message: "Status could not be updated.", isError: true)
+                showToast(message: localized("chore_status_update_failed_toast"), isError: true)
                 return false
             }
             applyHouseDetailsIfNeeded(result.updatedDetails)
-            showToast(message: "Status updated!", isError: false)
+            showToast(message: localized("chore_status_updated_toast"), isError: false)
             return true
         } catch {
             showToast(message: error.localizedDescription, isError: true)
@@ -523,7 +613,7 @@ class AppViewModel: ObservableObject {
                 dashboardMembers: dashboardMembers
             ))
             showToast(
-                message: isApproved ? "Chore approved!" : "Chore sent back to progress.",
+                message: localized(isApproved ? "chore_approved_toast" : "chore_sent_back_toast"),
                 isError: false
             )
             return true

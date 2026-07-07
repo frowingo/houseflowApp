@@ -290,12 +290,12 @@ struct ProfileView: View {
                     HStack(spacing: AppDesign.Spacing.sm) {
                         verificationPill(
                             icon: "envelope.fill",
-                            label: "Email",
+                            label: appViewModel.localized("profile_verify_email_label"),
                             verified: appViewModel.currentUserProfile?.isVerifyEmail == true
                         )
                         verificationPill(
                             icon: "phone.fill",
-                            label: "Phone",
+                            label: appViewModel.localized("profile_verify_phone_label"),
                             verified: appViewModel.currentUserProfile?.isVerifyPhone == true
                         )
                     }
@@ -355,14 +355,14 @@ struct ProfileView: View {
             statChip(
                 icon: "house.fill",
                 tint: brandOrange,
-                title: "House",
-                value: appViewModel.currentHouseDetails?.name ?? (appViewModel.houseName.isEmpty ? "—" : appViewModel.houseName)
+                title: appViewModel.localized("profile_stat_house_label"),
+                value: appViewModel.currentHouseDetails?.name ?? (appViewModel.houseName.isEmpty ? appViewModel.localized("common_empty_value") : appViewModel.houseName)
             )
             statChip(
                 icon: "checkmark.shield.fill",
                 tint: Color(red: 0.2, green: 0.75, blue: 0.45),
-                title: "Status",
-                value: appViewModel.currentUserProfile?.isActive == true ? "Active" : "Inactive",
+                title: appViewModel.localized("profile_stat_status_label"),
+                value: appViewModel.localized(appViewModel.currentUserProfile?.isActive == true ? "common_active" : "common_inactive"),
                 valueColor: appViewModel.currentUserProfile?.isActive == true
                     ? Color(red: 0.2, green: 0.75, blue: 0.45)
                     : AppDesign.Colors.error
@@ -370,7 +370,7 @@ struct ProfileView: View {
             statChip(
                 icon: "calendar",
                 tint: Color(red: 0.55, green: 0.35, blue: 0.9),
-                title: "Joined",
+                title: appViewModel.localized("profile_stat_joined_label"),
                 value: memberSince
             )
         }
@@ -437,7 +437,7 @@ struct ProfileView: View {
                         .font(.system(size: 13, weight: .semibold))
                         .foregroundStyle(brandOrange)
                 }
-                Text("PERSONAL INFORMATION")
+                Text(appViewModel.localized("profile_personal_info_title"))
                     .font(.system(size: 11, weight: .bold))
                     .foregroundStyle(AppDesign.Colors.textTertiary)
                     .kerning(0.9)
@@ -449,13 +449,13 @@ struct ProfileView: View {
 
             Divider().padding(.horizontal, AppDesign.Spacing.lg)
 
-            infoRow(icon: "person.fill",        tint: brandOrange,                              label: "First Name", value: appViewModel.currentUserProfile?.firstName ?? "—")
+            infoRow(icon: "person.fill",        tint: brandOrange,                              label: appViewModel.localized("profile_first_name_label"), value: appViewModel.currentUserProfile?.firstName ?? appViewModel.localized("common_empty_value"))
             cardDivider
-            infoRow(icon: "person.fill",        tint: brandOrange,                              label: "Last Name",  value: appViewModel.currentUserProfile?.lastName ?? "—")
+            infoRow(icon: "person.fill",        tint: brandOrange,                              label: appViewModel.localized("profile_last_name_label"),  value: appViewModel.currentUserProfile?.lastName ?? appViewModel.localized("common_empty_value"))
             cardDivider
-            infoRow(icon: "phone.fill",         tint: Color(red: 0.2, green: 0.7, blue: 0.4),   label: "Phone",      value: phoneDisplay)
+            infoRow(icon: "phone.fill",         tint: Color(red: 0.2, green: 0.7, blue: 0.4),   label: appViewModel.localized("profile_phone_label"),      value: phoneDisplay)
             cardDivider
-            infoRow(icon: "birthday.cake.fill", tint: Color(red: 0.9, green: 0.45, blue: 0.1),  label: "Birthdate",  value: birthDateDisplay)
+            infoRow(icon: "birthday.cake.fill", tint: Color(red: 0.9, green: 0.45, blue: 0.1),  label: appViewModel.localized("profile_birthdate_label"),  value: birthDateDisplay)
 
             // Edit Profile button inside card
             Divider().padding(.horizontal, AppDesign.Spacing.lg)
@@ -466,7 +466,7 @@ struct ProfileView: View {
                 HStack(spacing: AppDesign.Spacing.sm) {
                     Image(systemName: "pencil.and.outline")
                         .font(.system(size: 14, weight: .semibold))
-                    Text("Edit Profile")
+                    Text(appViewModel.localized("profile_edit_button"))
                         .font(.system(size: 15, weight: .semibold))
                 }
                 .foregroundStyle(.white)
@@ -525,14 +525,14 @@ struct ProfileView: View {
         modernCard(
             headerIcon: "shield.lefthalf.filled",
             headerTint: Color(red: 0.55, green: 0.35, blue: 0.9),
-            title: "Account",
+            title: appViewModel.localized("profile_account_title"),
             gradientColors: [Color(red: 0.55, green: 0.35, blue: 0.9).opacity(0.06), Color.clear, Color(red: 0.95, green: 0.6, blue: 0.1).opacity(0.04)]
         ) {
-            infoRow(icon: "calendar",              tint: Color(red: 0.55, green: 0.35, blue: 0.9),  label: "Member Since", value: formattedDate(appViewModel.currentUserProfile?.createdOn))
+            infoRow(icon: "calendar",              tint: Color(red: 0.55, green: 0.35, blue: 0.9),  label: appViewModel.localized("profile_member_since_label"), value: formattedDate(appViewModel.currentUserProfile?.createdOn))
             cardDivider
-            infoRow(icon: "clock.fill",            tint: Color(red: 0.95, green: 0.6, blue: 0.1),   label: "Last Login",   value: formattedDate(appViewModel.currentUserProfile?.lastLogin))
+            infoRow(icon: "clock.fill",            tint: Color(red: 0.95, green: 0.6, blue: 0.1),   label: appViewModel.localized("profile_last_login_label"),   value: formattedDate(appViewModel.currentUserProfile?.lastLogin))
             cardDivider
-            infoRow(icon: "checkmark.shield.fill", tint: Color(red: 0.2, green: 0.75, blue: 0.45),  label: "Status",       value: appViewModel.currentUserProfile?.isActive == true ? "Active" : "Inactive",
+            infoRow(icon: "checkmark.shield.fill", tint: Color(red: 0.2, green: 0.75, blue: 0.45),  label: appViewModel.localized("profile_stat_status_label"),       value: appViewModel.localized(appViewModel.currentUserProfile?.isActive == true ? "common_active" : "common_inactive"),
                     valueColor: appViewModel.currentUserProfile?.isActive == true
                         ? Color(red: 0.2, green: 0.75, blue: 0.45)
                         : AppDesign.Colors.error)
@@ -545,16 +545,16 @@ struct ProfileView: View {
         modernCard(
             headerIcon: "gearshape.fill",
             headerTint: AppDesign.Colors.textTertiary,
-            title: "Settings",
+            title: appViewModel.localized("profile_settings_title"),
             gradientColors: [Color.gray.opacity(0.04), Color.clear]
         ) {
-            settingsRow(icon: "bell.badge.fill",       tint: Color(red: 0.95, green: 0.45, blue: 0.1), label: "Notifications")
+            settingsRow(icon: "bell.badge.fill",       tint: Color(red: 0.95, green: 0.45, blue: 0.1), label: appViewModel.localized("profile_notifications_label"))
             cardDivider
-            settingsRow(icon: "lock.shield.fill",      tint: Color(red: 0.35, green: 0.55, blue: 0.88), label: "Privacy & Security")
+            settingsRow(icon: "lock.shield.fill",      tint: Color(red: 0.35, green: 0.55, blue: 0.88), label: appViewModel.localized("profile_privacy_security_label"))
             cardDivider
-            settingsRow(icon: "questionmark.circle.fill", tint: Color(red: 0.55, green: 0.35, blue: 0.9), label: "Help & Support")
+            settingsRow(icon: "questionmark.circle.fill", tint: Color(red: 0.55, green: 0.35, blue: 0.9), label: appViewModel.localized("profile_help_support_label"))
             cardDivider
-            settingsRow(icon: "info.circle.fill",      tint: AppDesign.Colors.textTertiary,             label: "About HouseFlow") {
+            settingsRow(icon: "info.circle.fill",      tint: AppDesign.Colors.textTertiary,             label: appViewModel.localized("profile_about_label")) {
                 withAnimation(AppDesign.Animation.standard) { showAbout = true }
             }
         }
@@ -709,29 +709,32 @@ struct ProfileView: View {
     }
 
     private var fullName: String {
-        guard let p = appViewModel.currentUserProfile else { return "—" }
+        guard let p = appViewModel.currentUserProfile else { return appViewModel.localized("common_empty_value") }
         return "\(p.firstName) \(p.lastName)"
     }
 
     private var phoneDisplay: String {
-        guard let p = appViewModel.currentUserProfile, !p.phoneNumber.isEmpty else { return "—" }
+        guard let p = appViewModel.currentUserProfile, !p.phoneNumber.isEmpty else { return appViewModel.localized("common_empty_value") }
         return p.phoneNumber
     }
 
     private var birthDateDisplay: String {
-        guard let p = appViewModel.currentUserProfile, let bd = p.birthDate, !bd.isEmpty else { return "—" }
-        return HouseFlowDateFormatter.displayDate(from: bd)
+        guard let p = appViewModel.currentUserProfile, let bd = p.birthDate, !bd.isEmpty else { return appViewModel.localized("common_empty_value") }
+        let formatted = HouseFlowDateFormatter.displayDate(from: bd)
+        return formatted == "—" ? appViewModel.localized("common_empty_value") : formatted
     }
 
     private var memberSince: String {
-        guard let iso = appViewModel.currentUserProfile?.createdOn, !iso.isEmpty else { return "—" }
-        guard let date = HouseFlowDateFormatter.parseAPIDate(iso) else { return "—" }
+        guard let iso = appViewModel.currentUserProfile?.createdOn, !iso.isEmpty else { return appViewModel.localized("common_empty_value") }
+        guard let date = HouseFlowDateFormatter.parseAPIDate(iso) else { return appViewModel.localized("common_empty_value") }
         let cal = Calendar.current
         let months = cal.dateComponents([.month], from: date, to: Date()).month ?? 0
-        if months < 1 { return "New" }
-        if months < 12 { return "\(months)mo" }
+        if months < 1 { return appViewModel.localized("common_new") }
+        if months < 12 {
+            return appViewModel.localized("common_member_since_months_template", replacements: ["count": "\(months)"])
+        }
         let years = months / 12
-        return "\(years)yr"
+        return appViewModel.localized("common_member_since_years_template", replacements: ["count": "\(years)"])
     }
 
     private var profileCompleteness: Double {
@@ -746,7 +749,8 @@ struct ProfileView: View {
     }
 
     private func formattedDate(_ iso: String?) -> String {
-        HouseFlowDateFormatter.displayDate(from: iso)
+        let formatted = HouseFlowDateFormatter.displayDate(from: iso)
+        return formatted == "—" ? appViewModel.localized("common_empty_value") : formatted
     }
 }
 
@@ -791,10 +795,10 @@ struct AvatarPickerPopup: View {
 
                     HStack(spacing: AppDesign.Spacing.sm) {
                         VStack(alignment: .leading, spacing: 2) {
-                            Text("Choose Avatar")
+                            Text(appViewModel.localized("profile_avatar_choose_title"))
                                 .font(.system(size: 15, weight: .bold))
                                 .foregroundColor(.white)
-                            Text("Select an image to apply")
+                            Text(appViewModel.localized("profile_avatar_choose_subtitle"))
                                 .font(.system(size: 12, weight: .medium))
                                 .foregroundColor(.white.opacity(0.75))
                         }
@@ -825,7 +829,7 @@ struct AvatarPickerPopup: View {
                             Image(systemName: "photo.on.rectangle.angled")
                                 .font(.system(size: 36))
                                 .foregroundStyle(AppDesign.Colors.textTertiary)
-                            Text("No images found")
+                            Text(appViewModel.localized("profile_avatar_empty_message"))
                                 .font(AppDesign.Typography.subheadline)
                                 .foregroundStyle(AppDesign.Colors.textTertiary)
                         }
@@ -871,7 +875,7 @@ struct AvatarPickerPopup: View {
                                 Image(systemName: "checkmark.circle.fill")
                                     .font(.system(size: 16, weight: .semibold))
                             }
-                            Text(isSaving ? "Saving…" : "Save Changes")
+                            Text(appViewModel.localized(isSaving ? "common_saving" : "common_save_changes"))
                                 .font(AppDesign.Typography.headline)
                         }
                         .foregroundColor(.white)
@@ -887,7 +891,7 @@ struct AvatarPickerPopup: View {
                     .disabled(selectedImage == nil || isSaving)
 
                     Button { if !isSaving { requestDismiss() } } label: {
-                        Text("Cancel")
+                        Text(appViewModel.localized("common_cancel"))
                             .font(AppDesign.Typography.headline)
                             .foregroundColor(AppDesign.Colors.textSecondary)
                             .frame(maxWidth: .infinity)
@@ -1084,7 +1088,7 @@ struct EditProfilePopup: View {
                         }
 
                         VStack(alignment: .leading, spacing: 2) {
-                            Text("Edit Profile")
+                            Text(appViewModel.localized("profile_edit_button"))
                                 .font(.system(size: 15, weight: .bold))
                                 .foregroundColor(.white)
                             Text(appViewModel.currentUserProfile?.email ?? "")
@@ -1112,20 +1116,20 @@ struct EditProfilePopup: View {
                 // ── Scrollable fields
                 ScrollView(showsIndicators: false) {
                     VStack(spacing: AppDesign.Spacing.md) {
-                        fieldSection(icon: "person.fill", tint: accentOrange, title: "Name") {
+                        fieldSection(icon: "person.fill", tint: accentOrange, title: appViewModel.localized("profile_edit_name_section")) {
                             editField(icon: "person.fill", tint: accentOrange,
-                                      placeholder: "First Name", text: $firstName, field: .firstName)
+                                      placeholder: appViewModel.localized("profile_first_name_label"), text: $firstName, field: .firstName)
                             Divider().padding(.leading, 66)
                             editField(icon: "person.fill", tint: accentOrange,
-                                      placeholder: "Last Name",  text: $lastName, field: .lastName)
+                                      placeholder: appViewModel.localized("profile_last_name_label"),  text: $lastName, field: .lastName)
                         }
 
                         fieldSection(icon: "info.circle.fill",
                                      tint: Color(red: 0.2, green: 0.7, blue: 0.4),
-                                     title: "Details") {
+                                     title: appViewModel.localized("profile_edit_details_section")) {
                             editField(icon: "phone.fill",
                                       tint: Color(red: 0.2, green: 0.7, blue: 0.4),
-                                      placeholder: "Phone Number", text: $phoneNumber,
+                                      placeholder: appViewModel.localized("profile_edit_phone_placeholder"), text: $phoneNumber,
                                       field: .phoneNumber,
                                       keyboard: .phonePad)
                             Divider().padding(.leading, 66)
@@ -1138,7 +1142,7 @@ struct EditProfilePopup: View {
                                         .font(.system(size: 14, weight: .medium))
                                         .foregroundStyle(Color(red: 0.9, green: 0.45, blue: 0.1))
                                 }
-                                Text("Birthdate")
+                                Text(appViewModel.localized("profile_birthdate_label"))
                                     .font(AppDesign.Typography.subheadline)
                                     .foregroundStyle(AppDesign.Colors.textSecondary)
                                 Spacer()
@@ -1186,7 +1190,7 @@ struct EditProfilePopup: View {
                                 Image(systemName: "checkmark.circle.fill")
                                     .font(.system(size: 16, weight: .semibold))
                             }
-                            Text(isSaving ? "Saving…" : "Save Changes")
+                            Text(appViewModel.localized(isSaving ? "common_saving" : "common_save_changes"))
                                 .font(AppDesign.Typography.headline)
                         }
                         .foregroundColor(.white)
@@ -1203,7 +1207,7 @@ struct EditProfilePopup: View {
                     .animation(AppDesign.Animation.quick, value: isSaving)
 
                     Button { if !isSaving { requestDismiss() } } label: {
-                        Text("Cancel")
+                        Text(appViewModel.localized("common_cancel"))
                             .font(AppDesign.Typography.headline)
                             .foregroundColor(AppDesign.Colors.textSecondary)
                             .frame(maxWidth: .infinity)
@@ -1365,6 +1369,8 @@ struct EditProfilePopup: View {
 // MARK: - About HouseFlow Popup
 
 struct AboutPopup: View {
+    @EnvironmentObject private var appViewModel: AppViewModel
+
     let onDismiss: () -> Void
 
     private let accentOrange = Color(red: 1.0, green: 0.48, blue: 0.15)
@@ -1390,10 +1396,10 @@ struct AboutPopup: View {
 
                     HStack(spacing: AppDesign.Spacing.sm) {
                         VStack(alignment: .leading, spacing: 2) {
-                            Text("About HouseFlow")
+                            Text(appViewModel.localized("profile_about_label"))
                                 .font(.system(size: 15, weight: .bold))
                                 .foregroundColor(.white)
-                            Text("v1.0.0")
+                            Text(appViewModel.localized("profile_about_version"))
                                 .font(.system(size: 12, weight: .medium))
                                 .foregroundColor(.white.opacity(0.75))
                         }
@@ -1429,7 +1435,7 @@ struct AboutPopup: View {
                                 .foregroundStyle(accentOrange.opacity(0.6))
                                 .frame(maxWidth: .infinity, alignment: .leading)
 
-                            Text("Bu uygulamayı yapan tosun,\nokuyana kosun")
+                            Text(appViewModel.localized("profile_about_quote"))
                                 .font(.system(size: 19, weight: .bold, design: .rounded))
                                 .foregroundStyle(accentOrange)
                                 .multilineTextAlignment(.center)
@@ -1449,7 +1455,7 @@ struct AboutPopup: View {
                         Image(systemName: "heart.fill")
                             .font(.system(size: 11))
                             .foregroundStyle(accentOrange)
-                        Text("Made with love in Turkey")
+                        Text(appViewModel.localized("profile_about_made_with_love"))
                             .font(.system(size: 12, weight: .medium))
                             .foregroundStyle(AppDesign.Colors.textTertiary)
                     }
@@ -1459,7 +1465,7 @@ struct AboutPopup: View {
 
                 // ── Footer (same as AvatarPickerPopup)
                 Button(action: requestDismiss) {
-                    Text("Kapat")
+                    Text(appViewModel.localized("profile_about_close_button"))
                         .font(AppDesign.Typography.headline)
                         .foregroundColor(AppDesign.Colors.textSecondary)
                         .frame(maxWidth: .infinity)

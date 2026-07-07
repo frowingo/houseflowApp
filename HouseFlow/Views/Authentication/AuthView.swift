@@ -88,10 +88,10 @@ struct AuthView: View {
             }
 
             VStack(spacing: AppDesign.Spacing.xs) {
-                Text("HouseFlow")
+                Text(appViewModel.localized("app_name"))
                     .font(.system(size: 30, weight: .bold, design: .rounded))
                     .foregroundColor(.white)
-                Text("Your home, in sync")
+                Text(appViewModel.localized("auth_tagline"))
                     .font(.system(size: 15))
                     .foregroundColor(.white.opacity(0.72))
             }
@@ -104,8 +104,8 @@ struct AuthView: View {
 
     private var modeSwitcher: some View {
         HStack(spacing: 4) {
-            modeTab(title: "Sign In", selected: !isSignUp) { isSignUp = false }
-            modeTab(title: "Sign Up", selected: isSignUp)  { isSignUp = true  }
+            modeTab(title: appViewModel.localized("auth_sign_in_tab"), selected: !isSignUp) { isSignUp = false }
+            modeTab(title: appViewModel.localized("auth_sign_up_tab"), selected: isSignUp)  { isSignUp = true  }
         }
         .padding(4)
         .background(Color(.systemGray6))
@@ -139,18 +139,18 @@ struct AuthView: View {
             if isSignUp {
                 HStack(spacing: AppDesign.Spacing.md) {
                     ModernTextField(
-                        title: "First Name",
+                        title: appViewModel.localized("auth_first_name_label"),
                         text: $firstName,
-                        placeholder: "First",
+                        placeholder: appViewModel.localized("auth_first_name_placeholder"),
                         icon: "person.fill",
                         keyboardType: .default,
                         focusedField: $focusedField,
                         fieldType: .firstName
                     )
                     ModernTextField(
-                        title: "Last Name",
+                        title: appViewModel.localized("auth_last_name_label"),
                         text: $lastName,
-                        placeholder: "Last",
+                        placeholder: appViewModel.localized("auth_last_name_placeholder"),
                         icon: "person.fill",
                         keyboardType: .default,
                         focusedField: $focusedField,
@@ -164,9 +164,9 @@ struct AuthView: View {
             }
 
             ModernTextField(
-                title: "Email Address",
+                title: appViewModel.localized("auth_email_label"),
                 text: $email,
-                placeholder: "your@email.com",
+                placeholder: appViewModel.localized("auth_email_placeholder"),
                 icon: "envelope.fill",
                 keyboardType: .emailAddress,
                 focusedField: $focusedField,
@@ -174,9 +174,9 @@ struct AuthView: View {
             )
 
             ModernSecureField(
-                title: "Password",
+                title: appViewModel.localized("auth_password_label"),
                 text: $password,
-                placeholder: "Enter your password",
+                placeholder: appViewModel.localized("auth_password_placeholder"),
                 icon: "lock.fill",
                 focusedField: $focusedField,
                 fieldType: .password
@@ -185,8 +185,10 @@ struct AuthView: View {
             if !isSignUp {
                 HStack {
                     Spacer()
-                    Button("Forgot Password?") {
+                    Button {
                         showForgotPassword = true
+                    } label: {
+                        Text(appViewModel.localized("auth_forgot_password_button"))
                     }
                     .font(.system(size: 14, weight: .medium))
                     .foregroundColor(AppDesign.Colors.primary)
@@ -209,7 +211,7 @@ struct AuthView: View {
                     HStack(spacing: AppDesign.Spacing.sm) {
                         Image(systemName: isSignUp ? "person.badge.plus.fill" : "arrow.right.circle.fill")
                             .font(.system(size: 18, weight: .semibold))
-                        Text(isSignUp ? "Create Account" : "Sign In")
+                        Text(appViewModel.localized(isSignUp ? "auth_create_account_button" : "auth_sign_in_button"))
                             .font(.system(size: 17, weight: .bold))
                     }
                     .foregroundColor(.white)
@@ -241,7 +243,7 @@ struct AuthView: View {
     private var dividerRow: some View {
         HStack(spacing: AppDesign.Spacing.md) {
             Rectangle().frame(height: 1).foregroundColor(Color(.systemGray5))
-            Text("or")
+            Text(appViewModel.localized("auth_divider_or"))
                 .font(AppDesign.Typography.caption)
                 .foregroundColor(AppDesign.Colors.textSecondary)
             Rectangle().frame(height: 1).foregroundColor(Color(.systemGray5))
@@ -253,7 +255,7 @@ struct AuthView: View {
     private var socialRow: some View {
         HStack(spacing: AppDesign.Spacing.lg) {
             SocialLoginButton(
-                name: "Google",
+                name: appViewModel.localized("auth_google_button"),
                 backgroundColor: .white,
                 foregroundColor: .black,
                 borderColor: Color(.systemGray4),
@@ -263,7 +265,7 @@ struct AuthView: View {
             }
 
             SocialLoginButton(
-                name: "Apple",
+                name: appViewModel.localized("auth_apple_button"),
                 backgroundColor: .black,
                 foregroundColor: .white,
                 action: { authenticateWithSocial("Apple") }
@@ -274,7 +276,7 @@ struct AuthView: View {
             }
 
             SocialLoginButton(
-                name: "Snapchat",
+                name: appViewModel.localized("auth_snapchat_button"),
                 backgroundColor: Color.yellow,
                 foregroundColor: .black,
                 action: { authenticateWithSocial("Snapchat") }

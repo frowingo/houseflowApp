@@ -3,6 +3,8 @@ import SwiftUI
 /// House type selection card component
 /// Displays icon and label for different house types
 struct HouseTypeCard: View {
+    @EnvironmentObject private var appViewModel: AppViewModel
+
     let type: HouseType
     let isSelected: Bool
     let action: () -> Void
@@ -11,6 +13,14 @@ struct HouseTypeCard: View {
         case studentHouse = "Student House"
         case sharedHouse = "Shared House"
         case dormRoom = "Dorm Room"
+
+        var localizationKey: String {
+            switch self {
+            case .studentHouse: return "create_house_type_student"
+            case .sharedHouse:  return "create_house_type_shared"
+            case .dormRoom:     return "create_house_type_dorm"
+            }
+        }
         
         var iconName: String {
             switch self {
@@ -55,7 +65,7 @@ struct HouseTypeCard: View {
     }
     
     private var labelSection: some View {
-        Text(type.rawValue)
+        Text(appViewModel.localized(type.localizationKey))
             .font(AppDesign.Typography.caption)
             .foregroundColor(isSelected ? .white : AppDesign.Colors.text)
             .multilineTextAlignment(.center)

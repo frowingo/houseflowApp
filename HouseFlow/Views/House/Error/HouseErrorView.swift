@@ -26,12 +26,12 @@ struct HouseErrorView: View {
 
                 // Message
                 VStack(spacing: AppDesign.Spacing.md) {
-                    Text("Ev bilgileri yüklenemedi")
+                    Text(appViewModel.localized("house_error_title"))
                         .font(AppDesign.Typography.title2)
                         .foregroundColor(AppDesign.Colors.text)
                         .multilineTextAlignment(.center)
 
-                    Text("Ev bilgilerinize ulaşırken bir sorun oluştu.\nLütfen tekrar deneyin veya çıkış yapın.")
+                    Text(appViewModel.localized("house_error_message"))
                         .font(AppDesign.Typography.subheadline)
                         .foregroundColor(AppDesign.Colors.textSecondary)
                         .multilineTextAlignment(.center)
@@ -43,7 +43,7 @@ struct HouseErrorView: View {
                     Button(action: {
                         Task { await appViewModel.performAutoLogin() }
                     }) {
-                        Text("Tekrar Dene")
+                        Text(appViewModel.localized("house_error_retry_button"))
                             .font(AppDesign.Typography.headline)
                             .foregroundColor(.white)
                             .frame(maxWidth: .infinity)
@@ -57,7 +57,7 @@ struct HouseErrorView: View {
                             appViewModel.logout()
                         }
                     }) {
-                        Text("Çıkış Yap")
+                        Text(appViewModel.localized("house_error_logout_button"))
                             .font(AppDesign.Typography.headline)
                             .foregroundColor(AppDesign.Colors.error)
                             .frame(maxWidth: .infinity)

@@ -25,7 +25,7 @@ struct FloatingActionButton: View {
                     HStack(spacing: AppDesign.Spacing.sm) {
                         Image(systemName: "plus")
                             .font(.system(size: AppDesign.Size.iconSmall + 2, weight: .semibold))
-                        Text("New Chore")
+                        LocalizedText("floating_new_chore_button")
                             .font(AppDesign.Typography.headline)
                             .transition(.scale.combined(with: .opacity))
                     }

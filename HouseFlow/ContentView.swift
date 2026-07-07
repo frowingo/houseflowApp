@@ -4,7 +4,7 @@ import SwiftUI
 struct ContentView: View {
     var body: some View {
         VStack {
-            Text("This is the old ContentView - not used in the demo")
+            LocalizedText("app_name")
                 .padding()
         }
     }
@@ -12,4 +12,5 @@ struct ContentView: View {
 
 #Preview {
     ContentView()
+        .environmentObject(AppViewModel())
 }

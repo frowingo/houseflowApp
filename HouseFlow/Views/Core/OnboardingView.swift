@@ -6,18 +6,18 @@ struct OnboardingView: View {
     
     let onboardingPages = [
         OnboardingPage(
-            title: "Track house chores easily",
-            subtitle: "See what needs to be done today in one glance.",
+            titleKey: "onboarding_page_1_title",
+            subtitleKey: "onboarding_page_1_subtitle",
             imageName: "house.fill"
         ),
         OnboardingPage(
-            title: "Share responsibilities fairly",
-            subtitle: "Assign chores to roommates and keep things balanced.",
+            titleKey: "onboarding_page_2_title",
+            subtitleKey: "onboarding_page_2_subtitle",
             imageName: "person.2.fill"
         ),
         OnboardingPage(
-            title: "Stay organized with reminders",
-            subtitle: "Keep your shared home tidy without arguments.",
+            titleKey: "onboarding_page_3_title",
+            subtitleKey: "onboarding_page_3_subtitle",
             imageName: "bell.badge.fill"
         )
     ]
@@ -26,12 +26,12 @@ struct OnboardingView: View {
         VStack(spacing: 0) {
             // App Header
             VStack(spacing: 8) {
-                Text("HouseFlow")
+                Text(appViewModel.localized("app_name"))
                     .font(.largeTitle)
                     .fontWeight(.bold)
                     .foregroundColor(.blue)
                 
-                Text("Manage shared house chores fairly and easily")
+                Text(appViewModel.localized("onboarding_app_subtitle"))
                     .font(.subheadline)
                     .foregroundColor(.secondary)
                     .multilineTextAlignment(.center)
@@ -51,12 +51,12 @@ struct OnboardingView: View {
                                 .foregroundColor(.blue)
                             
                             VStack(spacing: 16) {
-                                Text(onboardingPages[index].title)
+                                Text(appViewModel.localized(onboardingPages[index].titleKey))
                                     .font(.title2)
                                     .fontWeight(.semibold)
                                     .multilineTextAlignment(.center)
                                 
-                                Text(onboardingPages[index].subtitle)
+                                Text(appViewModel.localized(onboardingPages[index].subtitleKey))
                                     .font(.body)
                                     .foregroundColor(.secondary)
                                     .multilineTextAlignment(.center)
@@ -95,7 +95,7 @@ struct OnboardingView: View {
                     }
                 }
             }) {
-                Text("Get Started")
+                Text(appViewModel.localized("onboarding_get_started_button"))
                     .font(.headline)
                     .foregroundColor(isButtonActive ? .white : .gray)
                     .frame(maxWidth: .infinity)
@@ -117,8 +117,8 @@ struct OnboardingView: View {
 }
 
 struct OnboardingPage {
-    let title: String
-    let subtitle: String
+    let titleKey: String
+    let subtitleKey: String
     let imageName: String
 }
 

@@ -3,13 +3,6 @@ import Combine
 
 @MainActor
 final class DashboardStore: ObservableObject {
-    let sampleUsers = [
-        User(firstName: "Mahmut", lastName: "Yılmaz", points: 12),
-        User(firstName: "Jane", lastName: "Doe", points: 8),
-        User(firstName: "Abdüllatif", lastName: "Kaya", points: 10),
-        User(firstName: "Katya", lastName: "Ivanova", points: 6)
-    ]
-
     @Published private(set) var members: [User] = []
     @Published private(set) var chores: [Chore] = []
 
@@ -23,9 +16,16 @@ final class DashboardStore: ObservableObject {
         self.chores = chores
     }
 
-    func rebuild(details: HouseDetailsResponse?, fallbackChores: [Chore], currentUserId: String?, currentUserProfile: IsAuthUserData?) {
+    func rebuild(
+        details: HouseDetailsResponse?,
+        fallbackMembers: [User],
+        fallbackChores: [Chore],
+        fallbackUnassignedName: String,
+        currentUserId: String?,
+        currentUserProfile: IsAuthUserData?
+    ) {
         guard let details else {
-            setMembers(sampleUsers)
+            setMembers(fallbackMembers)
             setChores(fallbackChores)
             return
         }
@@ -42,7 +42,7 @@ final class DashboardStore: ObservableObject {
         setChores(details.chores.map { dto in
             let assignedUser = membersById[dto.assignedTo] ?? User(
                 id: dto.assignedTo,
-                name: dto.assignedTo.isEmpty ? "Unassigned" : dto.assignedTo
+                name: dto.assignedTo.isEmpty ? fallbackUnassignedName : dto.assignedTo
             )
             return Chore(
                 choreApiId: dto.id,

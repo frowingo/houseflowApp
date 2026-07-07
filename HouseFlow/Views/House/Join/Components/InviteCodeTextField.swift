@@ -3,13 +3,15 @@ import SwiftUI
 /// Custom text field style for invite code input
 /// Features: Monospaced font, centered text, error state, validation border
 struct InviteCodeTextField: View {
+    @EnvironmentObject private var appViewModel: AppViewModel
+
     @Binding var text: String
     let isError: Bool
     @FocusState.Binding var isFocused: Bool
     let onSubmit: () -> Void
     
     var body: some View {
-        TextField("Enter Invite Code", text: $text)
+        TextField(appViewModel.localized("join_house_invite_placeholder"), text: $text)
             .font(.system(size: 18, weight: .medium, design: .monospaced))
             .multilineTextAlignment(.center)
             .textInputAutocapitalization(.never)

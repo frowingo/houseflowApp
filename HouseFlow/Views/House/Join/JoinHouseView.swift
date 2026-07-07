@@ -54,10 +54,10 @@ struct JoinHouseView: View {
                 .font(.system(size: 60))
                 .foregroundColor(AppDesign.Colors.primary)
             
-            Text("Join a House")
+            Text(appViewModel.localized("join_house_title"))
                 .font(AppDesign.Typography.largeTitle)
             
-            Text("Enter the invite code shared by your friend")
+            Text(appViewModel.localized("join_house_subtitle"))
                 .font(AppDesign.Typography.subheadline)
                 .foregroundColor(AppDesign.Colors.textSecondary)
                 .multilineTextAlignment(.center)
@@ -78,7 +78,7 @@ struct JoinHouseView: View {
     
     private var inviteCodeSection: some View {
         VStack(spacing: AppDesign.Spacing.lg) {
-            Text("Invite Code")
+            Text(appViewModel.localized("invite_code_label"))
                 .font(AppDesign.Typography.headline)
                 .frame(maxWidth: .infinity, alignment: .leading)
             
@@ -96,9 +96,9 @@ struct JoinHouseView: View {
             infoBoxHeader
             
             VStack(spacing: AppDesign.Spacing.sm) {
-                InfoRow(number: "1", text: "Ask the home owner for the invite code")
-                InfoRow(number: "2", text: "Enter the 6–8 character code above")
-                InfoRow(number: "3", text: "Tap \"Join House\" button")
+                InfoRow(number: "1", text: appViewModel.localized("join_house_step_1"))
+                InfoRow(number: "2", text: appViewModel.localized("join_house_step_2"))
+                InfoRow(number: "3", text: appViewModel.localized("join_house_step_3"))
             }
         }
         .padding(AppDesign.Spacing.lg)
@@ -112,7 +112,7 @@ struct JoinHouseView: View {
                 .font(.system(size: 16))
                 .foregroundColor(AppDesign.Colors.primary)
             
-            Text("How to get Invite Code ?")
+            Text(appViewModel.localized("join_house_help_title"))
                 .font(AppDesign.Typography.subheadline)
                 .foregroundColor(AppDesign.Colors.text)
         }
@@ -131,7 +131,7 @@ struct JoinHouseView: View {
     
     private var joinButton: some View {
         Button(action: joinHouse) {
-            Text("Join House")
+            Text(appViewModel.localized("join_house_submit_button"))
                 .font(AppDesign.Typography.headline)
                 .foregroundColor(.white)
                 .frame(maxWidth: .infinity)

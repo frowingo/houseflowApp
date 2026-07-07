@@ -26,10 +26,10 @@ struct CreateHouseView: View {
         VStack(spacing: AppDesign.Spacing.sm) {
             backButton
             
-            Text("Create New House")
+            Text(appViewModel.localized("create_house_title"))
                 .font(AppDesign.Typography.largeTitle)
             
-            Text("Start by entering your home details")
+            Text(appViewModel.localized("create_house_subtitle"))
                 .font(AppDesign.Typography.subheadline)
                 .foregroundColor(AppDesign.Colors.textSecondary)
                 .multilineTextAlignment(.center)
@@ -73,7 +73,7 @@ struct CreateHouseView: View {
     
     private var houseNameSection: some View {
         VStack(alignment: .leading, spacing: AppDesign.Spacing.lg) {
-            Text("House Name")
+            Text(appViewModel.localized("create_house_name_label"))
                 .font(AppDesign.Typography.headline)
             
             VStack(alignment: .leading, spacing: AppDesign.Spacing.sm) {
@@ -88,7 +88,7 @@ struct CreateHouseView: View {
     }
     
     private var houseNameTextField: some View {
-        TextField("Enter House Name", text: $houseName)
+        TextField(appViewModel.localized("create_house_name_placeholder"), text: $houseName)
             .font(AppDesign.Typography.body)
             .padding(.horizontal, AppDesign.Spacing.lg)
             .padding(.vertical, AppDesign.Spacing.md)
@@ -110,7 +110,10 @@ struct CreateHouseView: View {
     }
     
     private var characterCountLabel: some View {
-        Text("\(houseName.count)/30 char")
+        Text(appViewModel.localized(
+            "create_house_name_count_template",
+            replacements: ["count": "\(houseName.count)"]
+        ))
             .font(AppDesign.Typography.caption2)
             .foregroundColor(AppDesign.Colors.textSecondary)
             .transition(.opacity.combined(with: .move(edge: .top)))
@@ -120,7 +123,7 @@ struct CreateHouseView: View {
     
     private var houseTypeSection: some View {
         VStack(alignment: .leading, spacing: AppDesign.Spacing.lg) {
-            Text("House Type")
+            Text(appViewModel.localized("create_house_type_label"))
                 .font(AppDesign.Typography.headline)
             
             HStack(spacing: AppDesign.Spacing.md) {
@@ -147,7 +150,7 @@ struct CreateHouseView: View {
                 showSummaryPopup = true
             }
         }) {
-            Text("Create Home")
+            Text(appViewModel.localized("create_house_submit_button"))
                 .font(AppDesign.Typography.headline)
                 .foregroundColor(isFormValid ? .white : .gray)
                 .frame(maxWidth: .infinity)
@@ -168,7 +171,7 @@ struct CreateHouseView: View {
             if showSummaryPopup {
                 SummaryPopup(
                     houseName: houseName,
-                    houseType: selectedHouseType.rawValue,
+                    houseType: appViewModel.localized(selectedHouseType.localizationKey),
                     memberCount: memberCount,
                     onConfirm: {
                         showSummaryPopup = false

@@ -3,6 +3,8 @@ import SwiftUI
 /// 🎨 Ultra-Modern Today's Chores Card with Interactive Animations
 /// Features: Swipe gestures, 3D transforms, particle effects, progress tracking
 struct TodaysChoresCard: View {
+    @EnvironmentObject private var appViewModel: AppViewModel
+
     let chores: [Chore]
     let onChoreDetailTap: (Chore) -> Void
     
@@ -124,12 +126,18 @@ struct TodaysChoresCard: View {
                 .animation(AppDesign.Animation.spring.repeatForever(autoreverses: true), value: iconPressed)
                 
                 VStack(alignment: .leading, spacing: 2) {
-                    Text("Today's Tasks")
+                    Text(appViewModel.localized("todays_tasks_title"))
                         .font(AppDesign.Typography.headline)
                         .foregroundColor(AppDesign.Colors.textPrimary)
                     
                     if totalCount > 0 {
-                        Text("\(completedCount) of \(totalCount) completed")
+                        Text(appViewModel.localized(
+                            "todays_tasks_completed_template",
+                            replacements: [
+                                "completed": "\(completedCount)",
+                                "total": "\(totalCount)"
+                            ]
+                        ))
                             .font(AppDesign.Typography.caption)
                             .foregroundColor(AppDesign.Colors.textSecondary)
                     }
@@ -220,11 +228,11 @@ struct TodaysChoresCard: View {
             .animation(AppDesign.Animation.spring.repeatForever(autoreverses: true), value: pulseAnimation)
             
             VStack(spacing: AppDesign.Spacing.sm) {
-                Text("All Done! 🎉")
+                Text(appViewModel.localized("todays_tasks_empty_title"))
                     .font(AppDesign.Typography.title3)
                     .foregroundColor(AppDesign.Colors.textPrimary)
                 
-                Text("You've completed all tasks for today")
+                Text(appViewModel.localized("todays_tasks_empty_subtitle"))
                     .font(AppDesign.Typography.subheadline)
                     .foregroundColor(AppDesign.Colors.textSecondary)
                     .multilineTextAlignment(.center)
@@ -264,7 +272,10 @@ struct CircularProgressView: View {
                 .animation(AppDesign.Animation.spring, value: progress)
             
             // Percentage text
-            Text("\(Int(progress * 100))%")
+            LocalizedText(
+                "progress_percent_template",
+                replacements: ["percent": "\(Int(progress * 100))"]
+            )
                 .font(.system(size: 12, weight: .bold))
                 .foregroundColor(AppDesign.Colors.primary)
         }
@@ -274,6 +285,8 @@ struct CircularProgressView: View {
 // MARK: - Modern Chore Row with 3D Drag
 
 struct ModernChoreRow: View {
+    @EnvironmentObject private var appViewModel: AppViewModel
+
     let chore: Chore
     let isSelected: Bool
     let onTap: () -> Void
@@ -329,7 +342,7 @@ struct ModernChoreRow: View {
                     HStack(spacing: 4) {
                         Image(systemName: choreStatus.iconName)
                             .font(.system(size: 9, weight: .bold))
-                        Text(choreStatus.displayName)
+                        Text(appViewModel.localized(choreStatus.localizationKey))
                             .font(AppDesign.Typography.caption)
                             .fontWeight(.medium)
                     }

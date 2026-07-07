@@ -6,6 +6,14 @@ enum ChoreLevel: Int, Codable {
     case easy   = 10
     case medium = 20
     case hard   = 30
+
+    var localizationKey: String {
+        switch self {
+        case .easy: return "chore_level_easy"
+        case .medium: return "chore_level_medium"
+        case .hard: return "chore_level_hard"
+        }
+    }
 }
 
 enum ChoreStatus: Int, Codable {
@@ -13,6 +21,15 @@ enum ChoreStatus: Int, Codable {
     case progress  = 1
     case inTest    = 2
     case completed = 3
+
+    var localizationKey: String {
+        switch self {
+        case .draft: return "chore_status_draft"
+        case .progress: return "chore_status_in_progress"
+        case .inTest: return "chore_status_in_review"
+        case .completed: return "chore_status_completed"
+        }
+    }
 }
 
 // MARK: - Create Chore

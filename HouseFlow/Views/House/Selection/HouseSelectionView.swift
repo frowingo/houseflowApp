@@ -18,10 +18,10 @@ struct HouseSelectionView: View {
     
     private var headerSection: some View {
         VStack(spacing: AppDesign.Spacing.sm) {
-            Text("Your House")
+            Text(appViewModel.localized("house_selection_title"))
                 .font(AppDesign.Typography.largeTitle)
             
-            Text("Create a new house or join an existing one")
+            Text(appViewModel.localized("house_selection_subtitle"))
                 .font(AppDesign.Typography.subheadline)
                 .foregroundColor(AppDesign.Colors.textSecondary)
                 .multilineTextAlignment(.center)
@@ -47,8 +47,8 @@ struct HouseSelectionView: View {
             }
         }) {
             HouseOptionCard(
-                title: "Create New House",
-                subtitle: "Start fresh with your roommates",
+                title: appViewModel.localized("house_selection_create_title"),
+                subtitle: appViewModel.localized("house_selection_create_subtitle"),
                 iconName: "plus.circle.fill",
                 backgroundColor: .blue
             )
@@ -63,8 +63,8 @@ struct HouseSelectionView: View {
             }
         }) {
             HouseOptionCard(
-                title: "Join Existing House",
-                subtitle: "Enter an invite code to join",
+                title: appViewModel.localized("house_selection_join_title"),
+                subtitle: appViewModel.localized("house_selection_join_subtitle"),
                 iconName: "person.2.circle.fill",
                 backgroundColor: .green
             )

@@ -3,13 +3,15 @@ import SwiftUI
 /// Custom slider component for selecting member count
 /// Features: Train track style with stops, draggable bubble indicator
 struct MemberCountPicker: View {
+    @EnvironmentObject private var appViewModel: AppViewModel
+
     @Binding var memberCount: Int
     let minCount: Int = 2
     let maxCount: Int = 8
     
     var body: some View {
         VStack(alignment: .leading, spacing: AppDesign.Spacing.xl) {
-            Text("Person Count")
+            Text(appViewModel.localized("create_house_member_count_label"))
                 .font(AppDesign.Typography.headline)
             
             sliderSection
@@ -119,13 +121,13 @@ struct MemberCountPicker: View {
     
     private var sliderLabels: some View {
         HStack {
-            Text("Min")
+            Text(appViewModel.localized("common_min"))
                 .font(AppDesign.Typography.caption2)
                 .foregroundColor(AppDesign.Colors.textSecondary)
             
             Spacer()
             
-            Text("Max")
+            Text(appViewModel.localized("common_max"))
                 .font(AppDesign.Typography.caption2)
                 .foregroundColor(AppDesign.Colors.textSecondary)
         }

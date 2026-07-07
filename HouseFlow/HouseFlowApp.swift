@@ -25,6 +25,7 @@ struct HouseFlowApp: App {
                 .environmentObject(appViewModel)
                 .preferredColorScheme(.light)
                 .task {
+                    appViewModel.prepareLocalization()
                     // Cold start: attempt silent auto-login
                     await appViewModel.performAutoLogin()
                 }

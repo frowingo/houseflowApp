@@ -16,16 +16,6 @@ final class ChoreStore: ObservableObject {
         setChores([])
     }
 
-    func initializeSamples(sampleUsers: [User]) {
-        setChores([
-            Chore(id: "sample-take-trash", title: "Take out the trash", description: "Empty all trash bins and take bags to the dumpster", assignedTo: sampleUsers[0], dueLabel: "Today"),
-            Chore(id: "sample-kitchen-counter", title: "Clean kitchen counter", description: "Wipe down all surfaces, clean sink and organize items", assignedTo: sampleUsers[1], dueLabel: "Today"),
-            Chore(id: "sample-vacuum-living-room", title: "Vacuum living room", description: "Vacuum carpet and clean under furniture", assignedTo: sampleUsers[2], dueLabel: "Overdue"),
-            Chore(id: "sample-clean-bathroom", title: "Clean bathroom", description: "Clean toilet, shower, sink and mirror", assignedTo: sampleUsers[3], dueLabel: "This week"),
-            Chore(id: "sample-laundry", title: "Do laundry", description: "Wash, dry and fold clothes", assignedTo: sampleUsers[0], dueLabel: "Today", isDone: true)
-        ])
-    }
-
     func toggleCompletion(_ choreId: String) {
         guard let index = chores.firstIndex(where: { $0.id == choreId }) else { return }
         let c = chores[index]

@@ -60,6 +60,7 @@ struct IsAuthUserData: Decodable {
     let isActive: Bool
     let isVerifyEmail: Bool
     let isVerifyPhone: Bool
+    let language: String?
     let lastLogin: String
     let lastName: String
     let phoneNumber: String
@@ -70,7 +71,7 @@ struct IsAuthUserData: Decodable {
     enum CodingKeys: String, CodingKey {
         case birthDate = "birthDay"
         case createdOn, email, firstName, houseIds, id, imageUrl
-        case isActive, isVerifyEmail, isVerifyPhone, lastLogin, lastName
+        case isActive, isVerifyEmail, isVerifyPhone, language, lastLogin, lastName
         case phoneNumber, updatedOn
     }
 }
@@ -87,6 +88,7 @@ struct UserResultModel: Decodable {
     let isActive: Bool
     let isVerifyEmail: Bool
     let isVerifyPhone: Bool
+    let language: String?
     let phoneNumber: String
     let houseIds: [String]
     let createdOn: String
@@ -98,7 +100,7 @@ struct UserResultModel: Decodable {
     enum CodingKeys: String, CodingKey {
         case birthDate = "birthDay"
         case createdOn, email, firstName, houseIds, id, imageUrl
-        case isActive, isVerifyEmail, isVerifyPhone, lastLogin, lastName
+        case isActive, isVerifyEmail, isVerifyPhone, language, lastLogin, lastName
         case phoneNumber, updatedOn
     }
 }
@@ -111,6 +113,23 @@ struct UpdateProfileRequest: Encodable {
     let firstName: String?
     let lastName: String?
     let phoneNumber: String?
+    let language: String?
+
+    init(
+        imageUrl: String?,
+        birthDay: String?,
+        firstName: String?,
+        lastName: String?,
+        phoneNumber: String?,
+        language: String? = nil
+    ) {
+        self.imageUrl = imageUrl
+        self.birthDay = birthDay
+        self.firstName = firstName
+        self.lastName = lastName
+        self.phoneNumber = phoneNumber
+        self.language = language
+    }
 }
 
 typealias UpdateProfileData = UserResultModel

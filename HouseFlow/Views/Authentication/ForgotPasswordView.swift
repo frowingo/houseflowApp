@@ -71,6 +71,7 @@ private struct OTPInputView: View {
 
 struct ForgotPasswordView: View {
     @Environment(\.dismiss) private var dismiss
+    @EnvironmentObject private var appViewModel: AppViewModel
     @FocusState private var emailFocused: Bool
     @FocusState private var newPasswordFocused: Bool
 
@@ -160,10 +161,10 @@ struct ForgotPasswordView: View {
             }
 
             VStack(spacing: AppDesign.Spacing.xs) {
-                Text("Forgot Password?")
+                Text(appViewModel.localized("forgot_password_title"))
                     .font(.system(size: 24, weight: .bold, design: .rounded))
                     .foregroundColor(.white)
-                Text("We'll send you a reset code")
+                Text(appViewModel.localized("forgot_password_subtitle"))
                     .font(.system(size: 14))
                     .foregroundColor(.white.opacity(0.72))
             }
@@ -213,7 +214,7 @@ struct ForgotPasswordView: View {
 
     private var emailField: some View {
         VStack(alignment: .leading, spacing: AppDesign.Spacing.xs) {
-            Text("Email Address")
+            Text(appViewModel.localized("auth_email_label"))
                 .font(.system(size: 15, weight: .semibold))
                 .foregroundColor(AppDesign.Colors.text)
                 .opacity(isEmailDisabled ? 0.45 : 1)
@@ -228,7 +229,7 @@ struct ForgotPasswordView: View {
                     )
                     .frame(width: 20)
 
-                TextField("your@email.com", text: $email)
+                TextField(appViewModel.localized("auth_email_placeholder"), text: $email)
                     .font(.system(size: 16))
                     .keyboardType(.emailAddress)
                     .textInputAutocapitalization(.never)
@@ -272,7 +273,7 @@ struct ForgotPasswordView: View {
                     HStack(spacing: AppDesign.Spacing.sm) {
                         Image(systemName: "paperplane.fill")
                             .font(.system(size: 16, weight: .semibold))
-                        Text("Send Reset Code")
+                        Text(appViewModel.localized("forgot_password_send_button"))
                             .font(.system(size: 17, weight: .bold))
                     }
                     .foregroundColor(.white)
@@ -363,10 +364,13 @@ struct ForgotPasswordView: View {
         VStack(spacing: AppDesign.Spacing.xl) {
             // Info message
             VStack(spacing: AppDesign.Spacing.xs) {
-                Text("Check your inbox")
+                Text(appViewModel.localized("forgot_password_check_inbox_title"))
                     .font(.system(size: 18, weight: .bold))
                     .foregroundColor(AppDesign.Colors.text)
-                Text("We sent a 6-digit code to **\(email)**. Enter it below along with your new password.")
+                Text(appViewModel.localized(
+                    "forgot_password_code_instruction_template",
+                    replacements: ["email": email]
+                ))
                     .font(.system(size: 14))
                     .foregroundColor(AppDesign.Colors.textSecondary)
                     .multilineTextAlignment(.center)
@@ -392,7 +396,7 @@ struct ForgotPasswordView: View {
 
     private var newPasswordField: some View {
         VStack(alignment: .leading, spacing: AppDesign.Spacing.xs) {
-            Text("New Password")
+            Text(appViewModel.localized("forgot_password_new_password_label"))
                 .font(.system(size: 15, weight: .semibold))
                 .foregroundColor(AppDesign.Colors.text)
 
@@ -404,12 +408,12 @@ struct ForgotPasswordView: View {
 
                 Group {
                     if isPasswordVisible {
-                        TextField("Enter new password", text: $newPassword)
+                        TextField(appViewModel.localized("forgot_password_new_password_placeholder"), text: $newPassword)
                             .font(.system(size: 16))
                             .focused($newPasswordFocused)
                             .autocorrectionDisabled()
                     } else {
-                        SecureField("Enter new password", text: $newPassword)
+                        SecureField(appViewModel.localized("forgot_password_new_password_placeholder"), text: $newPassword)
                             .font(.system(size: 16))
                             .focused($newPasswordFocused)
                     }
@@ -453,7 +457,7 @@ struct ForgotPasswordView: View {
                     HStack(spacing: AppDesign.Spacing.sm) {
                         Image(systemName: "checkmark.shield.fill")
                             .font(.system(size: 16, weight: .semibold))
-                        Text("Reset Password")
+                        Text(appViewModel.localized("forgot_password_reset_button"))
                             .font(.system(size: 17, weight: .bold))
                     }
                     .foregroundColor(.white)
@@ -488,7 +492,7 @@ struct ForgotPasswordView: View {
 
     private func handleSend() {
         guard isValidEmail(email) else {
-            showToast("Please enter a valid email address.", isError: true)
+            showToast(appViewModel.localized("forgot_password_invalid_email_toast"), isError: true)
             return
         }
         emailFocused = false
@@ -519,7 +523,7 @@ struct ForgotPasswordView: View {
         Task {
             do {
                 _ = try await authService.resetPassword(email: email, code: code, newPassword: password)
-                showToast("Password reset successfully!", isError: false)
+                showToast(appViewModel.localized("forgot_password_success_toast"), isError: false)
                 try? await Task.sleep(nanoseconds: 1_800_000_000)
                 dismiss()
             } catch {
@@ -548,4 +552,5 @@ struct ForgotPasswordView: View {
 
 #Preview {
     ForgotPasswordView()
+        .environmentObject(AppViewModel())
 }

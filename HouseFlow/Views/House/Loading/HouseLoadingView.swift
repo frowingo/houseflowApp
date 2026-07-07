@@ -45,19 +45,19 @@ struct HouseLoadingView: View {
 
                 // Phase text
                 VStack(spacing: AppDesign.Spacing.md) {
-                    Text(appViewModel.houseLoadingPhase.title)
+                    Text(appViewModel.localized(appViewModel.houseLoadingPhase.titleKey))
                         .font(AppDesign.Typography.title2)
                         .foregroundColor(AppDesign.Colors.text)
                         .multilineTextAlignment(.center)
-                        .id("phase-title-\(appViewModel.houseLoadingPhase.title)")
+                        .id("phase-title-\(appViewModel.houseLoadingPhase.titleKey)")
                         .transition(.opacity.combined(with: .move(edge: .bottom)))
 
-                    Text(appViewModel.houseLoadingPhase.subtitle)
+                    Text(appViewModel.localized(appViewModel.houseLoadingPhase.subtitleKey))
                         .font(AppDesign.Typography.subheadline)
                         .foregroundColor(AppDesign.Colors.textSecondary)
                         .multilineTextAlignment(.center)
                         .padding(.horizontal, AppDesign.Spacing.xxxl)
-                        .id("phase-subtitle-\(appViewModel.houseLoadingPhase.subtitle)")
+                        .id("phase-subtitle-\(appViewModel.houseLoadingPhase.subtitleKey)")
                         .transition(.opacity)
 
                     // Bouncing dots indicator
@@ -73,7 +73,7 @@ struct HouseLoadingView: View {
                     }
                     .padding(.top, AppDesign.Spacing.sm)
                 }
-                .animation(AppDesign.Animation.standard, value: appViewModel.houseLoadingPhase.title)
+                .animation(AppDesign.Animation.standard, value: appViewModel.houseLoadingPhase.titleKey)
 
                 Spacer()
             }

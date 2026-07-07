@@ -93,6 +93,19 @@ final class NetworkService {
     func get<Success: Decodable>(
         path: String,
         queryItems: [URLQueryItem] = [],
+        successType: Success.Type
+    ) async throws -> Success {
+        let request = try makeRequest(
+            path: path,
+            method: "GET",
+            queryItems: queryItems
+        )
+        return try await send(request, successType: successType)
+    }
+
+    func get<Success: Decodable>(
+        path: String,
+        queryItems: [URLQueryItem] = [],
         successType: Success.Type,
         token: String
     ) async throws -> Success {
@@ -156,7 +169,7 @@ final class NetworkService {
             }
         } else {
             if let errorBody = try? decoder.decode(APIErrorResponse.self, from: data) {
-                throw NetworkError.serverError(errorBody.error)
+                throw NetworkError.serverError(errorBody.message ?? errorBody.error ?? "Request failed.")
             }
             throw NetworkError.unknown(http.statusCode)
         }
@@ -166,5 +179,6 @@ final class NetworkService {
 // MARK: - Shared error response shape
 
 struct APIErrorResponse: Decodable {
-    let error: String
+    let error: String?
+    let message: String?
 }

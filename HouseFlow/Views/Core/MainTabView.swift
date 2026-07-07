@@ -15,11 +15,11 @@ enum AppTab: Int, CaseIterable {
         }
     }
 
-    var label: String {
+    var labelKey: String {
         switch self {
-        case .profile:  return "Profile"
-        case .home:     return "Home"
-        case .discover: return "Discover"
+        case .profile:  return "tab_profile"
+        case .home:     return "tab_home"
+        case .discover: return "tab_discover"
         }
     }
 }
@@ -207,7 +207,7 @@ struct TabBarItem: View {
                         .frame(width: 52, height: 32)
                 }
 
-                Text(tab.label)
+                LocalizedText(tab.labelKey)
                     .font(AppDesign.Typography.caption2)
                     .fontWeight(isSelected ? .semibold : .regular)
                     .foregroundStyle(isSelected ? Color.white : Color.white.opacity(0.55))

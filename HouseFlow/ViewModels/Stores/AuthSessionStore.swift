@@ -105,6 +105,7 @@ final class AuthSessionStore: ObservableObject {
             isActive: data.isActive,
             isVerifyEmail: data.isVerifyEmail,
             isVerifyPhone: data.isVerifyPhone,
+            language: data.language,
             lastLogin: data.lastLogin,
             lastName: data.lastName,
             phoneNumber: data.phoneNumber,

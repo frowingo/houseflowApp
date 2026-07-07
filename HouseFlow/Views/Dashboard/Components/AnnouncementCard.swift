@@ -30,11 +30,11 @@ struct AnnouncementCard: View {
                 }
 
                 VStack(alignment: .leading, spacing: 3) {
-                    Text("Announcements")
+                    LocalizedText("announcement_title")
                         .font(AppDesign.Typography.headline)
                         .foregroundColor(AppDesign.Colors.textPrimary)
 
-                    Text("2 hours ago")
+                    LocalizedText("announcement_time")
                         .font(AppDesign.Typography.caption)
                         .foregroundColor(AppDesign.Colors.textSecondary)
                 }
@@ -55,11 +55,11 @@ struct AnnouncementCard: View {
             }
 
             VStack(alignment: .leading, spacing: AppDesign.Spacing.sm) {
-                Text("Welcome to HouseFlow!")
+                LocalizedText("announcement_welcome_title")
                     .font(AppDesign.Typography.bodyBold)
                     .foregroundColor(AppDesign.Colors.textPrimary)
 
-                Text("Keep your shared space organized by completing your assigned chores. Track progress and earn points!")
+                LocalizedText("announcement_welcome_message")
                     .font(AppDesign.Typography.subheadline)
                     .foregroundColor(AppDesign.Colors.textSecondary)
                     .fixedSize(horizontal: false, vertical: true)

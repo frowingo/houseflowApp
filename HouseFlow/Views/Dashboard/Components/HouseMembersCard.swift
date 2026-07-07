@@ -6,7 +6,7 @@ struct HouseMembersCard: View {
     
     var body: some View {
         VStack(alignment: .leading, spacing: AppDesign.Spacing.lg) {
-            Text("House Members")
+            LocalizedText("house_members_title")
                 .font(AppDesign.Typography.headline)
             
             ScrollView(.horizontal, showsIndicators: false) {

@@ -18,13 +18,13 @@ private enum SkylinePlayerEmblem: String, CaseIterable, Identifiable {
 
     var id: String { rawValue }
 
-    var title: String {
+    var titleKey: String {
         switch self {
-        case .paperplane: return "Glider"
-        case .bolt:       return "Bolt"
-        case .sparkles:   return "Spark"
-        case .flame:      return "Flare"
-        case .star:       return "Star"
+        case .paperplane: return "skyline_emblem_glider"
+        case .bolt:       return "skyline_emblem_bolt"
+        case .sparkles:   return "skyline_emblem_spark"
+        case .flame:      return "skyline_emblem_flare"
+        case .star:       return "skyline_emblem_star"
         }
     }
 
@@ -68,13 +68,14 @@ private struct SkylineScoreEntry: Identifiable {
     let rank: Int
     let name: String
     let score: Int
-    let status: String
+    let statusKey: String
     let isCurrentPlayer: Bool
 }
 
 // MARK: - Skyline Dash View
 struct SkylineDashView: View {
     @Environment(\.dismiss) private var dismiss
+    @EnvironmentObject private var appViewModel: AppViewModel
 
     @State private var phase: SkylineDashPhase = .briefing
     @State private var playfieldSize: CGSize = .zero
@@ -89,7 +90,7 @@ struct SkylineDashView: View {
     @State private var selectedEmblem: SkylinePlayerEmblem = .paperplane
     @State private var gameTask: Task<Void, Never>?
 
-    private let playerName = "You"
+    private var playerName: String { appViewModel.localized("common_you") }
     private let gravity: CGFloat = 1180
     private let flapImpulse: CGFloat = -390
     private let gateSpeed: CGFloat = 156
@@ -108,7 +109,7 @@ struct SkylineDashView: View {
                 rank: 1,
                 name: playerName,
                 score: score,
-                status: "Eliminated",
+                statusKey: "skyline_status_eliminated",
                 isCurrentPlayer: true
             ),
         ]
@@ -144,10 +145,10 @@ struct SkylineDashView: View {
                         SkylineBadge(size: 104, emblem: selectedEmblem)
 
                         VStack(spacing: AppDesign.Spacing.xs) {
-                            Text("Skyline Dash")
+                            Text(appViewModel.localized("skyline_title"))
                                 .font(AppDesign.Typography.title2)
                                 .foregroundStyle(.white)
-                            Text("Tap through shared gates. Hit one and your run is over.")
+                            Text(appViewModel.localized("skyline_subtitle"))
                                 .font(AppDesign.Typography.subheadline)
                                 .foregroundStyle(Color.white.opacity(0.72))
                                 .multilineTextAlignment(.center)
@@ -165,7 +166,7 @@ struct SkylineDashView: View {
             }
 
             Button { startGame() } label: {
-                Label("Start Demo Run", systemImage: "paperplane.fill")
+                Label(appViewModel.localized("skyline_start_button"), systemImage: "paperplane.fill")
                     .font(AppDesign.Typography.headline)
                     .foregroundStyle(.white)
                     .frame(maxWidth: .infinity)
@@ -189,11 +190,11 @@ struct SkylineDashView: View {
     private var demoRoomPanel: some View {
         VStack(alignment: .leading, spacing: AppDesign.Spacing.md) {
             HStack {
-                Label("Demo Room SD-001", systemImage: "person.wave.2.fill")
+                Label(appViewModel.localized("skyline_room_label"), systemImage: "person.wave.2.fill")
                     .font(AppDesign.Typography.headline)
                     .foregroundStyle(.white)
                 Spacer()
-                Text("Solo")
+                Text(appViewModel.localized("skyline_mode_solo"))
                     .font(AppDesign.Typography.caption)
                     .foregroundStyle(Color.cyan)
                     .padding(.horizontal, AppDesign.Spacing.sm)
@@ -204,7 +205,7 @@ struct SkylineDashView: View {
 
             HStack(spacing: AppDesign.Spacing.md) {
                 SkylinePilotChip(name: playerName, color: .cyan, isActive: true)
-                SkylinePilotChip(name: "Shared gates", color: .indigo, isActive: false)
+                SkylinePilotChip(name: appViewModel.localized("skyline_shared_gates_label"), color: .indigo, isActive: false)
             }
         }
         .padding(AppDesign.Spacing.lg)
@@ -219,11 +220,11 @@ struct SkylineDashView: View {
     private var emblemPickerPanel: some View {
         VStack(alignment: .leading, spacing: AppDesign.Spacing.md) {
             HStack {
-                Label("Choose Your Icon", systemImage: "circle.hexagongrid.fill")
+                Label(appViewModel.localized("skyline_choose_icon_label"), systemImage: "circle.hexagongrid.fill")
                     .font(AppDesign.Typography.headline)
                     .foregroundStyle(.white)
                 Spacer()
-                Text(selectedEmblem.title)
+                Text(appViewModel.localized(selectedEmblem.titleKey))
                     .font(AppDesign.Typography.caption)
                     .foregroundStyle(selectedEmblem.tint)
                     .padding(.horizontal, AppDesign.Spacing.sm)
@@ -270,7 +271,7 @@ struct SkylineDashView: View {
                                     .rotationEffect(emblem.rotation)
                             }
 
-                            Text(emblem.title)
+                            Text(appViewModel.localized(emblem.titleKey))
                                 .font(AppDesign.Typography.caption2)
                                 .foregroundStyle(emblem == selectedEmblem ? .white : Color.white.opacity(0.58))
                                 .lineLimit(1)
@@ -300,14 +301,14 @@ struct SkylineDashView: View {
 
     private var rulesPanel: some View {
         VStack(alignment: .leading, spacing: AppDesign.Spacing.md) {
-            Label("Run Rules", systemImage: "list.bullet.rectangle.fill")
+            Label(appViewModel.localized("skyline_rules_title"), systemImage: "list.bullet.rectangle.fill")
                 .font(AppDesign.Typography.headline)
                 .foregroundStyle(.white)
 
             VStack(spacing: AppDesign.Spacing.sm) {
-                SkylineRuleRow(icon: "hand.tap.fill", color: .cyan, title: "Tap to Climb", detail: "Gravity pulls you down between taps.")
-                SkylineRuleRow(icon: "rectangle.split.3x1.fill", color: .indigo, title: "Pass Gates", detail: "Each cleared gate adds one score.")
-                SkylineRuleRow(icon: "flag.checkered", color: .orange, title: "Last Survivor Wins", detail: "Demo shows your solo score first.")
+                SkylineRuleRow(icon: "hand.tap.fill", color: .cyan, title: appViewModel.localized("skyline_rule_tap_title"), detail: appViewModel.localized("skyline_rule_tap_detail"))
+                SkylineRuleRow(icon: "rectangle.split.3x1.fill", color: .indigo, title: appViewModel.localized("skyline_rule_gates_title"), detail: appViewModel.localized("skyline_rule_gates_detail"))
+                SkylineRuleRow(icon: "flag.checkered", color: .orange, title: appViewModel.localized("skyline_rule_survivor_title"), detail: appViewModel.localized("skyline_rule_survivor_detail"))
             }
         }
         .padding(AppDesign.Spacing.lg)
@@ -387,15 +388,15 @@ struct SkylineDashView: View {
     private var playingHUD: some View {
         VStack(spacing: 0) {
             HStack(spacing: AppDesign.Spacing.md) {
-                SkylineHUDPill(icon: "number", title: "Score", value: "\(score)", color: .cyan)
-                SkylineHUDPill(icon: "timer", title: "Time", value: elapsedLabel, color: .orange)
+                SkylineHUDPill(icon: "number", title: appViewModel.localized("skyline_hud_score"), value: "\(score)", color: .cyan)
+                SkylineHUDPill(icon: "timer", title: appViewModel.localized("skyline_hud_time"), value: elapsedLabel, color: .orange)
             }
             .padding(.horizontal, AppDesign.Spacing.lg)
             .padding(.top, AppDesign.Spacing.lg)
 
             Spacer()
 
-            Text("Tap anywhere")
+            Text(appViewModel.localized("skyline_tap_anywhere"))
                 .font(AppDesign.Typography.caption)
                 .foregroundStyle(Color.white.opacity(0.66))
                 .padding(.horizontal, AppDesign.Spacing.md)
@@ -407,7 +408,10 @@ struct SkylineDashView: View {
     }
 
     private var elapsedLabel: String {
-        String(format: "%.1fs", elapsedTime)
+        appViewModel.localized(
+            "skyline_time_seconds_template",
+            replacements: ["seconds": String(format: "%.1f", elapsedTime)]
+        )
     }
 
     // MARK: - Game Over
@@ -429,13 +433,19 @@ struct SkylineDashView: View {
                 .animation(.spring(response: 0.55, dampingFraction: 0.48), value: resultAppeared)
 
                 VStack(spacing: AppDesign.Spacing.xs) {
-                    Text("Run Over")
+                    Text(appViewModel.localized("skyline_run_over_title"))
                         .font(.system(size: 34, weight: .black))
                         .foregroundStyle(.white)
-                    Text("You cleared \(score) gates")
+                    Text(appViewModel.localized(
+                        "skyline_cleared_gates_template",
+                        replacements: ["score": "\(score)"]
+                    ))
                         .font(AppDesign.Typography.headline)
                         .foregroundStyle(Color.cyan)
-                    Text("Best demo score: \(bestScore)")
+                    Text(appViewModel.localized(
+                        "skyline_best_score_template",
+                        replacements: ["score": "\(bestScore)"]
+                    ))
                         .font(AppDesign.Typography.caption)
                         .foregroundStyle(Color.white.opacity(0.6))
                 }
@@ -450,7 +460,7 @@ struct SkylineDashView: View {
 
             VStack(spacing: AppDesign.Spacing.md) {
                 Button { startGame() } label: {
-                    Label("Play Again", systemImage: "arrow.clockwise")
+                    Label(appViewModel.localized("common_play_again"), systemImage: "arrow.clockwise")
                         .font(AppDesign.Typography.headline)
                         .foregroundStyle(.white)
                         .frame(maxWidth: .infinity)
@@ -467,7 +477,7 @@ struct SkylineDashView: View {
                 .buttonStyle(ScaleButtonStyle())
 
                 Button { dismiss() } label: {
-                    Text("Main Menu")
+                    Text(appViewModel.localized("common_main_menu"))
                         .font(AppDesign.Typography.bodyBold)
                         .foregroundStyle(Color.white.opacity(0.68))
                         .frame(maxWidth: .infinity)
@@ -486,11 +496,11 @@ struct SkylineDashView: View {
     private var scoreboardPanel: some View {
         VStack(alignment: .leading, spacing: AppDesign.Spacing.md) {
             HStack {
-                Label("Scoreboard", systemImage: "list.number")
+                Label(appViewModel.localized("skyline_scoreboard_title"), systemImage: "list.number")
                     .font(AppDesign.Typography.headline)
                     .foregroundStyle(.white)
                 Spacer()
-                Text("Demo")
+                Text(appViewModel.localized("skyline_demo_label"))
                     .font(AppDesign.Typography.caption)
                     .foregroundStyle(Color.cyan)
             }
@@ -855,12 +865,12 @@ private struct SkylineCrashNotice: View {
             }
 
             VStack(spacing: 3) {
-                Text("You Crashed!")
+                LocalizedText("skyline_crashed_title")
                     .font(.system(size: 22, weight: .black))
                     .foregroundStyle(Color.red)
             }
 
-            Text("Tap anywhere")
+            LocalizedText("skyline_tap_anywhere")
                 .font(AppDesign.Typography.caption2)
                 .foregroundStyle(Color.white.opacity(0.52))
                 .padding(.top, AppDesign.Spacing.xs)
@@ -982,7 +992,7 @@ private struct SkylineScoreRow: View {
                 Text(entry.name)
                     .font(AppDesign.Typography.bodyBold)
                     .foregroundStyle(.white)
-                Text(entry.status)
+                LocalizedText(entry.statusKey)
                     .font(AppDesign.Typography.caption2)
                     .foregroundStyle(Color.white.opacity(0.58))
             }

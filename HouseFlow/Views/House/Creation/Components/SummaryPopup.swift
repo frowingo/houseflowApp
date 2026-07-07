@@ -2,6 +2,8 @@ import SwiftUI
 
 /// Summary popup showing house creation details before confirmation
 struct SummaryPopup: View {
+    @EnvironmentObject private var appViewModel: AppViewModel
+
     let houseName: String
     let houseType: String
     let memberCount: Int
@@ -53,10 +55,10 @@ struct SummaryPopup: View {
                 .font(.system(size: 50))
                 .foregroundColor(AppDesign.Colors.primary)
             
-            Text("Summary")
+            Text(appViewModel.localized("house_summary_title"))
                 .font(AppDesign.Typography.title2)
             
-            Text("Review the information for the home to be created")
+            Text(appViewModel.localized("house_summary_subtitle"))
                 .font(AppDesign.Typography.subheadline)
                 .foregroundColor(AppDesign.Colors.textSecondary)
                 .multilineTextAlignment(.center)
@@ -67,9 +69,15 @@ struct SummaryPopup: View {
     
     private var summaryDetailsSection: some View {
         VStack(spacing: AppDesign.Spacing.lg) {
-            SummaryRow(title: "House Name", value: houseName)
-            SummaryRow(title: "House Type", value: houseType)
-            SummaryRow(title: "Person count", value: "\(memberCount) persons")
+            SummaryRow(title: appViewModel.localized("house_summary_name_label"), value: houseName)
+            SummaryRow(title: appViewModel.localized("house_summary_type_label"), value: houseType)
+            SummaryRow(
+                title: appViewModel.localized("house_summary_person_count_label"),
+                value: appViewModel.localized(
+                    "house_summary_person_count_value_template",
+                    replacements: ["count": "\(memberCount)"]
+                )
+            )
         }
         .padding(.vertical, AppDesign.Spacing.lg)
     }
@@ -79,7 +87,7 @@ struct SummaryPopup: View {
     private var actionButtons: some View {
         VStack(spacing: AppDesign.Spacing.md) {
             Button(action: onConfirm) {
-                Text("Create House")
+                Text(appViewModel.localized("house_summary_create_button"))
                     .font(AppDesign.Typography.headline)
                     .foregroundColor(.white)
                     .frame(maxWidth: .infinity)
@@ -89,7 +97,7 @@ struct SummaryPopup: View {
             }
             
             Button(action: onCancel) {
-                Text("Edit")
+                Text(appViewModel.localized("common_edit"))
                     .font(AppDesign.Typography.subheadline)
                     .foregroundColor(AppDesign.Colors.primary)
             }
