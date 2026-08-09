@@ -7,9 +7,22 @@ final class LocalizationService {
 
     private init() {}
 
-    func fetchPlaintexts(language: AppLanguage) async throws -> [LocalizationPlaintextItem] {
+    func fetchLanguages() async throws -> [LocalizationLanguage] {
         let response = try await network.get(
-            path: "localization/plaintexts/\(language.rawValue)",
+            path: "localization/languages",
+            successType: LocalizationLanguageResponse.self
+        )
+
+        guard response.success else {
+            throw NetworkError.serverError("localization_languages_fetch_failed")
+        }
+
+        return response.data
+    }
+
+    func fetchPlaintexts(languagePrefix: String) async throws -> [LocalizationPlaintextItem] {
+        let response = try await network.get(
+            path: "localization/plaintext/\(languagePrefix)",
             successType: LocalizationPlaintextResponse.self
         )
 

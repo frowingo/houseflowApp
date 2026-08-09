@@ -171,6 +171,11 @@ final class NetworkService {
             if let errorBody = try? decoder.decode(APIErrorResponse.self, from: data) {
                 throw NetworkError.serverError(errorBody.message ?? errorBody.error ?? "Request failed.")
             }
+            if let errorMessage = String(data: data, encoding: .utf8)?
+                .trimmingCharacters(in: .whitespacesAndNewlines),
+               !errorMessage.isEmpty {
+                throw NetworkError.serverError(errorMessage)
+            }
             throw NetworkError.unknown(http.statusCode)
         }
     }

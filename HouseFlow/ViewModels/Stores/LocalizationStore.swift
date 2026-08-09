@@ -3,33 +3,38 @@ import Combine
 
 @MainActor
 final class LocalizationStore: ObservableObject {
-    @Published private(set) var language: AppLanguage
+    @Published private(set) var languagePrefix: String?
+    @Published private(set) var availableLanguages: [LocalizationLanguage] = []
     @Published private(set) var values: [String: String]
     @Published private(set) var isRefreshing = false
+    @Published private(set) var isLoadingLanguages = false
 
     private let service: LocalizationService
     private let cache: LocalizationDiskCache
     private var refreshTask: Task<Void, Never>?
-
-    private static let languageDefaultsKey = "localization.currentLanguage"
+    private var languageTask: Task<Void, Never>?
 
     init() {
         self.service = LocalizationService.shared
         self.cache = LocalizationDiskCache()
 
-        let savedLanguage = AppLanguage(
-            normalizing: UserDefaults.standard.string(forKey: Self.languageDefaultsKey)
-        )
-        self.language = savedLanguage
-        self.values = cache.load(language: savedLanguage)
+        if let cached = cache.loadMostRecent() {
+            self.languagePrefix = cached.languagePrefix
+            self.values = cached.values
+        } else {
+            self.languagePrefix = nil
+            self.values = [:]
+        }
     }
 
     deinit {
         refreshTask?.cancel()
+        languageTask?.cancel()
     }
 
     func start() {
         refreshIfNeeded(force: values.isEmpty)
+        loadLanguagesAndApplyDefault()
     }
 
     func value(for key: String) -> String {
@@ -44,48 +49,152 @@ final class LocalizationStore: ObservableObject {
         return localizedValue
     }
 
-    func setLanguage(_ newLanguage: AppLanguage) {
-        guard newLanguage != language else {
+    func setLanguagePrefix(_ newPrefix: String, forceRefresh: Bool = false) {
+        let normalizedPrefix = normalize(newPrefix)
+        guard !normalizedPrefix.isEmpty else { return }
+
+        guard normalizedPrefix != languagePrefix else {
             refreshIfNeeded(force: values.isEmpty)
             return
         }
 
-        language = newLanguage
-        UserDefaults.standard.set(newLanguage.rawValue, forKey: Self.languageDefaultsKey)
-        values = cache.load(language: newLanguage)
-        refreshIfNeeded(force: true)
+        languagePrefix = normalizedPrefix
+        values = cache.load(languagePrefix: normalizedPrefix)
+        refreshIfNeeded(force: forceRefresh || values.isEmpty)
     }
 
     func applyPreferredLanguage(_ rawLanguage: String?) {
-        setLanguage(AppLanguage(normalizing: rawLanguage))
+        guard let rawLanguage else { return }
+        let normalizedPrefix = normalize(rawLanguage)
+        guard !normalizedPrefix.isEmpty else { return }
+        setLanguagePrefix(normalizedPrefix)
+    }
+
+    func loadLanguagesAndApplyDefault(force: Bool = false) {
+        guard force || availableLanguages.isEmpty else {
+            applyInitialLanguageIfNeeded()
+            return
+        }
+
+        languageTask?.cancel()
+        languageTask = Task { [weak self] in
+            await self?.loadLanguagesAndApplyDefaultAsync()
+        }
+    }
+
+    func loadAvailableLanguages(force: Bool = false) async throws {
+        guard force || availableLanguages.isEmpty else { return }
+
+        isLoadingLanguages = true
+        defer { isLoadingLanguages = false }
+
+        let languages = try await service.fetchLanguages()
+        availableLanguages = languages
+        applyInitialLanguageIfNeeded()
+    }
+
+    func refreshLanguagePrefix(_ prefix: String) async throws {
+        let normalizedPrefix = normalize(prefix)
+        guard !normalizedPrefix.isEmpty else { return }
+
+        refreshTask?.cancel()
+        languagePrefix = normalizedPrefix
+        values = cache.load(languagePrefix: normalizedPrefix)
+        isRefreshing = true
+        defer { isRefreshing = false }
+
+        let items = try await service.fetchPlaintexts(languagePrefix: normalizedPrefix)
+        let freshValues = valuesDictionary(from: items)
+        values = freshValues
+        cache.save(values: freshValues, languagePrefix: normalizedPrefix)
     }
 
     func refreshIfNeeded(force: Bool = false) {
         guard force || values.isEmpty else { return }
+        guard let currentLanguagePrefix = languagePrefix, !currentLanguagePrefix.isEmpty else { return }
 
         refreshTask?.cancel()
-        let currentLanguage = language
         refreshTask = Task { [weak self] in
-            await self?.refresh(language: currentLanguage)
+            await self?.refresh(languagePrefix: currentLanguagePrefix)
         }
     }
 
-    private func refresh(language: AppLanguage) async {
+    private func loadLanguagesAndApplyDefaultAsync() async {
+        isLoadingLanguages = true
+        defer { isLoadingLanguages = false }
+
+        do {
+            let languages = try await service.fetchLanguages()
+            guard !Task.isCancelled else { return }
+            availableLanguages = languages
+            applyInitialLanguageIfNeeded()
+        } catch {
+            // If the endpoint fails and there is no cache, lookup falls back to keys.
+        }
+    }
+
+    private func applyInitialLanguageIfNeeded() {
+        guard languagePrefix == nil else { return }
+
+        let activeLanguages = availableLanguages.filter { $0.isActive }
+        let selectedPrefix = preferredDeviceLanguagePrefix(in: activeLanguages)
+            ?? activeLanguages.first(where: { $0.isDefault })?.prefix
+            ?? activeLanguages.first?.prefix
+
+        guard let selectedPrefix else { return }
+        setLanguagePrefix(selectedPrefix, forceRefresh: values.isEmpty)
+    }
+
+    private func preferredDeviceLanguagePrefix(in activeLanguages: [LocalizationLanguage]) -> String? {
+        guard let preferredIdentifier = Locale.preferredLanguages.first else { return nil }
+
+        let normalizedIdentifier = normalizeLocaleIdentifier(preferredIdentifier)
+        if let exactMatch = activeLanguages.first(where: {
+            normalizeLocaleIdentifier($0.prefix) == normalizedIdentifier
+        }) {
+            return exactMatch.prefix
+        }
+
+        guard let preferredLanguageCode = baseLanguageCode(from: normalizedIdentifier) else { return nil }
+        return activeLanguages.first(where: {
+            baseLanguageCode(from: normalizeLocaleIdentifier($0.prefix)) == preferredLanguageCode
+        })?.prefix
+    }
+
+    private func refresh(languagePrefix: String) async {
         isRefreshing = true
         defer { isRefreshing = false }
 
         do {
-            let items = try await service.fetchPlaintexts(language: language)
-            guard !Task.isCancelled, self.language == language else { return }
+            let items = try await service.fetchPlaintexts(languagePrefix: languagePrefix)
+            guard !Task.isCancelled, self.languagePrefix == languagePrefix else { return }
 
-            let freshValues = Dictionary(
-                uniqueKeysWithValues: items.map { ($0.key, $0.value) }
-            )
+            let freshValues = valuesDictionary(from: items)
             values = freshValues
-            cache.save(values: freshValues, language: language)
+            cache.save(values: freshValues, languagePrefix: languagePrefix)
         } catch {
             // Lookup already falls back to the key, so a failed refresh should not block UI.
         }
+    }
+
+    private func valuesDictionary(from items: [LocalizationPlaintextItem]) -> [String: String] {
+        var dictionary: [String: String] = [:]
+        for item in items {
+            dictionary[item.key] = item.value
+        }
+        return dictionary
+    }
+
+    private func normalize(_ prefix: String) -> String {
+        prefix.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+    }
+
+    private func normalizeLocaleIdentifier(_ identifier: String) -> String {
+        normalize(identifier).replacingOccurrences(of: "_", with: "-")
+    }
+
+    private func baseLanguageCode(from identifier: String) -> String? {
+        identifier.split(separator: "-", omittingEmptySubsequences: true).first.map(String.init)
     }
 }
 
@@ -98,9 +207,9 @@ struct LocalizationDiskCache {
         self.fileManager = fileManager
     }
 
-    func load(language: AppLanguage) -> [String: String] {
+    func load(languagePrefix: String) -> [String: String] {
         guard
-            let data = try? Data(contentsOf: fileURL(for: language)),
+            let data = try? Data(contentsOf: fileURL(for: languagePrefix)),
             let payload = try? decoder.decode(LocalizationCachePayload.self, from: data)
         else {
             return [:]
@@ -109,24 +218,58 @@ struct LocalizationDiskCache {
         return payload.values
     }
 
-    func save(values: [String: String], language: AppLanguage) {
+    func loadMostRecent() -> (languagePrefix: String, values: [String: String])? {
+        guard
+            let files = try? fileManager.contentsOfDirectory(
+                at: cacheDirectory(),
+                includingPropertiesForKeys: [.contentModificationDateKey],
+                options: [.skipsHiddenFiles]
+            )
+        else {
+            return nil
+        }
+
+        let sortedFiles = files
+            .filter { $0.lastPathComponent.hasPrefix("plaintext_") && $0.pathExtension == "json" }
+            .sorted { lhs, rhs in
+                let lhsDate = (try? lhs.resourceValues(forKeys: [.contentModificationDateKey]).contentModificationDate) ?? .distantPast
+                let rhsDate = (try? rhs.resourceValues(forKeys: [.contentModificationDateKey]).contentModificationDate) ?? .distantPast
+                return lhsDate > rhsDate
+            }
+
+        for file in sortedFiles {
+            guard
+                let data = try? Data(contentsOf: file),
+                let payload = try? decoder.decode(LocalizationCachePayload.self, from: data),
+                !payload.language.isEmpty,
+                !payload.values.isEmpty
+            else {
+                continue
+            }
+            return (payload.language, payload.values)
+        }
+
+        return nil
+    }
+
+    func save(values: [String: String], languagePrefix: String) {
         do {
             let directory = cacheDirectory()
             try fileManager.createDirectory(at: directory, withIntermediateDirectories: true)
             let payload = LocalizationCachePayload(
-                language: language.rawValue,
+                language: languagePrefix,
                 updatedAt: Date(),
                 values: values
             )
             let data = try encoder.encode(payload)
-            try data.write(to: fileURL(for: language), options: .atomic)
+            try data.write(to: fileURL(for: languagePrefix), options: .atomic)
         } catch {
             // Persisting the cache is best-effort; in-memory values remain available.
         }
     }
 
-    private func fileURL(for language: AppLanguage) -> URL {
-        cacheDirectory().appendingPathComponent("plaintext_\(language.rawValue).json")
+    private func fileURL(for languagePrefix: String) -> URL {
+        cacheDirectory().appendingPathComponent("plaintext_\(languagePrefix).json")
     }
 
     private func cacheDirectory() -> URL {

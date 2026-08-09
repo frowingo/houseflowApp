@@ -1,28 +1,19 @@
 import Foundation
 
-enum AppLanguage: String, CaseIterable, Codable, Identifiable {
-    case english = "en"
-    case turkish = "tr"
+struct LocalizationLanguage: Codable, Identifiable, Equatable {
+    let image: String
+    let isActive: Bool
+    let isDefault: Bool
+    let name: String
+    let nativeName: String
+    let prefix: String
 
-    var id: String { rawValue }
+    var id: String { prefix }
+}
 
-    var displayName: String {
-        switch self {
-        case .english: return "English"
-        case .turkish: return "Türkçe"
-        }
-    }
-
-    static let fallback: AppLanguage = .english
-
-    init(normalizing rawValue: String?) {
-        switch rawValue?.trimmingCharacters(in: .whitespacesAndNewlines).lowercased() {
-        case AppLanguage.turkish.rawValue:
-            self = .turkish
-        default:
-            self = .english
-        }
-    }
+struct LocalizationLanguageResponse: Decodable {
+    let data: [LocalizationLanguage]
+    let success: Bool
 }
 
 struct LocalizationPlaintextItem: Codable, Equatable {

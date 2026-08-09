@@ -58,7 +58,11 @@ class AppViewModel: ObservableObject {
 
     var dashboardMembers: [User] { dashboardStore.members }
     var dashboardChores: [Chore] { dashboardStore.chores }
-    var currentLanguage: AppLanguage { localizationStore.language }
+    var currentLanguagePrefix: String? {
+        currentUserProfile?.language ?? localizationStore.languagePrefix
+    }
+    var localizationLanguages: [LocalizationLanguage] { localizationStore.availableLanguages }
+    var isLoadingLocalizationLanguages: Bool { localizationStore.isLoadingLanguages }
 
     var chores: [Chore] {
         get { choreStore.chores }
@@ -362,21 +366,31 @@ class AppViewModel: ObservableObject {
         }
     }
 
-    func setLocalizationLanguage(_ language: AppLanguage) {
-        localizationStore.setLanguage(language)
+    func loadLocalizationLanguages() async throws {
+        try await localizationStore.loadAvailableLanguages(force: true)
     }
 
-    func updateLocalizationLanguage(_ language: AppLanguage) async throws {
-        localizationStore.setLanguage(language)
+    func setLocalizationLanguage(prefix: String) {
+        localizationStore.setLanguagePrefix(prefix)
+    }
+
+    func updateLocalizationLanguage(prefix: String) async throws {
         let request = UpdateProfileRequest(
             imageUrl: nil,
             birthDay: nil,
             firstName: nil,
             lastName: nil,
             phoneNumber: nil,
-            language: language.rawValue
+            language: prefix
         )
         try await updateProfile(request)
+        try await localizationStore.refreshLanguagePrefix(prefix)
+    }
+
+    func saveLanguagePreferenceAndRequireLogin(prefix: String) async throws {
+        try await updateLocalizationLanguage(prefix: prefix)
+        logout()
+        showToast(message: localized("language_settings_relogin_message"), isError: false)
     }
 
     // MARK: - Auto Login
@@ -406,7 +420,11 @@ class AppViewModel: ObservableObject {
             let profile = try await authStore.resolveAuthenticatedUser(
                 invalidMessage: "Oturumunuz sona ermiş. Lütfen tekrar giriş yapın."
             )
-            localizationStore.applyPreferredLanguage(profile.language)
+            if let language = profile.language {
+                localizationStore.applyPreferredLanguage(language)
+            } else {
+                localizationStore.loadLanguagesAndApplyDefault(force: localizationLanguages.isEmpty)
+            }
             isAuthenticated = true
             _ = try await houseStore.loadFirstHouseIfPresent(for: profile)
         } catch {
@@ -453,7 +471,11 @@ class AppViewModel: ObservableObject {
         do {
             setCurrentHouseDetails(nil)
             let profile = try await authStore.resolveAuthenticatedUser()
-            localizationStore.applyPreferredLanguage(profile.language)
+            if let language = profile.language {
+                localizationStore.applyPreferredLanguage(language)
+            } else {
+                localizationStore.loadLanguagesAndApplyDefault(force: localizationLanguages.isEmpty)
+            }
             isAuthenticated = true
             _ = try await houseStore.loadFirstHouseIfPresent(for: profile)
         } catch {
