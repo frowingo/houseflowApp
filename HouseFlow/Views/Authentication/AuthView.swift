@@ -15,7 +15,7 @@ struct AuthView: View {
 
     var body: some View {
         ZStack(alignment: .bottom) {
-            heroGradient.ignoresSafeArea()
+            Color(.systemBackground).ignoresSafeArea()
 
             VStack(spacing: 0) {
                 heroSection
@@ -98,6 +98,12 @@ struct AuthView: View {
         }
         .padding(.top, AppDesign.Spacing.xxxl)
         .padding(.bottom, AppDesign.Spacing.huge)
+        .frame(maxWidth: .infinity)
+        .background(
+            heroGradient
+                .padding(.bottom, -32)
+                .ignoresSafeArea(.container, edges: .top)
+        )
     }
 
     // MARK: - Mode Switcher

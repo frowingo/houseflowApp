@@ -92,7 +92,7 @@ struct ForgotPasswordView: View {
 
     var body: some View {
         ZStack(alignment: .top) {
-            heroGradient.ignoresSafeArea()
+            Color(.systemBackground).ignoresSafeArea()
 
             VStack(spacing: 0) {
                 heroSection
@@ -171,6 +171,12 @@ struct ForgotPasswordView: View {
         }
         .padding(.top, AppDesign.Spacing.xl)
         .padding(.bottom, AppDesign.Spacing.xxl)
+        .frame(maxWidth: .infinity)
+        .background(
+            heroGradient
+                .padding(.bottom, -32)
+                .ignoresSafeArea(.container, edges: .top)
+        )
     }
 
     // MARK: - Back Button
