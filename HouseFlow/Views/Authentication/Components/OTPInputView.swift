@@ -1,6 +1,7 @@
 import SwiftUI
 
 struct OTPInputView: View {
+    @EnvironmentObject private var appViewModel: AppViewModel
     @Binding var code: String
     let digitsOnly: Bool
     @FocusState private var isFocused: Bool
@@ -39,7 +40,10 @@ struct OTPInputView: View {
                 }
         )
         .accessibilityElement(children: .combine)
-        .accessibilityLabel("Verification code")
+        .accessibilityLabel(appViewModel.localized(
+            "email_verification_code_accessibility_label",
+            fallback: "Verification code"
+        ))
         .accessibilityValue(code)
     }
 
