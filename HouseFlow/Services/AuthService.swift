@@ -78,6 +78,34 @@ final class AuthService {
         )
     }
 
+    // MARK: - Email Verification
+
+    /// GET auth/validate-email — Bearer token only; sends a verification code.
+    func sendEmailVerificationCode() async throws -> ValidateEmailResponse {
+        guard let token = keychain.authToken else {
+            throw NetworkError.serverError("No token stored.")
+        }
+        return try await network.get(
+            path: "auth/validate-email",
+            queryItems: [],
+            successType: ValidateEmailResponse.self,
+            token: token
+        )
+    }
+
+    /// POST auth/validate-email — Bearer token plus the six-character verification code.
+    func validateEmail(code: String) async throws -> ValidateEmailResponse {
+        guard let token = keychain.authToken else {
+            throw NetworkError.serverError("No token stored.")
+        }
+        return try await network.authenticatedRequest(
+            path: "auth/validate-email",
+            body: ValidateEmailRequest(code: code),
+            successType: ValidateEmailResponse.self,
+            token: token
+        )
+    }
+
     // MARK: - Is Authenticated
 
     /// GET auth/isAuth — Bearer token only, returns { "success": bool, "data": { ...user } }

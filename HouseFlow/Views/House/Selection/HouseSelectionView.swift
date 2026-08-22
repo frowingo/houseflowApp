@@ -11,7 +11,25 @@ struct HouseSelectionView: View {
             optionsSection
             Spacer(minLength: 60)
         }
+        .background(selectionBackground)
         .navigationBarHidden(true)
+    }
+
+    private var selectionBackground: some View {
+        ZStack {
+            HouseJourneyTheme.pageGradient
+
+            Circle()
+                .fill(HouseJourneyTheme.indigo.opacity(0.07))
+                .frame(width: 260, height: 260)
+                .offset(x: 155, y: -265)
+
+            Circle()
+                .fill(HouseJourneyTheme.accentOrange.opacity(0.045))
+                .frame(width: 190, height: 190)
+                .offset(x: -175, y: 320)
+        }
+        .ignoresSafeArea()
     }
     
     // MARK: - Header Section
@@ -19,7 +37,8 @@ struct HouseSelectionView: View {
     private var headerSection: some View {
         VStack(spacing: AppDesign.Spacing.sm) {
             Text(appViewModel.localized("house_selection_title"))
-                .font(AppDesign.Typography.largeTitle)
+                .font(.system(size: 34, weight: .bold, design: .rounded))
+                .foregroundStyle(AppDesign.Colors.textPrimary)
             
             Text(appViewModel.localized("house_selection_subtitle"))
                 .font(AppDesign.Typography.subheadline)
@@ -28,6 +47,11 @@ struct HouseSelectionView: View {
         }
         .padding(.top, 60)
         .padding(.bottom, AppDesign.Spacing.xxxl)
+        .overlay(alignment: .bottom) {
+            Capsule()
+                .fill(HouseJourneyTheme.accentOrange)
+                .frame(width: 34, height: 4)
+        }
     }
     
     // MARK: - Options Section
@@ -50,7 +74,7 @@ struct HouseSelectionView: View {
                 title: appViewModel.localized("house_selection_create_title"),
                 subtitle: appViewModel.localized("house_selection_create_subtitle"),
                 iconName: "plus.circle.fill",
-                backgroundColor: .blue
+                backgroundColor: HouseJourneyTheme.indigo
             )
         }
         .buttonStyle(CardButtonStyle())
@@ -66,7 +90,7 @@ struct HouseSelectionView: View {
                 title: appViewModel.localized("house_selection_join_title"),
                 subtitle: appViewModel.localized("house_selection_join_subtitle"),
                 iconName: "person.2.circle.fill",
-                backgroundColor: .green
+                backgroundColor: HouseJourneyTheme.teal
             )
         }
         .buttonStyle(CardButtonStyle())

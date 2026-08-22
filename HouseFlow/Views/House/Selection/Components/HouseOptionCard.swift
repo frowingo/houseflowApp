@@ -16,13 +16,23 @@ struct HouseOptionCard: View {
         .padding(AppDesign.Spacing.xxl)
         .frame(maxWidth: .infinity)
         .frame(height: 220)
-        .background(AppDesign.Colors.surface)
+        .background(HouseJourneyTheme.surface)
         .cornerRadius(AppDesign.CornerRadius.xxl)
+        .overlay(
+            RoundedRectangle(cornerRadius: AppDesign.CornerRadius.xxl)
+                .stroke(backgroundColor.opacity(0.18), lineWidth: 1)
+        )
+        .overlay(alignment: .topTrailing) {
+            Circle()
+                .fill(HouseJourneyTheme.accentOrange)
+                .frame(width: 8, height: 8)
+                .padding(18)
+        }
         .shadow(
-            color: AppDesign.Shadow.medium.color,
-            radius: AppDesign.Shadow.medium.radius,
-            x: AppDesign.Shadow.medium.x,
-            y: AppDesign.Shadow.medium.y
+            color: backgroundColor.opacity(0.13),
+            radius: 18,
+            x: 0,
+            y: 8
         )
     }
     
@@ -33,8 +43,19 @@ struct HouseOptionCard: View {
             .font(.system(size: AppDesign.Size.iconExtraLarge, weight: .medium))
             .foregroundColor(.white)
             .frame(width: 100, height: 100)
-            .background(backgroundColor)
+            .background(
+                LinearGradient(
+                    colors: [backgroundColor, backgroundColor.opacity(0.72)],
+                    startPoint: .topLeading,
+                    endPoint: .bottomTrailing
+                )
+            )
             .clipShape(Circle())
+            .overlay(
+                Circle()
+                    .stroke(Color.white.opacity(0.30), lineWidth: 1)
+                    .padding(6)
+            )
             .shadow(
                 color: backgroundColor.opacity(0.3),
                 radius: 10,

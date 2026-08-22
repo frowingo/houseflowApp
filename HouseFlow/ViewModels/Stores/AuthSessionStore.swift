@@ -9,12 +9,17 @@ final class AuthSessionStore: ObservableObject {
     @Published var isLoading = false
     @Published var authError: String?
     @Published var successToast: String?
+    @Published private(set) var pendingEmailVerification: String?
     @Published private(set) var currentUserId: String?
     @Published private(set) var currentUserProfile: IsAuthUserData?
 
     private let keychain = KeychainService.shared
     private let authService = AuthService.shared
     private let userService = UserService.shared
+
+    init() {
+        pendingEmailVerification = keychain.pendingEmailVerification
+    }
 
     func login(email: String, password: String) async -> Bool {
         isLoading = true
@@ -23,6 +28,7 @@ final class AuthSessionStore: ObservableObject {
 
         do {
             _ = try await authService.login(email: email, password: password)
+            clearPendingEmailVerification()
             return true
         } catch {
             authError = error.localizedDescription
@@ -42,6 +48,7 @@ final class AuthSessionStore: ObservableObject {
                 firstName: firstName,
                 lastName: lastName
             )
+            requireEmailVerification(for: email)
             return true
         } catch {
             authError = error.localizedDescription
@@ -74,6 +81,20 @@ final class AuthSessionStore: ObservableObject {
         } catch {
             authError = error.localizedDescription
             return false
+        }
+    }
+
+    func sendEmailVerificationCode() async throws {
+        let response = try await authService.sendEmailVerificationCode()
+        guard response.success else {
+            throw NetworkError.serverError("Verification email could not be sent.")
+        }
+    }
+
+    func validateEmail(code: String) async throws {
+        let response = try await authService.validateEmail(code: code)
+        guard response.success else {
+            throw NetworkError.serverError("The verification code is invalid.")
         }
     }
 
@@ -115,6 +136,7 @@ final class AuthSessionStore: ObservableObject {
 
     func logout() {
         authService.logout()
+        clearPendingEmailVerification()
         isAuthenticated = false
         showAuth = false
         isLoading = false
@@ -142,5 +164,16 @@ final class AuthSessionStore: ObservableObject {
         currentUser = nil
         currentUserId = nil
         currentUserProfile = nil
+    }
+
+    func requireEmailVerification(for email: String) {
+        let normalizedEmail = email.trimmingCharacters(in: .whitespacesAndNewlines)
+        pendingEmailVerification = normalizedEmail
+        keychain.pendingEmailVerification = normalizedEmail
+    }
+
+    func clearPendingEmailVerification() {
+        pendingEmailVerification = nil
+        keychain.pendingEmailVerification = nil
     }
 }

@@ -13,8 +13,7 @@ struct HouseLoadingView: View {
 
     var body: some View {
         ZStack {
-            AppDesign.Colors.background
-                .ignoresSafeArea()
+            loadingBackground
 
             VStack(spacing: AppDesign.Spacing.xxxl) {
                 Spacer()
@@ -23,23 +22,32 @@ struct HouseLoadingView: View {
                 ZStack {
                     // Outer pulsing ring
                     Circle()
-                        .fill(AppDesign.Colors.primary.opacity(ringOpacity))
+                        .fill(phaseColor.opacity(ringOpacity))
                         .frame(width: 170, height: 170)
                         .scaleEffect(pulseScale)
 
                     // Mid ring
                     Circle()
-                        .fill(AppDesign.Colors.primary.opacity(0.10))
+                        .fill(HouseJourneyTheme.teal.opacity(0.085))
                         .frame(width: 120, height: 120)
 
                     // Inner ring
                     Circle()
-                        .fill(AppDesign.Colors.primary.opacity(0.15))
+                        .fill(HouseJourneyTheme.surface)
                         .frame(width: 88, height: 88)
+                        .overlay(
+                            Circle()
+                                .stroke(phaseColor.opacity(0.18), lineWidth: 1)
+                        )
 
                     Image(systemName: "house.fill")
                         .font(.system(size: 40, weight: .medium))
-                        .foregroundColor(AppDesign.Colors.primary)
+                        .foregroundColor(phaseColor)
+
+                    Circle()
+                        .fill(HouseJourneyTheme.accentOrange)
+                        .frame(width: 10, height: 10)
+                        .offset(x: 36, y: -36)
                 }
                 .frame(width: 170, height: 170)
 
@@ -64,7 +72,7 @@ struct HouseLoadingView: View {
                     HStack(spacing: AppDesign.Spacing.sm) {
                         ForEach(0..<3, id: \.self) { i in
                             Circle()
-                                .fill(AppDesign.Colors.primary)
+                                .fill(dotsPhase == i ? HouseJourneyTheme.accentOrange : phaseColor)
                                 .frame(width: 8, height: 8)
                                 .opacity(dotsPhase == i ? 1.0 : 0.3)
                                 .scaleEffect(dotsPhase == i ? 1.35 : 1.0)
@@ -84,6 +92,46 @@ struct HouseLoadingView: View {
         }
         .onDisappear {
             stopDotsAnimation()
+        }
+    }
+
+    private var loadingBackground: some View {
+        ZStack {
+            HouseJourneyTheme.pageBackground
+
+            RadialGradient(
+                colors: [phaseColor.opacity(0.12), Color.clear],
+                center: .center,
+                startRadius: 30,
+                endRadius: 360
+            )
+
+            LinearGradient(
+                colors: [
+                    HouseJourneyTheme.indigo.opacity(0.035),
+                    HouseJourneyTheme.teal.opacity(0.025),
+                    Color.clear
+                ],
+                startPoint: .topLeading,
+                endPoint: .bottomTrailing
+            )
+        }
+        .ignoresSafeArea()
+        .animation(AppDesign.Animation.standard, value: appViewModel.houseLoadingPhase.titleKey)
+    }
+
+    private var phaseColor: Color {
+        switch appViewModel.houseLoadingPhase {
+        case .creating:
+            return HouseJourneyTheme.purple
+        case .joining:
+            return HouseJourneyTheme.teal
+        case .loadingDetails, .loadingHouse:
+            return HouseJourneyTheme.blue
+        case .checkingAuth:
+            return HouseJourneyTheme.indigo
+        case .loadingUser:
+            return HouseJourneyTheme.teal
         }
     }
 

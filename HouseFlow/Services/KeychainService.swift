@@ -73,6 +73,7 @@ extension KeychainService {
     static let userEmailKey    = "userEmail"
     static let userFirstNameKey = "userFirstName"
     static let userLastNameKey  = "userLastName"
+    static let pendingEmailVerificationKey = "pendingEmailVerification"
 
     var authToken: String? {
         get { load(forKey: Self.authTokenKey) }
@@ -114,6 +115,17 @@ extension KeychainService {
                 save(value, forKey: Self.userLastNameKey)
             } else {
                 delete(forKey: Self.userLastNameKey)
+            }
+        }
+    }
+
+    var pendingEmailVerification: String? {
+        get { load(forKey: Self.pendingEmailVerificationKey) }
+        set {
+            if let email = newValue {
+                save(email, forKey: Self.pendingEmailVerificationKey)
+            } else {
+                delete(forKey: Self.pendingEmailVerificationKey)
             }
         }
     }

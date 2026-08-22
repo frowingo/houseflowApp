@@ -96,6 +96,54 @@ enum AppDesign {
     }
 }
 
+// MARK: - House Journey Theme
+
+/// Shared visual palette for the create / join / house-state journey.
+/// Cool colors carry the screens while orange is reserved for small brand accents.
+enum HouseJourneyTheme {
+    static let accentOrange = Color(red: 1.0, green: 0.48, blue: 0.15)
+    static let accentOrangeInk = Color(red: 0.73, green: 0.25, blue: 0.045)
+    static let indigo = Color(red: 0.27, green: 0.34, blue: 0.62)
+    static let deepIndigo = Color(red: 0.20, green: 0.25, blue: 0.48)
+    static let blue = Color(red: 0.24, green: 0.48, blue: 0.72)
+    static let teal = Color(red: 0.18, green: 0.57, blue: 0.53)
+    static let deepTeal = Color(red: 0.10, green: 0.40, blue: 0.37)
+    static let buttonBlue = Color(red: 0.18, green: 0.36, blue: 0.59)
+    static let purple = Color(red: 0.48, green: 0.38, blue: 0.68)
+    static let errorRed = Color(red: 0.82, green: 0.27, blue: 0.31)
+
+    static let pageBackground = Color(.systemGroupedBackground)
+    static let surface = Color(.secondarySystemGroupedBackground)
+
+    static var pageGradient: LinearGradient {
+        LinearGradient(
+            colors: [
+                indigo.opacity(0.08),
+                teal.opacity(0.035),
+                pageBackground
+            ],
+            startPoint: .topLeading,
+            endPoint: .bottomTrailing
+        )
+    }
+
+    static var primaryButtonGradient: LinearGradient {
+        LinearGradient(
+            colors: [indigo, deepIndigo],
+            startPoint: .leading,
+            endPoint: .trailing
+        )
+    }
+
+    static var joinButtonGradient: LinearGradient {
+        LinearGradient(
+            colors: [deepTeal, buttonBlue],
+            startPoint: .leading,
+            endPoint: .trailing
+        )
+    }
+}
+
 // MARK: - Hex Color helper
 extension Color {
     init(hex: String) {

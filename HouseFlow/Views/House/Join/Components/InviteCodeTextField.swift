@@ -19,6 +19,7 @@ struct InviteCodeTextField: View {
             .focused($isFocused)
             .padding(.horizontal, AppDesign.Spacing.lg)
             .padding(.vertical, AppDesign.Spacing.lg)
+            .foregroundStyle(AppDesign.Colors.textPrimary)
             .background(fieldBackground)
             .onSubmit(onSubmit)
     }
@@ -27,17 +28,26 @@ struct InviteCodeTextField: View {
     
     private var fieldBackground: some View {
         RoundedRectangle(cornerRadius: AppDesign.CornerRadius.md)
-            .fill(AppDesign.Colors.cardBackground)
+            .fill(HouseJourneyTheme.surface)
             .overlay(borderOverlay)
+            .shadow(
+                color: isFocused ? HouseJourneyTheme.accentOrange.opacity(0.12) : Color.black.opacity(0.035),
+                radius: isFocused ? 10 : 5,
+                x: 0,
+                y: 3
+            )
     }
     
     private var borderOverlay: some View {
         RoundedRectangle(cornerRadius: AppDesign.CornerRadius.md)
             .stroke(
-                isError ? AppDesign.Colors.error : Color.clear,
-                lineWidth: 2
+                isError
+                    ? AppDesign.Colors.error
+                    : (isFocused ? HouseJourneyTheme.accentOrange : HouseJourneyTheme.indigo.opacity(0.12)),
+                lineWidth: isFocused || isError ? 2 : 1
             )
             .animation(AppDesign.Animation.quick, value: isError)
+            .animation(AppDesign.Animation.quick, value: isFocused)
     }
 }
 

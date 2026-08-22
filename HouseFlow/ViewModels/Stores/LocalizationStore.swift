@@ -41,6 +41,10 @@ final class LocalizationStore: ObservableObject {
         values[key] ?? key
     }
 
+    func value(for key: String, fallback: String) -> String {
+        values[key] ?? fallback
+    }
+
     func value(for key: String, replacements: [String: String]) -> String {
         var localizedValue = value(for: key)
         for (placeholder, value) in replacements {

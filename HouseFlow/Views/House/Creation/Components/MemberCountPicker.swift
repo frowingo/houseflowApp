@@ -74,7 +74,7 @@ struct MemberCountPicker: View {
                 .cornerRadius(1.5)
             
             Circle()
-                .fill(memberCount >= count ? AppDesign.Colors.primary : Color(.systemGray4))
+                .fill(memberCount >= count ? HouseJourneyTheme.indigo : Color(.systemGray4))
                 .frame(width: 10, height: 10)
                 .animation(AppDesign.Animation.quick, value: memberCount)
         }
@@ -102,19 +102,23 @@ struct MemberCountPicker: View {
             .frame(width: 44, height: 44)
             .background(
                 Circle()
-                    .fill(AppDesign.Colors.primary)
+                    .fill(HouseJourneyTheme.indigo)
                     .shadow(
-                        color: AppDesign.Colors.primary.opacity(0.3),
+                        color: HouseJourneyTheme.indigo.opacity(0.26),
                         radius: 10,
                         x: 0,
                         y: 4
+                    )
+                    .overlay(
+                        Circle()
+                            .stroke(HouseJourneyTheme.accentOrange.opacity(0.75), lineWidth: 1.5)
                     )
             )
     }
     
     private var bubbleTail: some View {
         Triangle()
-            .fill(AppDesign.Colors.primary)
+            .fill(HouseJourneyTheme.indigo)
             .frame(width: 14, height: 10)
             .offset(y: -1)
     }

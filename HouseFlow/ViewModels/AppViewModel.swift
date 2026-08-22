@@ -39,6 +39,8 @@ enum HouseLoadingPhase: Equatable {
 @MainActor
 class AppViewModel: ObservableObject {
     @Published var navigationDirection: NavigationDirection = .forward
+    @Published private(set) var showBirthdaySetup = false
+    @Published private(set) var signupSuccessMessage: String?
 
     private let keychain = KeychainService.shared
     private let authStore = AuthSessionStore()
@@ -102,6 +104,10 @@ class AppViewModel: ObservableObject {
     var successToast: String? {
         get { authStore.successToast }
         set { authStore.successToast = newValue }
+    }
+
+    var pendingEmailVerification: String? {
+        authStore.pendingEmailVerification
     }
 
     var hasSelectedHouse: Bool {
@@ -345,6 +351,10 @@ class AppViewModel: ObservableObject {
         localizationStore.value(for: key)
     }
 
+    func localized(_ key: String, fallback: String) -> String {
+        localizationStore.value(for: key, fallback: fallback)
+    }
+
     func localized(_ key: String, replacements: [String: String]) -> String {
         localizationStore.value(for: key, replacements: replacements)
     }
@@ -403,6 +413,11 @@ class AppViewModel: ObservableObject {
             isInitializing = false
             return
         }
+        guard pendingEmailVerification == nil else {
+            isInitializing = false
+            showHouseLoading = false
+            return
+        }
         // Already in an authenticated session → nothing to do.
         guard !isAuthenticated else {
             isInitializing = false
@@ -420,6 +435,21 @@ class AppViewModel: ObservableObject {
             let profile = try await authStore.resolveAuthenticatedUser(
                 invalidMessage: "Oturumunuz sona ermiş. Lütfen tekrar giriş yapın."
             )
+            guard profile.isVerifyEmail else {
+                authStore.requireEmailVerification(for: profile.email)
+                isAuthenticated = false
+                showAuth = false
+                showHouseLoading = false
+                return
+            }
+            if needsBirthdaySetup(profile) {
+                showBirthdaySetup = true
+                isAuthenticated = false
+                showAuth = false
+                showHouseLoading = false
+                return
+            }
+            showBirthdaySetup = false
             if let language = profile.language {
                 localizationStore.applyPreferredLanguage(language)
             } else {
@@ -444,10 +474,27 @@ class AppViewModel: ObservableObject {
         }
     }
 
-    func signup(email: String, password: String, firstName: String, lastName: String) async {
-        if await authStore.signup(email: email, password: password, firstName: firstName, lastName: lastName) {
-            didAuthenticate()
+    @discardableResult
+    func signup(email: String, password: String, firstName: String, lastName: String) async -> Bool {
+        navigationDirection = .forward
+        signupSuccessMessage = nil
+        let didSignup = await authStore.signup(
+            email: email,
+            password: password,
+            firstName: firstName,
+            lastName: lastName
+        )
+        if didSignup {
+            signupSuccessMessage = localized(
+                "signup_success_message",
+                fallback: "Your account was created successfully. Verify your email to continue."
+            )
         }
+        return didSignup
+    }
+
+    func clearSignupSuccessMessage() {
+        signupSuccessMessage = nil
     }
 
     func forgotPassword(email: String) async -> Bool {
@@ -458,6 +505,26 @@ class AppViewModel: ObservableObject {
         await authStore.resetPassword(email: email, code: code, newPassword: newPassword)
     }
 
+    func sendEmailVerificationCode() async throws {
+        try await authStore.sendEmailVerificationCode()
+    }
+
+    func validateEmail(code: String) async throws {
+        try await authStore.validateEmail(code: code)
+        let profile = try await authStore.resolveAuthenticatedUser()
+        guard profile.isVerifyEmail else {
+            throw NetworkError.serverError("The email address could not be verified.")
+        }
+
+        navigationDirection = .forward
+        showAuth = false
+        showHouseError = false
+        showHouseLoading = false
+        isAuthenticated = false
+        showBirthdaySetup = true
+        authStore.clearPendingEmailVerification()
+    }
+
     private func didAuthenticate() {
         Task { await didAuthenticateAsync() }
     }
@@ -465,12 +532,28 @@ class AppViewModel: ObservableObject {
     private func didAuthenticateAsync() async {
         navigationDirection = .forward
         showAuth = false
+        showHouseError = false
         houseLoadingPhase = .loadingUser
-            showHouseLoading = true
+        showHouseLoading = true
 
         do {
             setCurrentHouseDetails(nil)
             let profile = try await authStore.resolveAuthenticatedUser()
+            guard profile.isVerifyEmail else {
+                authStore.requireEmailVerification(for: profile.email)
+                isAuthenticated = false
+                showAuth = false
+                showHouseLoading = false
+                return
+            }
+            if needsBirthdaySetup(profile) {
+                showBirthdaySetup = true
+                isAuthenticated = false
+                showAuth = false
+                showHouseLoading = false
+                return
+            }
+            showBirthdaySetup = false
             if let language = profile.language {
                 localizationStore.applyPreferredLanguage(language)
             } else {
@@ -506,6 +589,24 @@ class AppViewModel: ObservableObject {
 
     func updateProfile(_ request: UpdateProfileRequest) async throws {
         try await authStore.updateProfile(request)
+    }
+
+    func completeBirthdaySetup(with birthDate: Date) async throws {
+        let request = UpdateProfileRequest(
+            imageUrl: nil,
+            birthDay: HouseFlowDateFormatter.apiString(from: birthDate),
+            firstName: nil,
+            lastName: nil,
+            phoneNumber: nil
+        )
+        try await updateProfile(request)
+        showBirthdaySetup = false
+        await didAuthenticateAsync()
+    }
+
+    private func needsBirthdaySetup(_ profile: IsAuthUserData) -> Bool {
+        guard let birthDate = profile.birthDate else { return true }
+        return birthDate.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
     }
 
     // MARK: - House API (Full Flow)
@@ -549,9 +650,16 @@ class AppViewModel: ObservableObject {
     func logout() {
         authStore.logout()
         houseStore.resetHouseSession()
+        showBirthdaySetup = false
+        signupSuccessMessage = nil
         navigationDirection = .backward
         choreStore.clear()
         clearToast()
+    }
+
+    func cancelEmailVerification() {
+        logout()
+        showAuth = true
     }
 
     // MARK: - Dashboard Data (mapped from API details)

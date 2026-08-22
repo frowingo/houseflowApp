@@ -36,8 +36,12 @@ struct SummaryPopup: View {
             actionButtons
         }
         .padding(AppDesign.Spacing.xxl)
-        .background(AppDesign.Colors.surface)
+        .background(HouseJourneyTheme.surface)
         .cornerRadius(AppDesign.CornerRadius.xl)
+        .overlay(
+            RoundedRectangle(cornerRadius: AppDesign.CornerRadius.xl)
+                .stroke(HouseJourneyTheme.indigo.opacity(0.13), lineWidth: 1)
+        )
         .shadow(
             color: AppDesign.Shadow.heavy.color,
             radius: AppDesign.Shadow.heavy.radius,
@@ -53,7 +57,12 @@ struct SummaryPopup: View {
         VStack(spacing: AppDesign.Spacing.sm) {
             Image(systemName: "house.circle.fill")
                 .font(.system(size: 50))
-                .foregroundColor(AppDesign.Colors.primary)
+                .foregroundColor(HouseJourneyTheme.indigo)
+                .overlay(alignment: .topTrailing) {
+                    Circle()
+                        .fill(HouseJourneyTheme.accentOrange)
+                        .frame(width: 8, height: 8)
+                }
             
             Text(appViewModel.localized("house_summary_title"))
                 .font(AppDesign.Typography.title2)
@@ -80,6 +89,9 @@ struct SummaryPopup: View {
             )
         }
         .padding(.vertical, AppDesign.Spacing.lg)
+        .padding(.horizontal, AppDesign.Spacing.md)
+        .background(HouseJourneyTheme.indigo.opacity(0.055))
+        .clipShape(RoundedRectangle(cornerRadius: AppDesign.CornerRadius.md))
     }
     
     // MARK: - Action Buttons
@@ -92,14 +104,18 @@ struct SummaryPopup: View {
                     .foregroundColor(.white)
                     .frame(maxWidth: .infinity)
                     .frame(height: AppDesign.Size.buttonHeight)
-                    .background(AppDesign.Colors.primary)
+                    .background(HouseJourneyTheme.primaryButtonGradient)
                     .cornerRadius(AppDesign.CornerRadius.md)
+                    .overlay(
+                        RoundedRectangle(cornerRadius: AppDesign.CornerRadius.md)
+                            .stroke(HouseJourneyTheme.accentOrange.opacity(0.32), lineWidth: 1)
+                    )
             }
             
             Button(action: onCancel) {
                 Text(appViewModel.localized("common_edit"))
                     .font(AppDesign.Typography.subheadline)
-                    .foregroundColor(AppDesign.Colors.primary)
+                    .foregroundColor(HouseJourneyTheme.accentOrangeInk)
             }
         }
     }

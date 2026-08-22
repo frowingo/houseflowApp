@@ -30,6 +30,14 @@ struct HouseTypeCard: View {
             }
         }
 
+        var tint: Color {
+            switch self {
+            case .studentHouse: return HouseJourneyTheme.purple
+            case .sharedHouse: return HouseJourneyTheme.teal
+            case .dormRoom: return HouseJourneyTheme.blue
+            }
+        }
+
         /// API integer value: StudentHouse=1, SharedHouse=2, DormRoom=3
         var apiValue: Int {
             switch self {
@@ -61,27 +69,29 @@ struct HouseTypeCard: View {
     private var iconSection: some View {
         Image(systemName: type.iconName)
             .font(.system(size: AppDesign.Size.iconMedium, weight: .medium))
-            .foregroundColor(isSelected ? .white : AppDesign.Colors.primary)
+            .foregroundColor(type.tint)
     }
     
     private var labelSection: some View {
         Text(appViewModel.localized(type.localizationKey))
             .font(AppDesign.Typography.caption)
-            .foregroundColor(isSelected ? .white : AppDesign.Colors.text)
+            .foregroundColor(isSelected ? AppDesign.Colors.textPrimary : AppDesign.Colors.textSecondary)
             .multilineTextAlignment(.center)
             .lineLimit(2)
     }
     
     private var backgroundColor: some View {
         RoundedRectangle(cornerRadius: AppDesign.CornerRadius.lg)
-            .fill(isSelected ? AppDesign.Colors.primary : AppDesign.Colors.cardBackground)
+            .fill(isSelected ? type.tint.opacity(0.15) : HouseJourneyTheme.surface)
     }
     
     private var borderOverlay: some View {
         RoundedRectangle(cornerRadius: AppDesign.CornerRadius.lg)
             .strokeBorder(
-                isSelected ? AppDesign.Colors.primary : Color.clear,
-                lineWidth: 2
+                isSelected
+                    ? HouseJourneyTheme.accentOrange
+                    : type.tint.opacity(0.12),
+                lineWidth: isSelected ? 2 : 1
             )
     }
 }

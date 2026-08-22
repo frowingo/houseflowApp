@@ -13,7 +13,7 @@ struct JoinHouseView: View {
             contentSection
             actionSection
         }
-        .background(AppDesign.Colors.background)
+        .background(joinBackground)
         .navigationBarHidden(true)
         .dismissKeyboardOnTap()
         .onAppear {
@@ -21,6 +21,23 @@ struct JoinHouseView: View {
                 isTextFieldFocused = true
             }
         }
+    }
+
+    private var joinBackground: some View {
+        ZStack {
+            HouseJourneyTheme.pageGradient
+
+            Circle()
+                .fill(HouseJourneyTheme.teal.opacity(0.07))
+                .frame(width: 230, height: 230)
+                .offset(x: 165, y: -300)
+
+            Circle()
+                .fill(HouseJourneyTheme.accentOrange.opacity(0.035))
+                .frame(width: 160, height: 160)
+                .offset(x: -185, y: 270)
+        }
+        .ignoresSafeArea()
     }
     
     // MARK: - Header Section
@@ -39,8 +56,15 @@ struct JoinHouseView: View {
                 appViewModel.backToHouseSelection()
             }) {
                 Image(systemName: "arrow.left")
-                    .font(.title2)
-                    .foregroundColor(AppDesign.Colors.text)
+                    .font(.system(size: 17, weight: .semibold))
+                    .foregroundColor(HouseJourneyTheme.accentOrangeInk)
+                    .frame(width: 40, height: 40)
+                    .background(HouseJourneyTheme.surface)
+                    .clipShape(Circle())
+                    .overlay(
+                        Circle()
+                            .stroke(HouseJourneyTheme.indigo.opacity(0.10), lineWidth: 1)
+                    )
             }
             Spacer()
         }
@@ -50,12 +74,26 @@ struct JoinHouseView: View {
     
     private var headerContent: some View {
         VStack(spacing: AppDesign.Spacing.md) {
-            Image(systemName: "house.and.flag")
-                .font(.system(size: 60))
-                .foregroundColor(AppDesign.Colors.primary)
+            ZStack {
+                Circle()
+                    .fill(HouseJourneyTheme.teal.opacity(0.10))
+                    .frame(width: 102, height: 102)
+                Circle()
+                    .fill(HouseJourneyTheme.indigo.opacity(0.08))
+                    .frame(width: 78, height: 78)
+                Image(systemName: "house.and.flag")
+                    .font(.system(size: 44, weight: .medium))
+                    .foregroundColor(HouseJourneyTheme.indigo)
+            }
+            .overlay(alignment: .topTrailing) {
+                Circle()
+                    .fill(HouseJourneyTheme.accentOrange)
+                    .frame(width: 10, height: 10)
+                    .offset(x: -2, y: 8)
+            }
             
             Text(appViewModel.localized("join_house_title"))
-                .font(AppDesign.Typography.largeTitle)
+                .font(.system(size: 34, weight: .bold, design: .rounded))
             
             Text(appViewModel.localized("join_house_subtitle"))
                 .font(AppDesign.Typography.subheadline)
@@ -102,7 +140,11 @@ struct JoinHouseView: View {
             }
         }
         .padding(AppDesign.Spacing.lg)
-        .background(AppDesign.Colors.primary.opacity(0.05))
+        .background(HouseJourneyTheme.teal.opacity(0.075))
+        .overlay(
+            RoundedRectangle(cornerRadius: AppDesign.CornerRadius.md)
+                .stroke(HouseJourneyTheme.teal.opacity(0.16), lineWidth: 1)
+        )
         .cornerRadius(AppDesign.CornerRadius.md)
     }
     
@@ -110,7 +152,7 @@ struct JoinHouseView: View {
         HStack(spacing: AppDesign.Spacing.sm) {
             Image(systemName: "info.circle.fill")
                 .font(.system(size: 16))
-                .foregroundColor(AppDesign.Colors.primary)
+                .foregroundColor(HouseJourneyTheme.indigo)
             
             Text(appViewModel.localized("join_house_help_title"))
                 .font(AppDesign.Typography.subheadline)
@@ -136,8 +178,31 @@ struct JoinHouseView: View {
                 .foregroundColor(.white)
                 .frame(maxWidth: .infinity)
                 .frame(height: AppDesign.Size.buttonHeightLarge)
-                .background(inviteCode.isEmpty ? Color.gray.opacity(0.3) : AppDesign.Colors.primary)
+                .background(
+                    inviteCode.isEmpty
+                        ? LinearGradient(
+                            colors: [Color.gray.opacity(0.30), Color.gray.opacity(0.24)],
+                            startPoint: .leading,
+                            endPoint: .trailing
+                        )
+                        : HouseJourneyTheme.joinButtonGradient
+                )
                 .cornerRadius(AppDesign.CornerRadius.lg)
+                .overlay(
+                    RoundedRectangle(cornerRadius: AppDesign.CornerRadius.lg)
+                        .stroke(
+                            inviteCode.isEmpty
+                                ? Color.clear
+                                : HouseJourneyTheme.accentOrange.opacity(0.34),
+                            lineWidth: 1
+                        )
+                )
+                .shadow(
+                    color: inviteCode.isEmpty ? .clear : HouseJourneyTheme.teal.opacity(0.24),
+                    radius: 12,
+                    x: 0,
+                    y: 6
+                )
                 .animation(AppDesign.Animation.quick, value: inviteCode.isEmpty)
         }
         .disabled(inviteCode.isEmpty)

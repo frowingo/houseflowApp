@@ -15,9 +15,27 @@ struct CreateHouseView: View {
             formScrollView
             createButton
         }
+        .background(createBackground)
         .navigationBarHidden(true)
         .dismissKeyboardOnTap()
         .overlay(popupsOverlay)
+    }
+
+    private var createBackground: some View {
+        ZStack {
+            HouseJourneyTheme.pageGradient
+
+            Circle()
+                .fill(HouseJourneyTheme.purple.opacity(0.065))
+                .frame(width: 250, height: 250)
+                .offset(x: 170, y: -330)
+
+            Circle()
+                .fill(HouseJourneyTheme.teal.opacity(0.04))
+                .frame(width: 190, height: 190)
+                .offset(x: -185, y: 285)
+        }
+        .ignoresSafeArea()
     }
     
     // MARK: - Header Section
@@ -27,7 +45,7 @@ struct CreateHouseView: View {
             backButton
             
             Text(appViewModel.localized("create_house_title"))
-                .font(AppDesign.Typography.largeTitle)
+                .font(.system(size: 34, weight: .bold, design: .rounded))
             
             Text(appViewModel.localized("create_house_subtitle"))
                 .font(AppDesign.Typography.subheadline)
@@ -45,8 +63,15 @@ struct CreateHouseView: View {
                 }
             }) {
                 Image(systemName: "chevron.left")
-                    .font(.system(size: 18, weight: .medium))
-                    .foregroundColor(AppDesign.Colors.primary)
+                    .font(.system(size: 17, weight: .semibold))
+                    .foregroundColor(HouseJourneyTheme.accentOrangeInk)
+                    .frame(width: 40, height: 40)
+                    .background(HouseJourneyTheme.surface)
+                    .clipShape(Circle())
+                    .overlay(
+                        Circle()
+                            .stroke(HouseJourneyTheme.indigo.opacity(0.10), lineWidth: 1)
+                    )
             }
             
             Spacer()
@@ -92,14 +117,24 @@ struct CreateHouseView: View {
             .font(AppDesign.Typography.body)
             .padding(.horizontal, AppDesign.Spacing.lg)
             .padding(.vertical, AppDesign.Spacing.md)
-            .background(AppDesign.Colors.cardBackground)
+            .background(HouseJourneyTheme.surface)
             .cornerRadius(AppDesign.CornerRadius.md)
             .overlay(
                 RoundedRectangle(cornerRadius: AppDesign.CornerRadius.md)
                     .strokeBorder(
-                        houseName.isEmpty ? Color.clear : AppDesign.Colors.primary,
-                        lineWidth: 2
+                        houseName.isEmpty
+                            ? HouseJourneyTheme.indigo.opacity(0.10)
+                            : HouseJourneyTheme.accentOrange,
+                        lineWidth: houseName.isEmpty ? 1 : 2
                     )
+            )
+            .shadow(
+                color: houseName.isEmpty
+                    ? Color.black.opacity(0.03)
+                    : HouseJourneyTheme.accentOrange.opacity(0.10),
+                radius: 8,
+                x: 0,
+                y: 3
             )
             .animation(AppDesign.Animation.quick, value: houseName.isEmpty)
             .onChange(of: houseName) { _, newValue in
@@ -155,8 +190,31 @@ struct CreateHouseView: View {
                 .foregroundColor(isFormValid ? .white : .gray)
                 .frame(maxWidth: .infinity)
                 .frame(height: AppDesign.Size.buttonHeight)
-                .background(isFormValid ? AppDesign.Colors.primary : Color.gray.opacity(0.3))
+                .background(
+                    isFormValid
+                        ? HouseJourneyTheme.primaryButtonGradient
+                        : LinearGradient(
+                            colors: [Color.gray.opacity(0.30), Color.gray.opacity(0.24)],
+                            startPoint: .leading,
+                            endPoint: .trailing
+                        )
+                )
                 .cornerRadius(AppDesign.CornerRadius.lg)
+                .overlay(
+                    RoundedRectangle(cornerRadius: AppDesign.CornerRadius.lg)
+                        .stroke(
+                            isFormValid
+                                ? HouseJourneyTheme.accentOrange.opacity(0.34)
+                                : Color.clear,
+                            lineWidth: 1
+                        )
+                )
+                .shadow(
+                    color: isFormValid ? HouseJourneyTheme.indigo.opacity(0.22) : .clear,
+                    radius: 12,
+                    x: 0,
+                    y: 6
+                )
                 .animation(AppDesign.Animation.quick, value: isFormValid)
         }
         .disabled(!isFormValid)

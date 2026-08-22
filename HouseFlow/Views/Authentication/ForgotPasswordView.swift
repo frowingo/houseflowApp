@@ -10,63 +10,6 @@ private enum ForgotFlowPhase {
     case resetting
 }
 
-// MARK: - OTP Input View
-
-private struct OTPInputView: View {
-    @Binding var code: String
-    @FocusState private var isFocused: Bool
-
-    var body: some View {
-        HStack(spacing: 10) {
-            ForEach(0..<6, id: \.self) { i in
-                digitBox(at: i)
-            }
-        }
-        .contentShape(Rectangle())
-        .onTapGesture { isFocused = true }
-        .background(
-            TextField("", text: $code)
-                .keyboardType(.asciiCapable)
-                .textContentType(.oneTimeCode)
-                .textInputAutocapitalization(.characters)
-                .autocorrectionDisabled()
-                .focused($isFocused)
-                .opacity(0.001)
-                .onChange(of: code) { newValue in
-                    let filtered = String(newValue.filter { $0.isLetter || $0.isNumber }.prefix(6)).uppercased()
-                    if filtered != newValue { code = filtered }
-                }
-        )
-    }
-
-    private func digitBox(at index: Int) -> some View {
-        let chars = Array(code)
-        let char = index < chars.count ? String(chars[index]) : ""
-        let isActive = index == min(code.count, 5) && isFocused
-
-        return ZStack {
-            RoundedRectangle(cornerRadius: 12)
-                .fill(Color(.systemGray6))
-                .overlay(
-                    RoundedRectangle(cornerRadius: 12)
-                        .stroke(
-                            isActive ? AppDesign.Colors.primary :
-                            !char.isEmpty ? AppDesign.Colors.primary.opacity(0.45) :
-                            Color(.systemGray4),
-                            lineWidth: isActive ? 2 : 1
-                        )
-                )
-                .frame(width: 46, height: 58)
-
-            Text(char)
-                .font(.system(size: 22, weight: .bold, design: .monospaced))
-                .foregroundColor(AppDesign.Colors.text)
-        }
-        .animation(AppDesign.Animation.quick, value: code)
-        .animation(AppDesign.Animation.quick, value: isFocused)
-    }
-}
-
 // MARK: - Forgot Password View
 
 struct ForgotPasswordView: View {

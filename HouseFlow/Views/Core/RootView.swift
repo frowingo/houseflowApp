@@ -16,8 +16,10 @@ struct RootView: View {
                 .onChange(of: appViewModel.showHouseLoading) { _, _ in }
                 .onChange(of: appViewModel.showHouseError) { _, _ in }
                 .onChange(of: appViewModel.isInitializing) { _, _ in }
+                .onChange(of: appViewModel.pendingEmailVerification) { _, _ in }
+                .onChange(of: appViewModel.showBirthdaySetup) { _, _ in }
+                .onChange(of: appViewModel.signupSuccessMessage) { _, _ in }
         }
-        .dismissKeyboardOnTap()
         .overlay(alignment: .top) {
             if let message = appViewModel.toastMessage {
                 ToastView(message: message, isError: appViewModel.toastIsError)
@@ -38,6 +40,18 @@ struct RootView: View {
                 HouseErrorView()
             } else if !hasSeenOnboarding {
                 OnboardingView()
+            } else if let email = appViewModel.pendingEmailVerification {
+                EmailVerificationView(
+                    email: email,
+                    signupSuccessMessage: appViewModel.signupSuccessMessage,
+                    onCancel: appViewModel.cancelEmailVerification,
+                    onSendCode: {
+                        try await appViewModel.sendEmailVerificationCode()
+                    },
+                    onDismissSignupSuccess: appViewModel.clearSignupSuccessMessage
+                )
+            } else if appViewModel.showBirthdaySetup {
+                BirthdaySetupView()
             } else if !appViewModel.isAuthenticated || appViewModel.showAuth {
                 AuthView()
             } else if appViewModel.showCreateHouse {
@@ -59,6 +73,10 @@ struct RootView: View {
             return "houseError"
         } else if !hasSeenOnboarding {
             return "onboarding"
+        } else if appViewModel.pendingEmailVerification != nil {
+            return "emailVerification"
+        } else if appViewModel.showBirthdaySetup {
+            return "birthdaySetup"
         } else if !appViewModel.isAuthenticated || appViewModel.showAuth {
             return "auth"
         } else if appViewModel.showCreateHouse {

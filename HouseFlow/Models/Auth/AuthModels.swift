@@ -30,6 +30,12 @@ struct ResetPasswordRequest: Encodable {
     let newPassword: String
 }
 
+// MARK: - Email Verification
+
+struct ValidateEmailRequest: Encodable {
+    let code: String
+}
+
 // MARK: - Success Responses
 
 struct AuthTokenResponse: Decodable {
@@ -37,6 +43,10 @@ struct AuthTokenResponse: Decodable {
 }
 
 struct ForgotPasswordResponse: Decodable {
+    let success: Bool
+}
+
+struct ValidateEmailResponse: Decodable {
     let success: Bool
 }
 
