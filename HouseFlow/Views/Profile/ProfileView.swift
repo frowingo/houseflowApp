@@ -27,6 +27,8 @@ struct ProfileView: View {
     @State private var showAvatarPicker = false
     @State private var showLanguageSettings = false
     @State private var showAbout = false
+    @State private var showPhoneManagement = false
+    @State private var showLogoutConfirmation = false
     @State private var avatarPulse = false
     @State private var selectedAvatarId: Int = 0
     @State private var appeared = false
@@ -42,22 +44,18 @@ struct ProfileView: View {
                     heroSection
 
                     VStack(spacing: AppDesign.Spacing.lg) {
-                        statsStrip
-                            .opacity(appeared ? 1 : 0)
-                            .offset(y: appeared ? 0 : 20)
-                            .animation(.spring(response: 0.6, dampingFraction: 0.78).delay(0.12), value: appeared)
                         personalInfoCard
                             .opacity(appeared ? 1 : 0)
                             .offset(y: appeared ? 0 : 24)
-                            .animation(.spring(response: 0.6, dampingFraction: 0.78).delay(0.22), value: appeared)
-                        accountCard
+                            .animation(.spring(response: 0.6, dampingFraction: 0.78).delay(0.12), value: appeared)
+                        accountInformationCard
                             .opacity(appeared ? 1 : 0)
                             .offset(y: appeared ? 0 : 24)
-                            .animation(.spring(response: 0.6, dampingFraction: 0.78).delay(0.32), value: appeared)
+                            .animation(.spring(response: 0.6, dampingFraction: 0.78).delay(0.22), value: appeared)
                         settingsCard
                             .opacity(appeared ? 1 : 0)
                             .offset(y: appeared ? 0 : 24)
-                            .animation(.spring(response: 0.6, dampingFraction: 0.78).delay(0.42), value: appeared)
+                            .animation(.spring(response: 0.6, dampingFraction: 0.78).delay(0.32), value: appeared)
                     }
                     .padding(.horizontal, AppDesign.Spacing.lg)
                     .padding(.bottom, 100)
@@ -104,11 +102,42 @@ struct ProfileView: View {
                 .transition(.opacity.combined(with: .scale(scale: 0.96)))
                 .zIndex(13)
             }
+
+            if showPhoneManagement {
+                PhoneManagementPopup(
+                    currentPhoneNumber: appViewModel.currentUserProfile?.phoneNumber ?? "",
+                    isVerified: appViewModel.currentUserProfile?.isVerifyPhone == true,
+                    onDismiss: {
+                        dismissPhoneManagement()
+                    }
+                )
+                .environmentObject(appViewModel)
+                .transition(.opacity.combined(with: .scale(scale: 0.96)))
+                .zIndex(14)
+            }
+
+            if showLogoutConfirmation {
+                LogoutConfirmationPopup(
+                    onConfirm: {
+                        showLogoutConfirmation = false
+                        withAnimation(AppDesign.Animation.standard) {
+                            appViewModel.logout()
+                        }
+                    },
+                    onCancel: {
+                        dismissLogoutConfirmation()
+                    }
+                )
+                .transition(.opacity.combined(with: .scale(scale: 0.96)))
+                .zIndex(15)
+            }
         }
         .animation(AppDesign.Animation.standard, value: showAvatarPicker)
         .animation(AppDesign.Animation.standard, value: showEditSheet)
         .animation(AppDesign.Animation.standard, value: showLanguageSettings)
         .animation(AppDesign.Animation.standard, value: showAbout)
+        .animation(AppDesign.Animation.standard, value: showPhoneManagement)
+        .animation(AppDesign.Animation.standard, value: showLogoutConfirmation)
         .onChange(of: showAvatarPicker) { _, _ in
             syncOverlayPresentation()
         }
@@ -119,6 +148,12 @@ struct ProfileView: View {
             syncOverlayPresentation()
         }
         .onChange(of: showAbout) { _, _ in
+            syncOverlayPresentation()
+        }
+        .onChange(of: showPhoneManagement) { _, _ in
+            syncOverlayPresentation()
+        }
+        .onChange(of: showLogoutConfirmation) { _, _ in
             syncOverlayPresentation()
         }
         .onDisappear {
@@ -172,8 +207,34 @@ struct ProfileView: View {
         }
     }
 
+    private func dismissLogoutConfirmation() {
+        DispatchQueue.main.async {
+            var transaction = Transaction()
+            transaction.disablesAnimations = true
+            withTransaction(transaction) {
+                showLogoutConfirmation = false
+            }
+        }
+    }
+
+    private func dismissPhoneManagement() {
+        UIApplication.shared.sendAction(#selector(UIResponder.resignFirstResponder), to: nil, from: nil, for: nil)
+        DispatchQueue.main.async {
+            var transaction = Transaction()
+            transaction.disablesAnimations = true
+            withTransaction(transaction) {
+                showPhoneManagement = false
+            }
+        }
+    }
+
     private func syncOverlayPresentation() {
-        appViewModel.isOverlayPresented = showAvatarPicker || showEditSheet || showLanguageSettings || showAbout
+        appViewModel.isOverlayPresented = showAvatarPicker
+            || showEditSheet
+            || showLanguageSettings
+            || showAbout
+            || showPhoneManagement
+            || showLogoutConfirmation
     }
 
     // MARK: - Hero
@@ -267,31 +328,6 @@ struct ProfileView: View {
                                 .font(.system(size: 38, weight: .bold, design: .rounded))
                                 .foregroundStyle(.white)
                         }
-
-                        // Camera badge (bottom-right)
-                        ZStack {
-                            Circle()
-                                .fill(Color.white)
-                                .frame(width: 28, height: 28)
-                            Image(systemName: "camera.fill")
-                                .font(.system(size: 12, weight: .semibold))
-                                .foregroundStyle(brandOrangeDk)
-                        }
-                        .offset(x: 36, y: 36)
-
-                        // Completeness badge (bottom-left)
-                        ZStack {
-                            Circle()
-                                .fill(brandOrangeDk)
-                                .frame(width: 26, height: 26)
-                            Circle()
-                                .strokeBorder(Color.white, lineWidth: 2)
-                                .frame(width: 26, height: 26)
-                            Text("\(Int(profileCompleteness * 100))%")
-                                .font(.system(size: 7.5, weight: .bold))
-                                .foregroundStyle(.white)
-                        }
-                        .offset(x: -36, y: 36)
                     }
                     .shadow(color: Color.black.opacity(0.24), radius: 14, x: 0, y: 7)
                 }
@@ -310,19 +346,6 @@ struct ProfileView: View {
                         .foregroundStyle(Color.white.opacity(0.72))
                         .lineLimit(1)
                         .minimumScaleFactor(0.72)
-
-                    HStack(spacing: AppDesign.Spacing.sm) {
-                        verificationPill(
-                            icon: "envelope.fill",
-                            label: appViewModel.localized("profile_verify_email_label"),
-                            verified: appViewModel.currentUserProfile?.isVerifyEmail == true
-                        )
-                        verificationPill(
-                            icon: "phone.fill",
-                            label: appViewModel.localized("profile_verify_phone_label"),
-                            verified: appViewModel.currentUserProfile?.isVerifyPhone == true
-                        )
-                    }
                 }
 
                 Spacer(minLength: 0)
@@ -337,30 +360,6 @@ struct ProfileView: View {
         .offset(y: appeared ? 0 : 12)
     }
 
-    private func verificationPill(icon: String, label: String, verified: Bool) -> some View {
-        let green = Color(red: 0.2, green: 0.85, blue: 0.5)
-        return HStack(spacing: 5) {
-            Image(systemName: verified ? "checkmark.circle.fill" : "xmark.circle.fill")
-                .font(.system(size: 12, weight: .semibold))
-            Text(label)
-                .font(.system(size: 12, weight: .semibold))
-        }
-        .foregroundStyle(verified ? green : Color.white.opacity(0.5))
-        .padding(.horizontal, 13)
-        .padding(.vertical, 7)
-        .background(
-            Capsule()
-                .fill(verified ? green.opacity(0.18) : Color.white.opacity(0.1))
-        )
-        .overlay(
-            Capsule()
-                .strokeBorder(
-                    verified ? green.opacity(0.45) : Color.white.opacity(0.18),
-                    lineWidth: 1
-                )
-        )
-    }
-
     private var defaultAvatarFill: some View {
         Circle()
             .fill(
@@ -370,81 +369,6 @@ struct ProfileView: View {
                     endPoint: .bottomTrailing
                 )
             )
-    }
-
-    // MARK: - Stats Strip
-
-    private var statsStrip: some View {
-        HStack(spacing: AppDesign.Spacing.sm) {
-            statChip(
-                icon: "house.fill",
-                tint: brandOrange,
-                title: appViewModel.localized("profile_stat_house_label"),
-                value: appViewModel.currentHouseDetails?.name ?? (appViewModel.houseName.isEmpty ? appViewModel.localized("common_empty_value") : appViewModel.houseName)
-            )
-            statChip(
-                icon: "checkmark.shield.fill",
-                tint: Color(red: 0.2, green: 0.75, blue: 0.45),
-                title: appViewModel.localized("profile_stat_status_label"),
-                value: appViewModel.localized(appViewModel.currentUserProfile?.isActive == true ? "common_active" : "common_inactive"),
-                valueColor: appViewModel.currentUserProfile?.isActive == true
-                    ? Color(red: 0.2, green: 0.75, blue: 0.45)
-                    : AppDesign.Colors.error
-            )
-            statChip(
-                icon: "calendar",
-                tint: Color(red: 0.55, green: 0.35, blue: 0.9),
-                title: appViewModel.localized("profile_stat_joined_label"),
-                value: memberSince
-            )
-        }
-    }
-
-    private func statChip(
-        icon: String,
-        tint: Color,
-        title: String,
-        value: String,
-        valueColor: Color = AppDesign.Colors.textPrimary
-    ) -> some View {
-        VStack(spacing: 6) {
-            ZStack {
-                RoundedRectangle(cornerRadius: 10)
-                    .fill(tint.opacity(0.14))
-                    .frame(width: 38, height: 38)
-                Image(systemName: icon)
-                    .font(.system(size: 16, weight: .semibold))
-                    .foregroundStyle(tint)
-            }
-
-            Text(value)
-                .font(.system(size: 13, weight: .bold))
-                .foregroundStyle(valueColor)
-                .lineLimit(1)
-                .minimumScaleFactor(0.7)
-
-            Text(title)
-                .font(.system(size: 11, weight: .medium))
-                .foregroundStyle(AppDesign.Colors.textTertiary)
-        }
-        .frame(maxWidth: .infinity)
-        .padding(.vertical, AppDesign.Spacing.md)
-        .background(
-            ZStack {
-                AppDesign.Colors.cardBackground
-                LinearGradient(
-                    colors: [tint.opacity(0.05), Color.clear],
-                    startPoint: .top,
-                    endPoint: .bottom
-                )
-            }
-        )
-        .clipShape(RoundedRectangle(cornerRadius: AppDesign.CornerRadius.lg))
-        .shadow(color: Color.black.opacity(0.05), radius: 8, x: 0, y: 3)
-        .overlay(
-            RoundedRectangle(cornerRadius: AppDesign.CornerRadius.lg)
-                .strokeBorder(tint.opacity(0.2), lineWidth: 1)
-        )
     }
 
     // MARK: - Personal Info Card (with edit button)
@@ -476,8 +400,6 @@ struct ProfileView: View {
             infoRow(icon: "person.fill",        tint: brandOrange,                              label: appViewModel.localized("profile_first_name_label"), value: appViewModel.currentUserProfile?.firstName ?? appViewModel.localized("common_empty_value"))
             cardDivider
             infoRow(icon: "person.fill",        tint: brandOrange,                              label: appViewModel.localized("profile_last_name_label"),  value: appViewModel.currentUserProfile?.lastName ?? appViewModel.localized("common_empty_value"))
-            cardDivider
-            infoRow(icon: "phone.fill",         tint: Color(red: 0.2, green: 0.7, blue: 0.4),   label: appViewModel.localized("profile_phone_label"),      value: phoneDisplay)
             cardDivider
             infoRow(icon: "birthday.cake.fill", tint: Color(red: 0.9, green: 0.45, blue: 0.1),  label: appViewModel.localized("profile_birthdate_label"),  value: birthDateDisplay)
 
@@ -543,23 +465,37 @@ struct ProfileView: View {
         )
     }
 
-    // MARK: - Account Card
+    // MARK: - Account Information Card
 
-    private var accountCard: some View {
+    private var accountInformationCard: some View {
         modernCard(
-            headerIcon: "shield.lefthalf.filled",
-            headerTint: Color(red: 0.55, green: 0.35, blue: 0.9),
-            title: appViewModel.localized("profile_account_title"),
-            gradientColors: [Color(red: 0.55, green: 0.35, blue: 0.9).opacity(0.06), Color.clear, Color(red: 0.95, green: 0.6, blue: 0.1).opacity(0.04)]
+            headerIcon: "person.text.rectangle.fill",
+            headerTint: Color(red: 0.15, green: 0.55, blue: 0.85),
+            title: appViewModel.localized("profile_account_information_title", fallback: "Account Information"),
+            gradientColors: [Color(red: 0.15, green: 0.55, blue: 0.85).opacity(0.06), Color.clear]
         ) {
+            communicationRow(
+                icon: "envelope.fill",
+                tint: Color(red: 0.15, green: 0.55, blue: 0.85),
+                label: appViewModel.localized("profile_email_label", fallback: "Email"),
+                value: emailDisplay,
+                isVerified: appViewModel.currentUserProfile?.isVerifyEmail == true
+            )
+            cardDivider
+            communicationRow(
+                icon: "phone.fill",
+                tint: Color(red: 0.2, green: 0.7, blue: 0.4),
+                label: appViewModel.localized("profile_phone_label"),
+                value: phoneDisplay,
+                isVerified: appViewModel.currentUserProfile?.isVerifyPhone == true,
+                verificationAction: {
+                    withAnimation(AppDesign.Animation.standard) {
+                        showPhoneManagement = true
+                    }
+                }
+            )
+            cardDivider
             infoRow(icon: "calendar",              tint: Color(red: 0.55, green: 0.35, blue: 0.9),  label: appViewModel.localized("profile_member_since_label"), value: formattedDate(appViewModel.currentUserProfile?.createdOn))
-            cardDivider
-            infoRow(icon: "clock.fill",            tint: Color(red: 0.95, green: 0.6, blue: 0.1),   label: appViewModel.localized("profile_last_login_label"),   value: formattedDate(appViewModel.currentUserProfile?.lastLogin))
-            cardDivider
-            infoRow(icon: "checkmark.shield.fill", tint: Color(red: 0.2, green: 0.75, blue: 0.45),  label: appViewModel.localized("profile_stat_status_label"),       value: appViewModel.localized(appViewModel.currentUserProfile?.isActive == true ? "common_active" : "common_inactive"),
-                    valueColor: appViewModel.currentUserProfile?.isActive == true
-                        ? Color(red: 0.2, green: 0.75, blue: 0.45)
-                        : AppDesign.Colors.error)
         }
     }
 
@@ -584,6 +520,16 @@ struct ProfileView: View {
             cardDivider
             settingsRow(icon: "info.circle.fill",      tint: AppDesign.Colors.textTertiary,             label: appViewModel.localized("profile_about_label")) {
                 withAnimation(AppDesign.Animation.standard) { showAbout = true }
+            }
+            cardDivider
+            settingsRow(
+                icon: "rectangle.portrait.and.arrow.right",
+                tint: AppDesign.Colors.error,
+                label: appViewModel.localized("profile_logout_label", fallback: "Log out")
+            ) {
+                withAnimation(AppDesign.Animation.standard) {
+                    showLogoutConfirmation = true
+                }
             }
         }
     }
@@ -693,6 +639,76 @@ struct ProfileView: View {
         .padding(.vertical, 14)
     }
 
+    private func communicationRow(
+        icon: String,
+        tint: Color,
+        label: String,
+        value: String,
+        isVerified: Bool,
+        verificationAction: (() -> Void)? = nil
+    ) -> some View {
+        HStack(spacing: AppDesign.Spacing.md) {
+            ZStack {
+                RoundedRectangle(cornerRadius: 8)
+                    .fill(tint.opacity(0.13))
+                    .frame(width: 34, height: 34)
+                Image(systemName: icon)
+                    .font(.system(size: 14, weight: .medium))
+                    .foregroundStyle(tint)
+            }
+
+            VStack(alignment: .leading, spacing: 3) {
+                Text(label)
+                    .font(.system(size: 12, weight: .medium))
+                    .foregroundStyle(AppDesign.Colors.textTertiary)
+                Text(value)
+                    .font(.system(size: 14, weight: .medium))
+                    .foregroundStyle(AppDesign.Colors.textPrimary)
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.75)
+            }
+
+            Spacer(minLength: AppDesign.Spacing.sm)
+
+            verificationControl(isVerified: isVerified, action: verificationAction)
+        }
+        .padding(.horizontal, AppDesign.Spacing.lg)
+        .padding(.vertical, 14)
+    }
+
+    @ViewBuilder
+    private func verificationControl(isVerified: Bool, action: (() -> Void)?) -> some View {
+        let label = appViewModel.localized(
+            isVerified ? "common_verified" : "common_not_verified",
+            fallback: isVerified ? "Verified" : "Not verified"
+        )
+
+        if let action {
+            Button(action: action) {
+                verificationIcon(isVerified: isVerified)
+                    .frame(width: 34, height: 34)
+                    .contentShape(Circle())
+            }
+            .buttonStyle(.plain)
+            .accessibilityLabel(label)
+            .accessibilityHint(
+                appViewModel.localized(
+                    "profile_phone_manage_accessibility_hint",
+                    fallback: "Opens phone update and verification options."
+                )
+            )
+        } else {
+            verificationIcon(isVerified: isVerified)
+                .accessibilityLabel(label)
+        }
+    }
+
+    private func verificationIcon(isVerified: Bool) -> some View {
+        Image(systemName: isVerified ? "checkmark.circle.fill" : "xmark.circle.fill")
+            .font(.system(size: 19, weight: .semibold))
+            .foregroundStyle(isVerified ? Color(red: 0.2, green: 0.75, blue: 0.45) : AppDesign.Colors.error)
+    }
+
     private func settingsRow(icon: String, tint: Color, label: String, action: (() -> Void)? = nil) -> some View {
         Button {
             action?()
@@ -746,34 +762,15 @@ struct ProfileView: View {
         return p.phoneNumber
     }
 
+    private var emailDisplay: String {
+        guard let p = appViewModel.currentUserProfile, !p.email.isEmpty else { return appViewModel.localized("common_empty_value") }
+        return p.email
+    }
+
     private var birthDateDisplay: String {
         guard let p = appViewModel.currentUserProfile, let bd = p.birthDate, !bd.isEmpty else { return appViewModel.localized("common_empty_value") }
         let formatted = HouseFlowDateFormatter.displayDate(from: bd)
         return formatted == "—" ? appViewModel.localized("common_empty_value") : formatted
-    }
-
-    private var memberSince: String {
-        guard let iso = appViewModel.currentUserProfile?.createdOn, !iso.isEmpty else { return appViewModel.localized("common_empty_value") }
-        guard let date = HouseFlowDateFormatter.parseAPIDate(iso) else { return appViewModel.localized("common_empty_value") }
-        let cal = Calendar.current
-        let months = cal.dateComponents([.month], from: date, to: Date()).month ?? 0
-        if months < 1 { return appViewModel.localized("common_new") }
-        if months < 12 {
-            return appViewModel.localized("common_member_since_months_template", replacements: ["count": "\(months)"])
-        }
-        let years = months / 12
-        return appViewModel.localized("common_member_since_years_template", replacements: ["count": "\(years)"])
-    }
-
-    private var profileCompleteness: Double {
-        guard let p = appViewModel.currentUserProfile else { return 0 }
-        var score = 0.0
-        if !p.firstName.isEmpty    { score += 0.2 }
-        if !p.lastName.isEmpty     { score += 0.2 }
-        if !p.phoneNumber.isEmpty  { score += 0.2 }
-        if p.birthDate != nil       { score += 0.2 }
-        if p.isVerifyEmail == true { score += 0.2 }
-        return score
     }
 
     private func formattedDate(_ iso: String?) -> String {
@@ -1072,13 +1069,14 @@ struct EditProfilePopup: View {
     private enum EditField: Hashable {
         case firstName
         case lastName
-        case phoneNumber
     }
 
     @State private var firstName: String = ""
     @State private var lastName: String = ""
-    @State private var phoneNumber: String = ""
     @State private var birthDate: Date = Calendar.current.date(byAdding: .year, value: -25, to: Date()) ?? Date()
+    @State private var initialFirstName: String = ""
+    @State private var initialLastName: String = ""
+    @State private var initialBirthDate: Date?
     @State private var maximumBirthDate = Date()
     @State private var isSaving = false
     @State private var saveError: String?
@@ -1144,6 +1142,33 @@ struct EditProfilePopup: View {
                 // ── Scrollable fields
                 ScrollView(showsIndicators: false) {
                     VStack(spacing: AppDesign.Spacing.md) {
+                        HStack(alignment: .top, spacing: AppDesign.Spacing.sm) {
+                            Image(systemName: "exclamationmark.triangle.fill")
+                                .font(.system(size: 15, weight: .semibold))
+                                .foregroundStyle(accentOrange)
+
+                            Text(
+                                appViewModel.localized(
+                                    "profile_edit_twenty_day_warning",
+                                    fallback: "You can update your first name, last name, and birthdate once every 20 days."
+                                )
+                            )
+                            .font(AppDesign.Typography.caption)
+                            .foregroundStyle(AppDesign.Colors.textSecondary)
+                            .fixedSize(horizontal: false, vertical: true)
+
+                            Spacer(minLength: 0)
+                        }
+                        .padding(AppDesign.Spacing.md)
+                        .background(
+                            RoundedRectangle(cornerRadius: AppDesign.CornerRadius.md)
+                                .fill(accentOrange.opacity(0.1))
+                                .overlay(
+                                    RoundedRectangle(cornerRadius: AppDesign.CornerRadius.md)
+                                        .stroke(accentOrange.opacity(0.25), lineWidth: 1)
+                                )
+                        )
+
                         fieldSection(icon: "person.fill", tint: accentOrange, title: appViewModel.localized("profile_edit_name_section")) {
                             editField(icon: "person.fill", tint: accentOrange,
                                       placeholder: appViewModel.localized("profile_first_name_label"), text: $firstName, field: .firstName)
@@ -1155,12 +1180,6 @@ struct EditProfilePopup: View {
                         fieldSection(icon: "info.circle.fill",
                                      tint: Color(red: 0.2, green: 0.7, blue: 0.4),
                                      title: appViewModel.localized("profile_edit_details_section")) {
-                            editField(icon: "phone.fill",
-                                      tint: Color(red: 0.2, green: 0.7, blue: 0.4),
-                                      placeholder: appViewModel.localized("profile_edit_phone_placeholder"), text: $phoneNumber,
-                                      field: .phoneNumber,
-                                      keyboard: .phonePad)
-                            Divider().padding(.leading, 66)
                             HStack(spacing: AppDesign.Spacing.md) {
                                 ZStack {
                                     RoundedRectangle(cornerRadius: 8)
@@ -1225,13 +1244,14 @@ struct EditProfilePopup: View {
                         .frame(maxWidth: .infinity)
                         .frame(height: AppDesign.Size.buttonHeightSmall)
                         .background(
-                            isSaving
+                            isSaving || !hasChanges
                                 ? LinearGradient(colors: [Color.gray.opacity(0.5), Color.gray.opacity(0.4)], startPoint: .leading, endPoint: .trailing)
                                 : LinearGradient(colors: [accentOrange, accentOrange.opacity(0.75)], startPoint: .leading, endPoint: .trailing)
                         )
                         .cornerRadius(AppDesign.CornerRadius.md)
                     }
-                    .disabled(isSaving)
+                    .disabled(isSaving || !hasChanges)
+                    .animation(AppDesign.Animation.quick, value: hasChanges)
                     .animation(AppDesign.Animation.quick, value: isSaving)
 
                     Button { if !isSaving { requestDismiss() } } label: {
@@ -1339,6 +1359,31 @@ struct EditProfilePopup: View {
 
     // MARK: - Helpers
 
+    private var normalizedFirstName: String {
+        firstName.trimmingCharacters(in: .whitespacesAndNewlines)
+    }
+
+    private var normalizedLastName: String {
+        lastName.trimmingCharacters(in: .whitespacesAndNewlines)
+    }
+
+    private var hasFirstNameChanged: Bool {
+        normalizedFirstName != initialFirstName
+    }
+
+    private var hasLastNameChanged: Bool {
+        normalizedLastName != initialLastName
+    }
+
+    private var hasBirthDateChanged: Bool {
+        guard let initialBirthDate else { return false }
+        return !Calendar.current.isDate(birthDate, inSameDayAs: initialBirthDate)
+    }
+
+    private var hasChanges: Bool {
+        hasFirstNameChanged || hasLastNameChanged || hasBirthDateChanged
+    }
+
     private var previewInitials: String {
         let f = firstName.prefix(1)
         let l = lastName.prefix(1)
@@ -1354,10 +1399,16 @@ struct EditProfilePopup: View {
         guard let p = appViewModel.currentUserProfile else { return }
         firstName   = p.firstName
         lastName    = p.lastName
-        phoneNumber = p.phoneNumber
+        initialFirstName = p.firstName.trimmingCharacters(in: .whitespacesAndNewlines)
+        initialLastName = p.lastName.trimmingCharacters(in: .whitespacesAndNewlines)
         if let bd = p.birthDate, !bd.isEmpty {
-            if let parsed = HouseFlowDateFormatter.parseAPIDate(bd) { birthDate = parsed }
+            if let parsed = HouseFlowDateFormatter.parseAPIDate(bd) {
+                birthDate = parsed
+                initialBirthDate = parsed
+                return
+            }
         }
+        initialBirthDate = birthDate
     }
 
     private func requestDismiss() {
@@ -1372,16 +1423,15 @@ struct EditProfilePopup: View {
 
     @MainActor
     private func save() async {
-        guard !isSaving else { return }
+        guard !isSaving, hasChanges else { return }
         isSaving  = true
         saveError = nil
-        let birthDateString = HouseFlowDateFormatter.apiString(from: birthDate)
         let request = UpdateProfileRequest(
             imageUrl:      nil,
-            birthDay:      birthDateString,
-            firstName:     firstName.isEmpty   ? nil : firstName,
-            lastName:      lastName.isEmpty    ? nil : lastName,
-            phoneNumber:   phoneNumber.isEmpty ? nil : phoneNumber
+            birthDay:      hasBirthDateChanged ? HouseFlowDateFormatter.apiString(from: birthDate) : nil,
+            firstName:     hasFirstNameChanged ? normalizedFirstName : nil,
+            lastName:      hasLastNameChanged ? normalizedLastName : nil,
+            phoneNumber:   nil
         )
         do {
             try await appViewModel.updateProfile(request)
@@ -1391,6 +1441,360 @@ struct EditProfilePopup: View {
             isSaving  = false
             saveError = error.localizedDescription
         }
+    }
+}
+
+// MARK: - Phone Management Popup
+
+struct PhoneManagementPopup: View {
+    @EnvironmentObject private var appViewModel: AppViewModel
+
+    let currentPhoneNumber: String
+    let isVerified: Bool
+    let onDismiss: () -> Void
+
+    private enum Mode: String, CaseIterable, Identifiable {
+        case update
+        case verify
+
+        var id: String { rawValue }
+    }
+
+    private enum Field: Hashable {
+        case phoneNumber
+        case verificationCode
+    }
+
+    @State private var selectedMode: Mode = .update
+    @State private var phoneNumber: String
+    @State private var verificationCode = ""
+    @State private var hasRequestedCode = false
+    @FocusState private var focusedField: Field?
+
+    private let accentBlue = Color(red: 0.15, green: 0.55, blue: 0.85)
+    private let verifiedGreen = Color(red: 0.2, green: 0.75, blue: 0.45)
+
+    init(
+        currentPhoneNumber: String,
+        isVerified: Bool,
+        onDismiss: @escaping () -> Void
+    ) {
+        self.currentPhoneNumber = currentPhoneNumber
+        self.isVerified = isVerified
+        self.onDismiss = onDismiss
+        _phoneNumber = State(initialValue: currentPhoneNumber)
+    }
+
+    var body: some View {
+        ZStack {
+            Color.black.opacity(0.55)
+                .ignoresSafeArea()
+                .onTapGesture(perform: requestDismiss)
+
+            VStack(spacing: 0) {
+                topBar
+
+                ScrollView(showsIndicators: false) {
+                    VStack(spacing: AppDesign.Spacing.lg) {
+                        currentStatus
+                        integrationNotice
+                        modePicker
+
+                        Group {
+                            switch selectedMode {
+                            case .update:
+                                updateSection
+                            case .verify:
+                                verificationSection
+                            }
+                        }
+                        .transition(.opacity.combined(with: .move(edge: .trailing)))
+                    }
+                    .padding(AppDesign.Spacing.xl)
+                }
+                .frame(maxHeight: 430)
+
+                Button(action: requestDismiss) {
+                    Text(appViewModel.localized("common_close", fallback: "Close"))
+                        .font(AppDesign.Typography.headline)
+                        .foregroundStyle(AppDesign.Colors.textSecondary)
+                        .frame(maxWidth: .infinity)
+                        .frame(height: AppDesign.Size.buttonHeightSmall)
+                        .background(AppDesign.Colors.secondaryBackground)
+                        .clipShape(RoundedRectangle(cornerRadius: AppDesign.CornerRadius.md))
+                }
+                .padding(.horizontal, AppDesign.Spacing.xl)
+                .padding(.vertical, AppDesign.Spacing.lg)
+                .background(AppDesign.Colors.background)
+            }
+            .background(AppDesign.Colors.background)
+            .clipShape(RoundedRectangle(cornerRadius: AppDesign.CornerRadius.xl))
+            .shadow(color: Color.black.opacity(0.25), radius: 30, x: 0, y: 16)
+            .padding(.horizontal, AppDesign.Spacing.xl)
+        }
+        .animation(AppDesign.Animation.standard, value: selectedMode)
+        .animation(AppDesign.Animation.quick, value: hasRequestedCode)
+    }
+
+    private var topBar: some View {
+        ZStack {
+            LinearGradient(
+                colors: [accentBlue, accentBlue.opacity(0.72)],
+                startPoint: .leading,
+                endPoint: .trailing
+            )
+
+            Image(systemName: "phone.badge.checkmark.fill")
+                .font(.system(size: 58, weight: .bold))
+                .foregroundStyle(Color.white.opacity(0.12))
+                .offset(x: 85)
+
+            HStack(spacing: AppDesign.Spacing.md) {
+                Image(systemName: "phone.fill")
+                    .font(.system(size: 15, weight: .semibold))
+                    .foregroundStyle(.white)
+                    .frame(width: 34, height: 34)
+                    .background(Color.white.opacity(0.18))
+                    .clipShape(Circle())
+
+                Text(appViewModel.localized("profile_phone_management_title", fallback: "Phone settings"))
+                    .font(AppDesign.Typography.headline)
+                    .foregroundStyle(.white)
+
+                Spacer()
+
+                Button(action: requestDismiss) {
+                    Image(systemName: "xmark")
+                        .font(.system(size: 13, weight: .bold))
+                        .foregroundStyle(.white)
+                        .frame(width: 30, height: 30)
+                        .background(Color.white.opacity(0.18))
+                        .clipShape(Circle())
+                }
+                .buttonStyle(.plain)
+            }
+            .padding(.horizontal, AppDesign.Spacing.xl)
+        }
+        .frame(height: 62)
+    }
+
+    private var currentStatus: some View {
+        HStack(spacing: AppDesign.Spacing.md) {
+            Image(systemName: isVerified ? "checkmark.shield.fill" : "exclamationmark.shield.fill")
+                .font(.system(size: 20, weight: .semibold))
+                .foregroundStyle(isVerified ? verifiedGreen : AppDesign.Colors.error)
+                .frame(width: 40, height: 40)
+                .background((isVerified ? verifiedGreen : AppDesign.Colors.error).opacity(0.12))
+                .clipShape(RoundedRectangle(cornerRadius: 10))
+
+            VStack(alignment: .leading, spacing: 3) {
+                Text(currentPhoneNumber.isEmpty ? appViewModel.localized("common_empty_value") : currentPhoneNumber)
+                    .font(AppDesign.Typography.headline)
+                    .foregroundStyle(AppDesign.Colors.textPrimary)
+                Text(
+                    appViewModel.localized(
+                        isVerified ? "common_verified" : "common_not_verified",
+                        fallback: isVerified ? "Verified" : "Not verified"
+                    )
+                )
+                .font(AppDesign.Typography.caption)
+                .foregroundStyle(isVerified ? verifiedGreen : AppDesign.Colors.error)
+            }
+
+            Spacer()
+        }
+        .padding(AppDesign.Spacing.md)
+        .background(
+            RoundedRectangle(cornerRadius: AppDesign.CornerRadius.lg)
+                .fill(AppDesign.Colors.secondaryBackground)
+        )
+    }
+
+    private var integrationNotice: some View {
+        HStack(alignment: .top, spacing: AppDesign.Spacing.sm) {
+            Image(systemName: "info.circle.fill")
+                .foregroundStyle(accentBlue)
+            Text(
+                appViewModel.localized(
+                    "profile_phone_backend_pending_notice",
+                    fallback: "Phone update and verification screens are ready. Backend integration will be connected later."
+                )
+            )
+            .font(AppDesign.Typography.caption)
+            .foregroundStyle(AppDesign.Colors.textSecondary)
+            .fixedSize(horizontal: false, vertical: true)
+            Spacer(minLength: 0)
+        }
+        .padding(AppDesign.Spacing.md)
+        .background(
+            RoundedRectangle(cornerRadius: AppDesign.CornerRadius.md)
+                .fill(accentBlue.opacity(0.09))
+                .overlay(
+                    RoundedRectangle(cornerRadius: AppDesign.CornerRadius.md)
+                        .stroke(accentBlue.opacity(0.22), lineWidth: 1)
+                )
+        )
+    }
+
+    private var modePicker: some View {
+        Picker("", selection: $selectedMode) {
+            Text(appViewModel.localized("profile_phone_update_tab", fallback: "Update number"))
+                .tag(Mode.update)
+            Text(appViewModel.localized("profile_phone_verify_tab", fallback: "Verify"))
+                .tag(Mode.verify)
+        }
+        .pickerStyle(.segmented)
+        .onChange(of: selectedMode) { _, mode in
+            focusedField = mode == .update ? .phoneNumber : nil
+        }
+    }
+
+    private var updateSection: some View {
+        VStack(alignment: .leading, spacing: AppDesign.Spacing.md) {
+            Text(appViewModel.localized("profile_phone_new_number_label", fallback: "New phone number"))
+                .font(AppDesign.Typography.subheadline.weight(.semibold))
+                .foregroundStyle(AppDesign.Colors.textPrimary)
+
+            HStack(spacing: AppDesign.Spacing.sm) {
+                Image(systemName: "phone.fill")
+                    .foregroundStyle(accentBlue)
+                TextField(
+                    appViewModel.localized("profile_edit_phone_placeholder", fallback: "Phone number"),
+                    text: $phoneNumber
+                )
+                .keyboardType(.phonePad)
+                .textContentType(.telephoneNumber)
+                .focused($focusedField, equals: .phoneNumber)
+            }
+            .padding(AppDesign.Spacing.md)
+            .background(
+                RoundedRectangle(cornerRadius: AppDesign.CornerRadius.md)
+                    .fill(AppDesign.Colors.secondaryBackground)
+                    .overlay(
+                        RoundedRectangle(cornerRadius: AppDesign.CornerRadius.md)
+                            .stroke(accentBlue.opacity(focusedField == .phoneNumber ? 0.55 : 0.14), lineWidth: 1.5)
+                    )
+            )
+
+            primaryButton(
+                title: appViewModel.localized("profile_phone_update_button", fallback: "Update phone number"),
+                icon: "arrow.triangle.2.circlepath",
+                isEnabled: canSubmitPhoneUpdate,
+                action: submitPhoneUpdate
+            )
+        }
+    }
+
+    private var verificationSection: some View {
+        VStack(alignment: .leading, spacing: AppDesign.Spacing.md) {
+            Text(
+                appViewModel.localized(
+                    "profile_phone_verification_instruction",
+                    fallback: "Request a verification code for your current phone number, then enter the six-digit code."
+                )
+            )
+            .font(AppDesign.Typography.subheadline)
+            .foregroundStyle(AppDesign.Colors.textSecondary)
+            .fixedSize(horizontal: false, vertical: true)
+
+            if hasRequestedCode {
+                TextField(
+                    appViewModel.localized("profile_phone_code_placeholder", fallback: "Verification code"),
+                    text: $verificationCode
+                )
+                .keyboardType(.numberPad)
+                .textContentType(.oneTimeCode)
+                .focused($focusedField, equals: .verificationCode)
+                .multilineTextAlignment(.center)
+                .font(.system(size: 22, weight: .semibold, design: .monospaced))
+                .padding(AppDesign.Spacing.md)
+                .background(
+                    RoundedRectangle(cornerRadius: AppDesign.CornerRadius.md)
+                        .fill(AppDesign.Colors.secondaryBackground)
+                        .overlay(
+                            RoundedRectangle(cornerRadius: AppDesign.CornerRadius.md)
+                                .stroke(accentBlue.opacity(focusedField == .verificationCode ? 0.55 : 0.14), lineWidth: 1.5)
+                        )
+                )
+                .onChange(of: verificationCode) { _, value in
+                    verificationCode = String(value.filter(\.isNumber).prefix(6))
+                }
+
+                primaryButton(
+                    title: appViewModel.localized("profile_phone_verify_button", fallback: "Verify phone number"),
+                    icon: "checkmark.shield.fill",
+                    isEnabled: verificationCode.count == 6,
+                    action: submitVerificationCode
+                )
+            } else {
+                primaryButton(
+                    title: appViewModel.localized("profile_phone_send_code_button", fallback: "Send verification code"),
+                    icon: "paperplane.fill",
+                    isEnabled: !currentPhoneNumber.isEmpty,
+                    action: requestVerificationCode
+                )
+            }
+        }
+    }
+
+    private func primaryButton(
+        title: String,
+        icon: String,
+        isEnabled: Bool,
+        action: @escaping () -> Void
+    ) -> some View {
+        Button(action: action) {
+            HStack(spacing: AppDesign.Spacing.sm) {
+                Image(systemName: icon)
+                    .font(.system(size: 14, weight: .semibold))
+                Text(title)
+                    .font(AppDesign.Typography.headline)
+            }
+            .foregroundStyle(.white)
+            .frame(maxWidth: .infinity)
+            .frame(height: AppDesign.Size.buttonHeightSmall)
+            .background(isEnabled ? accentBlue : Color(.systemGray3))
+            .clipShape(RoundedRectangle(cornerRadius: AppDesign.CornerRadius.md))
+        }
+        .disabled(!isEnabled)
+    }
+
+    private var normalizedPhoneNumber: String {
+        phoneNumber.trimmingCharacters(in: .whitespacesAndNewlines)
+    }
+
+    private var canSubmitPhoneUpdate: Bool {
+        !normalizedPhoneNumber.isEmpty && normalizedPhoneNumber != currentPhoneNumber
+    }
+
+    private func submitPhoneUpdate() {
+        showPendingIntegrationMessage()
+    }
+
+    private func requestVerificationCode() {
+        hasRequestedCode = true
+        focusedField = .verificationCode
+        showPendingIntegrationMessage()
+    }
+
+    private func submitVerificationCode() {
+        showPendingIntegrationMessage()
+    }
+
+    private func showPendingIntegrationMessage() {
+        appViewModel.showToast(
+            message: appViewModel.localized(
+                "profile_phone_backend_pending_toast",
+                fallback: "Phone backend integration is pending."
+            ),
+            isError: false
+        )
+    }
+
+    private func requestDismiss() {
+        focusedField = nil
+        UIApplication.shared.sendAction(#selector(UIResponder.resignFirstResponder), to: nil, from: nil, for: nil)
+        onDismiss()
     }
 }
 

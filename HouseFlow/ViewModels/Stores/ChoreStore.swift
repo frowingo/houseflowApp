@@ -67,7 +67,8 @@ final class ChoreStore: ObservableObject {
             createdOn: details.createdOn,
             updatedOn: details.updatedOn,
             members: details.members,
-            chores: mergedChores
+            chores: mergedChores,
+            announcements: details.announcements
         )
     }
 

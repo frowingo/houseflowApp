@@ -85,6 +85,21 @@ struct ChoreReviewVote: Codable, Identifiable, Equatable {
     let reviewerId: String
     let isApproved: Bool
     let createdOn: String
+
+    private enum CodingKeys: String, CodingKey {
+        case id, choreId, houseId, reviewRound, reviewerId, isApproved, createdOn
+    }
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        id = try container.decode(String.self, forKey: .id)
+        choreId = try container.decode(String.self, forKey: .choreId)
+        houseId = try container.decode(String.self, forKey: .houseId)
+        reviewRound = try container.decode(Int.self, forKey: .reviewRound)
+        reviewerId = try container.decode(String.self, forKey: .reviewerId)
+        isApproved = try container.decode(Bool.self, forKey: .isApproved)
+        createdOn = try container.decodeAPITime(forKey: .createdOn)
+    }
 }
 
 struct ChoreReviewResponse: Decodable, Identifiable, Equatable {

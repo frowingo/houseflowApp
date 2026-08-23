@@ -16,12 +16,13 @@ final class HouseService {
             throw NetworkError.serverError("Not authenticated.")
         }
         let body = CreateHouseRequest(name: name, maxMemberCount: maxMemberCount, type: type)
-        return try await network.authenticatedRequest(
+        let response = try await network.authenticatedRequest(
             path: "house/create",
             body: body,
-            successType: HouseResponse.self,
+            successType: HouseAPIResponse<HouseResponse>.self,
             token: token
         )
+        return try unwrap(response, fallbackError: "House could not be created.")
     }
 
     // MARK: - House Details
@@ -31,12 +32,13 @@ final class HouseService {
         guard let token = keychain.authToken else {
             throw NetworkError.serverError("Not authenticated.")
         }
-        return try await network.get(
+        let response = try await network.get(
             path: "house/details",
             queryItems: [URLQueryItem(name: "houseId", value: houseId)],
-            successType: HouseDetailsResponse.self,
+            successType: HouseAPIResponse<HouseDetailsResponse>.self,
             token: token
         )
+        return try unwrap(response, fallbackError: "House details could not be loaded.")
     }
 
     // MARK: - Join House
@@ -47,11 +49,49 @@ final class HouseService {
             throw NetworkError.serverError("Not authenticated.")
         }
         let body = JoinHouseRequest(inviteCode: inviteCode)
-        return try await network.authenticatedRequest(
+        let response = try await network.authenticatedRequest(
             path: "house/join",
             body: body,
-            successType: HouseResponse.self,
+            successType: HouseAPIResponse<HouseResponse>.self,
             token: token
         )
+        return try unwrap(response, fallbackError: "House could not be joined.")
+    }
+
+    // MARK: - Create Announcement
+
+    /// POST house/announcement — requires Bearer token
+    func createAnnouncement(
+        title: String,
+        description: String,
+        houseId: String
+    ) async throws -> HouseAnnouncementDTO {
+        guard let token = keychain.authToken else {
+            throw NetworkError.serverError("Not authenticated.")
+        }
+
+        let body = CreateAnnouncementRequest(
+            description: description,
+            houseId: houseId,
+            title: title
+        )
+        let response = try await network.authenticatedRequest(
+            path: "house/announcement",
+            method: "POST",
+            body: body,
+            successType: HouseAPIResponse<HouseAnnouncementDTO>.self,
+            token: token
+        )
+        return try unwrap(response, fallbackError: "Announcement could not be published.")
+    }
+
+    private func unwrap<Data: Decodable>(
+        _ response: HouseAPIResponse<Data>,
+        fallbackError: String
+    ) throws -> Data {
+        guard response.success, let data = response.data else {
+            throw NetworkError.serverError(response.error ?? fallbackError)
+        }
+        return data
     }
 }

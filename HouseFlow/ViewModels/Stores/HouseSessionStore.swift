@@ -127,6 +127,33 @@ final class HouseSessionStore: ObservableObject {
         }
     }
 
+    func createAnnouncement(title: String, description: String) async throws -> HouseAnnouncementDTO {
+        guard let activeDetails = currentHouseDetails, !activeDetails.id.isEmpty else {
+            throw NetworkError.serverError("No active house was found.")
+        }
+
+        let announcement = try await houseService.createAnnouncement(
+            title: title,
+            description: description,
+            houseId: activeDetails.id
+        )
+
+        // Do not merge into another house if the active selection changed while
+        // the request was in flight.
+        guard var latestDetails = currentHouseDetails,
+              latestDetails.id == activeDetails.id else {
+            return announcement
+        }
+
+        if let index = latestDetails.announcements.firstIndex(where: { $0.id == announcement.id }) {
+            latestDetails.announcements[index] = announcement
+        } else {
+            latestDetails.announcements.insert(announcement, at: 0)
+        }
+        setCurrentHouseDetails(latestDetails)
+        return announcement
+    }
+
     func loadFirstHouseIfPresent(for profile: IsAuthUserData, settleDelay: Duration = .milliseconds(600)) async throws -> Bool {
         guard let firstHouseId = profile.houseIds.first else {
             showHouseLoading = false

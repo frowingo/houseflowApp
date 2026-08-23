@@ -104,7 +104,10 @@ struct TodaysChoresCard: View {
                         Circle()
                             .fill(
                                 LinearGradient(
-                                    colors: [AppDesign.Colors.primary, AppDesign.Colors.secondary],
+                                    colors: [
+                                        HouseJourneyTheme.indigo,
+                                        HouseJourneyTheme.teal
+                                    ],
                                     startPoint: .topLeading,
                                     endPoint: .bottomTrailing
                                 )
@@ -116,6 +119,12 @@ struct TodaysChoresCard: View {
                         Image(systemName: "list.clipboard.fill")
                             .font(.system(size: 20))
                             .foregroundColor(.white)
+
+                        Circle()
+                            .fill(HouseJourneyTheme.accentOrange)
+                            .frame(width: 8, height: 8)
+                            .overlay(Circle().stroke(AppDesign.Colors.cardBackground, lineWidth: 1.5))
+                            .offset(x: 16, y: 16)
                     }
                 }
                 .buttonStyle(PlainButtonStyle())
@@ -159,7 +168,10 @@ struct TodaysChoresCard: View {
                         RoundedRectangle(cornerRadius: AppDesign.CornerRadius.sm)
                             .fill(
                                 LinearGradient(
-                                    colors: [AppDesign.Colors.primary, AppDesign.Colors.secondary],
+                                    colors: [
+                                        HouseJourneyTheme.indigo,
+                                        HouseJourneyTheme.teal
+                                    ],
                                     startPoint: .leading,
                                     endPoint: .trailing
                                 )
@@ -257,7 +269,10 @@ struct CircularProgressView: View {
                 .trim(from: 0, to: progress)
                 .stroke(
                     LinearGradient(
-                        colors: [AppDesign.Colors.primary, AppDesign.Colors.secondary],
+                        colors: [
+                            HouseJourneyTheme.indigo,
+                            HouseJourneyTheme.teal
+                        ],
                         startPoint: .topLeading,
                         endPoint: .bottomTrailing
                     ),
@@ -272,7 +287,7 @@ struct CircularProgressView: View {
                 replacements: ["percent": "\(Int(progress * 100))"]
             )
                 .font(.system(size: 12, weight: .bold))
-                .foregroundColor(AppDesign.Colors.primary)
+                .foregroundColor(HouseJourneyTheme.deepIndigo)
         }
     }
 }

@@ -678,6 +678,24 @@ class AppViewModel: ObservableObject {
             currentUserProfile: currentUserProfile
         )
     }
+
+    // MARK: - Announcement API
+
+    @discardableResult
+    func createAnnouncement(title: String, description: String) async -> Bool {
+        do {
+            _ = try await houseStore.createAnnouncement(title: title, description: description)
+            showToast(
+                message: localized("announcement_created_toast", fallback: "Announcement published."),
+                isError: false
+            )
+            return true
+        } catch {
+            showToast(message: error.localizedDescription, isError: true)
+            return false
+        }
+    }
+
     // MARK: - Chore API
 
     /// Creates a chore via the API, then merges the returned chore into dashboard state.

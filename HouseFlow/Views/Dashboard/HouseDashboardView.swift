@@ -7,9 +7,9 @@ struct HouseDashboardView: View {
     @State private var selectedChore: Chore? = nil
     @State private var showChoreDetail = false
     @State private var showNewChore = false
+    @State private var showNewAnnouncement = false
     @State private var buttonState: NewChoreButtonState = .collapsed
     @State private var buttonTimer: Timer?
-    @State private var showLogoutConfirmation = false
     @State private var appeared = false
     
     var body: some View {
@@ -21,7 +21,12 @@ struct HouseDashboardView: View {
                 VStack(spacing: AppDesign.Spacing.lg) {
                     headerSection
 
-                    AnnouncementCard()
+                    AnnouncementCard(
+                        houseId: appViewModel.currentHouseDetails?.id ?? "",
+                        readerId: appViewModel.currentUser?.apiId ?? appViewModel.currentUser?.id,
+                        announcements: appViewModel.currentHouseDetails?.announcements ?? [],
+                        members: appViewModel.currentHouseDetails?.members ?? []
+                    )
                         .padding(.horizontal, AppDesign.Spacing.xl)
                         .opacity(appeared ? 1 : 0)
                         .offset(y: appeared ? 0 : 20)
@@ -93,7 +98,7 @@ struct HouseDashboardView: View {
                 .frame(width: 120, height: 120)
                 .offset(x: 200, y: 55)
 
-            // Text + logout button
+            // Text + announcement action
             HStack(alignment: .bottom) {
                 VStack(alignment: .leading, spacing: AppDesign.Spacing.xs) {
                     Text(appViewModel.localized(
@@ -112,14 +117,22 @@ struct HouseDashboardView: View {
 
                 Spacer()
 
-                Button(action: { showLogoutConfirmation = true }) {
-                    Image(systemName: "rectangle.portrait.and.arrow.right")
+                Button {
+                    withAnimation(AppDesign.Animation.standard) {
+                        showNewAnnouncement = true
+                    }
+                } label: {
+                    Image(systemName: "megaphone.fill")
                         .font(.system(size: AppDesign.Size.iconMedium))
                         .foregroundStyle(Color.white.opacity(0.85))
                         .padding(10)
                         .background(Color.white.opacity(0.18))
                         .clipShape(Circle())
                 }
+                .accessibilityLabel(appViewModel.localized(
+                    "new_announcement_action_accessibility_label",
+                    fallback: "Create announcement"
+                ))
             }
             .padding(.horizontal, AppDesign.Spacing.xl)
             .padding(.vertical, AppDesign.Spacing.xl)
@@ -165,27 +178,28 @@ struct HouseDashboardView: View {
                 )
             }
 
-            if showLogoutConfirmation {
-                LogoutConfirmationPopup(
-                    onConfirm: {
-                        showLogoutConfirmation = false
-                        withAnimation(AppDesign.Animation.standard) {
-                            appViewModel.logout()
-                        }
+            if showNewAnnouncement {
+                NewAnnouncementPopup(
+                    appViewModel: appViewModel,
+                    onPublish: { title, message in
+                        await appViewModel.createAnnouncement(
+                            title: title,
+                            description: message
+                        )
                     },
-                    onCancel: {
-                        dismissLogoutConfirmation()
+                    onDismiss: {
+                        dismissNewAnnouncement()
                     }
                 )
             }
         }
         .onChange(of: showChoreDetail) { _, _ in syncOverlayPresentation() }
         .onChange(of: showNewChore) { _, _ in syncOverlayPresentation() }
-        .onChange(of: showLogoutConfirmation) { _, _ in syncOverlayPresentation() }
+        .onChange(of: showNewAnnouncement) { _, _ in syncOverlayPresentation() }
     }
 
     private func syncOverlayPresentation() {
-        appViewModel.isOverlayPresented = showChoreDetail || showNewChore || showLogoutConfirmation
+        appViewModel.isOverlayPresented = showChoreDetail || showNewChore || showNewAnnouncement
     }
 
     private func dismissChoreDetail() {
@@ -211,12 +225,13 @@ struct HouseDashboardView: View {
         }
     }
 
-    private func dismissLogoutConfirmation() {
+    private func dismissNewAnnouncement() {
+        UIApplication.shared.sendAction(#selector(UIResponder.resignFirstResponder), to: nil, from: nil, for: nil)
         DispatchQueue.main.async {
             var transaction = Transaction()
             transaction.disablesAnimations = true
             withTransaction(transaction) {
-                showLogoutConfirmation = false
+                showNewAnnouncement = false
             }
         }
     }
