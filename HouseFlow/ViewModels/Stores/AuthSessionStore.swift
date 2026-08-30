@@ -5,9 +5,9 @@ import Combine
 final class AuthSessionStore: ObservableObject {
     @Published var isAuthenticated = false
     @Published var currentUser: User?
-    @Published var isLoading = false
-    @Published var authError: String?
-    @Published var successToast: String?
+    @Published private(set) var isLoading = false
+    @Published private(set) var authError: String?
+    @Published private(set) var successToast: String?
     @Published private(set) var pendingEmailVerification: String?
     @Published private(set) var currentUserId: String?
     @Published private(set) var currentUserProfile: IsAuthUserData?
@@ -55,34 +55,6 @@ final class AuthSessionStore: ObservableObject {
                 lastName: lastName
             )
             requireEmailVerification(for: email)
-            return true
-        } catch {
-            authError = error.localizedDescription
-            return false
-        }
-    }
-
-    func forgotPassword(email: String) async -> Bool {
-        isLoading = true
-        authError = nil
-        defer { isLoading = false }
-
-        do {
-            let response = try await authService.forgotPassword(email: email)
-            return response.success
-        } catch {
-            authError = error.localizedDescription
-            return false
-        }
-    }
-
-    func resetPassword(email: String, code: String, newPassword: String) async -> Bool {
-        isLoading = true
-        authError = nil
-        defer { isLoading = false }
-
-        do {
-            _ = try await authService.resetPassword(email: email, code: code, newPassword: newPassword)
             return true
         } catch {
             authError = error.localizedDescription
@@ -191,5 +163,10 @@ final class AuthSessionStore: ObservableObject {
     func clearPendingEmailVerification() {
         pendingEmailVerification = nil
         keychain.pendingEmailVerification = nil
+    }
+
+    func clearFeedback() {
+        authError = nil
+        successToast = nil
     }
 }

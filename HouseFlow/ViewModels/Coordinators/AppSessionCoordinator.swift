@@ -125,14 +125,6 @@ final class AppSessionCoordinator: ObservableObject {
         signupSuccessMessage = nil
     }
 
-    func forgotPassword(email: String) async -> Bool {
-        await authStore.forgotPassword(email: email)
-    }
-
-    func resetPassword(email: String, code: String, newPassword: String) async -> Bool {
-        await authStore.resetPassword(email: email, code: code, newPassword: newPassword)
-    }
-
     func requestPasswordReset(email: String) async throws {
         try await authStore.requestPasswordReset(email: email)
     }

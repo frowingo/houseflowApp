@@ -45,7 +45,7 @@ struct RootView: View {
             case .birthdaySetup:
                 BirthdaySetupView()
             case .authentication:
-                AuthView()
+                AuthView(viewModel: appViewModel.authenticationViewModel)
             case .createHouse:
                 CreateHouseView()
             case .joinHouse:

@@ -11,6 +11,7 @@ class AppViewModel: ObservableObject {
     private let choreStore: ChoreStore
     private let localizationStore: LocalizationStore
     let router: AppRouter
+    let authenticationViewModel: AuthenticationViewModel
     private let sessionCoordinator: AppSessionCoordinator
     private let houseFlowCoordinator: HouseFlowCoordinator
     private let dashboardCoordinator: DashboardCoordinator
@@ -44,21 +45,6 @@ class AppViewModel: ObservableObject {
     var currentUser: User? {
         get { authStore.currentUser }
         set { authStore.currentUser = newValue }
-    }
-
-    var isLoading: Bool {
-        get { authStore.isLoading }
-        set { authStore.isLoading = newValue }
-    }
-
-    var authError: String? {
-        get { authStore.authError }
-        set { authStore.authError = newValue }
-    }
-
-    var successToast: String? {
-        get { authStore.successToast }
-        set { authStore.successToast = newValue }
     }
 
     var currentHouse: HouseResponse? {
@@ -148,13 +134,29 @@ class AppViewModel: ObservableObject {
             pendingEmailVerification: { authStore.pendingEmailVerification }
         )
         self.router = router
-        sessionCoordinator = AppSessionCoordinator(
+        let sessionCoordinator = AppSessionCoordinator(
             keychain: keychain,
             authStore: authStore,
             houseStore: houseStore,
             localizationStore: localizationStore,
             toastStore: toastStore,
             router: router
+        )
+        self.sessionCoordinator = sessionCoordinator
+        authenticationViewModel = AuthenticationViewModel(
+            authStore: authStore,
+            localizationStore: localizationStore,
+            loginAction: { email, password in
+                await sessionCoordinator.login(email: email, password: password)
+            },
+            signupAction: { email, password, firstName, lastName in
+                await sessionCoordinator.signup(
+                    email: email,
+                    password: password,
+                    firstName: firstName,
+                    lastName: lastName
+                )
+            }
         )
         houseFlowCoordinator = HouseFlowCoordinator(
             authStore: authStore,
@@ -322,32 +324,10 @@ class AppViewModel: ObservableObject {
         await sessionCoordinator.performAutoLogin()
     }
 
-    // MARK: - Real Auth (API)
-
-    func login(email: String, password: String) async {
-        await sessionCoordinator.login(email: email, password: password)
-    }
-
-    @discardableResult
-    func signup(email: String, password: String, firstName: String, lastName: String) async -> Bool {
-        await sessionCoordinator.signup(
-            email: email,
-            password: password,
-            firstName: firstName,
-            lastName: lastName
-        )
-    }
+    // MARK: - Authentication Support Flows
 
     func clearSignupSuccessMessage() {
         sessionCoordinator.clearSignupSuccessMessage()
-    }
-
-    func forgotPassword(email: String) async -> Bool {
-        await sessionCoordinator.forgotPassword(email: email)
-    }
-
-    func resetPassword(email: String, code: String, newPassword: String) async -> Bool {
-        await sessionCoordinator.resetPassword(email: email, code: code, newPassword: newPassword)
     }
 
     func requestPasswordReset(email: String) async throws {
