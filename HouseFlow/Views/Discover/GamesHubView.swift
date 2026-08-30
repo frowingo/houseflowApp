@@ -58,41 +58,18 @@ struct GamesHubView: View {
     // MARK: - Header
     private var headerSection: some View {
         ZStack(alignment: .bottomLeading) {
-            // Orange gradient banner
-            RoundedRectangle(cornerRadius: AppDesign.CornerRadius.xl)
-                .fill(
-                    LinearGradient(
-                        colors: [
-                            Color(hue: 0.08, saturation: 0.85, brightness: 0.95),
-                            Color(hue: 0.05, saturation: 0.75, brightness: 0.80),
-                        ],
-                        startPoint: .topLeading,
-                        endPoint: .bottomTrailing
-                    )
-                )
-                .frame(maxWidth: .infinity)
-                .frame(height: 160)
-
-            // Decorative circle
-            Circle()
-                .fill(Color.white.opacity(0.12))
-                .frame(width: 160, height: 160)
-                .offset(x: 120, y: -30)
-
-            Circle()
-                .fill(Color.white.opacity(0.08))
-                .frame(width: 100, height: 100)
-                .offset(x: 200, y: 30)
+            BrandHeroCardBackground()
 
             // Icon
             Image(systemName: "gamecontroller.fill")
-                .font(.system(size: 44, weight: .medium))
-                .foregroundStyle(Color.white.opacity(0.18))
-                .offset(x: 230, y: -20)
+                .font(.system(size: 48, weight: .semibold))
+                .foregroundStyle(Color.white.opacity(0.16))
+                .rotationEffect(.degrees(-8))
+                .offset(x: 230, y: -28)
 
             VStack(alignment: .leading, spacing: AppDesign.Spacing.xs) {
                 LocalizedText("games_hub_title")
-                    .font(AppDesign.Typography.title2)
+                    .font(.system(size: 23, weight: .bold, design: .rounded))
                     .foregroundStyle(.white)
                 LocalizedText("games_hub_subtitle")
                     .font(AppDesign.Typography.subheadline)
@@ -101,8 +78,7 @@ struct GamesHubView: View {
             .padding(.horizontal, AppDesign.Spacing.xl)
             .padding(.bottom, AppDesign.Spacing.xl)
         }
-        .clipShape(RoundedRectangle(cornerRadius: AppDesign.CornerRadius.xl))
-        .shadow(color: Color.orange.opacity(0.35), radius: 16, x: 0, y: 6)
+        .frame(height: 138)
         .padding(.top, AppDesign.Spacing.xl)
         .opacity(appeared ? 1 : 0)
         .offset(y: appeared ? 0 : 12)
@@ -243,6 +219,3 @@ struct ScaleButtonStyle: ButtonStyle {
             .animation(.spring(response: 0.3, dampingFraction: 0.7), value: configuration.isPressed)
     }
 }
-
-// MARK: - Legacy alias (keeps MainTabView reference working)
-typealias ComingSoonView = GamesHubView

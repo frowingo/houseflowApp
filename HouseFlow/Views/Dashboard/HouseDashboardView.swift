@@ -72,31 +72,7 @@ struct HouseDashboardView: View {
 
     private var headerSection: some View {
         ZStack(alignment: .leading) {
-            // Orange gradient banner
-            RoundedRectangle(cornerRadius: AppDesign.CornerRadius.xl)
-                .fill(
-                    LinearGradient(
-                        colors: [
-                            Color(hue: 0.08, saturation: 0.85, brightness: 0.95),
-                            Color(hue: 0.05, saturation: 0.75, brightness: 0.80),
-                        ],
-                        startPoint: .topLeading,
-                        endPoint: .bottomTrailing
-                    )
-                )
-                .frame(maxWidth: .infinity)
-                .frame(height: 100)
-
-            // Decorative circles
-            Circle()
-                .fill(Color.white.opacity(0.12))
-                .frame(width: 160, height: 160)
-                .offset(x: 100, y: -40)
-
-            Circle()
-                .fill(Color.white.opacity(0.08))
-                .frame(width: 120, height: 120)
-                .offset(x: 200, y: 55)
+            BrandHeroCardBackground()
 
             // Text + announcement action
             HStack(alignment: .bottom) {
@@ -108,11 +84,14 @@ struct HouseDashboardView: View {
                                 ?? appViewModel.localized("common_user_fallback")
                         ]
                     ))
-                        .font(AppDesign.Typography.title2)
+                        .font(.system(size: 23, weight: .bold, design: .rounded))
                         .foregroundStyle(.white)
+                        .lineLimit(1)
+                        .minimumScaleFactor(0.72)
                     Text(appViewModel.currentHouseDetails?.name ?? appViewModel.houseName)
                         .font(AppDesign.Typography.subheadline)
                         .foregroundStyle(Color.white.opacity(0.82))
+                        .lineLimit(1)
                 }
 
                 Spacer()
@@ -137,10 +116,10 @@ struct HouseDashboardView: View {
             .padding(.horizontal, AppDesign.Spacing.xl)
             .padding(.vertical, AppDesign.Spacing.xl)
         }
-        .clipShape(RoundedRectangle(cornerRadius: AppDesign.CornerRadius.xl))
-        .shadow(color: Color.orange.opacity(0.35), radius: 16, x: 0, y: 6)
+        .frame(height: 112)
         .padding(.horizontal, AppDesign.Spacing.xl)
         .padding(.top, AppDesign.Spacing.xs)
+        .padding(.bottom, AppDesign.Spacing.sm)
         .opacity(appeared ? 1 : 0)
         .offset(y: appeared ? 0 : 12)
     }

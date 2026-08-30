@@ -11,24 +11,37 @@ struct ProfilePersonalInfoCard: View {
     let editButtonTitle: String
     let onEdit: () -> Void
 
-    private let brandOrange = Color(red: 1.0, green: 0.48, blue: 0.15)
+    private let personalTeal = Color(red: 0.20, green: 0.50, blue: 0.52)
+    private let personalSage = Color(red: 0.37, green: 0.62, blue: 0.50)
+    private let personalSlate = Color(red: 0.36, green: 0.48, blue: 0.61)
 
     var body: some View {
         VStack(spacing: 0) {
             HStack(spacing: AppDesign.Spacing.sm) {
                 ZStack {
                     RoundedRectangle(cornerRadius: 7)
-                        .fill(brandOrange.opacity(0.14))
+                        .fill(personalTeal.opacity(0.14))
                         .frame(width: 28, height: 28)
                     Image(systemName: "person.crop.circle.fill")
                         .font(.system(size: 13, weight: .semibold))
-                        .foregroundStyle(brandOrange)
+                        .foregroundStyle(personalTeal)
                 }
                 Text(title)
                     .font(.system(size: 11, weight: .bold))
                     .foregroundStyle(AppDesign.Colors.textTertiary)
                     .kerning(0.9)
                 Spacer()
+
+                Button(action: onEdit) {
+                    Image(systemName: "pencil")
+                        .font(.system(size: 13, weight: .semibold))
+                        .foregroundStyle(personalTeal)
+                        .frame(width: 30, height: 30)
+                        .background(personalTeal.opacity(0.12))
+                        .clipShape(Circle())
+                }
+                .buttonStyle(.plain)
+                .accessibilityLabel(editButtonTitle)
             }
             .padding(.horizontal, AppDesign.Spacing.lg)
             .padding(.top, AppDesign.Spacing.md)
@@ -38,62 +51,33 @@ struct ProfilePersonalInfoCard: View {
 
             ProfileInfoRow(
                 icon: "person.fill",
-                tint: brandOrange,
+                tint: personalTeal,
                 label: firstNameLabel,
                 value: firstName
             )
             ProfileCardDivider()
             ProfileInfoRow(
                 icon: "person.fill",
-                tint: brandOrange,
+                tint: personalSage,
                 label: lastNameLabel,
                 value: lastName
             )
             ProfileCardDivider()
             ProfileInfoRow(
                 icon: "birthday.cake.fill",
-                tint: Color(red: 0.9, green: 0.45, blue: 0.1),
+                tint: personalSlate,
                 label: birthDateLabel,
                 value: birthDate
             )
-
-            Divider().padding(.horizontal, AppDesign.Spacing.lg)
-
-            Button(action: onEdit) {
-                HStack(spacing: AppDesign.Spacing.sm) {
-                    Image(systemName: "pencil.and.outline")
-                        .font(.system(size: 14, weight: .semibold))
-                    Text(editButtonTitle)
-                        .font(.system(size: 15, weight: .semibold))
-                }
-                .foregroundStyle(.white)
-                .frame(maxWidth: .infinity)
-                .padding(.vertical, 14)
-                .background(
-                    LinearGradient(
-                        colors: [brandOrange, brandOrange.opacity(0.7)],
-                        startPoint: .leading,
-                        endPoint: .trailing
-                    )
-                )
-                .clipShape(RoundedRectangle(cornerRadius: AppDesign.CornerRadius.lg))
-                .shadow(color: brandOrange.opacity(0.4), radius: 10, x: 0, y: 4)
-                .overlay(
-                    RoundedRectangle(cornerRadius: AppDesign.CornerRadius.lg)
-                        .strokeBorder(Color.white.opacity(0.15), lineWidth: 1)
-                )
-            }
-            .padding(.horizontal, AppDesign.Spacing.lg)
-            .padding(.vertical, AppDesign.Spacing.md)
         }
         .background(
             ZStack {
                 AppDesign.Colors.cardBackground
                 LinearGradient(
                     colors: [
-                        brandOrange.opacity(0.06),
+                        personalTeal.opacity(0.065),
                         Color.clear,
-                        Color(red: 0.65, green: 0.20, blue: 0.05).opacity(0.03)
+                        personalSage.opacity(0.04)
                     ],
                     startPoint: .topLeading,
                     endPoint: .bottomTrailing
@@ -111,7 +95,7 @@ struct ProfilePersonalInfoCard: View {
             RoundedRectangle(cornerRadius: AppDesign.CornerRadius.xl)
                 .strokeBorder(
                     LinearGradient(
-                        colors: [brandOrange.opacity(0.3), AppDesign.Colors.textTertiary.opacity(0.1)],
+                        colors: [personalTeal.opacity(0.3), personalSage.opacity(0.12)],
                         startPoint: .topLeading,
                         endPoint: .bottomTrailing
                     ),

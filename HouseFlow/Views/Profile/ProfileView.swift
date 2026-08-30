@@ -45,7 +45,6 @@ struct ProfileView: View {
                     imageURLString: appViewModel.currentUserProfile?.imageUrl ?? "",
                     initials: initials,
                     fullName: fullName,
-                    email: appViewModel.currentUserProfile?.email ?? "—",
                     isVisible: appeared,
                     onAvatarTap: {
                         showAvatarPicker = true
@@ -53,7 +52,7 @@ struct ProfileView: View {
                 )
 
                 VStack(spacing: AppDesign.Spacing.lg) {
-                    personalInfoCard
+                    accountInformationCard
                         .opacity(appeared ? 1 : 0)
                         .offset(y: appeared ? 0 : 24)
                         .animation(
@@ -61,7 +60,7 @@ struct ProfileView: View {
                             value: appeared
                         )
 
-                    accountInformationCard
+                    personalInfoCard
                         .opacity(appeared ? 1 : 0)
                         .offset(y: appeared ? 0 : 24)
                         .animation(
