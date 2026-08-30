@@ -2,23 +2,13 @@ import SwiftUI
 
 struct RootView: View {
     @EnvironmentObject private var appViewModel: AppViewModel
-    @AppStorage("hasSeenOnboarding") private var hasSeenOnboarding = false
     
     var body: some View {
         NavigationStack {
             currentView
-                .id(currentViewId)
+                .id(appViewModel.route.id)
                 .transition(currentTransition)
-                .animation(.easeOut(duration: 0.4), value: currentViewId)
-                .onChange(of: appViewModel.showCreateHouse) { _, _ in }
-                .onChange(of: appViewModel.showJoinHouse) { _, _ in }
-                .onChange(of: appViewModel.showAuth) { _, _ in }
-                .onChange(of: appViewModel.showHouseLoading) { _, _ in }
-                .onChange(of: appViewModel.showHouseError) { _, _ in }
-                .onChange(of: appViewModel.isInitializing) { _, _ in }
-                .onChange(of: appViewModel.pendingEmailVerification) { _, _ in }
-                .onChange(of: appViewModel.showBirthdaySetup) { _, _ in }
-                .onChange(of: appViewModel.signupSuccessMessage) { _, _ in }
+                .animation(.easeOut(duration: 0.4), value: appViewModel.route.id)
         }
         .overlay(alignment: .top) {
             if let message = appViewModel.toastMessage {
@@ -34,13 +24,14 @@ struct RootView: View {
     
     private var currentView: some View {
         Group {
-            if appViewModel.isInitializing || appViewModel.showHouseLoading {
+            switch appViewModel.route {
+            case .houseLoading:
                 HouseLoadingView()
-            } else if appViewModel.showHouseError {
+            case .houseError:
                 HouseErrorView()
-            } else if !hasSeenOnboarding {
+            case .onboarding:
                 OnboardingView()
-            } else if let email = appViewModel.pendingEmailVerification {
+            case .emailVerification(let email):
                 EmailVerificationView(
                     email: email,
                     signupSuccessMessage: appViewModel.signupSuccessMessage,
@@ -50,43 +41,19 @@ struct RootView: View {
                     },
                     onDismissSignupSuccess: appViewModel.clearSignupSuccessMessage
                 )
-            } else if appViewModel.showBirthdaySetup {
+            case .birthdaySetup:
                 BirthdaySetupView()
-            } else if !appViewModel.isAuthenticated || appViewModel.showAuth {
+            case .authentication:
                 AuthView()
-            } else if appViewModel.showCreateHouse {
+            case .createHouse:
                 CreateHouseView()
-            } else if appViewModel.showJoinHouse {
+            case .joinHouse:
                 JoinHouseView()
-            } else if !appViewModel.hasSelectedHouse {
+            case .houseSelection:
                 HouseSelectionView()
-            } else {
+            case .dashboard:
                 MainTabView()
             }
-        }
-    }
-    
-    private var currentViewId: String {
-        if appViewModel.isInitializing || appViewModel.showHouseLoading {
-            return "houseLoading"
-        } else if appViewModel.showHouseError {
-            return "houseError"
-        } else if !hasSeenOnboarding {
-            return "onboarding"
-        } else if appViewModel.pendingEmailVerification != nil {
-            return "emailVerification"
-        } else if appViewModel.showBirthdaySetup {
-            return "birthdaySetup"
-        } else if !appViewModel.isAuthenticated || appViewModel.showAuth {
-            return "auth"
-        } else if appViewModel.showCreateHouse {
-            return "createHouse"
-        } else if appViewModel.showJoinHouse {
-            return "joinHouse"
-        } else if !appViewModel.hasSelectedHouse {
-            return "houseSelection"
-        } else {
-            return "mainTab"
         }
     }
     

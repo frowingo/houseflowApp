@@ -4,7 +4,6 @@ import Combine
 @MainActor
 final class AuthSessionStore: ObservableObject {
     @Published var isAuthenticated = false
-    @Published var showAuth = false
     @Published var currentUser: User?
     @Published var isLoading = false
     @Published var authError: String?
@@ -98,16 +97,15 @@ final class AuthSessionStore: ObservableObject {
         }
     }
 
-    func resolveAuthenticatedUser(invalidMessage: String = "Authenticated user could not be resolved.") async throws -> IsAuthUserData {
+    func fetchAuthenticatedUser(invalidMessage: String = "Authenticated user could not be resolved.") async throws -> IsAuthUserData {
         let result = try await authService.isAuth()
         guard result.success, let profile = result.data else {
             throw NetworkError.serverError(invalidMessage)
         }
-        applyAuthenticatedUser(profile)
         return profile
     }
 
-    func updateProfile(_ request: UpdateProfileRequest) async throws {
+    func updateProfile(_ request: UpdateProfileRequest) async throws -> IsAuthUserData {
         guard let userId = currentUserId else {
             throw NetworkError.serverError("User not authenticated.")
         }
@@ -115,7 +113,7 @@ final class AuthSessionStore: ObservableObject {
         guard response.success, let data = response.data else {
             throw NetworkError.serverError(response.error ?? "Update failed.")
         }
-        applyAuthenticatedUser(IsAuthUserData(
+        return IsAuthUserData(
             birthDate: data.birthDate,
             createdOn: data.createdOn,
             email: data.email,
@@ -131,14 +129,13 @@ final class AuthSessionStore: ObservableObject {
             lastName: data.lastName,
             phoneNumber: data.phoneNumber,
             updatedOn: data.updatedOn
-        ))
+        )
     }
 
     func logout() {
         authService.logout()
         clearPendingEmailVerification()
         isAuthenticated = false
-        showAuth = false
         isLoading = false
         authError = nil
         successToast = nil

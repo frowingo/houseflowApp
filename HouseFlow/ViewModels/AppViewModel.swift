@@ -5,6 +5,53 @@ enum NavigationDirection {
     case forward, backward
 }
 
+enum AppRoute: Equatable {
+    case houseLoading(HouseLoadingPhase)
+    case houseError
+    case onboarding
+    case emailVerification(email: String)
+    case birthdaySetup
+    case authentication
+    case createHouse
+    case joinHouse
+    case houseSelection
+    case dashboard
+
+    var id: String {
+        switch self {
+        case .houseLoading:
+            return "houseLoading"
+        case .houseError:
+            return "houseError"
+        case .onboarding:
+            return "onboarding"
+        case .emailVerification:
+            return "emailVerification"
+        case .birthdaySetup:
+            return "birthdaySetup"
+        case .authentication:
+            return "auth"
+        case .createHouse:
+            return "createHouse"
+        case .joinHouse:
+            return "joinHouse"
+        case .houseSelection:
+            return "houseSelection"
+        case .dashboard:
+            return "mainTab"
+        }
+    }
+
+    var requiresAuthenticatedSession: Bool {
+        switch self {
+        case .createHouse, .joinHouse, .houseSelection, .dashboard:
+            return true
+        default:
+            return false
+        }
+    }
+}
+
 enum HouseLoadingPhase: Equatable {
     case creating
     case joining
@@ -39,18 +86,19 @@ enum HouseLoadingPhase: Equatable {
 @MainActor
 class AppViewModel: ObservableObject {
     @Published var navigationDirection: NavigationDirection = .forward
-    @Published private(set) var showBirthdaySetup = false
+    @Published private(set) var route: AppRoute
     @Published private(set) var signupSuccessMessage: String?
 
     private let keychain = KeychainService.shared
     private let authStore = AuthSessionStore()
     private let toastStore = ToastStore()
     private let overlayStore = OverlayStore()
-    private let houseStore = HouseSessionStore(isInitializing: KeychainService.shared.authToken != nil)
+    private let houseStore = HouseSessionStore()
     private let dashboardStore = DashboardStore()
     private let choreStore = ChoreStore()
     private let localizationStore = LocalizationStore()
     private var storeCancellables = Set<AnyCancellable>()
+    private var authenticationFlowID = UUID()
 
     /// The server-assigned ID of the logged-in user (used to gate chore status edits).
     var currentUserId: String? { authStore.currentUserId }
@@ -81,11 +129,6 @@ class AppViewModel: ObservableObject {
         set { authStore.isAuthenticated = newValue }
     }
 
-    var showAuth: Bool {
-        get { authStore.showAuth }
-        set { authStore.showAuth = newValue }
-    }
-
     var currentUser: User? {
         get { authStore.currentUser }
         set { authStore.currentUser = newValue }
@@ -106,23 +149,8 @@ class AppViewModel: ObservableObject {
         set { authStore.successToast = newValue }
     }
 
-    var pendingEmailVerification: String? {
+    private var pendingEmailVerification: String? {
         authStore.pendingEmailVerification
-    }
-
-    var hasSelectedHouse: Bool {
-        get { houseStore.hasSelectedHouse }
-        set { houseStore.hasSelectedHouse = newValue }
-    }
-
-    var showCreateHouse: Bool {
-        get { houseStore.showCreateHouse }
-        set { houseStore.showCreateHouse = newValue }
-    }
-
-    var showJoinHouse: Bool {
-        get { houseStore.showJoinHouse }
-        set { houseStore.showJoinHouse = newValue }
     }
 
     var currentHouse: HouseResponse? {
@@ -148,24 +176,9 @@ class AppViewModel: ObservableObject {
         set { houseStore.houseError = newValue }
     }
 
-    var isInitializing: Bool {
-        get { houseStore.isInitializing }
-        set { houseStore.isInitializing = newValue }
-    }
-
-    var showHouseLoading: Bool {
-        get { houseStore.showHouseLoading }
-        set { houseStore.showHouseLoading = newValue }
-    }
-
     var houseLoadingPhase: HouseLoadingPhase {
-        get { houseStore.houseLoadingPhase }
-        set { houseStore.houseLoadingPhase = newValue }
-    }
-
-    var showHouseError: Bool {
-        get { houseStore.showHouseError }
-        set { houseStore.showHouseError = newValue }
+        guard case .houseLoading(let phase) = route else { return .checkingAuth }
+        return phase
     }
 
     var toastMessage: String? { toastStore.message }
@@ -220,8 +233,22 @@ class AppViewModel: ObservableObject {
     }
 
     init() {
+        route = Self.initialRoute()
         bindStoreChanges()
         rebuildDashboardCache()
+    }
+
+    private static func initialRoute() -> AppRoute {
+        if KeychainService.shared.authToken != nil {
+            return .houseLoading(.checkingAuth)
+        }
+        if !UserDefaults.standard.bool(forKey: "hasSeenOnboarding") {
+            return .onboarding
+        }
+        if let email = KeychainService.shared.pendingEmailVerification {
+            return .emailVerification(email: email)
+        }
+        return .authentication
     }
 
     private func bindStoreChanges() {
@@ -311,9 +338,60 @@ class AppViewModel: ObservableObject {
         sampleUsers.max(by: { $0.points < $1.points }) ?? sampleUsers[0]
     }
     
-    func showAuthScreen() {
+    func completeOnboarding() {
+        UserDefaults.standard.set(true, forKey: "hasSeenOnboarding")
         navigationDirection = .forward
-        showAuth = true
+
+        if let email = pendingEmailVerification {
+            route = .emailVerification(email: email)
+        } else if let profile = currentUserProfile,
+                  !isAuthenticated,
+                  needsBirthdaySetup(profile) {
+            route = .birthdaySetup
+        } else {
+            route = .authentication
+        }
+    }
+
+    private var hasSeenOnboarding: Bool {
+        UserDefaults.standard.bool(forKey: "hasSeenOnboarding")
+    }
+
+    private func navigate(to destination: AppRoute, respectingOnboarding: Bool = true) {
+        guard !destination.requiresAuthenticatedSession || isAuthenticated else {
+            navigateToUnauthenticatedEntry()
+            return
+        }
+
+        if respectingOnboarding, !hasSeenOnboarding {
+            route = .onboarding
+        } else {
+            route = destination
+        }
+    }
+
+    private func navigateToUnauthenticatedEntry() {
+        if !hasSeenOnboarding {
+            route = .onboarding
+        } else if let email = pendingEmailVerification {
+            route = .emailVerification(email: email)
+        } else {
+            route = .authentication
+        }
+    }
+
+    private func beginAuthenticationFlow() -> UUID {
+        let flowID = UUID()
+        authenticationFlowID = flowID
+        return flowID
+    }
+
+    private func invalidateAuthenticationFlows() {
+        authenticationFlowID = UUID()
+    }
+
+    private func isCurrentAuthenticationFlow(_ flowID: UUID) -> Bool {
+        authenticationFlowID == flowID
     }
 
     // MARK: - Scene Phase Handlers
@@ -410,59 +488,72 @@ class AppViewModel: ObservableObject {
     func performAutoLogin() async {
         // Fast-path: no token in keychain → nothing to verify, go straight to auth.
         guard keychain.authToken != nil else {
-            isInitializing = false
+            invalidateAuthenticationFlows()
+            isAuthenticated = false
+            navigateToUnauthenticatedEntry()
             return
         }
-        guard pendingEmailVerification == nil else {
-            isInitializing = false
-            showHouseLoading = false
+        if let email = pendingEmailVerification {
+            invalidateAuthenticationFlows()
+            navigate(to: .emailVerification(email: email))
             return
         }
         // Already in an authenticated session → nothing to do.
         guard !isAuthenticated else {
-            isInitializing = false
             return
         }
 
-        houseLoadingPhase = .checkingAuth
+        let flowID = beginAuthenticationFlow()
         navigationDirection = .forward
-        showHouseLoading = true
-        showHouseError = false
-        isInitializing = false
+        route = .houseLoading(.checkingAuth)
 
         do {
-            houseLoadingPhase = .loadingUser
-            let profile = try await authStore.resolveAuthenticatedUser(
+            route = .houseLoading(.loadingUser)
+            let profile = try await authStore.fetchAuthenticatedUser(
                 invalidMessage: "Oturumunuz sona ermiş. Lütfen tekrar giriş yapın."
             )
+            guard isCurrentAuthenticationFlow(flowID) else { return }
+            authStore.applyAuthenticatedUser(profile)
+
             guard profile.isVerifyEmail else {
                 authStore.requireEmailVerification(for: profile.email)
                 isAuthenticated = false
-                showAuth = false
-                showHouseLoading = false
+                navigate(to: .emailVerification(email: profile.email))
                 return
             }
             if needsBirthdaySetup(profile) {
-                showBirthdaySetup = true
                 isAuthenticated = false
-                showAuth = false
-                showHouseLoading = false
+                navigate(to: .birthdaySetup)
                 return
             }
-            showBirthdaySetup = false
             if let language = profile.language {
                 localizationStore.applyPreferredLanguage(language)
             } else {
                 localizationStore.loadLanguagesAndApplyDefault(force: localizationLanguages.isEmpty)
             }
             isAuthenticated = true
-            _ = try await houseStore.loadFirstHouseIfPresent(for: profile)
+
+            guard !profile.houseIds.isEmpty else {
+                navigate(to: .houseSelection)
+                return
+            }
+
+            route = .houseLoading(.loadingHouse)
+            guard let details = try await houseStore.fetchFirstHouseDetails(for: profile) else {
+                guard isCurrentAuthenticationFlow(flowID), isAuthenticated else { return }
+                navigate(to: .houseSelection)
+                return
+            }
+            guard isCurrentAuthenticationFlow(flowID), isAuthenticated else { return }
+            houseStore.applyHouseDetails(details)
+            try? await Task.sleep(for: .milliseconds(600))
+            guard isCurrentAuthenticationFlow(flowID), isAuthenticated else { return }
+            navigate(to: .dashboard)
         } catch {
+            guard isCurrentAuthenticationFlow(flowID) else { return }
             isAuthenticated = false
-            showAuth = true
-            showHouseLoading = false
             showToast(message: errorMessage(from: error), isError: true)
-            showHouseError = true
+            route = .houseError
         }
     }
 
@@ -470,7 +561,7 @@ class AppViewModel: ObservableObject {
 
     func login(email: String, password: String) async {
         if await authStore.login(email: email, password: password) {
-            didAuthenticate()
+            await didAuthenticateAsync()
         }
     }
 
@@ -489,6 +580,8 @@ class AppViewModel: ObservableObject {
                 "signup_success_message",
                 fallback: "Your account was created successfully. Verify your email to continue."
             )
+            let verificationEmail = pendingEmailVerification ?? email.trimmingCharacters(in: .whitespacesAndNewlines)
+            navigate(to: .emailVerification(email: verificationEmail))
         }
         return didSignup
     }
@@ -510,88 +603,106 @@ class AppViewModel: ObservableObject {
     }
 
     func validateEmail(code: String) async throws {
-        try await authStore.validateEmail(code: code)
-        let profile = try await authStore.resolveAuthenticatedUser()
-        guard profile.isVerifyEmail else {
-            throw NetworkError.serverError("The email address could not be verified.")
+        let flowID = beginAuthenticationFlow()
+
+        do {
+            try await authStore.validateEmail(code: code)
+            guard isCurrentAuthenticationFlow(flowID) else { return }
+
+            let profile = try await authStore.fetchAuthenticatedUser()
+            guard isCurrentAuthenticationFlow(flowID) else { return }
+            guard profile.isVerifyEmail else {
+                throw NetworkError.serverError("The email address could not be verified.")
+            }
+
+            authStore.applyAuthenticatedUser(profile)
+            navigationDirection = .forward
+            isAuthenticated = false
+            authStore.clearPendingEmailVerification()
+            navigate(to: .birthdaySetup)
+        } catch {
+            guard isCurrentAuthenticationFlow(flowID) else { return }
+            throw error
         }
-
-        navigationDirection = .forward
-        showAuth = false
-        showHouseError = false
-        showHouseLoading = false
-        isAuthenticated = false
-        showBirthdaySetup = true
-        authStore.clearPendingEmailVerification()
-    }
-
-    private func didAuthenticate() {
-        Task { await didAuthenticateAsync() }
     }
 
     private func didAuthenticateAsync() async {
+        let flowID = beginAuthenticationFlow()
         navigationDirection = .forward
-        showAuth = false
-        showHouseError = false
-        houseLoadingPhase = .loadingUser
-        showHouseLoading = true
+        route = .houseLoading(.loadingUser)
 
         do {
             setCurrentHouseDetails(nil)
-            let profile = try await authStore.resolveAuthenticatedUser()
+            let profile = try await authStore.fetchAuthenticatedUser()
+            guard isCurrentAuthenticationFlow(flowID) else { return }
+            authStore.applyAuthenticatedUser(profile)
+
             guard profile.isVerifyEmail else {
                 authStore.requireEmailVerification(for: profile.email)
                 isAuthenticated = false
-                showAuth = false
-                showHouseLoading = false
+                navigate(to: .emailVerification(email: profile.email))
                 return
             }
             if needsBirthdaySetup(profile) {
-                showBirthdaySetup = true
                 isAuthenticated = false
-                showAuth = false
-                showHouseLoading = false
+                navigate(to: .birthdaySetup)
                 return
             }
-            showBirthdaySetup = false
             if let language = profile.language {
                 localizationStore.applyPreferredLanguage(language)
             } else {
                 localizationStore.loadLanguagesAndApplyDefault(force: localizationLanguages.isEmpty)
             }
             isAuthenticated = true
-            _ = try await houseStore.loadFirstHouseIfPresent(for: profile)
+
+            guard !profile.houseIds.isEmpty else {
+                navigate(to: .houseSelection)
+                return
+            }
+
+            route = .houseLoading(.loadingHouse)
+            guard let details = try await houseStore.fetchFirstHouseDetails(for: profile) else {
+                guard isCurrentAuthenticationFlow(flowID), isAuthenticated else { return }
+                navigate(to: .houseSelection)
+                return
+            }
+            guard isCurrentAuthenticationFlow(flowID), isAuthenticated else { return }
+            houseStore.applyHouseDetails(details)
+            try? await Task.sleep(for: .milliseconds(600))
+            guard isCurrentAuthenticationFlow(flowID), isAuthenticated else { return }
+            navigate(to: .dashboard)
         } catch {
+            guard isCurrentAuthenticationFlow(flowID) else { return }
             isAuthenticated = false
             showToast(message: errorMessage(from: error), isError: true)
-            showHouseLoading = false
-            showHouseError = true
+            route = .houseError
         }
     }
 
     func showCreateHouseScreen() {
         navigationDirection = .forward
-        showCreateHouse = true
+        navigate(to: .createHouse)
     }
     
     func backToHouseSelection() {
         navigationDirection = .backward
-        showCreateHouse = false
-        showJoinHouse = false
+        navigate(to: .houseSelection)
     }
     
     func showJoinHouseScreen() {
         navigationDirection = .forward
-        showJoinHouse = true
+        navigate(to: .joinHouse)
     }
 
     // MARK: - User Profile Update
 
     func updateProfile(_ request: UpdateProfileRequest) async throws {
-        try await authStore.updateProfile(request)
+        let profile = try await authStore.updateProfile(request)
+        authStore.applyAuthenticatedUser(profile)
     }
 
     func completeBirthdaySetup(with birthDate: Date) async throws {
+        let flowID = beginAuthenticationFlow()
         let request = UpdateProfileRequest(
             imageUrl: nil,
             birthDay: HouseFlowDateFormatter.apiString(from: birthDate),
@@ -599,8 +710,9 @@ class AppViewModel: ObservableObject {
             lastName: nil,
             phoneNumber: nil
         )
-        try await updateProfile(request)
-        showBirthdaySetup = false
+        let profile = try await authStore.updateProfile(request)
+        guard isCurrentAuthenticationFlow(flowID) else { return }
+        authStore.applyAuthenticatedUser(profile)
         await didAuthenticateAsync()
     }
 
@@ -615,11 +727,21 @@ class AppViewModel: ObservableObject {
     /// On any error, navigates back to CreateHouseView and shows a toast.
     func beginCreateHouseFlow(name: String, type: Int, maxMemberCount: Int) async {
         navigationDirection = .forward
+        route = .houseLoading(.creating)
         do {
-            try await houseStore.beginCreateHouseFlow(name: name, type: type, maxMemberCount: maxMemberCount)
+            try await houseStore.beginCreateHouseFlow(
+                name: name,
+                type: type,
+                maxMemberCount: maxMemberCount,
+                onDetailsLoading: { [weak self] in
+                    self?.route = .houseLoading(.loadingDetails)
+                }
+            )
             navigationDirection = .forward
+            navigate(to: .dashboard)
         } catch {
             navigationDirection = .backward
+            navigate(to: .createHouse)
             showToast(message: error.localizedDescription, isError: true)
         }
     }
@@ -628,11 +750,19 @@ class AppViewModel: ObservableObject {
     /// On any error, navigates back to JoinHouseView and shows a toast.
     func beginJoinHouseFlow(inviteCode: String) async {
         navigationDirection = .forward
+        route = .houseLoading(.joining)
         do {
-            try await houseStore.beginJoinHouseFlow(inviteCode: inviteCode)
+            try await houseStore.beginJoinHouseFlow(
+                inviteCode: inviteCode,
+                onDetailsLoading: { [weak self] in
+                    self?.route = .houseLoading(.loadingDetails)
+                }
+            )
             navigationDirection = .forward
+            navigate(to: .dashboard)
         } catch {
             navigationDirection = .backward
+            navigate(to: .joinHouse)
             showToast(message: error.localizedDescription, isError: true)
         }
     }
@@ -648,18 +778,18 @@ class AppViewModel: ObservableObject {
     }
 
     func logout() {
+        invalidateAuthenticationFlows()
         authStore.logout()
         houseStore.resetHouseSession()
-        showBirthdaySetup = false
         signupSuccessMessage = nil
         navigationDirection = .backward
         choreStore.clear()
         clearToast()
+        navigateToUnauthenticatedEntry()
     }
 
     func cancelEmailVerification() {
         logout()
-        showAuth = true
     }
 
     // MARK: - Dashboard Data (mapped from API details)
