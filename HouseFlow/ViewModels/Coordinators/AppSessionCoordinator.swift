@@ -15,6 +15,7 @@ final class AppSessionCoordinator: ObservableObject {
     private var authenticationFlowID = UUID()
     private var backgroundedAt: Date?
     private let backgroundRefreshThreshold: TimeInterval
+    private let authenticationSettleDelay: Duration
 
     init(
         keychain: any KeychainStoring,
@@ -23,7 +24,8 @@ final class AppSessionCoordinator: ObservableObject {
         localizationStore: LocalizationStore,
         toastStore: ToastStore,
         router: AppRouter,
-        backgroundRefreshThreshold: TimeInterval = 15 * 60
+        backgroundRefreshThreshold: TimeInterval = 15 * 60,
+        authenticationSettleDelay: Duration = .milliseconds(600)
     ) {
         self.keychain = keychain
         self.authStore = authStore
@@ -32,6 +34,7 @@ final class AppSessionCoordinator: ObservableObject {
         self.toastStore = toastStore
         self.router = router
         self.backgroundRefreshThreshold = backgroundRefreshThreshold
+        self.authenticationSettleDelay = authenticationSettleDelay
     }
 
     func completeOnboarding() {
@@ -247,7 +250,7 @@ final class AppSessionCoordinator: ObservableObject {
         }
         guard isCurrentAuthenticationFlow(flowID), authStore.isAuthenticated else { return }
         houseStore.applyHouseDetails(details)
-        try? await Task.sleep(for: .milliseconds(600))
+        try? await Task.sleep(for: authenticationSettleDelay)
         guard isCurrentAuthenticationFlow(flowID), authStore.isAuthenticated else { return }
         router.navigate(to: .dashboard)
     }

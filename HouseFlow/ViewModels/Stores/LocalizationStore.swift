@@ -15,12 +15,18 @@ final class LocalizationStore: ObservableObject {
     private var languageTask: Task<Void, Never>?
 
     convenience init() {
-        self.init(service: LocalizationService.shared)
+        self.init(
+            service: LocalizationService.shared,
+            cache: LocalizationDiskCache()
+        )
     }
 
-    init(service: any LocalizationServicing) {
+    init(
+        service: any LocalizationServicing,
+        cache: LocalizationDiskCache
+    ) {
         self.service = service
-        self.cache = LocalizationDiskCache()
+        self.cache = cache
 
         if let cached = cache.loadMostRecent() {
             self.languagePrefix = cached.languagePrefix
@@ -208,11 +214,13 @@ final class LocalizationStore: ObservableObject {
 
 struct LocalizationDiskCache {
     private let fileManager: FileManager
+    private let baseDirectory: URL?
     private let encoder = JSONEncoder()
     private let decoder = JSONDecoder()
 
-    init(fileManager: FileManager = .default) {
+    init(fileManager: FileManager = .default, baseDirectory: URL? = nil) {
         self.fileManager = fileManager
+        self.baseDirectory = baseDirectory
     }
 
     func load(languagePrefix: String) -> [String: String] {
@@ -281,6 +289,9 @@ struct LocalizationDiskCache {
     }
 
     private func cacheDirectory() -> URL {
+        if let baseDirectory {
+            return baseDirectory
+        }
         let root = fileManager.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]
         return root.appendingPathComponent("Localization", isDirectory: true)
     }

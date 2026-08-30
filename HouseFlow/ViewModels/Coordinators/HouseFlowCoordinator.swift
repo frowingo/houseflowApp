@@ -6,18 +6,21 @@ final class HouseFlowCoordinator {
     private let houseStore: HouseSessionStore
     private let toastStore: ToastStore
     private let router: AppRouter
+    private let completionDelay: Duration
     private var flowID = UUID()
 
     init(
         authStore: AuthSessionStore,
         houseStore: HouseSessionStore,
         toastStore: ToastStore,
-        router: AppRouter
+        router: AppRouter,
+        completionDelay: Duration = .milliseconds(700)
     ) {
         self.authStore = authStore
         self.houseStore = houseStore
         self.toastStore = toastStore
         self.router = router
+        self.completionDelay = completionDelay
     }
 
     func showCreateHouseScreen() {
@@ -61,7 +64,7 @@ final class HouseFlowCoordinator {
             )
             guard isCurrent(activeFlowID), authStore.isAuthenticated else { return }
             houseStore.applyLoadedHouse(result)
-            try? await Task.sleep(for: .milliseconds(700))
+            try? await Task.sleep(for: completionDelay)
             guard isCurrent(activeFlowID), authStore.isAuthenticated else { return }
             router.navigationDirection = .forward
             router.navigate(to: .dashboard)
@@ -98,7 +101,7 @@ final class HouseFlowCoordinator {
             )
             guard isCurrent(activeFlowID), authStore.isAuthenticated else { return }
             houseStore.applyLoadedHouse(result)
-            try? await Task.sleep(for: .milliseconds(700))
+            try? await Task.sleep(for: completionDelay)
             guard isCurrent(activeFlowID), authStore.isAuthenticated else { return }
             router.navigationDirection = .forward
             router.navigate(to: .dashboard)
