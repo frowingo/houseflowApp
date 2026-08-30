@@ -16,19 +16,37 @@ enum NetworkError: LocalizedError {
     }
 }
 
-final class NetworkService {
-    static let shared = NetworkService()
+@MainActor
+final class NetworkService: NetworkServicing {
+    typealias RequestExecutor = @MainActor (URLRequest) async throws -> (Data, URLResponse)
 
-    private let session: URLSession
+    private let baseURL: URL
     private let encoder: JSONEncoder
     private let decoder: JSONDecoder
+    private let requestExecutor: RequestExecutor
 
-    private init() {
-        let config = URLSessionConfiguration.default
-        config.timeoutIntervalForRequest = 30
-        self.session = URLSession(configuration: config)
-        self.encoder = JSONEncoder()
-        self.decoder = JSONDecoder()
+    convenience init() {
+        self.init(baseURL: AppEnvironment.current.baseURL)
+    }
+
+    init(
+        baseURL: URL,
+        session: URLSession? = nil,
+        encoder: JSONEncoder = JSONEncoder(),
+        decoder: JSONDecoder = JSONDecoder(),
+        requestExecutor: RequestExecutor? = nil
+    ) {
+        self.baseURL = baseURL
+        self.encoder = encoder
+        self.decoder = decoder
+        if let requestExecutor {
+            self.requestExecutor = requestExecutor
+        } else {
+            let resolvedSession = session ?? Self.makeDefaultSession()
+            self.requestExecutor = { request in
+                try await resolvedSession.data(for: request)
+            }
+        }
     }
 
     // MARK: - Core request
@@ -126,7 +144,7 @@ final class NetworkService {
         token: String? = nil
     ) throws -> URLRequest {
         guard var components = URLComponents(
-            url: AppEnvironment.current.baseURL.appendingPathComponent(path),
+            url: baseURL.appendingPathComponent(path),
             resolvingAgainstBaseURL: true
         ) else { throw NetworkError.invalidURL }
 
@@ -155,7 +173,7 @@ final class NetworkService {
         _ request: URLRequest,
         successType: Success.Type
     ) async throws -> Success {
-        let (data, response) = try await session.data(for: request)
+        let (data, response) = try await requestExecutor(request)
 
         guard let http = response as? HTTPURLResponse else {
             throw NetworkError.unknown(-1)
@@ -178,6 +196,12 @@ final class NetworkService {
             }
             throw NetworkError.unknown(http.statusCode)
         }
+    }
+
+    private static func makeDefaultSession() -> URLSession {
+        let configuration = URLSessionConfiguration.default
+        configuration.timeoutIntervalForRequest = 30
+        return URLSession(configuration: configuration)
     }
 }
 

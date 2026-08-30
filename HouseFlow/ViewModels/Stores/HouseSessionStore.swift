@@ -14,10 +14,6 @@ final class HouseSessionStore: ObservableObject {
     private var detailsTasks: [String: Task<HouseDetailsResponse, Error>] = [:]
     private var lastDetailsFetchAt: [String: Date] = [:]
 
-    convenience init() {
-        self.init(houseService: HouseService.shared)
-    }
-
     init(houseService: any HouseServicing) {
         self.houseService = houseService
     }

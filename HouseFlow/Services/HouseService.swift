@@ -1,12 +1,13 @@
 import Foundation
 
 final class HouseService {
-    static let shared = HouseService()
+    private let network: any NetworkServicing
+    private let keychain: any KeychainStoring
 
-    private let network = NetworkService.shared
-    private let keychain = KeychainService.shared
-
-    private init() {}
+    init(network: any NetworkServicing, keychain: any KeychainStoring) {
+        self.network = network
+        self.keychain = keychain
+    }
 
     // MARK: - Create House
 
@@ -18,6 +19,7 @@ final class HouseService {
         let body = CreateHouseRequest(name: name, maxMemberCount: maxMemberCount, type: type)
         let response = try await network.authenticatedRequest(
             path: "house/create",
+            method: "POST",
             body: body,
             successType: HouseAPIResponse<HouseResponse>.self,
             token: token
@@ -51,6 +53,7 @@ final class HouseService {
         let body = JoinHouseRequest(inviteCode: inviteCode)
         let response = try await network.authenticatedRequest(
             path: "house/join",
+            method: "POST",
             body: body,
             successType: HouseAPIResponse<HouseResponse>.self,
             token: token

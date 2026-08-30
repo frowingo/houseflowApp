@@ -97,16 +97,27 @@ class AppViewModel: ObservableObject {
     var sampleChores: [Chore] { dashboardCoordinator.sampleChores }
 
     convenience init() {
+        self.init(dependencies: .live())
+    }
+
+    convenience init(dependencies: AppDependencies) {
         self.init(
-            keychain: KeychainService.shared,
-            authStore: AuthSessionStore(),
+            keychain: dependencies.keychain,
+            authStore: AuthSessionStore(
+                keychain: dependencies.keychain,
+                authService: dependencies.authService,
+                userService: dependencies.userService
+            ),
             toastStore: ToastStore(),
             overlayStore: OverlayStore(),
-            houseStore: HouseSessionStore(),
+            houseStore: HouseSessionStore(houseService: dependencies.houseService),
             dashboardStore: DashboardStore(),
-            choreStore: ChoreStore(),
-            localizationStore: LocalizationStore(),
-            userDefaults: .standard
+            choreStore: ChoreStore(choreService: dependencies.choreService),
+            localizationStore: LocalizationStore(
+                service: dependencies.localizationService,
+                cache: dependencies.localizationCache
+            ),
+            userDefaults: dependencies.userDefaults
         )
     }
 

@@ -218,6 +218,30 @@ final class FakeLocalizationService: LocalizationServicing {
 }
 
 @MainActor
+final class NetworkRequestStub {
+    var responseData = Data()
+    var statusCode = 200
+    var responseHeaders: [String: String] = [:]
+    var error: Error?
+    private(set) var requests: [URLRequest] = []
+
+    func execute(_ request: URLRequest) async throws -> (Data, URLResponse) {
+        requests.append(request)
+        if let error {
+            throw error
+        }
+
+        let response = HTTPURLResponse(
+            url: request.url!,
+            statusCode: statusCode,
+            httpVersion: "HTTP/1.1",
+            headerFields: responseHeaders
+        )!
+        return (responseData, response)
+    }
+}
+
+@MainActor
 enum TestFixture {
     static let timestamp = "2026-01-01T00:00:00Z"
 

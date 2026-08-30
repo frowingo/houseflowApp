@@ -1,15 +1,16 @@
 import Foundation
 
 final class LocalizationService {
-    static let shared = LocalizationService()
+    private let network: any NetworkServicing
 
-    private let network = NetworkService.shared
-
-    private init() {}
+    init(network: any NetworkServicing) {
+        self.network = network
+    }
 
     func fetchLanguages() async throws -> [LocalizationLanguage] {
         let response = try await network.get(
             path: "localization/languages",
+            queryItems: [],
             successType: LocalizationLanguageResponse.self
         )
 
@@ -23,6 +24,7 @@ final class LocalizationService {
     func fetchPlaintexts(languagePrefix: String) async throws -> [LocalizationPlaintextItem] {
         let response = try await network.get(
             path: "localization/plaintext/\(languagePrefix)",
+            queryItems: [],
             successType: LocalizationPlaintextResponse.self
         )
 

@@ -7,10 +7,6 @@ final class ChoreStore: ObservableObject {
 
     private let choreService: any ChoreServicing
 
-    convenience init() {
-        self.init(choreService: ChoreService.shared)
-    }
-
     init(choreService: any ChoreServicing) {
         self.choreService = choreService
     }

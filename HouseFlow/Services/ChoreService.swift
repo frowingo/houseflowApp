@@ -1,12 +1,13 @@
 import Foundation
 
 final class ChoreService {
-    static let shared = ChoreService()
+    private let network: any NetworkServicing
+    private let keychain: any KeychainStoring
 
-    private let network = NetworkService.shared
-    private let keychain = KeychainService.shared
-
-    private init() {}
+    init(network: any NetworkServicing, keychain: any KeychainStoring) {
+        self.network = network
+        self.keychain = keychain
+    }
 
     // MARK: - Create Chore
 

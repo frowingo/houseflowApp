@@ -3,11 +3,11 @@ import Security
 
 /// Wrapper around the iOS Keychain for secure string storage.
 final class KeychainService {
-    static let shared = KeychainService()
+    private let service: String
 
-    private let service = "com.houseflow.app"
-
-    private init() {}
+    init(service: String = "com.houseflow.app") {
+        self.service = service
+    }
 
     // MARK: - Save
 

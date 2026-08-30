@@ -16,14 +16,6 @@ final class AuthSessionStore: ObservableObject {
     private let authService: any AuthServicing
     private let userService: any UserServicing
 
-    convenience init() {
-        self.init(
-            keychain: KeychainService.shared,
-            authService: AuthService.shared,
-            userService: UserService.shared
-        )
-    }
-
     init(
         keychain: any KeychainStoring,
         authService: any AuthServicing,

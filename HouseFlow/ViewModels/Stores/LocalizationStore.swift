@@ -14,13 +14,6 @@ final class LocalizationStore: ObservableObject {
     private var refreshTask: Task<Void, Never>?
     private var languageTask: Task<Void, Never>?
 
-    convenience init() {
-        self.init(
-            service: LocalizationService.shared,
-            cache: LocalizationDiskCache()
-        )
-    }
-
     init(
         service: any LocalizationServicing,
         cache: LocalizationDiskCache

@@ -1,5 +1,50 @@
 import Foundation
 
+@MainActor
+protocol NetworkServicing: AnyObject {
+    @MainActor
+    func request<Body: Encodable, Success: Decodable>(
+        path: String,
+        method: String,
+        body: Body,
+        successType: Success.Type
+    ) async throws -> Success
+
+    @MainActor
+    func authenticatedRequest<Body: Encodable, Success: Decodable>(
+        path: String,
+        method: String,
+        body: Body,
+        successType: Success.Type,
+        token: String
+    ) async throws -> Success
+
+    @MainActor
+    func authenticatedRequest<Body: Encodable, Success: Decodable>(
+        path: String,
+        method: String,
+        queryItems: [URLQueryItem],
+        body: Body,
+        successType: Success.Type,
+        token: String
+    ) async throws -> Success
+
+    @MainActor
+    func get<Success: Decodable>(
+        path: String,
+        queryItems: [URLQueryItem],
+        successType: Success.Type
+    ) async throws -> Success
+
+    @MainActor
+    func get<Success: Decodable>(
+        path: String,
+        queryItems: [URLQueryItem],
+        successType: Success.Type,
+        token: String
+    ) async throws -> Success
+}
+
 protocol KeychainStoring: AnyObject {
     var authToken: String? { get set }
     var userEmail: String? { get set }
