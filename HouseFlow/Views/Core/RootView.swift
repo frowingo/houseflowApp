@@ -2,13 +2,14 @@ import SwiftUI
 
 struct RootView: View {
     @EnvironmentObject private var appViewModel: AppViewModel
+    @EnvironmentObject private var router: AppRouter
     
     var body: some View {
         NavigationStack {
             currentView
-                .id(appViewModel.route.id)
+                .id(router.route.id)
                 .transition(currentTransition)
-                .animation(.easeOut(duration: 0.4), value: appViewModel.route.id)
+                .animation(.easeOut(duration: 0.4), value: router.route.id)
         }
         .overlay(alignment: .top) {
             if let message = appViewModel.toastMessage {
@@ -24,7 +25,7 @@ struct RootView: View {
     
     private var currentView: some View {
         Group {
-            switch appViewModel.route {
+            switch router.route {
             case .houseLoading:
                 HouseLoadingView()
             case .houseError:
@@ -58,7 +59,7 @@ struct RootView: View {
     }
     
     private var currentTransition: AnyTransition {
-        if appViewModel.navigationDirection == .forward {
+        if router.navigationDirection == .forward {
             return .asymmetric(
                 insertion: .move(edge: .trailing),
                 removal: .move(edge: .leading)

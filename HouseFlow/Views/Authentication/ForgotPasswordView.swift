@@ -29,8 +29,6 @@ struct ForgotPasswordView: View {
     @State private var toastMessage: String?
     @State private var toastIsError = true
 
-    private let authService = AuthService.shared
-
     // MARK: - Body
 
     var body: some View {
@@ -451,7 +449,7 @@ struct ForgotPasswordView: View {
         }
         Task {
             do {
-                _ = try await authService.forgotPassword(email: email)
+                try await appViewModel.requestPasswordReset(email: email)
                 withAnimation(.spring(response: 0.5, dampingFraction: 0.7)) {
                     phase = .codeEntry
                 }
@@ -471,7 +469,11 @@ struct ForgotPasswordView: View {
         withAnimation(AppDesign.Animation.standard) { phase = .resetting }
         Task {
             do {
-                _ = try await authService.resetPassword(email: email, code: code, newPassword: password)
+                try await appViewModel.resetPasswordOrThrow(
+                    email: email,
+                    code: code,
+                    newPassword: password
+                )
                 showToast(appViewModel.localized("forgot_password_success_toast"), isError: false)
                 try? await Task.sleep(nanoseconds: 1_800_000_000)
                 dismiss()

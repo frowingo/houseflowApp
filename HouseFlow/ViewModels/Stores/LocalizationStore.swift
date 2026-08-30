@@ -9,13 +9,17 @@ final class LocalizationStore: ObservableObject {
     @Published private(set) var isRefreshing = false
     @Published private(set) var isLoadingLanguages = false
 
-    private let service: LocalizationService
+    private let service: any LocalizationServicing
     private let cache: LocalizationDiskCache
     private var refreshTask: Task<Void, Never>?
     private var languageTask: Task<Void, Never>?
 
-    init() {
-        self.service = LocalizationService.shared
+    convenience init() {
+        self.init(service: LocalizationService.shared)
+    }
+
+    init(service: any LocalizationServicing) {
+        self.service = service
         self.cache = LocalizationDiskCache()
 
         if let cached = cache.loadMostRecent() {

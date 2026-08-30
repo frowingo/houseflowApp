@@ -5,7 +5,15 @@ import Combine
 final class ChoreStore: ObservableObject {
     @Published private(set) var chores: [Chore] = []
 
-    private let choreService = ChoreService.shared
+    private let choreService: any ChoreServicing
+
+    convenience init() {
+        self.init(choreService: ChoreService.shared)
+    }
+
+    init(choreService: any ChoreServicing) {
+        self.choreService = choreService
+    }
 
     func setChores(_ chores: [Chore]) {
         guard self.chores != chores else { return }

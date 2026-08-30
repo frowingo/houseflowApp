@@ -10,9 +10,17 @@ final class HouseSessionStore: ObservableObject {
     @Published var houseError: String?
 
     private let refreshCooldown: TimeInterval = 30
-    private let houseService = HouseService.shared
+    private let houseService: any HouseServicing
     private var detailsTasks: [String: Task<HouseDetailsResponse, Error>] = [:]
     private var lastDetailsFetchAt: [String: Date] = [:]
+
+    convenience init() {
+        self.init(houseService: HouseService.shared)
+    }
+
+    init(houseService: any HouseServicing) {
+        self.houseService = houseService
+    }
 
     func setHouseName(_ name: String) {
         guard houseName != name else { return }
@@ -64,48 +72,31 @@ final class HouseSessionStore: ObservableObject {
         lastDetailsFetchAt.removeAll()
     }
 
-    func beginCreateHouseFlow(
+    func createHouseWithDetails(
         name: String,
         type: Int,
         maxMemberCount: Int,
-        onDetailsLoading: () -> Void
-    ) async throws {
-        houseError = nil
-
-        do {
-            let house = try await houseService.createHouse(name: name, type: type, maxMemberCount: maxMemberCount)
-            currentHouse = house
-            onDetailsLoading()
-
-            let details = try await loadHouseDetails(houseId: house.id, forceRefresh: true)
-            applyHouseDetails(details, houseNameOverride: house.name)
-
-            try? await Task.sleep(for: .milliseconds(700))
-        } catch {
-            houseError = error.localizedDescription
-            throw error
-        }
+        onDetailsLoading: (HouseResponse) -> Void
+    ) async throws -> (house: HouseResponse, details: HouseDetailsResponse) {
+        let house = try await houseService.createHouse(name: name, type: type, maxMemberCount: maxMemberCount)
+        onDetailsLoading(house)
+        let details = try await loadHouseDetails(houseId: house.id, forceRefresh: true)
+        return (house, details)
     }
 
-    func beginJoinHouseFlow(
+    func joinHouseWithDetails(
         inviteCode: String,
-        onDetailsLoading: () -> Void
-    ) async throws {
-        houseError = nil
+        onDetailsLoading: (HouseResponse) -> Void
+    ) async throws -> (house: HouseResponse, details: HouseDetailsResponse) {
+        let house = try await houseService.joinHouse(inviteCode: inviteCode)
+        onDetailsLoading(house)
+        let details = try await loadHouseDetails(houseId: house.id, forceRefresh: true)
+        return (house, details)
+    }
 
-        do {
-            let house = try await houseService.joinHouse(inviteCode: inviteCode)
-            currentHouse = house
-            onDetailsLoading()
-
-            let details = try await loadHouseDetails(houseId: house.id, forceRefresh: true)
-            applyHouseDetails(details, houseNameOverride: house.name)
-
-            try? await Task.sleep(for: .milliseconds(700))
-        } catch {
-            houseError = error.localizedDescription
-            throw error
-        }
+    func applyLoadedHouse(_ result: (house: HouseResponse, details: HouseDetailsResponse)) {
+        currentHouse = result.house
+        applyHouseDetails(result.details, houseNameOverride: result.house.name)
     }
 
     func createAnnouncement(title: String, description: String) async throws -> HouseAnnouncementDTO {

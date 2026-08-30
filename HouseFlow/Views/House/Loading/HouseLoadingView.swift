@@ -2,6 +2,7 @@ import SwiftUI
 
 struct HouseLoadingView: View {
     @EnvironmentObject private var appViewModel: AppViewModel
+    @EnvironmentObject private var router: AppRouter
 
     @State private var pulseScale: CGFloat = 1.0
     @State private var ringOpacity: Double = 0.08
@@ -53,19 +54,19 @@ struct HouseLoadingView: View {
 
                 // Phase text
                 VStack(spacing: AppDesign.Spacing.md) {
-                    Text(appViewModel.localized(appViewModel.houseLoadingPhase.titleKey))
+                    Text(appViewModel.localized(phase.titleKey))
                         .font(AppDesign.Typography.title2)
                         .foregroundColor(AppDesign.Colors.text)
                         .multilineTextAlignment(.center)
-                        .id("phase-title-\(appViewModel.houseLoadingPhase.titleKey)")
+                        .id("phase-title-\(phase.titleKey)")
                         .transition(.opacity.combined(with: .move(edge: .bottom)))
 
-                    Text(appViewModel.localized(appViewModel.houseLoadingPhase.subtitleKey))
+                    Text(appViewModel.localized(phase.subtitleKey))
                         .font(AppDesign.Typography.subheadline)
                         .foregroundColor(AppDesign.Colors.textSecondary)
                         .multilineTextAlignment(.center)
                         .padding(.horizontal, AppDesign.Spacing.xxxl)
-                        .id("phase-subtitle-\(appViewModel.houseLoadingPhase.subtitleKey)")
+                        .id("phase-subtitle-\(phase.subtitleKey)")
                         .transition(.opacity)
 
                     // Bouncing dots indicator
@@ -81,7 +82,7 @@ struct HouseLoadingView: View {
                     }
                     .padding(.top, AppDesign.Spacing.sm)
                 }
-                .animation(AppDesign.Animation.standard, value: appViewModel.houseLoadingPhase.titleKey)
+                .animation(AppDesign.Animation.standard, value: phase.titleKey)
 
                 Spacer()
             }
@@ -117,11 +118,11 @@ struct HouseLoadingView: View {
             )
         }
         .ignoresSafeArea()
-        .animation(AppDesign.Animation.standard, value: appViewModel.houseLoadingPhase.titleKey)
+        .animation(AppDesign.Animation.standard, value: phase.titleKey)
     }
 
     private var phaseColor: Color {
-        switch appViewModel.houseLoadingPhase {
+        switch phase {
         case .creating:
             return HouseJourneyTheme.purple
         case .joining:
@@ -133,6 +134,10 @@ struct HouseLoadingView: View {
         case .loadingUser:
             return HouseJourneyTheme.teal
         }
+    }
+
+    private var phase: HouseLoadingPhase {
+        router.houseLoadingPhase
     }
 
     // MARK: - Animations
@@ -160,9 +165,8 @@ struct HouseLoadingView: View {
 }
 
 #Preview {
+    let viewModel = AppViewModel()
     HouseLoadingView()
-        .environmentObject({
-            let vm = AppViewModel()
-            return vm
-        }())
+        .environmentObject(viewModel)
+        .environmentObject(viewModel.router)
 }

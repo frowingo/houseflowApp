@@ -12,11 +12,26 @@ final class AuthSessionStore: ObservableObject {
     @Published private(set) var currentUserId: String?
     @Published private(set) var currentUserProfile: IsAuthUserData?
 
-    private let keychain = KeychainService.shared
-    private let authService = AuthService.shared
-    private let userService = UserService.shared
+    private let keychain: any KeychainStoring
+    private let authService: any AuthServicing
+    private let userService: any UserServicing
 
-    init() {
+    convenience init() {
+        self.init(
+            keychain: KeychainService.shared,
+            authService: AuthService.shared,
+            userService: UserService.shared
+        )
+    }
+
+    init(
+        keychain: any KeychainStoring,
+        authService: any AuthServicing,
+        userService: any UserServicing
+    ) {
+        self.keychain = keychain
+        self.authService = authService
+        self.userService = userService
         pendingEmailVerification = keychain.pendingEmailVerification
     }
 
@@ -83,6 +98,14 @@ final class AuthSessionStore: ObservableObject {
         }
     }
 
+    func requestPasswordReset(email: String) async throws {
+        _ = try await authService.forgotPassword(email: email)
+    }
+
+    func resetPasswordOrThrow(email: String, code: String, newPassword: String) async throws {
+        _ = try await authService.resetPassword(email: email, code: code, newPassword: newPassword)
+    }
+
     func sendEmailVerificationCode() async throws {
         let response = try await authService.sendEmailVerificationCode()
         guard response.success else {
@@ -130,6 +153,10 @@ final class AuthSessionStore: ObservableObject {
             phoneNumber: data.phoneNumber,
             updatedOn: data.updatedOn
         )
+    }
+
+    func fetchProfileImages(category: String) async throws -> GetImagesResponse {
+        try await userService.getImages(category: category)
     }
 
     func logout() {

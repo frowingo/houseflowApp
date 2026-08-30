@@ -23,6 +23,7 @@ struct HouseFlowApp: App {
         WindowGroup {
             RootView()
                 .environmentObject(appViewModel)
+                .environmentObject(appViewModel.router)
                 .preferredColorScheme(.light)
                 .task {
                     appViewModel.prepareLocalization()
