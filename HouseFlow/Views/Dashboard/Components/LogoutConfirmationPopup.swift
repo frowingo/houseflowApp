@@ -56,7 +56,7 @@ struct LogoutConfirmationPopup: View {
                 }
             }
             .padding(AppDesign.Spacing.xxl)
-            .background(AppDesign.Colors.background)
+            .background(MainScreenBackground())
             .cornerRadius(AppDesign.CornerRadius.xl)
             .shadow(
                 color: AppDesign.Shadow.heavy.color,

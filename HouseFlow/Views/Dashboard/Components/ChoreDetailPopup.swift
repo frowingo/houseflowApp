@@ -97,6 +97,7 @@ struct ChoreDetailPopup: View {
 
             VStack(spacing: 0) {
                 topBar
+                    .zIndex(1)
                 ScrollView(showsIndicators: false) {
                     VStack(spacing: AppDesign.Spacing.xl) {
                         statusPipeline
@@ -112,18 +113,11 @@ struct ChoreDetailPopup: View {
                     .padding(.vertical, AppDesign.Spacing.xl)
                 }
                 .frame(maxHeight: 500)
+                .clipped()
                 dismissButton
             }
-            .background(
-                ZStack {
-                    AppDesign.Colors.background
-                    LinearGradient(
-                        colors: [accentOrange.opacity(0.04), Color.clear],
-                        startPoint: .top, endPoint: .center
-                    )
-                }
-            )
-            .cornerRadius(AppDesign.CornerRadius.xl)
+            .background(MainScreenBackground())
+            .clipShape(RoundedRectangle(cornerRadius: AppDesign.CornerRadius.xl, style: .continuous))
             .shadow(color: Color.black.opacity(0.25), radius: 30, x: 0, y: 16)
             .padding(.horizontal, AppDesign.Spacing.xl)
 
@@ -144,10 +138,7 @@ struct ChoreDetailPopup: View {
 
     private var topBar: some View {
         ZStack {
-            LinearGradient(
-                colors: [accentOrange, accentOrange.opacity(0.7)],
-                startPoint: .leading, endPoint: .trailing
-            )
+            BrandPopupHeaderBackground()
             // Background decorative icon
             Image(systemName: "house.fill")
                 .font(.system(size: 56, weight: .bold))

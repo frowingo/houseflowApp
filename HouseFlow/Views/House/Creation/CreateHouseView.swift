@@ -22,20 +22,7 @@ struct CreateHouseView: View {
     }
 
     private var createBackground: some View {
-        ZStack {
-            HouseJourneyTheme.pageGradient
-
-            Circle()
-                .fill(HouseJourneyTheme.purple.opacity(0.065))
-                .frame(width: 250, height: 250)
-                .offset(x: 170, y: -330)
-
-            Circle()
-                .fill(HouseJourneyTheme.teal.opacity(0.04))
-                .frame(width: 190, height: 190)
-                .offset(x: -185, y: 285)
-        }
-        .ignoresSafeArea()
+        MainScreenBackground()
     }
     
     // MARK: - Header Section

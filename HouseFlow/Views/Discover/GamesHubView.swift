@@ -34,8 +34,7 @@ struct GamesHubView: View {
     var body: some View {
         NavigationStack {
             ZStack(alignment: .top) {
-                Color(UIColor.systemBackground)
-                    .ignoresSafeArea()
+                MainScreenBackground()
 
                 ScrollView(showsIndicators: false) {
                     VStack(spacing: AppDesign.Spacing.xl) {

@@ -25,11 +25,7 @@ struct LanguageSettingsPopup: View {
 
             VStack(spacing: 0) {
                 ZStack {
-                    LinearGradient(
-                        colors: [accentOrange, accentOrange.opacity(0.7)],
-                        startPoint: .leading,
-                        endPoint: .trailing
-                    )
+                    BrandPopupHeaderBackground()
                     Image(systemName: "globe.europe.africa.fill")
                         .font(.system(size: 58, weight: .bold))
                         .foregroundColor(.white.opacity(0.12))
@@ -59,6 +55,7 @@ struct LanguageSettingsPopup: View {
                     .padding(.vertical, 12)
                 }
                 .frame(height: 64)
+                .zIndex(1)
 
                 ScrollView(showsIndicators: false) {
                     if appViewModel.isLoadingLocalizationLanguages && appViewModel.localizationLanguages.isEmpty {
@@ -87,6 +84,7 @@ struct LanguageSettingsPopup: View {
                     }
                 }
                 .frame(maxHeight: 360)
+                .clipped()
 
                 if let error = saveError {
                     HStack(spacing: AppDesign.Spacing.sm) {
@@ -144,17 +142,8 @@ struct LanguageSettingsPopup: View {
                 .padding(.vertical, AppDesign.Spacing.lg)
                 .background(AppDesign.Colors.background.shadow(color: Color.black.opacity(0.06), radius: 8, x: 0, y: -4))
             }
-            .background(
-                ZStack {
-                    AppDesign.Colors.background
-                    LinearGradient(
-                        colors: [accentOrange.opacity(0.04), Color.clear],
-                        startPoint: .top,
-                        endPoint: .center
-                    )
-                }
-            )
-            .cornerRadius(AppDesign.CornerRadius.xl)
+            .background(MainScreenBackground())
+            .clipShape(RoundedRectangle(cornerRadius: AppDesign.CornerRadius.xl, style: .continuous))
             .shadow(color: Color.black.opacity(0.25), radius: 30, x: 0, y: 16)
             .padding(.horizontal, AppDesign.Spacing.xl)
         }

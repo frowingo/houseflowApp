@@ -98,23 +98,13 @@ struct HouseLoadingView: View {
 
     private var loadingBackground: some View {
         ZStack {
-            HouseJourneyTheme.pageBackground
+            MainScreenBackground()
 
             RadialGradient(
-                colors: [phaseColor.opacity(0.12), Color.clear],
+                colors: [phaseColor.opacity(0.07), Color.clear],
                 center: .center,
                 startRadius: 30,
                 endRadius: 360
-            )
-
-            LinearGradient(
-                colors: [
-                    HouseJourneyTheme.indigo.opacity(0.035),
-                    HouseJourneyTheme.teal.opacity(0.025),
-                    Color.clear
-                ],
-                startPoint: .topLeading,
-                endPoint: .bottomTrailing
             )
         }
         .ignoresSafeArea()

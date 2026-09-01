@@ -43,6 +43,7 @@ struct NewAnnouncementPopup: View {
 
             VStack(spacing: 0) {
                 topBar
+                    .zIndex(1)
 
                 ScrollView(showsIndicators: false) {
                     VStack(spacing: AppDesign.Spacing.xl) {
@@ -53,20 +54,12 @@ struct NewAnnouncementPopup: View {
                     .padding(AppDesign.Spacing.xl)
                 }
                 .frame(maxHeight: 430)
+                .clipped()
 
                 actionButtons
             }
-            .background(
-                ZStack {
-                    AppDesign.Colors.background
-                    LinearGradient(
-                        colors: [accentOrange.opacity(0.055), Color.clear],
-                        startPoint: .top,
-                        endPoint: .center
-                    )
-                }
-            )
-            .clipShape(RoundedRectangle(cornerRadius: AppDesign.CornerRadius.xxl))
+            .background(MainScreenBackground())
+            .clipShape(RoundedRectangle(cornerRadius: AppDesign.CornerRadius.xxl, style: .continuous))
             .overlay(
                 RoundedRectangle(cornerRadius: AppDesign.CornerRadius.xxl)
                     .strokeBorder(accentOrange.opacity(0.16), lineWidth: 1)
@@ -78,11 +71,7 @@ struct NewAnnouncementPopup: View {
 
     private var topBar: some View {
         ZStack {
-            LinearGradient(
-                colors: [accentOrange, Color(red: 0.90, green: 0.34, blue: 0.08)],
-                startPoint: .leading,
-                endPoint: .trailing
-            )
+            BrandPopupHeaderBackground(topCornerRadius: AppDesign.CornerRadius.xxl)
 
             Image(systemName: "megaphone.fill")
                 .font(.system(size: 60, weight: .bold))

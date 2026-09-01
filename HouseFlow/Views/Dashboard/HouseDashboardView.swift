@@ -14,8 +14,7 @@ struct HouseDashboardView: View {
     
     var body: some View {
         ZStack {
-            Color(UIColor.systemBackground)
-                .ignoresSafeArea()
+            MainScreenBackground()
 
             ScrollView {
                 VStack(spacing: AppDesign.Spacing.lg) {

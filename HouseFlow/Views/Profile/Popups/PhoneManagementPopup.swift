@@ -49,6 +49,7 @@ struct PhoneManagementPopup: View {
 
             VStack(spacing: 0) {
                 topBar
+                    .zIndex(1)
 
                 ScrollView(showsIndicators: false) {
                     VStack(spacing: AppDesign.Spacing.lg) {
@@ -69,6 +70,7 @@ struct PhoneManagementPopup: View {
                     .padding(AppDesign.Spacing.xl)
                 }
                 .frame(maxHeight: 430)
+                .clipped()
 
                 Button(action: requestDismiss) {
                     Text(appViewModel.localized("common_close", fallback: "Close"))
@@ -83,8 +85,8 @@ struct PhoneManagementPopup: View {
                 .padding(.vertical, AppDesign.Spacing.lg)
                 .background(AppDesign.Colors.background)
             }
-            .background(AppDesign.Colors.background)
-            .clipShape(RoundedRectangle(cornerRadius: AppDesign.CornerRadius.xl))
+            .background(MainScreenBackground())
+            .clipShape(RoundedRectangle(cornerRadius: AppDesign.CornerRadius.xl, style: .continuous))
             .shadow(color: Color.black.opacity(0.25), radius: 30, x: 0, y: 16)
             .padding(.horizontal, AppDesign.Spacing.xl)
         }
@@ -94,11 +96,7 @@ struct PhoneManagementPopup: View {
 
     private var topBar: some View {
         ZStack {
-            LinearGradient(
-                colors: [accentBlue, accentBlue.opacity(0.72)],
-                startPoint: .leading,
-                endPoint: .trailing
-            )
+            BrandPopupHeaderBackground()
 
             Image(systemName: "phone.badge.checkmark.fill")
                 .font(.system(size: 58, weight: .bold))

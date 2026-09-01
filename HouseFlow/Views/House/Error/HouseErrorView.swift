@@ -97,19 +97,13 @@ struct HouseErrorView: View {
 
     private var errorBackground: some View {
         ZStack {
-            HouseJourneyTheme.pageBackground
+            MainScreenBackground()
 
             RadialGradient(
-                colors: [HouseJourneyTheme.errorRed.opacity(0.075), Color.clear],
+                colors: [HouseJourneyTheme.errorRed.opacity(0.055), Color.clear],
                 center: .center,
                 startRadius: 30,
                 endRadius: 360
-            )
-
-            LinearGradient(
-                colors: [HouseJourneyTheme.indigo.opacity(0.035), Color.clear],
-                startPoint: .topLeading,
-                endPoint: .bottomTrailing
             )
         }
         .ignoresSafeArea()

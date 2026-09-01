@@ -24,20 +24,7 @@ struct JoinHouseView: View {
     }
 
     private var joinBackground: some View {
-        ZStack {
-            HouseJourneyTheme.pageGradient
-
-            Circle()
-                .fill(HouseJourneyTheme.teal.opacity(0.07))
-                .frame(width: 230, height: 230)
-                .offset(x: 165, y: -300)
-
-            Circle()
-                .fill(HouseJourneyTheme.accentOrange.opacity(0.035))
-                .frame(width: 160, height: 160)
-                .offset(x: -185, y: 270)
-        }
-        .ignoresSafeArea()
+        MainScreenBackground()
     }
     
     // MARK: - Header Section

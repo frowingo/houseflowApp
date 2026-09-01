@@ -30,11 +30,7 @@ struct AvatarPickerPopup: View {
             VStack(spacing: 0) {
                 // Top bar
                 ZStack {
-                    LinearGradient(
-                        colors: [accentOrange, accentOrange.opacity(0.7)],
-                        startPoint: .leading,
-                        endPoint: .trailing
-                    )
+                    BrandPopupHeaderBackground()
                     Image(systemName: "person.crop.circle")
                         .font(.system(size: 56, weight: .bold))
                         .foregroundColor(.white.opacity(0.12))
@@ -62,6 +58,7 @@ struct AvatarPickerPopup: View {
                     .padding(.vertical, 12)
                 }
                 .frame(height: 64)
+                .zIndex(1)
 
                 // Grid body
                 ScrollView(showsIndicators: false) {
@@ -91,6 +88,7 @@ struct AvatarPickerPopup: View {
                     }
                 }
                 .frame(maxHeight: 340)
+                .clipped()
 
                 // Error
                 if let error = saveError {
@@ -150,16 +148,8 @@ struct AvatarPickerPopup: View {
                 .padding(.vertical, AppDesign.Spacing.lg)
                 .background(AppDesign.Colors.background.shadow(color: Color.black.opacity(0.06), radius: 8, x: 0, y: -4))
             }
-            .background(
-                ZStack {
-                    AppDesign.Colors.background
-                    LinearGradient(
-                        colors: [accentOrange.opacity(0.04), Color.clear],
-                        startPoint: .top, endPoint: .center
-                    )
-                }
-            )
-            .cornerRadius(AppDesign.CornerRadius.xl)
+            .background(MainScreenBackground())
+            .clipShape(RoundedRectangle(cornerRadius: AppDesign.CornerRadius.xl, style: .continuous))
             .shadow(color: Color.black.opacity(0.25), radius: 30, x: 0, y: 16)
             .padding(.horizontal, AppDesign.Spacing.xl)
         }

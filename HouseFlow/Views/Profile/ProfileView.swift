@@ -39,49 +39,52 @@ struct ProfileView: View {
     }
 
     private var profileContent: some View {
-        ScrollView(showsIndicators: false) {
-            VStack(spacing: AppDesign.Spacing.xl) {
-                ProfileHeroSection(
-                    imageURLString: appViewModel.currentUserProfile?.imageUrl ?? "",
-                    initials: initials,
-                    fullName: fullName,
-                    isVisible: appeared,
-                    onAvatarTap: {
-                        showAvatarPicker = true
+        ZStack {
+            MainScreenBackground()
+
+            ScrollView(showsIndicators: false) {
+                VStack(spacing: AppDesign.Spacing.xl) {
+                    ProfileHeroSection(
+                        imageURLString: appViewModel.currentUserProfile?.imageUrl ?? "",
+                        initials: initials,
+                        fullName: fullName,
+                        isVisible: appeared,
+                        onAvatarTap: {
+                            showAvatarPicker = true
+                        }
+                    )
+
+                    VStack(spacing: AppDesign.Spacing.lg) {
+                        accountInformationCard
+                            .opacity(appeared ? 1 : 0)
+                            .offset(y: appeared ? 0 : 24)
+                            .animation(
+                                .spring(response: 0.6, dampingFraction: 0.78).delay(0.12),
+                                value: appeared
+                            )
+
+                        personalInfoCard
+                            .opacity(appeared ? 1 : 0)
+                            .offset(y: appeared ? 0 : 24)
+                            .animation(
+                                .spring(response: 0.6, dampingFraction: 0.78).delay(0.22),
+                                value: appeared
+                            )
+
+                        settingsCard
+                            .opacity(appeared ? 1 : 0)
+                            .offset(y: appeared ? 0 : 24)
+                            .animation(
+                                .spring(response: 0.6, dampingFraction: 0.78).delay(0.32),
+                                value: appeared
+                            )
                     }
-                )
-
-                VStack(spacing: AppDesign.Spacing.lg) {
-                    accountInformationCard
-                        .opacity(appeared ? 1 : 0)
-                        .offset(y: appeared ? 0 : 24)
-                        .animation(
-                            .spring(response: 0.6, dampingFraction: 0.78).delay(0.12),
-                            value: appeared
-                        )
-
-                    personalInfoCard
-                        .opacity(appeared ? 1 : 0)
-                        .offset(y: appeared ? 0 : 24)
-                        .animation(
-                            .spring(response: 0.6, dampingFraction: 0.78).delay(0.22),
-                            value: appeared
-                        )
-
-                    settingsCard
-                        .opacity(appeared ? 1 : 0)
-                        .offset(y: appeared ? 0 : 24)
-                        .animation(
-                            .spring(response: 0.6, dampingFraction: 0.78).delay(0.32),
-                            value: appeared
-                        )
+                    .padding(.horizontal, AppDesign.Spacing.lg)
+                    .padding(.bottom, 100)
                 }
-                .padding(.horizontal, AppDesign.Spacing.lg)
-                .padding(.bottom, 100)
+                .padding(.top, AppDesign.Spacing.xl)
             }
-            .padding(.top, AppDesign.Spacing.xl)
         }
-        .background(Color(.systemGroupedBackground).ignoresSafeArea())
     }
 
     private var personalInfoCard: some View {

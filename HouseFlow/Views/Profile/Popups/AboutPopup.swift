@@ -19,11 +19,7 @@ struct AboutPopup: View {
             VStack(spacing: 0) {
                 // ── Top bar (identical pattern to EditProfilePopup / AvatarPickerPopup)
                 ZStack {
-                    LinearGradient(
-                        colors: [accentOrange, accentOrange.opacity(0.7)],
-                        startPoint: .leading,
-                        endPoint: .trailing
-                    )
+                    BrandPopupHeaderBackground()
                     Image(systemName: "house.fill")
                         .font(.system(size: 56, weight: .bold))
                         .foregroundColor(.white.opacity(0.12))
@@ -51,6 +47,7 @@ struct AboutPopup: View {
                     .padding(.vertical, 12)
                 }
                 .frame(height: 64)
+                .zIndex(1)
 
                 // ── Body
                 VStack(spacing: AppDesign.Spacing.lg) {
@@ -114,16 +111,8 @@ struct AboutPopup: View {
                         .shadow(color: Color.black.opacity(0.06), radius: 8, x: 0, y: -4)
                 )
             }
-            .background(
-                ZStack {
-                    AppDesign.Colors.background
-                    LinearGradient(
-                        colors: [accentOrange.opacity(0.04), Color.clear],
-                        startPoint: .top, endPoint: .center
-                    )
-                }
-            )
-            .cornerRadius(AppDesign.CornerRadius.xl)
+            .background(MainScreenBackground())
+            .clipShape(RoundedRectangle(cornerRadius: AppDesign.CornerRadius.xl, style: .continuous))
             .shadow(color: Color.black.opacity(0.25), radius: 30, x: 0, y: 16)
             .fixedSize(horizontal: false, vertical: true)
             .padding(.horizontal, AppDesign.Spacing.xl)

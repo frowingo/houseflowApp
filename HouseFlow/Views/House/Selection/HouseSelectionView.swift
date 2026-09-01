@@ -16,20 +16,7 @@ struct HouseSelectionView: View {
     }
 
     private var selectionBackground: some View {
-        ZStack {
-            HouseJourneyTheme.pageGradient
-
-            Circle()
-                .fill(HouseJourneyTheme.indigo.opacity(0.07))
-                .frame(width: 260, height: 260)
-                .offset(x: 155, y: -265)
-
-            Circle()
-                .fill(HouseJourneyTheme.accentOrange.opacity(0.045))
-                .frame(width: 190, height: 190)
-                .offset(x: -175, y: 320)
-        }
-        .ignoresSafeArea()
+        MainScreenBackground()
     }
     
     // MARK: - Header Section
