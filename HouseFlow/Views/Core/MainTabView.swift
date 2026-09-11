@@ -42,13 +42,12 @@ struct MainTabView: View {
         GeometryReader { geo in
             // Page content — no SwiftUI TabView so we control the bar fully
             tabContent
-                .ignoresSafeArea(.keyboard)
                 .overlay(alignment: .bottom) {
                     tabBarOverlay(bottomInset: geo.safeAreaInsets.bottom)
                 }
         }
-        .ignoresSafeArea(edges: .bottom)
-        .ignoresSafeArea(.keyboard)
+        .ignoresSafeArea(.container, edges: .bottom)
+        .dismissKeyboardOnTap()
     }
 
     @ViewBuilder

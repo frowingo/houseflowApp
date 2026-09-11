@@ -68,7 +68,6 @@ struct NewAnnouncementPopup: View {
             .shadow(color: Color.black.opacity(0.24), radius: 30, x: 0, y: 16)
             .padding(.horizontal, AppDesign.Spacing.xl)
         }
-        .dismissKeyboardOnTap()
     }
 
     private var topBar: some View {
