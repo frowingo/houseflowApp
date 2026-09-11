@@ -1,12 +1,13 @@
 import Foundation
 
 final class AuthService {
-    static let shared = AuthService()
+    private let network: any NetworkServicing
+    private let keychain: any KeychainStoring
 
-    private let network = NetworkService.shared
-    private let keychain = KeychainService.shared
-
-    private init() {}
+    init(network: any NetworkServicing, keychain: any KeychainStoring) {
+        self.network = network
+        self.keychain = keychain
+    }
 
     // MARK: - Signup
 
@@ -26,6 +27,7 @@ final class AuthService {
         )
         let response = try await network.request(
             path: "auth/signup",
+            method: "POST",
             body: body,
             successType: AuthTokenResponse.self
         )
@@ -42,6 +44,7 @@ final class AuthService {
         let body = LoginRequest(email: email, password: password)
         let response = try await network.request(
             path: "auth/login",
+            method: "POST",
             body: body,
             successType: AuthTokenResponse.self
         )
@@ -57,6 +60,7 @@ final class AuthService {
         let body = ForgotPasswordRequest(email: email)
         return try await network.request(
             path: "auth/forget",
+            method: "POST",
             body: body,
             successType: ForgotPasswordResponse.self
         )
@@ -73,8 +77,38 @@ final class AuthService {
         let body = ResetPasswordRequest(email: email, code: code, newPassword: newPassword)
         return try await network.request(
             path: "auth/reset",
+            method: "POST",
             body: body,
             successType: MessageResponse.self
+        )
+    }
+
+    // MARK: - Email Verification
+
+    /// GET auth/validate-email — Bearer token only; sends a verification code.
+    func sendEmailVerificationCode() async throws -> ValidateEmailResponse {
+        guard let token = keychain.authToken else {
+            throw NetworkError.serverError("No token stored.")
+        }
+        return try await network.get(
+            path: "auth/validate-email",
+            queryItems: [],
+            successType: ValidateEmailResponse.self,
+            token: token
+        )
+    }
+
+    /// POST auth/validate-email — Bearer token plus the six-character verification code.
+    func validateEmail(code: String) async throws -> ValidateEmailResponse {
+        guard let token = keychain.authToken else {
+            throw NetworkError.serverError("No token stored.")
+        }
+        return try await network.authenticatedRequest(
+            path: "auth/validate-email",
+            method: "POST",
+            body: ValidateEmailRequest(code: code),
+            successType: ValidateEmailResponse.self,
+            token: token
         )
     }
 

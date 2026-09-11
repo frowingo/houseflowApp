@@ -2,22 +2,15 @@ import SwiftUI
 
 struct RootView: View {
     @EnvironmentObject private var appViewModel: AppViewModel
-    @AppStorage("hasSeenOnboarding") private var hasSeenOnboarding = false
+    @EnvironmentObject private var router: AppRouter
     
     var body: some View {
         NavigationStack {
             currentView
-                .id(currentViewId)
+                .id(router.route.id)
                 .transition(currentTransition)
-                .animation(.easeOut(duration: 0.4), value: currentViewId)
-                .onChange(of: appViewModel.showCreateHouse) { _, _ in }
-                .onChange(of: appViewModel.showJoinHouse) { _, _ in }
-                .onChange(of: appViewModel.showAuth) { _, _ in }
-                .onChange(of: appViewModel.showHouseLoading) { _, _ in }
-                .onChange(of: appViewModel.showHouseError) { _, _ in }
-                .onChange(of: appViewModel.isInitializing) { _, _ in }
+                .animation(.easeOut(duration: 0.4), value: router.route.id)
         }
-        .dismissKeyboardOnTap()
         .overlay(alignment: .top) {
             if let message = appViewModel.toastMessage {
                 ToastView(message: message, isError: appViewModel.toastIsError)
@@ -32,48 +25,41 @@ struct RootView: View {
     
     private var currentView: some View {
         Group {
-            if appViewModel.isInitializing || appViewModel.showHouseLoading {
+            switch router.route {
+            case .houseLoading:
                 HouseLoadingView()
-            } else if appViewModel.showHouseError {
+            case .houseError:
                 HouseErrorView()
-            } else if !hasSeenOnboarding {
+            case .onboarding:
                 OnboardingView()
-            } else if !appViewModel.isAuthenticated || appViewModel.showAuth {
-                AuthView()
-            } else if appViewModel.showCreateHouse {
+            case .emailVerification(let email):
+                EmailVerificationView(
+                    email: email,
+                    signupSuccessMessage: appViewModel.signupSuccessMessage,
+                    onCancel: appViewModel.cancelEmailVerification,
+                    onSendCode: {
+                        try await appViewModel.sendEmailVerificationCode()
+                    },
+                    onDismissSignupSuccess: appViewModel.clearSignupSuccessMessage
+                )
+            case .birthdaySetup:
+                BirthdaySetupView()
+            case .authentication:
+                AuthView(viewModel: appViewModel.authenticationViewModel)
+            case .createHouse:
                 CreateHouseView()
-            } else if appViewModel.showJoinHouse {
+            case .joinHouse:
                 JoinHouseView()
-            } else if !appViewModel.hasSelectedHouse {
+            case .houseSelection:
                 HouseSelectionView()
-            } else {
+            case .dashboard:
                 MainTabView()
             }
         }
     }
     
-    private var currentViewId: String {
-        if appViewModel.isInitializing || appViewModel.showHouseLoading {
-            return "houseLoading"
-        } else if appViewModel.showHouseError {
-            return "houseError"
-        } else if !hasSeenOnboarding {
-            return "onboarding"
-        } else if !appViewModel.isAuthenticated || appViewModel.showAuth {
-            return "auth"
-        } else if appViewModel.showCreateHouse {
-            return "createHouse"
-        } else if appViewModel.showJoinHouse {
-            return "joinHouse"
-        } else if !appViewModel.hasSelectedHouse {
-            return "houseSelection"
-        } else {
-            return "mainTab"
-        }
-    }
-    
     private var currentTransition: AnyTransition {
-        if appViewModel.navigationDirection == .forward {
+        if router.navigationDirection == .forward {
             return .asymmetric(
                 insertion: .move(edge: .trailing),
                 removal: .move(edge: .leading)

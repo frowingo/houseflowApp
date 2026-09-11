@@ -3,6 +3,8 @@ import SwiftUI
 /// Popup showing the generated invite code after house creation
 /// Features: Copy, Share functionality with UIActivityViewController
 struct InviteCodePopup: View {
+    @EnvironmentObject private var appViewModel: AppViewModel
+
     let inviteCode: String
     let houseName: String
     let onContinue: () -> Void
@@ -32,7 +34,7 @@ struct InviteCodePopup: View {
             continueButton
         }
         .padding(AppDesign.Spacing.xxl)
-        .background(AppDesign.Colors.surface)
+        .background(MainScreenBackground())
         .cornerRadius(AppDesign.CornerRadius.xl)
         .shadow(
             color: AppDesign.Shadow.heavy.color,
@@ -57,10 +59,13 @@ struct InviteCodePopup: View {
                 .font(.system(size: 50))
                 .foregroundColor(AppDesign.Colors.success)
             
-            Text("House Created! 🎉")
+            Text(appViewModel.localized("invite_popup_title"))
                 .font(AppDesign.Typography.title2)
             
-            Text("\(houseName) successfully created")
+            Text(appViewModel.localized(
+                "invite_popup_success_template",
+                replacements: ["house_name": houseName]
+            ))
                 .font(AppDesign.Typography.subheadline)
                 .foregroundColor(AppDesign.Colors.textSecondary)
                 .multilineTextAlignment(.center)
@@ -71,13 +76,13 @@ struct InviteCodePopup: View {
     
     private var inviteCodeSection: some View {
         VStack(spacing: AppDesign.Spacing.lg) {
-            Text("Invite Code")
+            Text(appViewModel.localized("invite_code_label"))
                 .font(AppDesign.Typography.headline)
             
             codeDisplayBox
             actionButtonsRow
             
-            Text("You can invite your friends to your home by sharing this code")
+            Text(appViewModel.localized("invite_popup_description"))
                 .font(AppDesign.Typography.caption)
                 .foregroundColor(AppDesign.Colors.textSecondary)
                 .multilineTextAlignment(.center)
@@ -96,7 +101,7 @@ struct InviteCodePopup: View {
                 .cornerRadius(AppDesign.CornerRadius.md)
             
             if showCopiedFeedback {
-                Text("Copied!")
+                Text(appViewModel.localized("invite_popup_copied"))
                     .font(AppDesign.Typography.caption)
                     .foregroundColor(.white)
                     .padding(.horizontal, AppDesign.Spacing.md)
@@ -121,7 +126,7 @@ struct InviteCodePopup: View {
             HStack(spacing: AppDesign.Spacing.xs) {
                 Image(systemName: "doc.on.doc")
                     .font(.system(size: 14))
-                Text("Copy")
+                Text(appViewModel.localized("common_copy"))
                     .font(AppDesign.Typography.caption)
             }
             .foregroundColor(AppDesign.Colors.primary)
@@ -137,7 +142,7 @@ struct InviteCodePopup: View {
             HStack(spacing: AppDesign.Spacing.xs) {
                 Image(systemName: "square.and.arrow.up")
                     .font(.system(size: 14))
-                Text("Share")
+                Text(appViewModel.localized("common_share"))
                     .font(AppDesign.Typography.caption)
             }
             .foregroundColor(.white)
@@ -152,7 +157,7 @@ struct InviteCodePopup: View {
     
     private var continueButton: some View {
         Button(action: onContinue) {
-            Text("Enter House")
+            Text(appViewModel.localized("invite_popup_enter_house_button"))
                 .font(AppDesign.Typography.headline)
                 .foregroundColor(.white)
                 .frame(maxWidth: .infinity)
@@ -179,15 +184,13 @@ struct InviteCodePopup: View {
     }
     
     private func createShareMessage() -> String {
-        return """
-        🏠 \(houseName)'e katılmaya davetlisiniz!
-        
-        HouseFlow uygulamasını indirin ve aşağıdaki davet kodunu kullanın:
-        
-        🔑 Davet Kodu: \(inviteCode)
-        
-        Ev işlerini birlikte organize edelim! 🧹✨
-        """
+        appViewModel.localized(
+            "invite_share_message_template",
+            replacements: [
+                "house_name": houseName,
+                "invite_code": inviteCode
+            ]
+        )
     }
 }
 

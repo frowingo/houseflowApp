@@ -8,13 +8,12 @@ struct UserAvatar: View {
     var body: some View {
         Group {
             if let urlString = user.imageUrl, !urlString.isEmpty, let url = URL(string: urlString) {
-                AsyncImage(url: url) { phase in
-                    switch phase {
-                    case .success(let img):
-                        img.resizable().scaledToFill()
-                    default:
-                        initialsView
-                    }
+                CachedRemoteImage(url: url) { image in
+                    image.resizable().scaledToFill()
+                } placeholder: {
+                    initialsView
+                } failure: {
+                    initialsView
                 }
             } else {
                 initialsView

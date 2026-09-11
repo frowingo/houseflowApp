@@ -1,21 +1,14 @@
 import SwiftUI
 
 struct AuthView: View {
-    @EnvironmentObject private var appViewModel: AppViewModel
+    @ObservedObject var viewModel: AuthenticationViewModel
     @FocusState private var focusedField: AuthField?
-
-    @State private var isSignUp = false
-    @State private var firstName = ""
-    @State private var lastName = ""
-    @State private var email = ""
-    @State private var password = ""
-    @State private var showForgotPassword = false
 
     // MARK: - Body
 
     var body: some View {
         ZStack(alignment: .bottom) {
-            heroGradient.ignoresSafeArea()
+            Color(.systemBackground).ignoresSafeArea()
 
             VStack(spacing: 0) {
                 heroSection
@@ -24,7 +17,7 @@ struct AuthView: View {
                     VStack(spacing: AppDesign.Spacing.xxl) {
                         modeSwitcher
                         formFields
-                        if let error = appViewModel.authError {
+                        if let error = viewModel.errorMessage {
                             errorBanner(message: error)
                         }
                         primaryButton
@@ -42,7 +35,7 @@ struct AuthView: View {
             .ignoresSafeArea(.container, edges: .bottom)
 
             // Toast
-            if let msg = appViewModel.successToast {
+            if let msg = viewModel.successMessage {
                 toastBanner(message: msg)
                     .padding(.horizontal, AppDesign.Spacing.xxl)
                     .padding(.bottom, 36)
@@ -50,14 +43,10 @@ struct AuthView: View {
                     .zIndex(10)
             }
         }
-        .animation(.spring(response: 0.4, dampingFraction: 0.8), value: appViewModel.successToast)
+        .animation(.spring(response: 0.4, dampingFraction: 0.8), value: viewModel.successMessage)
         .dismissKeyboardOnTap()
-        .fullScreenCover(isPresented: $showForgotPassword) {
+        .fullScreenCover(isPresented: $viewModel.isForgotPasswordPresented) {
             ForgotPasswordView()
-        }
-        .onChange(of: isSignUp) { _ in
-            appViewModel.authError = nil
-            firstName = ""; lastName = ""; email = ""; password = ""
         }
     }
 
@@ -88,24 +77,34 @@ struct AuthView: View {
             }
 
             VStack(spacing: AppDesign.Spacing.xs) {
-                Text("HouseFlow")
+                Text(viewModel.localized("app_name"))
                     .font(.system(size: 30, weight: .bold, design: .rounded))
                     .foregroundColor(.white)
-                Text("Your home, in sync")
+                Text(viewModel.localized("auth_tagline"))
                     .font(.system(size: 15))
                     .foregroundColor(.white.opacity(0.72))
             }
         }
         .padding(.top, AppDesign.Spacing.xxxl)
         .padding(.bottom, AppDesign.Spacing.huge)
+        .frame(maxWidth: .infinity)
+        .background(
+            heroGradient
+                .padding(.bottom, -32)
+                .ignoresSafeArea(.container, edges: .top)
+        )
     }
 
     // MARK: - Mode Switcher
 
     private var modeSwitcher: some View {
         HStack(spacing: 4) {
-            modeTab(title: "Sign In", selected: !isSignUp) { isSignUp = false }
-            modeTab(title: "Sign Up", selected: isSignUp)  { isSignUp = true  }
+            modeTab(title: viewModel.localized("auth_sign_in_tab"), selected: !viewModel.isSignUp) {
+                viewModel.selectMode(.signIn)
+            }
+            modeTab(title: viewModel.localized("auth_sign_up_tab"), selected: viewModel.isSignUp) {
+                viewModel.selectMode(.signUp)
+            }
         }
         .padding(4)
         .background(Color(.systemGray6))
@@ -136,21 +135,21 @@ struct AuthView: View {
     @ViewBuilder
     private var formFields: some View {
         VStack(spacing: AppDesign.Spacing.lg) {
-            if isSignUp {
+            if viewModel.isSignUp {
                 HStack(spacing: AppDesign.Spacing.md) {
                     ModernTextField(
-                        title: "First Name",
-                        text: $firstName,
-                        placeholder: "First",
+                        title: viewModel.localized("auth_first_name_label"),
+                        text: $viewModel.firstName,
+                        placeholder: viewModel.localized("auth_first_name_placeholder"),
                         icon: "person.fill",
                         keyboardType: .default,
                         focusedField: $focusedField,
                         fieldType: .firstName
                     )
                     ModernTextField(
-                        title: "Last Name",
-                        text: $lastName,
-                        placeholder: "Last",
+                        title: viewModel.localized("auth_last_name_label"),
+                        text: $viewModel.lastName,
+                        placeholder: viewModel.localized("auth_last_name_placeholder"),
                         icon: "person.fill",
                         keyboardType: .default,
                         focusedField: $focusedField,
@@ -164,9 +163,9 @@ struct AuthView: View {
             }
 
             ModernTextField(
-                title: "Email Address",
-                text: $email,
-                placeholder: "your@email.com",
+                title: viewModel.localized("auth_email_label"),
+                text: $viewModel.email,
+                placeholder: viewModel.localized("auth_email_placeholder"),
                 icon: "envelope.fill",
                 keyboardType: .emailAddress,
                 focusedField: $focusedField,
@@ -174,19 +173,21 @@ struct AuthView: View {
             )
 
             ModernSecureField(
-                title: "Password",
-                text: $password,
-                placeholder: "Enter your password",
+                title: viewModel.localized("auth_password_label"),
+                text: $viewModel.password,
+                placeholder: viewModel.localized("auth_password_placeholder"),
                 icon: "lock.fill",
                 focusedField: $focusedField,
                 fieldType: .password
             )
 
-            if !isSignUp {
+            if !viewModel.isSignUp {
                 HStack {
                     Spacer()
-                    Button("Forgot Password?") {
-                        showForgotPassword = true
+                    Button {
+                        viewModel.presentForgotPassword()
+                    } label: {
+                        Text(viewModel.localized("auth_forgot_password_button"))
                     }
                     .font(.system(size: 14, weight: .medium))
                     .foregroundColor(AppDesign.Colors.primary)
@@ -194,7 +195,7 @@ struct AuthView: View {
                 .transition(.opacity)
             }
         }
-        .animation(AppDesign.Animation.standard, value: isSignUp)
+        .animation(AppDesign.Animation.standard, value: viewModel.isSignUp)
     }
 
     // MARK: - Primary Button
@@ -202,14 +203,14 @@ struct AuthView: View {
     private var primaryButton: some View {
         Button(action: handlePrimaryAction) {
             ZStack {
-                if appViewModel.isLoading {
+                if viewModel.isLoading {
                     ProgressView()
                         .progressViewStyle(CircularProgressViewStyle(tint: .white))
                 } else {
                     HStack(spacing: AppDesign.Spacing.sm) {
-                        Image(systemName: isSignUp ? "person.badge.plus.fill" : "arrow.right.circle.fill")
+                        Image(systemName: viewModel.isSignUp ? "person.badge.plus.fill" : "arrow.right.circle.fill")
                             .font(.system(size: 18, weight: .semibold))
-                        Text(isSignUp ? "Create Account" : "Sign In")
+                        Text(viewModel.localized(viewModel.isSignUp ? "auth_create_account_button" : "auth_sign_in_button"))
                             .font(.system(size: 17, weight: .bold))
                     }
                     .foregroundColor(.white)
@@ -219,7 +220,7 @@ struct AuthView: View {
             .frame(height: 54)
             .background(
                 Group {
-                    if isFormValid && !appViewModel.isLoading {
+                    if viewModel.isFormValid && !viewModel.isLoading {
                         heroGradient
                     } else {
                         LinearGradient(colors: [Color(.systemGray4)], startPoint: .leading, endPoint: .trailing)
@@ -228,12 +229,12 @@ struct AuthView: View {
             )
             .cornerRadius(AppDesign.CornerRadius.xl)
             .shadow(
-                color: isFormValid ? AppDesign.Colors.primary.opacity(0.38) : .clear,
+                color: viewModel.isFormValid ? AppDesign.Colors.primary.opacity(0.38) : .clear,
                 radius: 12, x: 0, y: 6
             )
         }
-        .disabled(!isFormValid || appViewModel.isLoading)
-        .animation(AppDesign.Animation.quick, value: isFormValid)
+        .disabled(!viewModel.isFormValid || viewModel.isLoading)
+        .animation(AppDesign.Animation.quick, value: viewModel.isFormValid)
     }
 
     // MARK: - Divider
@@ -241,7 +242,7 @@ struct AuthView: View {
     private var dividerRow: some View {
         HStack(spacing: AppDesign.Spacing.md) {
             Rectangle().frame(height: 1).foregroundColor(Color(.systemGray5))
-            Text("or")
+            Text(viewModel.localized("auth_divider_or"))
                 .font(AppDesign.Typography.caption)
                 .foregroundColor(AppDesign.Colors.textSecondary)
             Rectangle().frame(height: 1).foregroundColor(Color(.systemGray5))
@@ -253,7 +254,7 @@ struct AuthView: View {
     private var socialRow: some View {
         HStack(spacing: AppDesign.Spacing.lg) {
             SocialLoginButton(
-                name: "Google",
+                name: viewModel.localized("auth_google_button"),
                 backgroundColor: .white,
                 foregroundColor: .black,
                 borderColor: Color(.systemGray4),
@@ -263,7 +264,7 @@ struct AuthView: View {
             }
 
             SocialLoginButton(
-                name: "Apple",
+                name: viewModel.localized("auth_apple_button"),
                 backgroundColor: .black,
                 foregroundColor: .white,
                 action: { authenticateWithSocial("Apple") }
@@ -274,7 +275,7 @@ struct AuthView: View {
             }
 
             SocialLoginButton(
-                name: "Snapchat",
+                name: viewModel.localized("auth_snapchat_button"),
                 backgroundColor: Color.yellow,
                 foregroundColor: .black,
                 action: { authenticateWithSocial("Snapchat") }
@@ -336,33 +337,18 @@ struct AuthView: View {
     private func handlePrimaryAction() {
         focusedField = nil
         Task {
-            if isSignUp {
-                await appViewModel.signup(
-                    email: email,
-                    password: password,
-                    firstName: firstName,
-                    lastName: lastName
-                )
-            } else {
-                await appViewModel.login(email: email, password: password)
-            }
+            await viewModel.submit()
         }
     }
 
     private func authenticateWithSocial(_ platform: String) {
         focusedField = nil
-        // Social auth — to be implemented
-    }
-
-    private var isFormValid: Bool {
-        if isSignUp {
-            return !firstName.isEmpty && !lastName.isEmpty && !email.isEmpty && !password.isEmpty
-        }
-        return !email.isEmpty && !password.isEmpty
+        viewModel.beginSocialAuthentication(platform)
     }
 }
 
 #Preview {
-    AuthView()
-        .environmentObject(AppViewModel())
+    let appViewModel = AppViewModel()
+    AuthView(viewModel: appViewModel.authenticationViewModel)
+        .environmentObject(appViewModel)
 }

@@ -3,6 +3,8 @@ import SwiftUI
 /// House type selection card component
 /// Displays icon and label for different house types
 struct HouseTypeCard: View {
+    @EnvironmentObject private var appViewModel: AppViewModel
+
     let type: HouseType
     let isSelected: Bool
     let action: () -> Void
@@ -11,12 +13,28 @@ struct HouseTypeCard: View {
         case studentHouse = "Student House"
         case sharedHouse = "Shared House"
         case dormRoom = "Dorm Room"
+
+        var localizationKey: String {
+            switch self {
+            case .studentHouse: return "create_house_type_student"
+            case .sharedHouse:  return "create_house_type_shared"
+            case .dormRoom:     return "create_house_type_dorm"
+            }
+        }
         
         var iconName: String {
             switch self {
             case .studentHouse: return "graduationcap.fill"
             case .sharedHouse: return "house.fill"
             case .dormRoom: return "building.2.fill"
+            }
+        }
+
+        var tint: Color {
+            switch self {
+            case .studentHouse: return HouseJourneyTheme.purple
+            case .sharedHouse: return HouseJourneyTheme.teal
+            case .dormRoom: return HouseJourneyTheme.blue
             }
         }
 
@@ -51,27 +69,29 @@ struct HouseTypeCard: View {
     private var iconSection: some View {
         Image(systemName: type.iconName)
             .font(.system(size: AppDesign.Size.iconMedium, weight: .medium))
-            .foregroundColor(isSelected ? .white : AppDesign.Colors.primary)
+            .foregroundColor(type.tint)
     }
     
     private var labelSection: some View {
-        Text(type.rawValue)
+        Text(appViewModel.localized(type.localizationKey))
             .font(AppDesign.Typography.caption)
-            .foregroundColor(isSelected ? .white : AppDesign.Colors.text)
+            .foregroundColor(isSelected ? AppDesign.Colors.textPrimary : AppDesign.Colors.textSecondary)
             .multilineTextAlignment(.center)
             .lineLimit(2)
     }
     
     private var backgroundColor: some View {
         RoundedRectangle(cornerRadius: AppDesign.CornerRadius.lg)
-            .fill(isSelected ? AppDesign.Colors.primary : AppDesign.Colors.cardBackground)
+            .fill(isSelected ? type.tint.opacity(0.15) : HouseJourneyTheme.surface)
     }
     
     private var borderOverlay: some View {
         RoundedRectangle(cornerRadius: AppDesign.CornerRadius.lg)
             .strokeBorder(
-                isSelected ? AppDesign.Colors.primary : Color.clear,
-                lineWidth: 2
+                isSelected
+                    ? HouseJourneyTheme.accentOrange
+                    : type.tint.opacity(0.12),
+                lineWidth: isSelected ? 2 : 1
             )
     }
 }

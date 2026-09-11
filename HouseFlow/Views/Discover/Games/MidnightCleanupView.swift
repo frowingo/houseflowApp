@@ -25,11 +25,11 @@ private enum CleanupOutcome: Equatable {
     case alarm
     case timeUp
 
-    var title: String {
+    var titleKey: String {
         switch self {
-        case .cleaned: return "Vault Cleared"
-        case .alarm: return "Alarm Blown"
-        case .timeUp: return "Getaway Time"
+        case .cleaned: return "vault_outcome_cleared_title"
+        case .alarm: return "vault_outcome_alarm_title"
+        case .timeUp: return "vault_outcome_time_up_title"
         }
     }
 
@@ -49,14 +49,14 @@ private enum CleanupOutcome: Equatable {
         }
     }
 
-    var verdict: String {
+    var verdictKey: String {
         switch self {
         case .cleaned:
-            return "The crew filled the bag. Lowest loot contribution gets the chore."
+            return "vault_outcome_cleared_verdict"
         case .alarm:
-            return "The alarm blew. Highest heat becomes the fall guy."
+            return "vault_outcome_alarm_verdict"
         case .timeUp:
-            return "The van is leaving. Lowest loot contribution gets the chore."
+            return "vault_outcome_time_up_verdict"
         }
     }
 }
@@ -70,12 +70,12 @@ private enum CleanupMove: String, CaseIterable, Identifiable {
 
     var id: String { rawValue }
 
-    var title: String {
+    var titleKey: String {
         switch self {
-        case .quietSweep: return "Silent Grab"
-        case .turboScrub: return "Vault Drill"
-        case .fridgeRaid: return "Pocket Bonus"
-        case .alibi: return "Lookout"
+        case .quietSweep: return "vault_move_silent_grab_title"
+        case .turboScrub: return "vault_move_drill_title"
+        case .fridgeRaid: return "vault_move_bonus_title"
+        case .alibi: return "vault_move_lookout_title"
         }
     }
 
@@ -124,12 +124,12 @@ private enum CleanupMove: String, CaseIterable, Identifiable {
         }
     }
 
-    var summary: String {
+    var summaryKey: String {
         switch self {
-        case .quietSweep: return "+3 loot, +1 alarm"
-        case .turboScrub: return "+5 loot, +3 alarm"
-        case .fridgeRaid: return "+1 loot, +4 heat"
-        case .alibi: return "-2 alarm, lower heat"
+        case .quietSweep: return "vault_move_silent_grab_summary"
+        case .turboScrub: return "vault_move_drill_summary"
+        case .fridgeRaid: return "vault_move_bonus_summary"
+        case .alibi: return "vault_move_lookout_summary"
         }
     }
 
@@ -169,11 +169,13 @@ private struct CleanupReveal: Identifiable, Equatable {
 // MARK: - Vault Rush View
 struct VaultRushView: View {
     @Environment(\.dismiss) private var dismiss
+    @EnvironmentObject private var appViewModel: AppViewModel
 
     @State private var members: [String] = ["Ali", "Ayşe", "Mehmet", "Fatma"]
     @State private var readyMembers: Set<String> = ["Ali"]
     @State private var newMemberName = ""
     @State private var showAddField = false
+    @State private var didLoadDefaultMembers = false
     @State private var phase: VaultRushPhase = .setup
     @State private var players: [CleanupPlayer] = []
     @State private var selectedMove: CleanupMove = .quietSweep
@@ -193,7 +195,7 @@ struct VaultRushView: View {
     }
 
     private var currentPlayerName: String {
-        players.first?.name ?? members.first ?? "You"
+        players.first?.name ?? members.first ?? appViewModel.localized("common_you")
     }
 
     var body: some View {
@@ -214,6 +216,7 @@ struct VaultRushView: View {
         .environment(\.colorScheme, .dark)
         .navigationBarBackButtonHidden(phase != .setup)
         .navigationBarTitleDisplayMode(.inline)
+        .onAppear { loadDefaultMembersIfNeeded() }
     }
 
     // MARK: - Setup
@@ -246,10 +249,10 @@ struct VaultRushView: View {
             VaultDoorIcon(size: 104)
 
             VStack(spacing: AppDesign.Spacing.xs) {
-                Text("Vault Rush")
+                Text(appViewModel.localized("vault_title"))
                     .font(AppDesign.Typography.title2)
                     .foregroundStyle(VaultTheme.textPrimary)
-                Text("Crack the bank vault, fill the loot bag, and keep the alarm from pinning the job on you.")
+                Text(appViewModel.localized("vault_subtitle"))
                     .font(AppDesign.Typography.subheadline)
                     .foregroundStyle(VaultTheme.textSecondary)
                     .multilineTextAlignment(.center)
@@ -260,7 +263,7 @@ struct VaultRushView: View {
 
     private var missionBriefPanel: some View {
         VStack(alignment: .leading, spacing: AppDesign.Spacing.md) {
-            Label("The Job", systemImage: "building.columns.fill")
+            Label(appViewModel.localized("vault_job_label"), systemImage: "building.columns.fill")
                 .font(AppDesign.Typography.headline)
                 .foregroundStyle(VaultTheme.textPrimary)
 
@@ -268,20 +271,26 @@ struct VaultRushView: View {
                 HeistRuleRow(
                     icon: "bag.fill",
                     color: .teal,
-                    title: "Fill the Loot Bag",
-                    detail: "Reach \(targetClean) loot before the getaway."
+                    title: appViewModel.localized("vault_rule_fill_bag_title"),
+                    detail: appViewModel.localized(
+                        "vault_rule_fill_bag_detail_template",
+                        replacements: ["target_loot": "\(targetClean)"]
+                    )
                 )
                 HeistRuleRow(
                     icon: "bell.fill",
                     color: .orange,
-                    title: "Avoid Alarm",
-                    detail: "If alarm hits \(maxNoise), highest heat loses."
+                    title: appViewModel.localized("vault_rule_avoid_alarm_title"),
+                    detail: appViewModel.localized(
+                        "vault_rule_avoid_alarm_detail_template",
+                        replacements: ["max_alarm": "\(maxNoise)"]
+                    )
                 )
                 HeistRuleRow(
                     icon: "flame.fill",
                     color: .red,
-                    title: "Watch Heat",
-                    detail: "Greedy or noisy moves put the fall-guy mark on you."
+                    title: appViewModel.localized("vault_rule_watch_heat_title"),
+                    detail: appViewModel.localized("vault_rule_watch_heat_detail")
                 )
             }
         }
@@ -297,11 +306,17 @@ struct VaultRushView: View {
     private var readyRoomPanel: some View {
         VStack(alignment: .leading, spacing: AppDesign.Spacing.md) {
             HStack {
-                Label("Masked Crew HF-042", systemImage: "person.3.fill")
+                Label(appViewModel.localized("vault_crew_room_label"), systemImage: "person.3.fill")
                     .font(AppDesign.Typography.headline)
                     .foregroundStyle(VaultTheme.textPrimary)
                 Spacer()
-                Text("\(readyMembers.count)/\(members.count)")
+                Text(appViewModel.localized(
+                    "vault_ready_count_template",
+                    replacements: [
+                        "ready": "\(readyMembers.count)",
+                        "total": "\(members.count)"
+                    ]
+                ))
                     .font(AppDesign.Typography.caption)
                     .foregroundStyle(allReady ? Color.teal : VaultTheme.textSecondary)
                     .padding(.horizontal, AppDesign.Spacing.sm)
@@ -321,7 +336,7 @@ struct VaultRushView: View {
                             .font(AppDesign.Typography.bodyBold)
                             .foregroundStyle(VaultTheme.textPrimary)
                         Spacer()
-                        Text(readyMembers.contains(member) ? "Ready" : "Waiting")
+                        Text(appViewModel.localized(readyMembers.contains(member) ? "vault_ready_label" : "vault_waiting_label"))
                             .font(AppDesign.Typography.caption)
                             .foregroundStyle(readyMembers.contains(member) ? Color.teal : VaultTheme.textSecondary)
                     }
@@ -336,7 +351,7 @@ struct VaultRushView: View {
             }
 
             Button { mockReadyVote() } label: {
-                Label(readyMembers.count == members.count ? "Reset Crew Votes" : "Mock Crew Ready", systemImage: "checkmark.seal.fill")
+                Label(appViewModel.localized(readyMembers.count == members.count ? "vault_reset_votes_button" : "vault_mock_ready_button"), systemImage: "checkmark.seal.fill")
                     .font(AppDesign.Typography.bodyBold)
                     .foregroundStyle(Color.teal)
                     .frame(maxWidth: .infinity)
@@ -357,7 +372,7 @@ struct VaultRushView: View {
 
     private var startRoomButton: some View {
         Button { startGame() } label: {
-            Label("Start Vault Rush", systemImage: "play.fill")
+            Label(appViewModel.localized("vault_start_button"), systemImage: "play.fill")
                 .font(AppDesign.Typography.headline)
                 .foregroundStyle(.white)
                 .frame(maxWidth: .infinity)
@@ -387,7 +402,10 @@ struct VaultRushView: View {
             }
 
             Button { resolveRound() } label: {
-                Label("Lock \(currentPlayerName)'s Move", systemImage: "lock.fill")
+                Label(appViewModel.localized(
+                    "vault_lock_move_button_template",
+                    replacements: ["player_name": currentPlayerName]
+                ), systemImage: "lock.fill")
                     .font(AppDesign.Typography.headline)
                     .foregroundStyle(.white)
                     .frame(maxWidth: .infinity)
@@ -413,10 +431,19 @@ struct VaultRushView: View {
             }
 
             VStack(alignment: .leading, spacing: AppDesign.Spacing.xs) {
-                Text("Round \(round) of \(maxRounds)")
+                Text(appViewModel.localized(
+                    "vault_round_label_template",
+                    replacements: [
+                        "round": "\(round)",
+                        "max_rounds": "\(maxRounds)"
+                    ]
+                ))
                     .font(AppDesign.Typography.title3)
                     .foregroundStyle(VaultTheme.textPrimary)
-                Text("You lock \(currentPlayerName)'s move. The rest of the crew is mocked.")
+                Text(appViewModel.localized(
+                    "vault_round_instruction_template",
+                    replacements: ["player_name": currentPlayerName]
+                ))
                     .font(AppDesign.Typography.caption)
                     .foregroundStyle(VaultTheme.textSecondary)
             }
@@ -428,14 +455,14 @@ struct VaultRushView: View {
     private var meterPanel: some View {
         VStack(spacing: AppDesign.Spacing.lg) {
             CleanupMeterRow(
-                title: "Loot",
+                title: appViewModel.localized("vault_loot_label"),
                 value: cleanMeter,
                 total: targetClean,
                 color: .teal,
                 icon: "bag.fill"
             )
             CleanupMeterRow(
-                title: "Alarm",
+                title: appViewModel.localized("vault_alarm_label"),
                 value: noiseMeter,
                 total: maxNoise,
                 color: noiseMeter >= maxNoise - 3 ? .red : .orange,
@@ -453,7 +480,7 @@ struct VaultRushView: View {
 
     private var movePicker: some View {
         VStack(alignment: .leading, spacing: AppDesign.Spacing.md) {
-            Text("Heist Move")
+            Text(appViewModel.localized("vault_heist_move_label"))
                 .font(AppDesign.Typography.headline)
                 .foregroundStyle(VaultTheme.textPrimary)
 
@@ -470,7 +497,7 @@ struct VaultRushView: View {
 
     private var rosterPanel: some View {
         VStack(alignment: .leading, spacing: AppDesign.Spacing.md) {
-            Text("Heat Board")
+            Text(appViewModel.localized("vault_heat_board_label"))
                 .font(AppDesign.Typography.headline)
                 .foregroundStyle(VaultTheme.textPrimary)
 
@@ -497,7 +524,7 @@ struct VaultRushView: View {
             }
 
             Button { continueAfterReveal() } label: {
-                Label(pendingOutcome == nil ? "Next Round" : "Reveal Result", systemImage: pendingOutcome == nil ? "arrow.right" : "flag.checkered")
+                Label(appViewModel.localized(pendingOutcome == nil ? "vault_next_round_button" : "vault_reveal_result_button"), systemImage: pendingOutcome == nil ? "arrow.right" : "flag.checkered")
                     .font(AppDesign.Typography.headline)
                     .foregroundStyle(.white)
                     .frame(maxWidth: .infinity)
@@ -522,10 +549,10 @@ struct VaultRushView: View {
                     .foregroundStyle(pendingOutcome?.color ?? Color.teal)
             }
 
-            Text(pendingOutcome?.title ?? "Moves Revealed")
+            Text(pendingOutcome.map { appViewModel.localized($0.titleKey) } ?? appViewModel.localized("vault_moves_revealed_title"))
                 .font(AppDesign.Typography.title2)
                 .foregroundStyle(VaultTheme.textPrimary)
-            Text(pendingOutcome?.verdict ?? "The crew slipped past this checkpoint. Keep loot ahead of the alarm.")
+            Text(pendingOutcome.map { appViewModel.localized($0.verdictKey) } ?? appViewModel.localized("vault_moves_revealed_subtitle"))
                 .font(AppDesign.Typography.subheadline)
                 .foregroundStyle(VaultTheme.textSecondary)
                 .multilineTextAlignment(.center)
@@ -549,7 +576,7 @@ struct VaultRushView: View {
                         Text(entry.playerName)
                             .font(AppDesign.Typography.bodyBold)
                             .foregroundStyle(VaultTheme.textPrimary)
-                        Text(entry.move.title)
+                        Text(appViewModel.localized(entry.move.titleKey))
                             .font(AppDesign.Typography.caption)
                             .foregroundStyle(VaultTheme.textSecondary)
                     }
@@ -557,10 +584,16 @@ struct VaultRushView: View {
                     Spacer()
 
                     VStack(alignment: .trailing, spacing: 2) {
-                        Text("+\(entry.clean) loot")
+                        Text(appViewModel.localized(
+                            "vault_loot_delta_template",
+                            replacements: ["count": "\(entry.clean)"]
+                        ))
                             .font(AppDesign.Typography.caption)
                             .foregroundStyle(Color.teal)
-                        Text(deltaText(entry.noise, label: "alarm"))
+                        Text(appViewModel.localized(
+                            "vault_alarm_delta_template",
+                            replacements: ["signed_count": signedCount(entry.noise)]
+                        ))
                             .font(AppDesign.Typography.caption)
                             .foregroundStyle(entry.noise > 0 ? Color.orange : Color.indigo)
                     }
@@ -596,15 +629,18 @@ struct VaultRushView: View {
             .animation(.spring(response: 0.55, dampingFraction: 0.48), value: resultAppeared)
 
             VStack(spacing: AppDesign.Spacing.sm) {
-                Text(outcome.title)
+                Text(appViewModel.localized(outcome.titleKey))
                     .font(.system(size: 34, weight: .black))
                     .foregroundStyle(outcome.color)
                     .multilineTextAlignment(.center)
-                Text("\(loser.name) gets the chore")
+                Text(appViewModel.localized(
+                    "vault_loser_gets_chore_template",
+                    replacements: ["player_name": loser.name]
+                ))
                     .font(AppDesign.Typography.headline)
                     .foregroundStyle(VaultTheme.textPrimary)
                     .multilineTextAlignment(.center)
-                Text(outcome.verdict)
+                Text(appViewModel.localized(outcome.verdictKey))
                     .font(AppDesign.Typography.subheadline)
                     .foregroundStyle(VaultTheme.textSecondary)
                     .multilineTextAlignment(.center)
@@ -624,7 +660,7 @@ struct VaultRushView: View {
 
             VStack(spacing: AppDesign.Spacing.md) {
                 Button { resetGame() } label: {
-                    Label("Run It Back", systemImage: "arrow.clockwise")
+                    Label(appViewModel.localized("vault_run_it_back_button"), systemImage: "arrow.clockwise")
                         .font(AppDesign.Typography.headline)
                         .foregroundStyle(.white)
                         .frame(maxWidth: .infinity)
@@ -635,7 +671,7 @@ struct VaultRushView: View {
                 .buttonStyle(ScaleButtonStyle())
 
                 Button { dismiss() } label: {
-                    Text("Main Menu")
+                    Text(appViewModel.localized("common_main_menu"))
                         .font(AppDesign.Typography.bodyBold)
                         .foregroundStyle(VaultTheme.textSecondary)
                         .frame(maxWidth: .infinity)
@@ -662,10 +698,16 @@ struct VaultRushView: View {
                         .font(AppDesign.Typography.bodyBold)
                         .foregroundStyle(VaultTheme.textPrimary)
                     Spacer()
-                    Text("\(player.cleanScore) loot")
+                    Text(appViewModel.localized(
+                        "vault_player_loot_template",
+                        replacements: ["count": "\(player.cleanScore)"]
+                    ))
                         .font(AppDesign.Typography.caption)
                         .foregroundStyle(Color.teal)
-                    Text("\(riskScore(for: player)) heat")
+                    Text(appViewModel.localized(
+                        "vault_player_heat_template",
+                        replacements: ["count": "\(riskScore(for: player))"]
+                    ))
                         .font(AppDesign.Typography.caption)
                         .foregroundStyle(Color.orange)
                 }
@@ -721,6 +763,19 @@ struct VaultRushView: View {
         withAnimation(.easeInOut(duration: 0.25)) {
             phase = .planning
         }
+    }
+
+    private func loadDefaultMembersIfNeeded() {
+        guard !didLoadDefaultMembers else { return }
+        didLoadDefaultMembers = true
+        let localizedMembers = [
+            appViewModel.localized("vault_default_member_ali"),
+            appViewModel.localized("vault_default_member_ayse"),
+            appViewModel.localized("vault_default_member_mehmet"),
+            appViewModel.localized("vault_default_member_fatma")
+        ]
+        members = localizedMembers
+        readyMembers = [localizedMembers[0]]
     }
 
     private func resolveRound() {
@@ -831,20 +886,38 @@ struct VaultRushView: View {
                     return riskScore(for: lhs) > riskScore(for: rhs)
                 }
                 return lhs.cleanScore < rhs.cleanScore
-            } ?? CleanupPlayer(name: "Someone")
+            } ?? CleanupPlayer(name: appViewModel.localized("common_someone_fallback"))
         case .alarm:
-            return players.max { riskScore(for: $0) < riskScore(for: $1) } ?? CleanupPlayer(name: "Someone")
+            return players.max { riskScore(for: $0) < riskScore(for: $1) } ?? CleanupPlayer(name: appViewModel.localized("common_someone_fallback"))
         }
     }
 
     private func resultReason(for outcome: CleanupOutcome, loser: CleanupPlayer) -> String {
         switch outcome {
         case .cleaned:
-            return "\(loser.name) brought in the least loot: \(loser.cleanScore)."
+            return appViewModel.localized(
+                "vault_result_lowest_loot_reason_template",
+                replacements: [
+                    "player_name": loser.name,
+                    "loot": "\(loser.cleanScore)"
+                ]
+            )
         case .alarm:
-            return "\(loser.name) had the highest heat score: \(riskScore(for: loser))."
+            return appViewModel.localized(
+                "vault_result_highest_heat_reason_template",
+                replacements: [
+                    "player_name": loser.name,
+                    "heat": "\(riskScore(for: loser))"
+                ]
+            )
         case .timeUp:
-            return "\(loser.name) had the least loot when the van left: \(loser.cleanScore)."
+            return appViewModel.localized(
+                "vault_result_van_lowest_loot_reason_template",
+                replacements: [
+                    "player_name": loser.name,
+                    "loot": "\(loser.cleanScore)"
+                ]
+            )
         }
     }
 
@@ -852,8 +925,8 @@ struct VaultRushView: View {
         max(0, player.suspicion + player.noiseScore - (player.hasAlibi ? 2 : 0))
     }
 
-    private func deltaText(_ value: Int, label: String) -> String {
-        value >= 0 ? "+\(value) \(label)" : "\(value) \(label)"
+    private func signedCount(_ value: Int) -> String {
+        value >= 0 ? "+\(value)" : "\(value)"
     }
 }
 
@@ -946,6 +1019,8 @@ private struct HeistRuleRow: View {
 
 // MARK: - Member List
 private struct CleanupMemberList: View {
+    @EnvironmentObject private var appViewModel: AppViewModel
+
     @Binding var members: [String]
     @Binding var readyMembers: Set<String>
     @Binding var newMemberName: String
@@ -976,7 +1051,7 @@ private struct CleanupMemberList: View {
     private var addMemberControl: some View {
         if showAddField {
             HStack(spacing: AppDesign.Spacing.md) {
-                TextField("Enter name...", text: $newMemberName)
+                TextField(appViewModel.localized("common_enter_name_placeholder"), text: $newMemberName)
                     .font(AppDesign.Typography.body)
                     .foregroundStyle(VaultTheme.textPrimary)
                     .padding(AppDesign.Spacing.md)
@@ -1001,7 +1076,7 @@ private struct CleanupMemberList: View {
                     showAddField = true
                 }
             } label: {
-                Label("Add Member", systemImage: "plus.circle")
+                Label(appViewModel.localized("common_add_member"), systemImage: "plus.circle")
                     .font(AppDesign.Typography.bodyBold)
                     .foregroundStyle(Color.teal)
                     .frame(maxWidth: .infinity)
@@ -1061,6 +1136,8 @@ private struct VaultCrewRow: View {
 
 // MARK: - Meter Row
 private struct CleanupMeterRow: View {
+    @EnvironmentObject private var appViewModel: AppViewModel
+
     let title: String
     let value: Int
     let total: Int
@@ -1074,7 +1151,13 @@ private struct CleanupMeterRow: View {
                     .font(AppDesign.Typography.bodyBold)
                     .foregroundStyle(VaultTheme.textPrimary)
                 Spacer()
-                Text("\(value)/\(total)")
+                Text(appViewModel.localized(
+                    "vault_meter_value_template",
+                    replacements: [
+                        "value": "\(value)",
+                        "total": "\(total)"
+                    ]
+                ))
                     .font(AppDesign.Typography.caption)
                     .foregroundStyle(VaultTheme.textSecondary)
             }
@@ -1095,6 +1178,8 @@ private struct CleanupMeterRow: View {
 
 // MARK: - Move Card
 private struct CleanupMoveCard: View {
+    @EnvironmentObject private var appViewModel: AppViewModel
+
     let move: CleanupMove
     let isSelected: Bool
 
@@ -1115,12 +1200,12 @@ private struct CleanupMoveCard: View {
                     .foregroundStyle(isSelected ? move.color : VaultTheme.textTertiary)
             }
 
-            Text(move.title)
+            Text(appViewModel.localized(move.titleKey))
                 .font(AppDesign.Typography.bodyBold)
                 .foregroundStyle(VaultTheme.textPrimary)
                 .multilineTextAlignment(.leading)
 
-            Text(move.summary)
+            Text(appViewModel.localized(move.summaryKey))
                 .font(AppDesign.Typography.caption)
                 .foregroundStyle(VaultTheme.textSecondary)
                 .multilineTextAlignment(.leading)
@@ -1139,6 +1224,8 @@ private struct CleanupMoveCard: View {
 
 // MARK: - Player Score Row
 private struct CleanupPlayerScoreRow: View {
+    @EnvironmentObject private var appViewModel: AppViewModel
+
     let player: CleanupPlayer
     let risk: Int
 
@@ -1157,7 +1244,7 @@ private struct CleanupPlayerScoreRow: View {
                 Text(player.name)
                     .font(AppDesign.Typography.bodyBold)
                     .foregroundStyle(VaultTheme.textPrimary)
-                Text(player.hasAlibi ? "On lookout" : "No cover")
+                Text(appViewModel.localized(player.hasAlibi ? "vault_player_on_lookout" : "vault_player_no_cover"))
                     .font(AppDesign.Typography.caption2)
                     .foregroundStyle(VaultTheme.textSecondary)
             }
@@ -1165,10 +1252,16 @@ private struct CleanupPlayerScoreRow: View {
             Spacer()
 
             VStack(alignment: .trailing, spacing: 2) {
-                Text("\(player.cleanScore) loot")
+                Text(appViewModel.localized(
+                    "vault_player_loot_template",
+                    replacements: ["count": "\(player.cleanScore)"]
+                ))
                     .font(AppDesign.Typography.caption)
                     .foregroundStyle(Color.teal)
-                Text("\(risk) heat")
+                Text(appViewModel.localized(
+                    "vault_player_heat_template",
+                    replacements: ["count": "\(risk)"]
+                ))
                     .font(AppDesign.Typography.caption)
                     .foregroundStyle(risk >= 6 ? Color.red : Color.orange)
             }

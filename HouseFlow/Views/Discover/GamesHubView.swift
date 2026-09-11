@@ -3,11 +3,11 @@ import SwiftUI
 // MARK: - Game Info Model
 private struct GameInfo: Identifiable {
     let id: Int
-    let title: String
-    let description: String
+    let titleKey: String
+    let descriptionKey: String
     let icon: String
     let color: Color
-    let badge: String
+    let badgeKey: String
 }
 
 // MARK: - Games Hub View
@@ -15,15 +15,18 @@ struct GamesHubView: View {
     @State private var appeared = false
 
     private let games: [GameInfo] = [
-        GameInfo(id: 0, title: "Lucky Spin",
-                 description: "Spin the wheel — fate picks who does the chore.",
-                 icon: "arrow.2.circlepath", color: .orange, badge: "Group"),
-        GameInfo(id: 2, title: "Vault Rush",
-                 description: "Crack the bank vault, dodge the alarm, and leave the fall guy with the chore.",
-                 icon: "building.columns.fill", color: Color(hex: "0F172A"), badge: "Room"),
-        GameInfo(id: 3, title: "Skyline Dash",
-                 description: "Tap through shared gates. Hit one, and your run is over.",
-                 icon: "paperplane.fill", color: .cyan, badge: "Realtime"),
+        GameInfo(id: 0, titleKey: "games_lucky_spin_title",
+                 descriptionKey: "games_lucky_spin_card_description",
+                 icon: "arrow.2.circlepath", color: .orange, badgeKey: "games_lucky_spin_badge"),
+        GameInfo(id: 2, titleKey: "games_vault_rush_title",
+                 descriptionKey: "games_vault_rush_card_description",
+                 icon: "building.columns.fill", color: Color(hex: "0F172A"), badgeKey: "games_vault_rush_badge"),
+        GameInfo(id: 3, titleKey: "games_skyline_dash_title",
+                 descriptionKey: "games_skyline_dash_card_description",
+                 icon: "paperplane.fill", color: .cyan, badgeKey: "games_skyline_dash_badge"),
+        GameInfo(id: 4, titleKey: "games_rps_title",
+                 descriptionKey: "games_rps_card_description",
+                 icon: "hand.draw.fill", color: .mint, badgeKey: "games_rps_badge"),
     ]
 
     private let columns = [
@@ -34,8 +37,7 @@ struct GamesHubView: View {
     var body: some View {
         NavigationStack {
             ZStack(alignment: .top) {
-                Color(UIColor.systemBackground)
-                    .ignoresSafeArea()
+                MainScreenBackground()
 
                 ScrollView(showsIndicators: false) {
                     VStack(spacing: AppDesign.Spacing.xl) {
@@ -58,51 +60,27 @@ struct GamesHubView: View {
     // MARK: - Header
     private var headerSection: some View {
         ZStack(alignment: .bottomLeading) {
-            // Orange gradient banner
-            RoundedRectangle(cornerRadius: AppDesign.CornerRadius.xl)
-                .fill(
-                    LinearGradient(
-                        colors: [
-                            Color(hue: 0.08, saturation: 0.85, brightness: 0.95),
-                            Color(hue: 0.05, saturation: 0.75, brightness: 0.80),
-                        ],
-                        startPoint: .topLeading,
-                        endPoint: .bottomTrailing
-                    )
-                )
-                .frame(maxWidth: .infinity)
-                .frame(height: 160)
-
-            // Decorative circle
-            Circle()
-                .fill(Color.white.opacity(0.12))
-                .frame(width: 160, height: 160)
-                .offset(x: 120, y: -30)
-
-            Circle()
-                .fill(Color.white.opacity(0.08))
-                .frame(width: 100, height: 100)
-                .offset(x: 200, y: 30)
+            BrandHeroCardBackground()
 
             // Icon
             Image(systemName: "gamecontroller.fill")
-                .font(.system(size: 44, weight: .medium))
-                .foregroundStyle(Color.white.opacity(0.18))
-                .offset(x: 230, y: -20)
+                .font(.system(size: 48, weight: .semibold))
+                .foregroundStyle(Color.white.opacity(0.16))
+                .rotationEffect(.degrees(-8))
+                .offset(x: 230, y: -28)
 
             VStack(alignment: .leading, spacing: AppDesign.Spacing.xs) {
-                Text("Mini Games")
-                    .font(AppDesign.Typography.title2)
+                LocalizedText("games_hub_title")
+                    .font(.system(size: 23, weight: .bold, design: .rounded))
                     .foregroundStyle(.white)
-                Text("Settle chore duties by playing a game")
+                LocalizedText("games_hub_subtitle")
                     .font(AppDesign.Typography.subheadline)
                     .foregroundStyle(Color.white.opacity(0.82))
             }
             .padding(.horizontal, AppDesign.Spacing.xl)
             .padding(.bottom, AppDesign.Spacing.xl)
         }
-        .clipShape(RoundedRectangle(cornerRadius: AppDesign.CornerRadius.xl))
-        .shadow(color: Color.orange.opacity(0.35), radius: 16, x: 0, y: 6)
+        .frame(height: 138)
         .padding(.top, AppDesign.Spacing.xl)
         .opacity(appeared ? 1 : 0)
         .offset(y: appeared ? 0 : 12)
@@ -132,6 +110,7 @@ struct GamesHubView: View {
         case 0: LuckySpinView()
         case 2: VaultRushView()
         case 3: SkylineDashView()
+        case 4: RockPaperScissorsView()
         default: EmptyView()
         }
     }
@@ -176,11 +155,18 @@ private struct HubGameCard: View {
                 }
 
                 VStack(spacing: AppDesign.Spacing.sm) {
-                    Image(systemName: game.icon)
-                        .font(.system(size: 40, weight: .medium))
-                        .foregroundStyle(Color.white)
+                    if game.id == 4 {
+                        Text("✊  ✋  ✌️")
+                            .font(.system(size: 30))
+                            .rotationEffect(.degrees(-6))
+                            .accessibilityHidden(true)
+                    } else {
+                        Image(systemName: game.icon)
+                            .font(.system(size: 40, weight: .medium))
+                            .foregroundStyle(Color.white)
+                    }
 
-                    Text(game.badge)
+                    LocalizedText(game.badgeKey)
                         .font(AppDesign.Typography.caption)
                         .foregroundStyle(Color.white.opacity(0.9))
                         .padding(.horizontal, AppDesign.Spacing.sm)
@@ -192,11 +178,11 @@ private struct HubGameCard: View {
 
             // Text area
             VStack(alignment: .leading, spacing: AppDesign.Spacing.xs) {
-                Text(game.title)
+                LocalizedText(game.titleKey)
                     .font(AppDesign.Typography.headline)
                     .foregroundStyle(AppDesign.Colors.textPrimary)
 
-                Text(game.description)
+                LocalizedText(game.descriptionKey)
                     .font(AppDesign.Typography.caption)
                     .foregroundStyle(AppDesign.Colors.textSecondary)
                     .multilineTextAlignment(.leading)
@@ -212,6 +198,9 @@ private struct HubGameCard: View {
     }
 
     private var bannerColors: [Color] {
+        if game.id == 4 {
+            return [Color(hex: "113B46"), Color(hex: "12243D"), Color(hex: "29204A")]
+        }
         if game.id == 2 {
             return [
                 Color(hex: "05070C"),
@@ -243,6 +232,3 @@ struct ScaleButtonStyle: ButtonStyle {
             .animation(.spring(response: 0.3, dampingFraction: 0.7), value: configuration.isPressed)
     }
 }
-
-// MARK: - Legacy alias (keeps MainTabView reference working)
-typealias ComingSoonView = GamesHubView

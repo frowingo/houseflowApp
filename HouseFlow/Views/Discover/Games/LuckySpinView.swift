@@ -130,9 +130,11 @@ private enum LuckySpinPhase: Equatable {
 // MARK: - Lucky Spin View
 struct LuckySpinView: View {
     @Environment(\.dismiss) private var dismiss
+    @EnvironmentObject private var appViewModel: AppViewModel
 
     @State private var members: [String] = ["Ali", "Ayse", "Mehmet", "Fatma"]
     @State private var newMemberName = ""
+    @State private var didLoadDefaultMembers = false
     @State private var showAddField = false
     @State private var phase: LuckySpinPhase = .setup
     @State private var wheelRotation: Double = 0
@@ -160,6 +162,7 @@ struct LuckySpinView: View {
         .environment(\.colorScheme, .dark)
         .navigationBarBackButtonHidden(phase != .setup)
         .navigationBarTitleDisplayMode(.inline)
+        .onAppear { loadDefaultMembersIfNeeded() }
         .onDisappear { spinTask?.cancel() }
     }
 
@@ -185,10 +188,10 @@ struct LuckySpinView: View {
         VStack(spacing: AppDesign.Spacing.md) {
             LuckySpinBadge(size: 104)
 
-            Text("Lucky Spin")
+            Text(appViewModel.localized("lucky_spin_title"))
                 .font(AppDesign.Typography.title2)
                 .foregroundStyle(LuckySpinTheme.textPrimary)
-            Text("A neon wheel chooses who takes the chore. Add players, spin once, and let chance settle it.")
+            Text(appViewModel.localized("lucky_spin_subtitle"))
                 .font(AppDesign.Typography.subheadline)
                 .foregroundStyle(LuckySpinTheme.textSecondary)
                 .multilineTextAlignment(.center)
@@ -199,11 +202,14 @@ struct LuckySpinView: View {
     private var spinRoomPanel: some View {
         VStack(alignment: .leading, spacing: AppDesign.Spacing.md) {
             HStack {
-                Label("Spin Room LS-777", systemImage: "sparkles")
+                Label(appViewModel.localized("lucky_spin_room_label"), systemImage: "sparkles")
                     .font(AppDesign.Typography.headline)
                     .foregroundStyle(LuckySpinTheme.textPrimary)
                 Spacer()
-                Text("\(members.count) players")
+                Text(appViewModel.localized(
+                    "lucky_spin_players_count_template",
+                    replacements: ["count": "\(members.count)"]
+                ))
                     .font(AppDesign.Typography.caption)
                     .foregroundStyle(LuckySpinTheme.gold)
                     .padding(.horizontal, AppDesign.Spacing.sm)
@@ -213,9 +219,9 @@ struct LuckySpinView: View {
             }
 
             VStack(spacing: AppDesign.Spacing.sm) {
-                LuckyRuleRow(icon: "person.3.fill", color: .cyan, title: "Add the room", detail: "Keep at least two players on the wheel.")
-                LuckyRuleRow(icon: "arrow.2.circlepath", color: LuckySpinTheme.gold, title: "One clean spin", detail: "The pointer lands on one selected player.")
-                LuckyRuleRow(icon: "target", color: LuckySpinTheme.pink, title: "Winner takes chore", detail: "The selected player gets the assigned task.")
+                LuckyRuleRow(icon: "person.3.fill", color: .cyan, title: appViewModel.localized("lucky_spin_rule_add_room_title"), detail: appViewModel.localized("lucky_spin_rule_add_room_detail"))
+                LuckyRuleRow(icon: "arrow.2.circlepath", color: LuckySpinTheme.gold, title: appViewModel.localized("lucky_spin_rule_one_spin_title"), detail: appViewModel.localized("lucky_spin_rule_one_spin_detail"))
+                LuckyRuleRow(icon: "target", color: LuckySpinTheme.pink, title: appViewModel.localized("lucky_spin_rule_winner_title"), detail: appViewModel.localized("lucky_spin_rule_winner_detail"))
             }
         }
         .padding(AppDesign.Spacing.lg)
@@ -229,7 +235,7 @@ struct LuckySpinView: View {
 
     private var memberPanel: some View {
         VStack(alignment: .leading, spacing: AppDesign.Spacing.md) {
-            Text("Wheel Players")
+            Text(appViewModel.localized("lucky_spin_players_title"))
                 .font(AppDesign.Typography.headline)
                 .foregroundStyle(LuckySpinTheme.textPrimary)
 
@@ -251,7 +257,7 @@ struct LuckySpinView: View {
 
     private var spinButton: some View {
         Button { startSpin() } label: {
-            Label("Spin the Wheel", systemImage: "arrow.2.circlepath")
+            Label(appViewModel.localized("lucky_spin_button"), systemImage: "arrow.2.circlepath")
                 .font(AppDesign.Typography.headline)
                 .foregroundStyle(.white)
                 .frame(maxWidth: .infinity)
@@ -280,10 +286,10 @@ struct LuckySpinView: View {
             Spacer()
 
             VStack(spacing: AppDesign.Spacing.xs) {
-                Text("Spinning")
+                Text(appViewModel.localized("lucky_spin_spinning_title"))
                     .font(.system(size: 34, weight: .black))
                     .foregroundStyle(LuckySpinTheme.textPrimary)
-                Text("The room is watching the pointer")
+                Text(appViewModel.localized("lucky_spin_spinning_subtitle"))
                     .font(AppDesign.Typography.subheadline)
                     .foregroundStyle(LuckySpinTheme.textSecondary)
             }
@@ -339,6 +345,17 @@ struct LuckySpinView: View {
             newMemberName = ""
             showAddField = false
         }
+    }
+
+    private func loadDefaultMembersIfNeeded() {
+        guard !didLoadDefaultMembers else { return }
+        didLoadDefaultMembers = true
+        members = [
+            appViewModel.localized("lucky_spin_default_member_ali"),
+            appViewModel.localized("lucky_spin_default_member_ayse"),
+            appViewModel.localized("lucky_spin_default_member_mehmet"),
+            appViewModel.localized("lucky_spin_default_member_fatma")
+        ]
     }
 
     private func startSpin() {
@@ -472,6 +489,8 @@ private struct WheelCanvas: View {
 
 // MARK: - Lucky Spin Member List
 private struct LuckySpinMemberList: View {
+    @EnvironmentObject private var appViewModel: AppViewModel
+
     @Binding var members: [String]
     @Binding var newMemberName: String
     @Binding var showAddField: Bool
@@ -503,7 +522,7 @@ private struct LuckySpinMemberList: View {
     private var addMemberControl: some View {
         if showAddField {
             HStack(spacing: AppDesign.Spacing.md) {
-                TextField("Enter name...", text: $newMemberName)
+                TextField(appViewModel.localized("common_enter_name_placeholder"), text: $newMemberName)
                     .font(AppDesign.Typography.body)
                     .foregroundStyle(LuckySpinTheme.textPrimary)
                     .padding(AppDesign.Spacing.md)
@@ -525,7 +544,7 @@ private struct LuckySpinMemberList: View {
             Button {
                 withAnimation(.spring(response: 0.4, dampingFraction: 0.7)) { showAddField = true }
             } label: {
-                Label("Add Member", systemImage: "plus.circle")
+                Label(appViewModel.localized("common_add_member"), systemImage: "plus.circle")
                     .font(AppDesign.Typography.bodyBold)
                     .foregroundStyle(LuckySpinTheme.gold)
                     .frame(maxWidth: .infinity)
@@ -544,6 +563,8 @@ private struct LuckySpinMemberList: View {
 
 // MARK: - Lucky Spin Result Content
 private struct LuckySpinResultContent: View {
+    @EnvironmentObject private var appViewModel: AppViewModel
+
     let winner: String
     @Binding var resultAppeared: Bool
     let onRetry: () -> Void
@@ -563,13 +584,13 @@ private struct LuckySpinResultContent: View {
             .animation(.spring(response: 0.55, dampingFraction: 0.48).delay(0.05), value: resultAppeared)
 
             VStack(spacing: AppDesign.Spacing.sm) {
-                Text("Selected:")
+                LocalizedText("lucky_spin_selected_label")
                     .font(AppDesign.Typography.subheadline)
                     .foregroundStyle(LuckySpinTheme.textSecondary)
                 Text(winner)
                     .font(.system(size: 42, weight: .black))
                     .foregroundStyle(LuckySpinTheme.gold)
-                Text("This player gets the chore")
+                LocalizedText("lucky_spin_result_message")
                     .font(AppDesign.Typography.subheadline)
                     .foregroundStyle(LuckySpinTheme.textSecondary)
             }
@@ -581,7 +602,7 @@ private struct LuckySpinResultContent: View {
 
             VStack(spacing: AppDesign.Spacing.md) {
                 Button { onRetry() } label: {
-                    Label("Spin Again", systemImage: "arrow.clockwise")
+                    Label(appViewModel.localized("lucky_spin_again_button"), systemImage: "arrow.clockwise")
                         .font(AppDesign.Typography.headline)
                         .foregroundStyle(.white)
                         .frame(maxWidth: .infinity)
@@ -598,7 +619,7 @@ private struct LuckySpinResultContent: View {
                 .buttonStyle(ScaleButtonStyle())
 
                 Button { onDismiss() } label: {
-                    Text("Main Menu")
+                    Text(appViewModel.localized("common_main_menu"))
                         .font(AppDesign.Typography.bodyBold)
                         .foregroundStyle(LuckySpinTheme.textSecondary)
                         .frame(maxWidth: .infinity)

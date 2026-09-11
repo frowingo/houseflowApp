@@ -23,8 +23,10 @@ struct HouseFlowApp: App {
         WindowGroup {
             RootView()
                 .environmentObject(appViewModel)
+                .environmentObject(appViewModel.router)
                 .preferredColorScheme(.light)
                 .task {
+                    appViewModel.prepareLocalization()
                     // Cold start: attempt silent auto-login
                     await appViewModel.performAutoLogin()
                 }

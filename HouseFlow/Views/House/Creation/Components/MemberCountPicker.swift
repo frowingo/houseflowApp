@@ -3,13 +3,15 @@ import SwiftUI
 /// Custom slider component for selecting member count
 /// Features: Train track style with stops, draggable bubble indicator
 struct MemberCountPicker: View {
+    @EnvironmentObject private var appViewModel: AppViewModel
+
     @Binding var memberCount: Int
     let minCount: Int = 2
     let maxCount: Int = 8
     
     var body: some View {
         VStack(alignment: .leading, spacing: AppDesign.Spacing.xl) {
-            Text("Person Count")
+            Text(appViewModel.localized("create_house_member_count_label"))
                 .font(AppDesign.Typography.headline)
             
             sliderSection
@@ -72,7 +74,7 @@ struct MemberCountPicker: View {
                 .cornerRadius(1.5)
             
             Circle()
-                .fill(memberCount >= count ? AppDesign.Colors.primary : Color(.systemGray4))
+                .fill(memberCount >= count ? HouseJourneyTheme.indigo : Color(.systemGray4))
                 .frame(width: 10, height: 10)
                 .animation(AppDesign.Animation.quick, value: memberCount)
         }
@@ -100,32 +102,36 @@ struct MemberCountPicker: View {
             .frame(width: 44, height: 44)
             .background(
                 Circle()
-                    .fill(AppDesign.Colors.primary)
+                    .fill(HouseJourneyTheme.indigo)
                     .shadow(
-                        color: AppDesign.Colors.primary.opacity(0.3),
+                        color: HouseJourneyTheme.indigo.opacity(0.26),
                         radius: 10,
                         x: 0,
                         y: 4
+                    )
+                    .overlay(
+                        Circle()
+                            .stroke(HouseJourneyTheme.accentOrange.opacity(0.75), lineWidth: 1.5)
                     )
             )
     }
     
     private var bubbleTail: some View {
         Triangle()
-            .fill(AppDesign.Colors.primary)
+            .fill(HouseJourneyTheme.indigo)
             .frame(width: 14, height: 10)
             .offset(y: -1)
     }
     
     private var sliderLabels: some View {
         HStack {
-            Text("Min")
+            Text(appViewModel.localized("common_min"))
                 .font(AppDesign.Typography.caption2)
                 .foregroundColor(AppDesign.Colors.textSecondary)
             
             Spacer()
             
-            Text("Max")
+            Text(appViewModel.localized("common_max"))
                 .font(AppDesign.Typography.caption2)
                 .foregroundColor(AppDesign.Colors.textSecondary)
         }

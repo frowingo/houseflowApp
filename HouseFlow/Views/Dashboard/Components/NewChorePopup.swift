@@ -7,15 +7,23 @@ struct NewChorePopup: View {
     let appViewModel: AppViewModel
     let onDismiss: () -> Void
 
+    private enum NewChoreField: Hashable {
+        case title
+        case description
+        case interval
+    }
+
     @State private var title = ""
     @State private var description = ""
     @State private var selectedMember: User? = nil
     @State private var selectedLevel: ChoreLevel = .easy
     @State private var dueDate: Date = Calendar.current.startOfDay(for: Date())
+    @State private var minimumDueDate = Date()
     @State private var isRecurring: Bool = false
     @State private var recurringInterval: Int = 7
     @State private var intervalText: String = "7"
     @State private var isCreating: Bool = false
+    @FocusState private var focusedField: NewChoreField?
 
     private var members: [User] { appViewModel.dashboardMembers }
     private var houseId: String { appViewModel.currentHouseDetails?.id ?? "" }
@@ -30,10 +38,11 @@ struct NewChorePopup: View {
         ZStack {
             Color.black.opacity(0.55)
                 .ignoresSafeArea()
-                .onTapGesture { if !isCreating { onDismiss() } }
+                .onTapGesture { if !isCreating { requestDismiss() } }
 
             VStack(spacing: 0) {
                 topBar
+                    .zIndex(1)
 
                 ScrollView(showsIndicators: false) {
                     VStack(spacing: AppDesign.Spacing.xl) {
@@ -47,20 +56,14 @@ struct NewChorePopup: View {
                     .padding(.horizontal, AppDesign.Spacing.xl)
                     .padding(.vertical, AppDesign.Spacing.xl)
                 }
+                .scrollDismissesKeyboard(.interactively)
                 .frame(maxHeight: 460)
+                .clipped()
 
                 actionButtons
             }
-            .background(
-                ZStack {
-                    AppDesign.Colors.background
-                    LinearGradient(
-                        colors: [accentOrange.opacity(0.04), Color.clear],
-                        startPoint: .top, endPoint: .center
-                    )
-                }
-            )
-            .cornerRadius(AppDesign.CornerRadius.xl)
+            .background(MainScreenBackground())
+            .clipShape(RoundedRectangle(cornerRadius: AppDesign.CornerRadius.xl, style: .continuous))
             .shadow(color: Color.black.opacity(0.25), radius: 30, x: 0, y: 16)
             .padding(.horizontal, AppDesign.Spacing.xl)
         }
@@ -72,21 +75,18 @@ struct NewChorePopup: View {
 
     private var topBar: some View {
         ZStack {
-            LinearGradient(
-                colors: [accentOrange, accentOrange.opacity(0.75)],
-                startPoint: .leading, endPoint: .trailing
-            )
+            BrandPopupHeaderBackground()
             // Background decorative icon
             Image(systemName: "sparkles")
                 .font(.system(size: 56, weight: .bold))
                 .foregroundColor(.white.opacity(0.12))
 
             HStack(spacing: AppDesign.Spacing.md) {
-                Text("New Chore")
+                Text(appViewModel.localized("new_chore_title"))
                     .font(AppDesign.Typography.headline)
                     .foregroundColor(.white)
                 Spacer()
-                Button(action: onDismiss) {
+                Button { if !isCreating { requestDismiss() } } label: {
                     Image(systemName: "xmark")
                         .font(.system(size: 13, weight: .bold))
                         .foregroundColor(.white.opacity(0.9))
@@ -104,9 +104,10 @@ struct NewChorePopup: View {
     // MARK: - Fields
 
     private var titleField: some View {
-        formField(icon: "pencil", label: "Task Name") {
-            TextField("What needs to be done?", text: $title)
+        formField(icon: "pencil", label: appViewModel.localized("new_chore_task_name_label")) {
+            TextField(appViewModel.localized("new_chore_task_name_placeholder"), text: $title)
                 .font(AppDesign.Typography.body)
+                .focused($focusedField, equals: .title)
                 .padding(AppDesign.Spacing.md)
                 .background(
                     RoundedRectangle(cornerRadius: AppDesign.CornerRadius.md)
@@ -120,10 +121,11 @@ struct NewChorePopup: View {
     }
 
     private var descriptionField: some View {
-        formField(icon: "text.alignleft", label: "Description") {
-            TextField("Add details (optional)", text: $description, axis: .vertical)
+        formField(icon: "text.alignleft", label: appViewModel.localized("new_chore_description_label")) {
+            TextField(appViewModel.localized("new_chore_description_placeholder"), text: $description, axis: .vertical)
                 .font(AppDesign.Typography.body)
                 .lineLimit(2...4)
+                .focused($focusedField, equals: .description)
                 .padding(AppDesign.Spacing.md)
                 .background(
                     RoundedRectangle(cornerRadius: AppDesign.CornerRadius.md)
@@ -137,7 +139,7 @@ struct NewChorePopup: View {
     }
 
     private var memberPicker: some View {
-        formField(icon: "person.fill", label: "Assign To") {
+        formField(icon: "person.fill", label: appViewModel.localized("new_chore_assign_to_label")) {
             ScrollView(.horizontal, showsIndicators: false) {
                 HStack(spacing: AppDesign.Spacing.md) {
                     ForEach(members) { member in
@@ -186,14 +188,14 @@ struct NewChorePopup: View {
     }
 
     private var levelPicker: some View {
-        formField(icon: "flame.fill", label: "Difficulty") {
+        formField(icon: "flame.fill", label: appViewModel.localized("new_chore_difficulty_label")) {
             HStack(spacing: AppDesign.Spacing.sm) {
                 ForEach([ChoreLevel.easy, .medium, .hard], id: \.rawValue) { lvl in
                     let isSel = selectedLevel == lvl
                     Button { withAnimation(AppDesign.Animation.quick) { selectedLevel = lvl } } label: {
                         HStack(spacing: 6) {
                             Image(systemName: lvl.iconName).font(.system(size: 12, weight: .semibold))
-                            Text(lvl.displayName).font(.system(size: 13, weight: .semibold))
+                            Text(appViewModel.localized(lvl.localizationKey)).font(.system(size: 13, weight: .semibold))
                         }
                         .foregroundColor(isSel ? .white : lvl.color)
                         .padding(.horizontal, AppDesign.Spacing.md)
@@ -211,8 +213,8 @@ struct NewChorePopup: View {
     }
 
     private var dueDatePicker: some View {
-        formField(icon: "calendar", label: "Due Date") {
-            DatePicker("", selection: $dueDate, in: Date()..., displayedComponents: .date)
+        formField(icon: "calendar", label: appViewModel.localized("new_chore_due_date_label")) {
+            DatePicker("", selection: $dueDate, in: minimumDueDate..., displayedComponents: .date)
                 .datePickerStyle(.compact)
                 .labelsHidden()
                 .tint(accentOrange)
@@ -229,25 +231,26 @@ struct NewChorePopup: View {
     private var recurringSection: some View {
         VStack(alignment: .leading, spacing: AppDesign.Spacing.sm) {
             HStack {
-                sectionLabel(icon: "arrow.clockwise", text: "Recurring")
+                sectionLabel(icon: "arrow.clockwise", text: appViewModel.localized("new_chore_recurring_label"))
                 Spacer()
                 Toggle("", isOn: $isRecurring).labelsHidden().tint(accentOrange)
             }
             if isRecurring {
                 HStack(spacing: AppDesign.Spacing.sm) {
-                    Text("Every")
+                    Text(appViewModel.localized("new_chore_every_label"))
                         .font(AppDesign.Typography.subheadline)
                         .foregroundColor(AppDesign.Colors.textSecondary)
                     TextField("7", text: $intervalText)
                         .keyboardType(.numberPad)
                         .font(AppDesign.Typography.bodyBold)
                         .multilineTextAlignment(.center)
+                        .focused($focusedField, equals: .interval)
                         .frame(width: 56)
                         .padding(.vertical, 8)
                         .background(AppDesign.Colors.secondaryBackground)
                         .cornerRadius(AppDesign.CornerRadius.sm)
                         .onChange(of: intervalText) { _, val in recurringInterval = Int(val) ?? recurringInterval }
-                    Text("days")
+                    Text(appViewModel.localized("new_chore_days_label"))
                         .font(AppDesign.Typography.subheadline)
                         .foregroundColor(AppDesign.Colors.textSecondary)
                 }
@@ -261,8 +264,8 @@ struct NewChorePopup: View {
 
     private var actionButtons: some View {
         HStack(spacing: AppDesign.Spacing.md) {
-            Button(action: onDismiss) {
-                Text("Cancel")
+            Button { if !isCreating { requestDismiss() } } label: {
+                Text(appViewModel.localized("common_cancel"))
                     .font(AppDesign.Typography.headline)
                     .foregroundColor(AppDesign.Colors.textSecondary)
                     .frame(maxWidth: .infinity)
@@ -277,7 +280,7 @@ struct NewChorePopup: View {
                     } else {
                         Image(systemName: "checkmark.circle.fill").font(.system(size: 16, weight: .semibold))
                     }
-                    Text("Create").font(AppDesign.Typography.headline)
+                    Text(appViewModel.localized("common_create")).font(AppDesign.Typography.headline)
                 }
                 .foregroundColor(.white)
                 .frame(maxWidth: .infinity)
@@ -316,6 +319,8 @@ struct NewChorePopup: View {
 
     private func submitChore() {
         guard let memberId = selectedMember?.apiId, !houseId.isEmpty else { return }
+        focusedField = nil
+        UIApplication.shared.sendAction(#selector(UIResponder.resignFirstResponder), to: nil, from: nil, for: nil)
         isCreating = true
         Task {
             await appViewModel.createChore(
@@ -329,6 +334,14 @@ struct NewChorePopup: View {
                 title: title.trimmingCharacters(in: .whitespaces)
             )
             isCreating = false
+            requestDismiss()
+        }
+    }
+
+    private func requestDismiss() {
+        focusedField = nil
+        UIApplication.shared.sendAction(#selector(UIResponder.resignFirstResponder), to: nil, from: nil, for: nil)
+        DispatchQueue.main.async {
             onDismiss()
         }
     }
@@ -337,9 +350,6 @@ struct NewChorePopup: View {
 // MARK: - ChoreLevel UI Helpers
 
 extension ChoreLevel {
-    var displayName: String {
-        switch self { case .easy: return "Easy"; case .medium: return "Medium"; case .hard: return "Hard" }
-    }
     var iconName: String {
         switch self { case .easy: return "leaf.fill"; case .medium: return "flame.fill"; case .hard: return "bolt.fill" }
     }

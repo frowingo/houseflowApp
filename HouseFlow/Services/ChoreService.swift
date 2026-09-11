@@ -1,12 +1,13 @@
 import Foundation
 
 final class ChoreService {
-    static let shared = ChoreService()
+    private let network: any NetworkServicing
+    private let keychain: any KeychainStoring
 
-    private let network = NetworkService.shared
-    private let keychain = KeychainService.shared
-
-    private init() {}
+    init(network: any NetworkServicing, keychain: any KeychainStoring) {
+        self.network = network
+        self.keychain = keychain
+    }
 
     // MARK: - Create Chore
 
@@ -46,7 +47,7 @@ final class ChoreService {
     // MARK: - Update Chore Status
 
     /// PUT /chore/status  — requires Bearer token
-    func updateChoreStatus(houseId: String, chores: [ChoreStatusUpdateItem]) async throws -> Bool {
+    func updateChoreStatus(houseId: String, chores: [ChoreStatusUpdateItem]) async throws -> [ChoreResponse] {
         guard let token = keychain.authToken else {
             throw NetworkError.serverError("Not authenticated.")
         }
@@ -55,7 +56,7 @@ final class ChoreService {
             path: "chore/status",
             method: "PUT",
             body: body,
-            successType: Bool.self,
+            successType: [ChoreResponse].self,
             token: token
         )
     }
@@ -63,7 +64,7 @@ final class ChoreService {
     // MARK: - Review Chore
 
     /// PUT /chore/review — requires Bearer token
-    func reviewChore(choreId: String, isApproved: Bool) async throws -> ChoreReviewResponse {
+    func reviewChore(choreId: String, isApproved: Bool) async throws -> ChoreResponse {
         guard let token = keychain.authToken else {
             throw NetworkError.serverError("Not authenticated.")
         }
@@ -72,7 +73,7 @@ final class ChoreService {
             path: "chore/review",
             method: "PUT",
             body: body,
-            successType: ChoreReviewResponse.self,
+            successType: ChoreResponse.self,
             token: token
         )
     }

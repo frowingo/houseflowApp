@@ -93,10 +93,11 @@ struct ChoreDetailPopup: View {
         ZStack {
             Color.black.opacity(0.55)
                 .ignoresSafeArea()
-                .onTapGesture { if !isBusy { onDismiss() } }
+                .onTapGesture { if !isBusy { requestDismiss() } }
 
             VStack(spacing: 0) {
                 topBar
+                    .zIndex(1)
                 ScrollView(showsIndicators: false) {
                     VStack(spacing: AppDesign.Spacing.xl) {
                         statusPipeline
@@ -112,18 +113,11 @@ struct ChoreDetailPopup: View {
                     .padding(.vertical, AppDesign.Spacing.xl)
                 }
                 .frame(maxHeight: 500)
+                .clipped()
                 dismissButton
             }
-            .background(
-                ZStack {
-                    AppDesign.Colors.background
-                    LinearGradient(
-                        colors: [accentOrange.opacity(0.04), Color.clear],
-                        startPoint: .top, endPoint: .center
-                    )
-                }
-            )
-            .cornerRadius(AppDesign.CornerRadius.xl)
+            .background(MainScreenBackground())
+            .clipShape(RoundedRectangle(cornerRadius: AppDesign.CornerRadius.xl, style: .continuous))
             .shadow(color: Color.black.opacity(0.25), radius: 30, x: 0, y: 16)
             .padding(.horizontal, AppDesign.Spacing.xl)
 
@@ -131,7 +125,7 @@ struct ChoreDetailPopup: View {
                 Color.black.opacity(0.25).ignoresSafeArea()
                 VStack(spacing: AppDesign.Spacing.lg) {
                     ProgressView().scaleEffect(1.4).tint(.white)
-                    Text(isReviewing ? "Submitting vote..." : "Updating...")
+                    Text(appViewModel.localized(isReviewing ? "chore_detail_submitting_vote" : "chore_detail_updating"))
                         .font(AppDesign.Typography.subheadline)
                         .foregroundColor(.white)
                 }
@@ -144,10 +138,7 @@ struct ChoreDetailPopup: View {
 
     private var topBar: some View {
         ZStack {
-            LinearGradient(
-                colors: [accentOrange, accentOrange.opacity(0.7)],
-                startPoint: .leading, endPoint: .trailing
-            )
+            BrandPopupHeaderBackground()
             // Background decorative icon
             Image(systemName: "house.fill")
                 .font(.system(size: 56, weight: .bold))
@@ -158,7 +149,7 @@ struct ChoreDetailPopup: View {
                 HStack(spacing: 4) {
                     Image(systemName: choreLevelObj.iconName)
                         .font(.system(size: 11, weight: .bold))
-                    Text(choreLevelObj.displayName)
+                    Text(appViewModel.localized(choreLevelObj.localizationKey))
                         .font(.system(size: 11, weight: .bold))
                 }
                 .foregroundColor(choreLevelObj.color)
@@ -175,7 +166,7 @@ struct ChoreDetailPopup: View {
 
                 Spacer()
 
-                Button(action: onDismiss) {
+                Button { if !isBusy { requestDismiss() } } label: {
                     Image(systemName: "xmark")
                         .font(.system(size: 13, weight: .bold))
                         .foregroundColor(.white.opacity(0.9))
@@ -194,7 +185,7 @@ struct ChoreDetailPopup: View {
 
     private var statusPipeline: some View {
         VStack(alignment: .leading, spacing: AppDesign.Spacing.sm) {
-            sectionLabel(icon: "arrow.triangle.2.circlepath", text: "Status")
+            sectionLabel(icon: "arrow.triangle.2.circlepath", text: appViewModel.localized("chore_detail_status_label"))
             HStack(spacing: 0) {
                 ForEach(Array([ChoreStatus.draft, .progress, .inTest, .completed].enumerated()), id: \.offset) { index, step in
                     let isCurrent = step.rawValue == displayedChore.status
@@ -209,7 +200,7 @@ struct ChoreDetailPopup: View {
                                 .font(.system(size: 13, weight: .bold))
                                 .foregroundColor(isCurrent ? .white : (isPast ? accentOrange : AppDesign.Colors.textSecondary))
                         }
-                        Text(step.displayName)
+                        Text(appViewModel.localized(step.localizationKey))
                             .font(.system(size: 10, weight: isCurrent ? .bold : .regular))
                             .foregroundColor(isCurrent ? accentOrange : AppDesign.Colors.textSecondary)
                             .multilineTextAlignment(.center)
@@ -244,7 +235,7 @@ struct ChoreDetailPopup: View {
         VStack(spacing: AppDesign.Spacing.md) {
             // Title + description
             VStack(alignment: .leading, spacing: AppDesign.Spacing.sm) {
-                sectionLabel(icon: "text.badge.checkmark", text: "Task")
+                sectionLabel(icon: "text.badge.checkmark", text: appViewModel.localized("chore_detail_task_label"))
                 Text(displayedChore.title)
                     .font(AppDesign.Typography.title3)
                     .foregroundColor(AppDesign.Colors.textPrimary)
@@ -265,7 +256,7 @@ struct ChoreDetailPopup: View {
             // Meta row
             HStack(spacing: AppDesign.Spacing.md) {
                 // Assignee
-                infoTile(icon: "person.fill", label: "Assigned To") {
+                infoTile(icon: "person.fill", label: appViewModel.localized("chore_detail_assigned_to_label")) {
                     HStack(spacing: AppDesign.Spacing.sm) {
                         UserAvatar(user: displayedChore.assignedTo, size: 28)
                         Text(displayedChore.assignedTo.firstName)
@@ -275,7 +266,7 @@ struct ChoreDetailPopup: View {
                 }
 
                 // Due date
-                infoTile(icon: "calendar", label: "Due") {
+                infoTile(icon: "calendar", label: appViewModel.localized("chore_detail_due_label")) {
                     Text(formattedDueDate)
                         .font(AppDesign.Typography.bodyBold)
                         .foregroundColor(dueColor)
@@ -292,8 +283,8 @@ struct ChoreDetailPopup: View {
 
     private var statusUpdateSection: some View {
         VStack(alignment: .leading, spacing: AppDesign.Spacing.md) {
-            sectionLabel(icon: "pencil.circle.fill", text: "Update Status")
-            Text("Move this chore to its next allowed stage.")
+            sectionLabel(icon: "pencil.circle.fill", text: appViewModel.localized("chore_detail_update_status_label"))
+            Text(appViewModel.localized("chore_detail_update_status_description"))
                 .font(AppDesign.Typography.caption)
                 .foregroundColor(AppDesign.Colors.textSecondary)
 
@@ -314,7 +305,12 @@ struct ChoreDetailPopup: View {
                             Image(systemName: "arrow.right.circle.fill")
                                 .font(.system(size: 16, weight: .semibold))
                         }
-                        Text("Move to \(nextStatus.displayName)")
+                        Text(appViewModel.localized(
+                            "chore_detail_move_to_status_template",
+                            replacements: [
+                                "status": appViewModel.localized(nextStatus.localizationKey)
+                            ]
+                        ))
                             .font(AppDesign.Typography.headline)
                     }
                     .foregroundColor(.white)
@@ -347,7 +343,7 @@ struct ChoreDetailPopup: View {
 
     private var reviewSection: some View {
         VStack(alignment: .leading, spacing: AppDesign.Spacing.md) {
-            sectionLabel(icon: "checkmark.seal.fill", text: "Review Rounds")
+            sectionLabel(icon: "checkmark.seal.fill", text: appViewModel.localized("chore_detail_review_rounds_label"))
 
             ForEach(reviewRoundNumbers, id: \.self) { round in
                 reviewRoundCard(round)
@@ -382,9 +378,12 @@ struct ChoreDetailPopup: View {
                 HStack(spacing: AppDesign.Spacing.sm) {
                     VStack(alignment: .leading, spacing: 2) {
                         HStack(spacing: 6) {
-                            Text("Round \(round)")
+                            Text(appViewModel.localized(
+                                "chore_detail_round_template",
+                                replacements: ["round": "\(round)"]
+                            ))
                                 .font(AppDesign.Typography.bodyBold)
-                            Text(isActive ? "Active" : "Resulted")
+                            Text(appViewModel.localized(isActive ? "chore_detail_round_active" : "chore_detail_round_resulted"))
                                 .font(.system(size: 10, weight: .bold))
                                 .foregroundColor(isActive ? .white : AppDesign.Colors.textSecondary)
                                 .padding(.horizontal, 7)
@@ -392,7 +391,13 @@ struct ChoreDetailPopup: View {
                                 .background(isActive ? currentStatus.color : AppDesign.Colors.textSecondary.opacity(0.14))
                                 .cornerRadius(AppDesign.CornerRadius.circle)
                         }
-                        Text("\(approvedVoteCount(for: round)) of \(eligibleReviewerCount) approved")
+                        Text(appViewModel.localized(
+                            "chore_detail_approved_count_template",
+                            replacements: [
+                                "approved": "\(approvedVoteCount(for: round))",
+                                "eligible": "\(eligibleReviewerCount)"
+                            ]
+                        ))
                             .font(AppDesign.Typography.caption)
                             .foregroundColor(AppDesign.Colors.textSecondary)
                     }
@@ -428,30 +433,30 @@ struct ChoreDetailPopup: View {
     private var reviewActionArea: some View {
         VStack(alignment: .leading, spacing: AppDesign.Spacing.md) {
             if isAssignedToCurrentUser {
-                Label("Assigned users cannot vote on their own chore.", systemImage: "person.crop.circle.badge.exclamationmark")
+                Label(appViewModel.localized("chore_detail_assignee_no_vote_message"), systemImage: "person.crop.circle.badge.exclamationmark")
                     .font(AppDesign.Typography.caption)
                     .foregroundColor(AppDesign.Colors.textSecondary)
             } else if let vote = currentUserVote {
                 Label(
-                    vote.isApproved ? "You approved this chore." : "You rejected this chore.",
+                    appViewModel.localized(vote.isApproved ? "chore_detail_you_approved_message" : "chore_detail_you_rejected_message"),
                     systemImage: vote.isApproved ? "checkmark.circle.fill" : "xmark.circle.fill"
                 )
                 .font(AppDesign.Typography.bodyBold)
                 .foregroundColor(vote.isApproved ? AppDesign.Colors.success : AppDesign.Colors.error)
             } else if canReview {
-                Text("Approve the completed work or send it back for another attempt.")
+                Text(appViewModel.localized("chore_detail_review_prompt"))
                     .font(AppDesign.Typography.caption)
                     .foregroundColor(AppDesign.Colors.textSecondary)
 
                 HStack(spacing: AppDesign.Spacing.md) {
                     reviewButton(
-                        title: "Reject",
+                        title: appViewModel.localized("chore_detail_reject_button"),
                         icon: "xmark.circle.fill",
                         color: AppDesign.Colors.error,
                         isApproved: false
                     )
                     reviewButton(
-                        title: "Approve",
+                        title: appViewModel.localized("chore_detail_approve_button"),
                         icon: "checkmark.circle.fill",
                         color: AppDesign.Colors.success,
                         isApproved: true
@@ -485,15 +490,18 @@ struct ChoreDetailPopup: View {
             }
         }
         .frame(height: 10)
-        .accessibilityLabel("Review progress")
-        .accessibilityValue("\(Int(reviewCompletionRatio(for: round) * 100)) percent voted")
+        .accessibilityLabel(Text(appViewModel.localized("chore_detail_review_progress_accessibility")))
+        .accessibilityValue(Text(appViewModel.localized(
+            "chore_detail_review_percent_voted_template",
+            replacements: ["percent": "\(Int(reviewCompletionRatio(for: round) * 100))"]
+        )))
     }
 
     private func reviewSummaryRow(for round: Int) -> some View {
         HStack(spacing: AppDesign.Spacing.sm) {
-            reviewSummaryPill(title: "Approved", count: approvedVoteCount(for: round), color: AppDesign.Colors.success)
-            reviewSummaryPill(title: "Rejected", count: rejectedVoteCount(for: round), color: AppDesign.Colors.error)
-            reviewSummaryPill(title: "Waiting", count: pendingVoteCount(for: round), color: AppDesign.Colors.textSecondary)
+            reviewSummaryPill(title: appViewModel.localized("chore_detail_review_approved"), count: approvedVoteCount(for: round), color: AppDesign.Colors.success)
+            reviewSummaryPill(title: appViewModel.localized("chore_detail_review_rejected"), count: rejectedVoteCount(for: round), color: AppDesign.Colors.error)
+            reviewSummaryPill(title: appViewModel.localized("chore_detail_review_waiting"), count: pendingVoteCount(for: round), color: AppDesign.Colors.textSecondary)
         }
     }
 
@@ -508,8 +516,8 @@ struct ChoreDetailPopup: View {
     // MARK: - Dismiss Button
 
     private var dismissButton: some View {
-        Button(action: onDismiss) {
-            Text("Close")
+        Button { if !isBusy { requestDismiss() } } label: {
+            Text(appViewModel.localized("common_close"))
                 .font(AppDesign.Typography.headline)
                 .foregroundColor(AppDesign.Colors.textSecondary)
                 .frame(maxWidth: .infinity)
@@ -537,8 +545,14 @@ struct ChoreDetailPopup: View {
             )
             isUpdating = false
             if didUpdate {
-                onDismiss()
+                requestDismiss()
             }
+        }
+    }
+
+    private func requestDismiss() {
+        DispatchQueue.main.async {
+            onDismiss()
         }
     }
 
@@ -555,15 +569,9 @@ struct ChoreDetailPopup: View {
     }
 
     private var formattedDueDate: String {
-        guard let rawDate = displayedChore.dueDate else { return displayedChore.dueLabel }
-        let iso = ISO8601DateFormatter()
-        iso.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
-        let date = iso.date(from: rawDate) ?? ISO8601DateFormatter().date(from: rawDate)
-        guard let date else { return displayedChore.dueLabel }
-        let fmt = DateFormatter()
-        fmt.dateStyle = .medium
-        fmt.timeStyle = .none
-        return fmt.string(from: date)
+        guard let rawDate = displayedChore.dueDate else { return appViewModel.localizedDueLabel(displayedChore.dueLabel) }
+        let formatted = HouseFlowDateFormatter.displayDate(from: rawDate)
+        return formatted == "—" ? appViewModel.localizedDueLabel(displayedChore.dueLabel) : formatted
     }
 
     private var dueColor: Color {
@@ -587,7 +595,7 @@ struct ChoreDetailPopup: View {
     }
 
     private func statusStage(_ status: ChoreStatus) -> some View {
-        Label(status.displayName, systemImage: status.iconName)
+        Label(appViewModel.localized(status.localizationKey), systemImage: status.iconName)
             .font(.system(size: 12, weight: .semibold))
             .foregroundColor(status.color)
             .frame(maxWidth: .infinity)
@@ -676,7 +684,7 @@ struct ChoreDetailPopup: View {
                     .foregroundColor(AppDesign.Colors.textPrimary)
                     .lineLimit(1)
                 if isAssignee {
-                    Text("Assigned user")
+                    Text(appViewModel.localized("chore_detail_assigned_user_label"))
                         .font(AppDesign.Typography.caption)
                         .foregroundColor(AppDesign.Colors.textSecondary)
                 }
@@ -684,7 +692,7 @@ struct ChoreDetailPopup: View {
 
             Spacer(minLength: AppDesign.Spacing.sm)
 
-            Label(status.title, systemImage: status.icon)
+            Label(appViewModel.localized(status.titleKey), systemImage: status.icon)
                 .font(.system(size: 11, weight: .semibold))
                 .foregroundColor(status.color)
                 .padding(.horizontal, 8)
@@ -698,17 +706,17 @@ struct ChoreDetailPopup: View {
         .cornerRadius(AppDesign.CornerRadius.md)
     }
 
-    private func reviewStatus(forAssignee isAssignee: Bool, vote: ChoreReviewVote?) -> (title: String, icon: String, color: Color) {
+    private func reviewStatus(forAssignee isAssignee: Bool, vote: ChoreReviewVote?) -> (titleKey: String, icon: String, color: Color) {
         if isAssignee {
-            return ("No vote", "minus.circle.fill", AppDesign.Colors.textSecondary)
+            return ("chore_detail_review_no_vote", "minus.circle.fill", AppDesign.Colors.textSecondary)
         }
         guard let vote else {
-            return ("Waiting", "clock.fill", AppDesign.Colors.textSecondary)
+            return ("chore_detail_review_waiting", "clock.fill", AppDesign.Colors.textSecondary)
         }
         if vote.isApproved {
-            return ("Approved", "checkmark.circle.fill", AppDesign.Colors.success)
+            return ("chore_detail_review_approved", "checkmark.circle.fill", AppDesign.Colors.success)
         }
-        return ("Rejected", "xmark.circle.fill", AppDesign.Colors.error)
+        return ("chore_detail_review_rejected", "xmark.circle.fill", AppDesign.Colors.error)
     }
 
     @ViewBuilder
@@ -733,14 +741,6 @@ struct ChoreDetailPopup: View {
 // MARK: - ChoreStatus UI Helpers
 
 extension ChoreStatus {
-    var displayName: String {
-        switch self {
-        case .draft:     return "Draft"
-        case .progress:  return "In Progress"
-        case .inTest:    return "In Review"
-        case .completed: return "Completed"
-        }
-    }
     var iconName: String {
         switch self {
         case .draft:     return "doc.fill"

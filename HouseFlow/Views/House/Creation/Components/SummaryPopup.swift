@@ -2,6 +2,8 @@ import SwiftUI
 
 /// Summary popup showing house creation details before confirmation
 struct SummaryPopup: View {
+    @EnvironmentObject private var appViewModel: AppViewModel
+
     let houseName: String
     let houseType: String
     let memberCount: Int
@@ -34,8 +36,12 @@ struct SummaryPopup: View {
             actionButtons
         }
         .padding(AppDesign.Spacing.xxl)
-        .background(AppDesign.Colors.surface)
+        .background(MainScreenBackground())
         .cornerRadius(AppDesign.CornerRadius.xl)
+        .overlay(
+            RoundedRectangle(cornerRadius: AppDesign.CornerRadius.xl)
+                .stroke(HouseJourneyTheme.indigo.opacity(0.13), lineWidth: 1)
+        )
         .shadow(
             color: AppDesign.Shadow.heavy.color,
             radius: AppDesign.Shadow.heavy.radius,
@@ -51,12 +57,17 @@ struct SummaryPopup: View {
         VStack(spacing: AppDesign.Spacing.sm) {
             Image(systemName: "house.circle.fill")
                 .font(.system(size: 50))
-                .foregroundColor(AppDesign.Colors.primary)
+                .foregroundColor(HouseJourneyTheme.indigo)
+                .overlay(alignment: .topTrailing) {
+                    Circle()
+                        .fill(HouseJourneyTheme.accentOrange)
+                        .frame(width: 8, height: 8)
+                }
             
-            Text("Summary")
+            Text(appViewModel.localized("house_summary_title"))
                 .font(AppDesign.Typography.title2)
             
-            Text("Review the information for the home to be created")
+            Text(appViewModel.localized("house_summary_subtitle"))
                 .font(AppDesign.Typography.subheadline)
                 .foregroundColor(AppDesign.Colors.textSecondary)
                 .multilineTextAlignment(.center)
@@ -67,11 +78,20 @@ struct SummaryPopup: View {
     
     private var summaryDetailsSection: some View {
         VStack(spacing: AppDesign.Spacing.lg) {
-            SummaryRow(title: "House Name", value: houseName)
-            SummaryRow(title: "House Type", value: houseType)
-            SummaryRow(title: "Person count", value: "\(memberCount) persons")
+            SummaryRow(title: appViewModel.localized("house_summary_name_label"), value: houseName)
+            SummaryRow(title: appViewModel.localized("house_summary_type_label"), value: houseType)
+            SummaryRow(
+                title: appViewModel.localized("house_summary_person_count_label"),
+                value: appViewModel.localized(
+                    "house_summary_person_count_value_template",
+                    replacements: ["count": "\(memberCount)"]
+                )
+            )
         }
         .padding(.vertical, AppDesign.Spacing.lg)
+        .padding(.horizontal, AppDesign.Spacing.md)
+        .background(HouseJourneyTheme.indigo.opacity(0.055))
+        .clipShape(RoundedRectangle(cornerRadius: AppDesign.CornerRadius.md))
     }
     
     // MARK: - Action Buttons
@@ -79,19 +99,23 @@ struct SummaryPopup: View {
     private var actionButtons: some View {
         VStack(spacing: AppDesign.Spacing.md) {
             Button(action: onConfirm) {
-                Text("Create House")
+                Text(appViewModel.localized("house_summary_create_button"))
                     .font(AppDesign.Typography.headline)
                     .foregroundColor(.white)
                     .frame(maxWidth: .infinity)
                     .frame(height: AppDesign.Size.buttonHeight)
-                    .background(AppDesign.Colors.primary)
+                    .background(HouseJourneyTheme.primaryButtonGradient)
                     .cornerRadius(AppDesign.CornerRadius.md)
+                    .overlay(
+                        RoundedRectangle(cornerRadius: AppDesign.CornerRadius.md)
+                            .stroke(HouseJourneyTheme.accentOrange.opacity(0.32), lineWidth: 1)
+                    )
             }
             
             Button(action: onCancel) {
-                Text("Edit")
+                Text(appViewModel.localized("common_edit"))
                     .font(AppDesign.Typography.subheadline)
-                    .foregroundColor(AppDesign.Colors.primary)
+                    .foregroundColor(HouseJourneyTheme.accentOrangeInk)
             }
         }
     }

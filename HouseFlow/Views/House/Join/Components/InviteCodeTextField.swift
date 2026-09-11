@@ -3,13 +3,15 @@ import SwiftUI
 /// Custom text field style for invite code input
 /// Features: Monospaced font, centered text, error state, validation border
 struct InviteCodeTextField: View {
+    @EnvironmentObject private var appViewModel: AppViewModel
+
     @Binding var text: String
     let isError: Bool
     @FocusState.Binding var isFocused: Bool
     let onSubmit: () -> Void
     
     var body: some View {
-        TextField("Enter Invite Code", text: $text)
+        TextField(appViewModel.localized("join_house_invite_placeholder"), text: $text)
             .font(.system(size: 18, weight: .medium, design: .monospaced))
             .multilineTextAlignment(.center)
             .textInputAutocapitalization(.never)
@@ -17,6 +19,7 @@ struct InviteCodeTextField: View {
             .focused($isFocused)
             .padding(.horizontal, AppDesign.Spacing.lg)
             .padding(.vertical, AppDesign.Spacing.lg)
+            .foregroundStyle(AppDesign.Colors.textPrimary)
             .background(fieldBackground)
             .onSubmit(onSubmit)
     }
@@ -25,17 +28,26 @@ struct InviteCodeTextField: View {
     
     private var fieldBackground: some View {
         RoundedRectangle(cornerRadius: AppDesign.CornerRadius.md)
-            .fill(AppDesign.Colors.cardBackground)
+            .fill(HouseJourneyTheme.surface)
             .overlay(borderOverlay)
+            .shadow(
+                color: isFocused ? HouseJourneyTheme.accentOrange.opacity(0.12) : Color.black.opacity(0.035),
+                radius: isFocused ? 10 : 5,
+                x: 0,
+                y: 3
+            )
     }
     
     private var borderOverlay: some View {
         RoundedRectangle(cornerRadius: AppDesign.CornerRadius.md)
             .stroke(
-                isError ? AppDesign.Colors.error : Color.clear,
-                lineWidth: 2
+                isError
+                    ? AppDesign.Colors.error
+                    : (isFocused ? HouseJourneyTheme.accentOrange : HouseJourneyTheme.indigo.opacity(0.12)),
+                lineWidth: isFocused || isError ? 2 : 1
             )
             .animation(AppDesign.Animation.quick, value: isError)
+            .animation(AppDesign.Animation.quick, value: isFocused)
     }
 }
 

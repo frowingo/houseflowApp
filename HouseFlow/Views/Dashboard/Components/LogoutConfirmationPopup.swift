@@ -22,10 +22,10 @@ struct LogoutConfirmationPopup: View {
                         .font(.system(size: 50))
                         .foregroundColor(AppDesign.Colors.warning)
                     
-                    Text("Confirm Logout")
+                    LocalizedText("logout_confirm_title")
                         .font(AppDesign.Typography.title2)
                     
-                    Text("Are you sure you want to logout? You will need to sign in again to access your house.")
+                    LocalizedText("logout_confirm_message")
                         .font(AppDesign.Typography.subheadline)
                         .foregroundColor(AppDesign.Colors.textSecondary)
                         .multilineTextAlignment(.center)
@@ -35,7 +35,7 @@ struct LogoutConfirmationPopup: View {
                 // Buttons
                 VStack(spacing: AppDesign.Spacing.md) {
                     Button(action: onConfirm) {
-                        Text("Yes, Logout")
+                        LocalizedText("logout_confirm_button")
                             .font(AppDesign.Typography.headline)
                             .foregroundColor(.white)
                             .frame(maxWidth: .infinity)
@@ -45,7 +45,7 @@ struct LogoutConfirmationPopup: View {
                     }
                     
                     Button(action: onCancel) {
-                        Text("Cancel")
+                        LocalizedText("common_cancel")
                             .font(AppDesign.Typography.headline)
                             .foregroundColor(AppDesign.Colors.primary)
                             .frame(maxWidth: .infinity)
@@ -56,7 +56,7 @@ struct LogoutConfirmationPopup: View {
                 }
             }
             .padding(AppDesign.Spacing.xxl)
-            .background(AppDesign.Colors.background)
+            .background(MainScreenBackground())
             .cornerRadius(AppDesign.CornerRadius.xl)
             .shadow(
                 color: AppDesign.Shadow.heavy.color,

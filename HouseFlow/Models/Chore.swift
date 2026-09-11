@@ -1,7 +1,7 @@
 import Foundation
 
-struct Chore: Identifiable, Codable {
-    let id = UUID()
+struct Chore: Identifiable, Codable, Equatable {
+    let id: String
     /// Server-assigned chore ID (nil for local/sample chores).
     let choreApiId: String?
     let houseId: String?
@@ -22,6 +22,7 @@ struct Chore: Identifiable, Codable {
     let reviewVotes: [ChoreReviewVote]
 
     init(
+        id: String? = nil,
         choreApiId: String? = nil,
         houseId: String? = nil,
         assignedToId: String? = nil,
@@ -36,6 +37,7 @@ struct Chore: Identifiable, Codable {
         reviewRound: Int = 0,
         reviewVotes: [ChoreReviewVote] = []
     ) {
+        self.id = choreApiId ?? id ?? UUID().uuidString
         self.choreApiId = choreApiId
         self.houseId = houseId
         self.assignedToId = assignedToId

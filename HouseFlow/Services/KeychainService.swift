@@ -3,11 +3,11 @@ import Security
 
 /// Wrapper around the iOS Keychain for secure string storage.
 final class KeychainService {
-    static let shared = KeychainService()
+    private let service: String
 
-    private let service = "com.houseflow.app"
-
-    private init() {}
+    init(service: String = "com.houseflow.app") {
+        self.service = service
+    }
 
     // MARK: - Save
 
@@ -73,6 +73,7 @@ extension KeychainService {
     static let userEmailKey    = "userEmail"
     static let userFirstNameKey = "userFirstName"
     static let userLastNameKey  = "userLastName"
+    static let pendingEmailVerificationKey = "pendingEmailVerification"
 
     var authToken: String? {
         get { load(forKey: Self.authTokenKey) }
@@ -114,6 +115,17 @@ extension KeychainService {
                 save(value, forKey: Self.userLastNameKey)
             } else {
                 delete(forKey: Self.userLastNameKey)
+            }
+        }
+    }
+
+    var pendingEmailVerification: String? {
+        get { load(forKey: Self.pendingEmailVerificationKey) }
+        set {
+            if let email = newValue {
+                save(email, forKey: Self.pendingEmailVerificationKey)
+            } else {
+                delete(forKey: Self.pendingEmailVerificationKey)
             }
         }
     }

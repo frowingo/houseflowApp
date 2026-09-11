@@ -3,14 +3,11 @@ import SwiftUI
 /// 🎨 Ultra-Modern Today's Chores Card with Interactive Animations
 /// Features: Swipe gestures, 3D transforms, particle effects, progress tracking
 struct TodaysChoresCard: View {
+    @EnvironmentObject private var appViewModel: AppViewModel
+
     let chores: [Chore]
-    let appViewModel: AppViewModel
     let onChoreDetailTap: (Chore) -> Void
     
-    @State private var selectedChoreId: UUID? = nil
-    @State private var choreOffsets: [UUID: CGFloat] = [:]
-    @State private var isExpanded = false
-    @State private var particleAnimations: [UUID: Bool] = [:]
     @State private var pulseAnimation = false
     @State private var iconPressed = false
     
@@ -107,7 +104,10 @@ struct TodaysChoresCard: View {
                         Circle()
                             .fill(
                                 LinearGradient(
-                                    colors: [AppDesign.Colors.primary, AppDesign.Colors.secondary],
+                                    colors: [
+                                        HouseJourneyTheme.indigo,
+                                        HouseJourneyTheme.teal
+                                    ],
                                     startPoint: .topLeading,
                                     endPoint: .bottomTrailing
                                 )
@@ -119,18 +119,30 @@ struct TodaysChoresCard: View {
                         Image(systemName: "list.clipboard.fill")
                             .font(.system(size: 20))
                             .foregroundColor(.white)
+
+                        Circle()
+                            .fill(HouseJourneyTheme.accentOrange)
+                            .frame(width: 8, height: 8)
+                            .overlay(Circle().stroke(AppDesign.Colors.cardBackground, lineWidth: 1.5))
+                            .offset(x: 16, y: 16)
                     }
                 }
                 .buttonStyle(PlainButtonStyle())
                 .animation(AppDesign.Animation.spring.repeatForever(autoreverses: true), value: iconPressed)
                 
                 VStack(alignment: .leading, spacing: 2) {
-                    Text("Today's Tasks")
+                    Text(appViewModel.localized("todays_tasks_title"))
                         .font(AppDesign.Typography.headline)
                         .foregroundColor(AppDesign.Colors.textPrimary)
                     
                     if totalCount > 0 {
-                        Text("\(completedCount) of \(totalCount) completed")
+                        Text(appViewModel.localized(
+                            "todays_tasks_completed_template",
+                            replacements: [
+                                "completed": "\(completedCount)",
+                                "total": "\(totalCount)"
+                            ]
+                        ))
                             .font(AppDesign.Typography.caption)
                             .foregroundColor(AppDesign.Colors.textSecondary)
                     }
@@ -156,7 +168,10 @@ struct TodaysChoresCard: View {
                         RoundedRectangle(cornerRadius: AppDesign.CornerRadius.sm)
                             .fill(
                                 LinearGradient(
-                                    colors: [AppDesign.Colors.primary, AppDesign.Colors.secondary],
+                                    colors: [
+                                        HouseJourneyTheme.indigo,
+                                        HouseJourneyTheme.teal
+                                    ],
                                     startPoint: .leading,
                                     endPoint: .trailing
                                 )
@@ -178,7 +193,6 @@ struct TodaysChoresCard: View {
             ForEach(todaysChores) { chore in
                 ModernChoreRow(
                     chore: chore,
-                    isSelected: selectedChoreId == chore.id,
                     onTap: {
                         onChoreDetailTap(chore)
                     }
@@ -221,11 +235,11 @@ struct TodaysChoresCard: View {
             .animation(AppDesign.Animation.spring.repeatForever(autoreverses: true), value: pulseAnimation)
             
             VStack(spacing: AppDesign.Spacing.sm) {
-                Text("All Done! 🎉")
+                Text(appViewModel.localized("todays_tasks_empty_title"))
                     .font(AppDesign.Typography.title3)
                     .foregroundColor(AppDesign.Colors.textPrimary)
                 
-                Text("You've completed all tasks for today")
+                Text(appViewModel.localized("todays_tasks_empty_subtitle"))
                     .font(AppDesign.Typography.subheadline)
                     .foregroundColor(AppDesign.Colors.textSecondary)
                     .multilineTextAlignment(.center)
@@ -255,7 +269,10 @@ struct CircularProgressView: View {
                 .trim(from: 0, to: progress)
                 .stroke(
                     LinearGradient(
-                        colors: [AppDesign.Colors.primary, AppDesign.Colors.secondary],
+                        colors: [
+                            HouseJourneyTheme.indigo,
+                            HouseJourneyTheme.teal
+                        ],
                         startPoint: .topLeading,
                         endPoint: .bottomTrailing
                     ),
@@ -265,133 +282,139 @@ struct CircularProgressView: View {
                 .animation(AppDesign.Animation.spring, value: progress)
             
             // Percentage text
-            Text("\(Int(progress * 100))%")
+            LocalizedText(
+                "progress_percent_template",
+                replacements: ["percent": "\(Int(progress * 100))"]
+            )
                 .font(.system(size: 12, weight: .bold))
-                .foregroundColor(AppDesign.Colors.primary)
+                .foregroundColor(HouseJourneyTheme.deepIndigo)
         }
     }
 }
 
-// MARK: - Modern Chore Row with 3D Drag
+// MARK: - Modern Chore Row
 
 struct ModernChoreRow: View {
+    @EnvironmentObject private var appViewModel: AppViewModel
+
     let chore: Chore
-    let isSelected: Bool
     let onTap: () -> Void
-    
-    @State private var dragOffset = CGSize.zero
-    @State private var isDragging = false
-    
+
     var body: some View {
-        HStack(spacing: AppDesign.Spacing.lg) {
-            // Status indicator with pulse
-            let choreStatus = ChoreStatus(rawValue: chore.status) ?? .draft
-            let isCompleted = choreStatus == .completed
-            ZStack {
-                if !isCompleted {
-                    Circle()
-                        .fill(choreStatus.color.opacity(0.15))
-                        .frame(width: 32, height: 32)
-                }
-                
-                Image(systemName: isCompleted ? "checkmark.circle.fill" : choreStatus.iconName)
-                    .font(.system(size: 24))
-                    .foregroundStyle(
-                        LinearGradient(
-                            colors: isCompleted ?
-                                [AppDesign.Colors.success, AppDesign.Colors.secondary] :
-                                [choreStatus.color, choreStatus.color.opacity(0.6)],
-                            startPoint: .topLeading,
-                            endPoint: .bottomTrailing
+        Button {
+            UIImpactFeedbackGenerator(style: .light).impactOccurred()
+            onTap()
+        } label: {
+            HStack(spacing: AppDesign.Spacing.lg) {
+                // Status indicator with pulse
+                let choreStatus = ChoreStatus(rawValue: chore.status) ?? .draft
+                let isCompleted = choreStatus == .completed
+                ZStack {
+                    if !isCompleted {
+                        Circle()
+                            .fill(choreStatus.color.opacity(0.15))
+                            .frame(width: 32, height: 32)
+                    }
+
+                    Image(systemName: isCompleted ? "checkmark.circle.fill" : choreStatus.iconName)
+                        .font(.system(size: 24))
+                        .foregroundStyle(
+                            LinearGradient(
+                                colors: isCompleted ?
+                                    [AppDesign.Colors.success, AppDesign.Colors.secondary] :
+                                    [choreStatus.color, choreStatus.color.opacity(0.6)],
+                                startPoint: .topLeading,
+                                endPoint: .bottomTrailing
+                            )
                         )
-                    )
-                    .rotationEffect(.degrees(isCompleted ? 0 : -15))
-            }
-            .frame(width: 32)
-            
-            // Task details
-            VStack(alignment: .leading, spacing: 4) {
-                Text(chore.title)
-                    .font(AppDesign.Typography.bodyBold)
-                    .foregroundColor(isCompleted ? AppDesign.Colors.textSecondary : AppDesign.Colors.textPrimary)
-                    .strikethrough(isCompleted)
-                
-                HStack(spacing: AppDesign.Spacing.sm) {
-                    UserAvatar(user: chore.assignedTo, size: 20)
-                    
-                    Text(chore.assignedTo.name)
-                        .font(AppDesign.Typography.caption)
-                        .foregroundColor(AppDesign.Colors.textSecondary)
-                    
-                    Spacer()
-                    
-                    // Status badge
-                    let choreStatus = ChoreStatus(rawValue: chore.status) ?? .draft
-                    HStack(spacing: 4) {
-                        Image(systemName: choreStatus.iconName)
-                            .font(.system(size: 9, weight: .bold))
-                        Text(choreStatus.displayName)
+                        .rotationEffect(.degrees(isCompleted ? 0 : -15))
+                }
+                .frame(width: 32)
+
+                // Task details
+                VStack(alignment: .leading, spacing: 4) {
+                    Text(chore.title)
+                        .font(AppDesign.Typography.bodyBold)
+                        .foregroundColor(isCompleted ? AppDesign.Colors.textSecondary : AppDesign.Colors.textPrimary)
+                        .strikethrough(isCompleted)
+                        .lineLimit(2)
+
+                    HStack(spacing: AppDesign.Spacing.sm) {
+                        UserAvatar(user: chore.assignedTo, size: 20)
+
+                        Text(chore.assignedTo.name)
                             .font(AppDesign.Typography.caption)
-                            .fontWeight(.medium)
+                            .foregroundColor(AppDesign.Colors.textSecondary)
+                            .lineLimit(1)
+                            .truncationMode(.tail)
+
+                        Spacer(minLength: AppDesign.Spacing.xs)
+
+                        // Status badge
+                        HStack(spacing: 4) {
+                            Image(systemName: choreStatus.iconName)
+                                .font(.system(size: 9, weight: .bold))
+                            Text(appViewModel.localized(choreStatus.localizationKey))
+                                .font(AppDesign.Typography.caption)
+                                .fontWeight(.medium)
+                                .lineLimit(1)
+                                .minimumScaleFactor(0.82)
+                                .allowsTightening(true)
+                        }
+                        .foregroundColor(choreStatus.color)
+                        .padding(.horizontal, AppDesign.Spacing.sm)
+                        .padding(.vertical, 4)
+                        .background(choreStatus.color.opacity(0.12))
+                        .clipShape(Capsule())
+                        .fixedSize(horizontal: true, vertical: false)
+                        .layoutPriority(1)
                     }
-                    .foregroundColor(choreStatus.color)
-                    .padding(.horizontal, AppDesign.Spacing.sm)
-                    .padding(.vertical, 4)
-                    .background(choreStatus.color.opacity(0.15))
-                    .cornerRadius(AppDesign.CornerRadius.sm)
                 }
+
+                Image(systemName: "chevron.right")
+                    .font(.system(size: 12, weight: .bold))
+                    .foregroundStyle(choreStatus.color.opacity(0.72))
+                    .frame(width: 26, height: 26)
+                    .background(choreStatus.color.opacity(0.10))
+                    .clipShape(Circle())
             }
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .contentShape(Rectangle())
         }
-        .padding(AppDesign.Spacing.md)
-        .background(
-            RoundedRectangle(cornerRadius: AppDesign.CornerRadius.md)
-                .fill(AppDesign.Colors.background)
-                .shadow(
-                    color: Color.black.opacity(isDragging ? 0.15 : 0.08),
-                    radius: isDragging ? 12 : 8,
-                    x: dragOffset.width * 0.1,
-                    y: 2 + dragOffset.height * 0.05
-                )
-        )
-        .scaleEffect(isDragging ? 1.02 : 1.0)
-        .offset(x: dragOffset.width * 0.3, y: dragOffset.height * 0.15)
-        .rotation3DEffect(
-            .degrees(Double(dragOffset.width) * 0.05),
-            axis: (x: 0, y: 1, z: 0)
-        )
-        .rotation3DEffect(
-            .degrees(Double(dragOffset.height) * -0.05),
-            axis: (x: 1, y: 0, z: 0)
-        )
-        .contentShape(Rectangle())
-        .gesture(
-            DragGesture(minimumDistance: 0)
-                .onChanged { value in
-                    isDragging = true
-                    // Limit drag distance for subtle effect
-                    let maxDrag: CGFloat = 40
-                    dragOffset.width = min(max(value.translation.width, -maxDrag), maxDrag)
-                    dragOffset.height = min(max(value.translation.height, -maxDrag * 0.5), maxDrag * 0.5)
-                }
-                .onEnded { value in
-                    // If minimal movement, treat as tap
-                    if abs(value.translation.width) < 5 && abs(value.translation.height) < 5 {
-                        let generator = UIImpactFeedbackGenerator(style: .light)
-                        generator.impactOccurred()
-                        onTap()
-                    }
-                    
-                    // Spring back to original position
-                    withAnimation(AppDesign.Animation.spring) {
-                        dragOffset = .zero
-                        isDragging = false
-                    }
-                }
-        )
+        .buttonStyle(ModernChoreRowButtonStyle(accentColor: choreStatusObj.color))
     }
     
     private var choreStatusObj: ChoreStatus {
         ChoreStatus(rawValue: chore.status) ?? .draft
+    }
+}
+
+private struct ModernChoreRowButtonStyle: ButtonStyle {
+    let accentColor: Color
+
+    func makeBody(configuration: Configuration) -> some View {
+        configuration.label
+            .padding(AppDesign.Spacing.md)
+            .background(
+                RoundedRectangle(cornerRadius: AppDesign.CornerRadius.md)
+                    .fill(AppDesign.Colors.background)
+                    .overlay(
+                        RoundedRectangle(cornerRadius: AppDesign.CornerRadius.md)
+                            .stroke(
+                                accentColor.opacity(configuration.isPressed ? 0.42 : 0.12),
+                                lineWidth: configuration.isPressed ? 1.5 : 1
+                            )
+                    )
+                    .shadow(
+                        color: accentColor.opacity(configuration.isPressed ? 0.16 : 0.07),
+                        radius: configuration.isPressed ? 5 : 9,
+                        x: 0,
+                        y: configuration.isPressed ? 2 : 5
+                    )
+            )
+            .scaleEffect(configuration.isPressed ? 0.985 : 1)
+            .offset(y: configuration.isPressed ? 1 : 0)
+            .animation(.easeOut(duration: 0.16), value: configuration.isPressed)
     }
 }
 
@@ -407,7 +430,6 @@ struct ModernChoreRow: View {
     
     return TodaysChoresCard(
         chores: viewModel.chores,
-        appViewModel: viewModel,
         onChoreDetailTap: { _ in }
     )
     .padding()
@@ -420,7 +442,6 @@ struct ModernChoreRow: View {
     
     return TodaysChoresCard(
         chores: viewModel.chores,
-        appViewModel: viewModel,
         onChoreDetailTap: { _ in }
     )
     .padding()

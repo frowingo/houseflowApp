@@ -6,6 +6,14 @@ enum ChoreLevel: Int, Codable {
     case easy   = 10
     case medium = 20
     case hard   = 30
+
+    var localizationKey: String {
+        switch self {
+        case .easy: return "chore_level_easy"
+        case .medium: return "chore_level_medium"
+        case .hard: return "chore_level_hard"
+        }
+    }
 }
 
 enum ChoreStatus: Int, Codable {
@@ -13,6 +21,15 @@ enum ChoreStatus: Int, Codable {
     case progress  = 1
     case inTest    = 2
     case completed = 3
+
+    var localizationKey: String {
+        switch self {
+        case .draft: return "chore_status_draft"
+        case .progress: return "chore_status_in_progress"
+        case .inTest: return "chore_status_in_review"
+        case .completed: return "chore_status_completed"
+        }
+    }
 }
 
 // MARK: - Create Chore
@@ -20,7 +37,7 @@ enum ChoreStatus: Int, Codable {
 struct CreateChoreRequest: Encodable {
     let assignedTo: String
     let description: String
-    let dueDate: String          // "2026-07-12 00:00:00"
+    let dueDate: String          // ISO-8601, e.g. "2026-07-12T00:00:00Z"
     let houseId: String
     let isRecurring: Bool
     let level: Int               // ChoreLevel raw value
@@ -60,7 +77,7 @@ struct ReviewChoreRequest: Encodable {
     let isApproved: Bool
 }
 
-struct ChoreReviewVote: Codable, Identifiable {
+struct ChoreReviewVote: Codable, Identifiable, Equatable {
     let id: String
     let choreId: String
     let houseId: String
@@ -68,9 +85,24 @@ struct ChoreReviewVote: Codable, Identifiable {
     let reviewerId: String
     let isApproved: Bool
     let createdOn: String
+
+    private enum CodingKeys: String, CodingKey {
+        case id, choreId, houseId, reviewRound, reviewerId, isApproved, createdOn
+    }
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        id = try container.decode(String.self, forKey: .id)
+        choreId = try container.decode(String.self, forKey: .choreId)
+        houseId = try container.decode(String.self, forKey: .houseId)
+        reviewRound = try container.decode(Int.self, forKey: .reviewRound)
+        reviewerId = try container.decode(String.self, forKey: .reviewerId)
+        isApproved = try container.decode(Bool.self, forKey: .isApproved)
+        createdOn = try container.decodeAPITime(forKey: .createdOn)
+    }
 }
 
-struct ChoreReviewResponse: Decodable, Identifiable {
+struct ChoreReviewResponse: Decodable, Identifiable, Equatable {
     let id: String
     let status: Int
     let reviewRound: Int
@@ -80,7 +112,7 @@ struct ChoreReviewResponse: Decodable, Identifiable {
 
 // MARK: - Chore Response
 
-struct ChoreResponse: Decodable, Identifiable {
+struct ChoreResponse: Decodable, Identifiable, Equatable {
     let id: String
     let title: String
     let description: String
@@ -101,10 +133,47 @@ struct ChoreResponse: Decodable, Identifiable {
     let reviewVotes: [ChoreReviewVote]
 }
 
-struct ChoreStatusHistoryResponse: Decodable, Identifiable {
+struct ChoreStatusHistoryResponse: Decodable, Identifiable, Equatable {
     let id: String
     let choreId: String
     let status: Int
     let updater: String
     let dateTime: String
+}
+
+extension ChoreResponse {
+    var houseChoreDTO: HouseChoreDTO {
+        HouseChoreDTO(
+            id: id,
+            title: title,
+            description: description,
+            houseId: houseId,
+            houseOwnerId: houseOwnerId,
+            assignedTo: assignedTo,
+            dueDate: dueDate,
+            isCompleted: isCompleted,
+            isRecurring: isRecurring,
+            level: level,
+            recurringInterval: recurringInterval,
+            status: status,
+            createdOn: createdOn,
+            completedAt: completedAt,
+            completedBy: completedBy,
+            statusHistories: statusHistories.map(\.houseStatusHistory),
+            reviewRound: reviewRound,
+            reviewVotes: reviewVotes
+        )
+    }
+}
+
+private extension ChoreStatusHistoryResponse {
+    var houseStatusHistory: ChoreStatusHistory {
+        ChoreStatusHistory(
+            id: id,
+            choreId: choreId,
+            status: status,
+            updater: updater,
+            dateTime: dateTime
+        )
+    }
 }

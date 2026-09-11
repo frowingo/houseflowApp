@@ -16,19 +16,37 @@ enum NetworkError: LocalizedError {
     }
 }
 
-final class NetworkService {
-    static let shared = NetworkService()
+@MainActor
+final class NetworkService: NetworkServicing {
+    typealias RequestExecutor = @MainActor (URLRequest) async throws -> (Data, URLResponse)
 
-    private let session: URLSession
+    private let baseURL: URL
     private let encoder: JSONEncoder
     private let decoder: JSONDecoder
+    private let requestExecutor: RequestExecutor
 
-    private init() {
-        let config = URLSessionConfiguration.default
-        config.timeoutIntervalForRequest = 30
-        self.session = URLSession(configuration: config)
-        self.encoder = JSONEncoder()
-        self.decoder = JSONDecoder()
+    convenience init() {
+        self.init(baseURL: AppEnvironment.current.baseURL)
+    }
+
+    init(
+        baseURL: URL,
+        session: URLSession? = nil,
+        encoder: JSONEncoder = JSONEncoder(),
+        decoder: JSONDecoder = JSONDecoder(),
+        requestExecutor: RequestExecutor? = nil
+    ) {
+        self.baseURL = baseURL
+        self.encoder = encoder
+        self.decoder = decoder
+        if let requestExecutor {
+            self.requestExecutor = requestExecutor
+        } else {
+            let resolvedSession = session ?? Self.makeDefaultSession()
+            self.requestExecutor = { request in
+                try await resolvedSession.data(for: request)
+            }
+        }
     }
 
     // MARK: - Core request
@@ -42,32 +60,12 @@ final class NetworkService {
         body: Body,
         successType: Success.Type
     ) async throws -> Success {
-        let url = AppEnvironment.current.baseURL.appendingPathComponent(path)
-
-        var request = URLRequest(url: url)
-        request.httpMethod = method
-        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
-        request.httpBody = try encoder.encode(body)
-
-        let (data, response) = try await session.data(for: request)
-
-        guard let http = response as? HTTPURLResponse else {
-            throw NetworkError.unknown(-1)
-        }
-
-        if (200...399).contains(http.statusCode) {
-            do {
-                return try decoder.decode(Success.self, from: data)
-            } catch {
-                throw NetworkError.decodingError(error)
-            }
-        } else {
-            // Try to extract the server's error message
-            if let errorBody = try? decoder.decode(APIErrorResponse.self, from: data) {
-                throw NetworkError.serverError(errorBody.error)
-            }
-            throw NetworkError.unknown(http.statusCode)
-        }
+        let request = try makeRequest(
+            path: path,
+            method: method,
+            body: try encoder.encode(body)
+        )
+        return try await send(request, successType: successType)
     }
 
     // MARK: - Authenticated request (adds Bearer token)
@@ -79,32 +77,13 @@ final class NetworkService {
         successType: Success.Type,
         token: String
     ) async throws -> Success {
-        let url = AppEnvironment.current.baseURL.appendingPathComponent(path)
-
-        var request = URLRequest(url: url)
-        request.httpMethod = method
-        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
-        request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
-        request.httpBody = try encoder.encode(body)
-
-        let (data, response) = try await session.data(for: request)
-
-        guard let http = response as? HTTPURLResponse else {
-            throw NetworkError.unknown(-1)
-        }
-
-        if (200...399).contains(http.statusCode) {
-            do {
-                return try decoder.decode(Success.self, from: data)
-            } catch {
-                throw NetworkError.decodingError(error)
-            }
-        } else {
-            if let errorBody = try? decoder.decode(APIErrorResponse.self, from: data) {
-                throw NetworkError.serverError(errorBody.error)
-            }
-            throw NetworkError.unknown(http.statusCode)
-        }
+        let request = try makeRequest(
+            path: path,
+            method: method,
+            body: try encoder.encode(body),
+            token: token
+        )
+        return try await send(request, successType: successType)
     }
 
     // MARK: - Authenticated request with query parameters and body
@@ -117,39 +96,14 @@ final class NetworkService {
         successType: Success.Type,
         token: String
     ) async throws -> Success {
-        guard var components = URLComponents(
-            url: AppEnvironment.current.baseURL.appendingPathComponent(path),
-            resolvingAgainstBaseURL: true
-        ) else { throw NetworkError.invalidURL }
-
-        components.queryItems = queryItems
-
-        guard let url = components.url else { throw NetworkError.invalidURL }
-
-        var request = URLRequest(url: url)
-        request.httpMethod = method
-        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
-        request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
-        request.httpBody = try encoder.encode(body)
-
-        let (data, response) = try await session.data(for: request)
-
-        guard let http = response as? HTTPURLResponse else {
-            throw NetworkError.unknown(-1)
-        }
-
-        if (200...399).contains(http.statusCode) {
-            do {
-                return try decoder.decode(Success.self, from: data)
-            } catch {
-                throw NetworkError.decodingError(error)
-            }
-        } else {
-            if let errorBody = try? decoder.decode(APIErrorResponse.self, from: data) {
-                throw NetworkError.serverError(errorBody.error)
-            }
-            throw NetworkError.unknown(http.statusCode)
-        }
+        let request = try makeRequest(
+            path: path,
+            method: method,
+            queryItems: queryItems,
+            body: try encoder.encode(body),
+            token: token
+        )
+        return try await send(request, successType: successType)
     }
 
     // MARK: - Authenticated GET with query parameters
@@ -157,11 +111,40 @@ final class NetworkService {
     func get<Success: Decodable>(
         path: String,
         queryItems: [URLQueryItem] = [],
+        successType: Success.Type
+    ) async throws -> Success {
+        let request = try makeRequest(
+            path: path,
+            method: "GET",
+            queryItems: queryItems
+        )
+        return try await send(request, successType: successType)
+    }
+
+    func get<Success: Decodable>(
+        path: String,
+        queryItems: [URLQueryItem] = [],
         successType: Success.Type,
         token: String
     ) async throws -> Success {
+        let request = try makeRequest(
+            path: path,
+            method: "GET",
+            queryItems: queryItems,
+            token: token
+        )
+        return try await send(request, successType: successType)
+    }
+
+    private func makeRequest(
+        path: String,
+        method: String,
+        queryItems: [URLQueryItem] = [],
+        body: Data? = nil,
+        token: String? = nil
+    ) throws -> URLRequest {
         guard var components = URLComponents(
-            url: AppEnvironment.current.baseURL.appendingPathComponent(path),
+            url: baseURL.appendingPathComponent(path),
             resolvingAgainstBaseURL: true
         ) else { throw NetworkError.invalidURL }
 
@@ -172,10 +155,25 @@ final class NetworkService {
         guard let url = components.url else { throw NetworkError.invalidURL }
 
         var request = URLRequest(url: url)
-        request.httpMethod = "GET"
-        request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
+        request.httpMethod = method
 
-        let (data, response) = try await session.data(for: request)
+        if let body {
+            request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+            request.httpBody = body
+        }
+
+        if let token {
+            request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
+        }
+
+        return request
+    }
+
+    private func send<Success: Decodable>(
+        _ request: URLRequest,
+        successType: Success.Type
+    ) async throws -> Success {
+        let (data, response) = try await requestExecutor(request)
 
         guard let http = response as? HTTPURLResponse else {
             throw NetworkError.unknown(-1)
@@ -189,15 +187,27 @@ final class NetworkService {
             }
         } else {
             if let errorBody = try? decoder.decode(APIErrorResponse.self, from: data) {
-                throw NetworkError.serverError(errorBody.error)
+                throw NetworkError.serverError(errorBody.message ?? errorBody.error ?? "Request failed.")
+            }
+            if let errorMessage = String(data: data, encoding: .utf8)?
+                .trimmingCharacters(in: .whitespacesAndNewlines),
+               !errorMessage.isEmpty {
+                throw NetworkError.serverError(errorMessage)
             }
             throw NetworkError.unknown(http.statusCode)
         }
+    }
+
+    private static func makeDefaultSession() -> URLSession {
+        let configuration = URLSessionConfiguration.default
+        configuration.timeoutIntervalForRequest = 30
+        return URLSession(configuration: configuration)
     }
 }
 
 // MARK: - Shared error response shape
 
 struct APIErrorResponse: Decodable {
-    let error: String
+    let error: String?
+    let message: String?
 }
