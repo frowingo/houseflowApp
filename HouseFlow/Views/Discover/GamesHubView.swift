@@ -24,6 +24,9 @@ struct GamesHubView: View {
         GameInfo(id: 3, titleKey: "games_skyline_dash_title",
                  descriptionKey: "games_skyline_dash_card_description",
                  icon: "paperplane.fill", color: .cyan, badgeKey: "games_skyline_dash_badge"),
+        GameInfo(id: 4, titleKey: "games_rps_title",
+                 descriptionKey: "games_rps_card_description",
+                 icon: "hand.draw.fill", color: .mint, badgeKey: "games_rps_badge"),
     ]
 
     private let columns = [
@@ -107,6 +110,7 @@ struct GamesHubView: View {
         case 0: LuckySpinView()
         case 2: VaultRushView()
         case 3: SkylineDashView()
+        case 4: RockPaperScissorsView()
         default: EmptyView()
         }
     }
@@ -151,9 +155,16 @@ private struct HubGameCard: View {
                 }
 
                 VStack(spacing: AppDesign.Spacing.sm) {
-                    Image(systemName: game.icon)
-                        .font(.system(size: 40, weight: .medium))
-                        .foregroundStyle(Color.white)
+                    if game.id == 4 {
+                        Text("✊  ✋  ✌️")
+                            .font(.system(size: 30))
+                            .rotationEffect(.degrees(-6))
+                            .accessibilityHidden(true)
+                    } else {
+                        Image(systemName: game.icon)
+                            .font(.system(size: 40, weight: .medium))
+                            .foregroundStyle(Color.white)
+                    }
 
                     LocalizedText(game.badgeKey)
                         .font(AppDesign.Typography.caption)
@@ -187,6 +198,9 @@ private struct HubGameCard: View {
     }
 
     private var bannerColors: [Color] {
+        if game.id == 4 {
+            return [Color(hex: "113B46"), Color(hex: "12243D"), Color(hex: "29204A")]
+        }
         if game.id == 2 {
             return [
                 Color(hex: "05070C"),

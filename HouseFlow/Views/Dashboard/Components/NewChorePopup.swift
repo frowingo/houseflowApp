@@ -56,6 +56,7 @@ struct NewChorePopup: View {
                     .padding(.horizontal, AppDesign.Spacing.xl)
                     .padding(.vertical, AppDesign.Spacing.xl)
                 }
+                .scrollDismissesKeyboard(.interactively)
                 .frame(maxHeight: 460)
                 .clipped()
 
@@ -66,6 +67,7 @@ struct NewChorePopup: View {
             .shadow(color: Color.black.opacity(0.25), radius: 30, x: 0, y: 16)
             .padding(.horizontal, AppDesign.Spacing.xl)
         }
+        .dismissKeyboardOnTap()
         .onAppear { selectedMember = members.first }
         .animation(AppDesign.Animation.standard, value: isCreating)
     }
