@@ -9,11 +9,15 @@ struct ProfileView: View {
     @State private var showAbout = false
     @State private var showPhoneManagement = false
     @State private var showLogoutConfirmation = false
+    @State private var showJoinHouse = false
+    @State private var selectedHouseForInfo: AuthHouseSummary?
     @State private var appeared = false
+    @AccessibilityFocusState private var houseInformationAccessibilityFocused: Bool
 
     var body: some View {
         ZStack {
             profileContent
+                .accessibilityHidden(isAnyOverlayPresented)
             overlays
         }
         .animation(AppDesign.Animation.standard, value: showAvatarPicker)
@@ -22,12 +26,16 @@ struct ProfileView: View {
         .animation(AppDesign.Animation.standard, value: showAbout)
         .animation(AppDesign.Animation.standard, value: showPhoneManagement)
         .animation(AppDesign.Animation.standard, value: showLogoutConfirmation)
+        .animation(AppDesign.Animation.standard, value: showJoinHouse)
+        .animation(AppDesign.Animation.standard, value: selectedHouseForInfo)
         .onChange(of: showAvatarPicker) { _, _ in syncOverlayPresentation() }
         .onChange(of: showEditSheet) { _, _ in syncOverlayPresentation() }
         .onChange(of: showLanguageSettings) { _, _ in syncOverlayPresentation() }
         .onChange(of: showAbout) { _, _ in syncOverlayPresentation() }
         .onChange(of: showPhoneManagement) { _, _ in syncOverlayPresentation() }
         .onChange(of: showLogoutConfirmation) { _, _ in syncOverlayPresentation() }
+        .onChange(of: showJoinHouse) { _, _ in syncOverlayPresentation() }
+        .onChange(of: selectedHouseForInfo) { _, _ in syncOverlayPresentation() }
         .onDisappear {
             appViewModel.isOverlayPresented = false
         }
@@ -63,11 +71,19 @@ struct ProfileView: View {
                                 value: appeared
                             )
 
+                        houseInformationCard
+                            .opacity(appeared ? 1 : 0)
+                            .offset(y: appeared ? 0 : 24)
+                            .animation(
+                                .spring(response: 0.6, dampingFraction: 0.78).delay(0.20),
+                                value: appeared
+                            )
+
                         personalInfoCard
                             .opacity(appeared ? 1 : 0)
                             .offset(y: appeared ? 0 : 24)
                             .animation(
-                                .spring(response: 0.6, dampingFraction: 0.78).delay(0.22),
+                                .spring(response: 0.6, dampingFraction: 0.78).delay(0.28),
                                 value: appeared
                             )
 
@@ -75,7 +91,7 @@ struct ProfileView: View {
                             .opacity(appeared ? 1 : 0)
                             .offset(y: appeared ? 0 : 24)
                             .animation(
-                                .spring(response: 0.6, dampingFraction: 0.78).delay(0.32),
+                                .spring(response: 0.6, dampingFraction: 0.78).delay(0.36),
                                 value: appeared
                             )
                     }
@@ -131,6 +147,43 @@ struct ProfileView: View {
         )
     }
 
+    private var houseInformationCard: some View {
+        ProfileHouseInformationCard(
+            title: appViewModel.localized(
+                "profile_house_information_title",
+                fallback: "House Informations"
+            ),
+            houses: appViewModel.availableHouses,
+            emptyMessage: appViewModel.localized(
+                "profile_house_information_empty",
+                fallback: "No houses are connected to this account."
+            ),
+            detailsButtonTitle: appViewModel.localized(
+                "profile_house_information_view_button",
+                fallback: "View"
+            ),
+            joinButtonTitle: appViewModel.localized(
+                "profile_house_join_title",
+                fallback: "Join a house"
+            ),
+            joinButtonSubtitle: appViewModel.localized(
+                "profile_house_join_row_subtitle",
+                fallback: "Enter an 8-character invite code"
+            ),
+            onSelect: { house in
+                withAnimation(AppDesign.Animation.standard) {
+                    selectedHouseForInfo = house
+                }
+            },
+            onJoin: {
+                withAnimation(AppDesign.Animation.standard) {
+                    showJoinHouse = true
+                }
+            }
+        )
+        .accessibilityFocused($houseInformationAccessibilityFocused)
+    }
+
     private var settingsCard: some View {
         ProfileSettingsCard(
             title: appViewModel.localized("profile_settings_title"),
@@ -160,6 +213,23 @@ struct ProfileView: View {
 
     @ViewBuilder
     private var overlays: some View {
+        if showJoinHouse {
+            JoinHousePopup(onDismiss: dismissJoinHouse)
+                .environmentObject(appViewModel)
+                .transition(.opacity.combined(with: .scale(scale: 0.96)))
+                .zIndex(17)
+        }
+
+        if let selectedHouseForInfo {
+            HouseInfoPopup(
+                house: selectedHouseForInfo,
+                onDismiss: dismissHouseInfo
+            )
+            .environmentObject(appViewModel)
+            .transition(.opacity.combined(with: .scale(scale: 0.96)))
+            .zIndex(16)
+        }
+
         if showAvatarPicker {
             AvatarPickerPopup(
                 initials: initials,
@@ -254,6 +324,22 @@ struct ProfileView: View {
         }
     }
 
+    private func dismissHouseInfo() {
+        hideKeyboard()
+        dismissWithoutAnimation {
+            selectedHouseForInfo = nil
+        }
+        restoreHouseInformationFocus()
+    }
+
+    private func dismissJoinHouse() {
+        hideKeyboard()
+        dismissWithoutAnimation {
+            showJoinHouse = false
+        }
+        restoreHouseInformationFocus()
+    }
+
     private func dismissWithoutAnimation(_ action: @escaping () -> Void) {
         DispatchQueue.main.async {
             var transaction = Transaction()
@@ -272,12 +358,24 @@ struct ProfileView: View {
     }
 
     private func syncOverlayPresentation() {
-        appViewModel.isOverlayPresented = showAvatarPicker
+        appViewModel.isOverlayPresented = isAnyOverlayPresented
+    }
+
+    private var isAnyOverlayPresented: Bool {
+        showAvatarPicker
             || showEditSheet
             || showLanguageSettings
             || showAbout
             || showPhoneManagement
             || showLogoutConfirmation
+            || showJoinHouse
+            || selectedHouseForInfo != nil
+    }
+
+    private func restoreHouseInformationFocus() {
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
+            houseInformationAccessibilityFocused = true
+        }
     }
 
     private var emptyValue: String {

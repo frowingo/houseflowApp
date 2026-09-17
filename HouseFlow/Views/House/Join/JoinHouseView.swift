@@ -166,7 +166,7 @@ struct JoinHouseView: View {
                 .frame(maxWidth: .infinity)
                 .frame(height: AppDesign.Size.buttonHeightLarge)
                 .background(
-                    inviteCode.isEmpty
+                    !InviteCodeRules.isValid(inviteCode)
                         ? LinearGradient(
                             colors: [Color.gray.opacity(0.30), Color.gray.opacity(0.24)],
                             startPoint: .leading,
@@ -178,27 +178,27 @@ struct JoinHouseView: View {
                 .overlay(
                     RoundedRectangle(cornerRadius: AppDesign.CornerRadius.lg)
                         .stroke(
-                            inviteCode.isEmpty
+                            !InviteCodeRules.isValid(inviteCode)
                                 ? Color.clear
                                 : HouseJourneyTheme.accentOrange.opacity(0.34),
                             lineWidth: 1
                         )
                 )
                 .shadow(
-                    color: inviteCode.isEmpty ? .clear : HouseJourneyTheme.teal.opacity(0.24),
+                    color: InviteCodeRules.isValid(inviteCode) ? HouseJourneyTheme.teal.opacity(0.24) : .clear,
                     radius: 12,
                     x: 0,
                     y: 6
                 )
-                .animation(AppDesign.Animation.quick, value: inviteCode.isEmpty)
+                .animation(AppDesign.Animation.quick, value: InviteCodeRules.isValid(inviteCode))
         }
-        .disabled(inviteCode.isEmpty)
+        .disabled(!InviteCodeRules.isValid(inviteCode))
     }
     
     // MARK: - Actions
     
     private func joinHouse() {
-        guard !inviteCode.isEmpty else { return }
+        guard InviteCodeRules.isValid(inviteCode) else { return }
         
         isTextFieldFocused = false
 

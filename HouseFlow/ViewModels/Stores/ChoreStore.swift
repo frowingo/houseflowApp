@@ -63,7 +63,6 @@ final class ChoreStore: ObservableObject {
         return HouseDetailsResponse(
             id: details.id,
             name: details.name,
-            inviteCode: details.inviteCode,
             maxMemberCount: details.maxMemberCount,
             ownerId: details.ownerId,
             profileImage: details.profileImage,

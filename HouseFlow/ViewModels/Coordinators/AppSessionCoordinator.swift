@@ -229,19 +229,22 @@ final class AppSessionCoordinator: ObservableObject {
         }
         authStore.isAuthenticated = true
 
-        guard !profile.houseIds.isEmpty else {
+        guard !profile.houseList.isEmpty else {
             router.navigate(to: .houseSelection)
             return
         }
 
         router.navigate(to: .houseLoading(.loadingHouse), respectingOnboarding: false)
-        guard let details = try await houseStore.fetchFirstHouseDetails(for: profile) else {
+        guard let result = try await houseStore.loadPreferredHouseDetails(for: profile) else {
             guard isCurrentAuthenticationFlow(flowID), authStore.isAuthenticated else { return }
             router.navigate(to: .houseSelection)
             return
         }
         guard isCurrentAuthenticationFlow(flowID), authStore.isAuthenticated else { return }
-        houseStore.applyHouseDetails(details)
+        houseStore.applySelectedHouseDetails(
+            result.details,
+            houseNameOverride: result.house.houseName
+        )
         try? await Task.sleep(for: authenticationSettleDelay)
         guard isCurrentAuthenticationFlow(flowID), authStore.isAuthenticated else { return }
         router.navigate(to: .dashboard)

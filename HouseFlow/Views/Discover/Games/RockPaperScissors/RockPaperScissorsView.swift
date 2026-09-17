@@ -6,7 +6,7 @@ struct RockPaperScissorsView: View {
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @StateObject private var model: RockPaperScissorsViewModel
     @State private var observationID = UUID()
-    @State private var rulesExpanded = false
+    @State private var rulesExpanded = false   
     @State private var bracketExpanded = false
 
     init(service: (any RPSGameServicing)? = nil) {

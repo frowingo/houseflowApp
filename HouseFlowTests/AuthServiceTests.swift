@@ -53,6 +53,23 @@ final class AuthServiceTests: XCTestCase {
         XCTAssertTrue(stub.requests.isEmpty)
     }
 
+    func testIsAuthDecodesHouseListSummaries() async throws {
+        let stub = NetworkRequestStub()
+        stub.responseData = Data(#"{"success":true,"data":{"birthDay":"1990-01-01","createdOn":"2026-01-01","email":"user@example.com","firstName":"Ada","houseList":[{"houseId":"house-1","houseName":"City Home","houseProfile":"https://example.com/home.png"}],"id":"user-1","imageUrl":"","isActive":true,"isVerifyEmail":true,"isVerifyPhone":false,"language":"en","lastLogin":"2026-01-01","lastName":"Lovelace","phoneNumber":"","updatedOn":"2026-01-01"}}"#.utf8)
+        let keychain = FakeKeychainStore()
+        keychain.authToken = "stored-token"
+        let service = makeService(stub: stub, keychain: keychain)
+
+        let response = try await service.isAuth()
+
+        XCTAssertEqual(response.data?.houseList.first?.houseId, "house-1")
+        XCTAssertEqual(response.data?.houseList.first?.houseName, "City Home")
+        XCTAssertEqual(
+            response.data?.houseList.first?.houseProfile,
+            "https://example.com/home.png"
+        )
+    }
+
     private func makeService(
         stub: NetworkRequestStub,
         keychain: FakeKeychainStore

@@ -19,6 +19,33 @@ final class HouseFlowCoordinatorTests: XCTestCase {
         XCTAssertEqual(harness.houseStore.currentHouse?.id, "house-1")
         XCTAssertEqual(harness.houseStore.currentHouseDetails, details)
         XCTAssertEqual(harness.houseStore.houseName, "Test House")
+        XCTAssertEqual(harness.authStore.currentUserProfile?.houseList.first?.houseId, "house-1")
+        XCTAssertEqual(harness.defaults.string(forKey: "chosenHouse"), "house-1")
+        XCTAssertEqual(harness.router.route, .dashboard)
+    }
+
+    func testSwitchHouseLoadsDetailsPersistsSelectionAndShowsDashboard() async {
+        let harness = makeHarness()
+        let secondHouse = AuthHouseSummary(
+            houseId: "house-2",
+            houseName: "Second House",
+            houseProfile: ""
+        )
+        harness.authStore.applyAuthenticatedUser(
+            TestFixture.profile(houseIds: ["house-1", "house-2"])
+        )
+        harness.authStore.isAuthenticated = true
+        harness.houseStore.applySelectedHouseDetails(TestFixture.houseDetails())
+        harness.houseService.fetchDetailsHandler = { houseId in
+            XCTAssertEqual(houseId, "house-2")
+            return TestFixture.houseDetails(id: houseId, name: "Second House")
+        }
+
+        await harness.coordinator.switchHouse(to: secondHouse)
+
+        XCTAssertEqual(harness.houseStore.currentHouseDetails?.id, "house-2")
+        XCTAssertEqual(harness.houseStore.houseName, "Second House")
+        XCTAssertEqual(harness.defaults.string(forKey: "chosenHouse"), "house-2")
         XCTAssertEqual(harness.router.route, .dashboard)
     }
 
@@ -34,6 +61,63 @@ final class HouseFlowCoordinatorTests: XCTestCase {
         XCTAssertEqual(harness.houseStore.houseError, "test-error")
         XCTAssertEqual(harness.toastStore.message, "test-error")
         XCTAssertTrue(harness.toastStore.isError)
+    }
+
+    func testLeavingActiveHouseSelectsRemainingHouseAfterExit() async throws {
+        let harness = makeHarness()
+        harness.authStore.applyAuthenticatedUser(
+            TestFixture.profile(houseIds: ["house-1", "house-2"])
+        )
+        harness.houseStore.applySelectedHouseDetails(TestFixture.houseDetails())
+        harness.houseService.fetchDetailsHandler = { houseId in
+            XCTAssertEqual(houseId, "house-2")
+            return TestFixture.houseDetails(id: houseId, name: "Second House")
+        }
+        harness.houseService.removeMemberHandler = { houseId, userId in
+            XCTAssertEqual(houseId, "house-1")
+            XCTAssertEqual(userId, "user-1")
+        }
+
+        try await harness.coordinator.leaveHouse(houseId: "house-1")
+
+        XCTAssertEqual(harness.authStore.currentUserProfile?.houseList.map(\.houseId), ["house-2"])
+        XCTAssertEqual(harness.houseStore.currentHouseDetails?.id, "house-2")
+        XCTAssertEqual(harness.defaults.string(forKey: "chosenHouse"), "house-2")
+        XCTAssertEqual(harness.router.route, .dashboard)
+    }
+
+    func testLeavingActiveHouseRemainsSuccessfulWhenNextHouseDetailsFail() async throws {
+        let harness = makeHarness()
+        harness.authStore.applyAuthenticatedUser(
+            TestFixture.profile(houseIds: ["house-1", "house-2"])
+        )
+        harness.houseStore.applySelectedHouseDetails(TestFixture.houseDetails())
+        harness.houseService.removeMemberHandler = { _, _ in }
+        harness.houseService.fetchDetailsHandler = { _ in
+            throw TestError.sample
+        }
+
+        try await harness.coordinator.leaveHouse(houseId: "house-1")
+
+        XCTAssertEqual(harness.authStore.currentUserProfile?.houseList.map(\.houseId), ["house-2"])
+        XCTAssertNil(harness.houseStore.currentHouseDetails)
+        XCTAssertNil(harness.defaults.string(forKey: "chosenHouse"))
+        XCTAssertEqual(harness.router.route, .houseError)
+        XCTAssertEqual(harness.houseStore.houseError, "test-error")
+    }
+
+    func testLeavingOnlyHouseClearsSelectionAndShowsHouseSelection() async throws {
+        let harness = makeHarness()
+        harness.authStore.applyAuthenticatedUser(TestFixture.profile(houseIds: ["house-1"]))
+        harness.houseStore.applySelectedHouseDetails(TestFixture.houseDetails())
+        harness.houseService.removeMemberHandler = { _, _ in }
+
+        try await harness.coordinator.leaveHouse(houseId: "house-1")
+
+        XCTAssertTrue(harness.authStore.currentUserProfile?.houseList.isEmpty == true)
+        XCTAssertNil(harness.houseStore.currentHouseDetails)
+        XCTAssertNil(harness.defaults.string(forKey: "chosenHouse"))
+        XCTAssertEqual(harness.router.route, .houseSelection)
     }
 
     func testResetSessionPreventsStaleCreateResponseFromShowingDashboard() async {
@@ -78,11 +162,15 @@ final class HouseFlowCoordinatorTests: XCTestCase {
             authService: FakeAuthService(),
             userService: FakeUserService()
         )
+        authStore.applyAuthenticatedUser(TestFixture.profile())
         authStore.isAuthenticated = true
         let houseService = FakeHouseService()
-        let houseStore = HouseSessionStore(houseService: houseService)
-        let toastStore = ToastStore()
         let defaults = makeDefaults()
+        let houseStore = HouseSessionStore(
+            houseService: houseService,
+            userDefaults: defaults
+        )
+        let toastStore = ToastStore()
         let router = AppRouter(
             hasAuthToken: true,
             pendingEmailVerification: nil,
@@ -103,7 +191,8 @@ final class HouseFlowCoordinatorTests: XCTestCase {
             houseService: houseService,
             houseStore: houseStore,
             toastStore: toastStore,
-            router: router
+            router: router,
+            defaults: defaults
         )
     }
 
@@ -127,4 +216,5 @@ private struct HouseHarness {
     let houseStore: HouseSessionStore
     let toastStore: ToastStore
     let router: AppRouter
+    let defaults: UserDefaults
 }

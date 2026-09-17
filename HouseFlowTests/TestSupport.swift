@@ -120,6 +120,18 @@ final class FakeHouseService: HouseServicing {
     var fetchDetailsHandler: (String) async throws -> HouseDetailsResponse = { _ in
         throw TestError.unimplemented
     }
+    var fetchInfoHandler: (String) async throws -> HouseInfoData = { _ in
+        throw TestError.unimplemented
+    }
+    var updateProfileHandler: (String, UpdateHouseProfileRequest) async throws -> HouseInfoData = { _, _ in
+        throw TestError.unimplemented
+    }
+    var createInviteCodeHandler: (String) async throws -> HouseInviteCodeData = { _ in
+        throw TestError.unimplemented
+    }
+    var removeMemberHandler: (String, String) async throws -> Void = { _, _ in
+        throw TestError.unimplemented
+    }
     var joinHouseHandler: (String) async throws -> HouseResponse = { _ in
         throw TestError.unimplemented
     }
@@ -133,6 +145,25 @@ final class FakeHouseService: HouseServicing {
 
     func fetchDetails(houseId: String) async throws -> HouseDetailsResponse {
         try await fetchDetailsHandler(houseId)
+    }
+
+    func fetchInfo(houseId: String) async throws -> HouseInfoData {
+        try await fetchInfoHandler(houseId)
+    }
+
+    func updateProfile(
+        houseId: String,
+        request: UpdateHouseProfileRequest
+    ) async throws -> HouseInfoData {
+        try await updateProfileHandler(houseId, request)
+    }
+
+    func createInviteCode(houseId: String) async throws -> HouseInviteCodeData {
+        try await createInviteCodeHandler(houseId)
+    }
+
+    func removeMember(houseId: String, userId: String) async throws {
+        try await removeMemberHandler(houseId, userId)
     }
 
     func joinHouse(inviteCode: String) async throws -> HouseResponse {
@@ -257,7 +288,13 @@ enum TestFixture {
             createdOn: timestamp,
             email: "user@example.com",
             firstName: "Ada",
-            houseIds: houseIds,
+            houseList: houseIds.map {
+                AuthHouseSummary(
+                    houseId: $0,
+                    houseName: "House \($0)",
+                    houseProfile: ""
+                )
+            },
             id: id,
             imageUrl: "",
             isActive: true,
@@ -291,11 +328,14 @@ enum TestFixture {
         )
     }
 
-    static func houseResponse() -> HouseResponse {
+    static func houseResponse(
+        id: String = "house-1",
+        name: String = "Test House"
+    ) -> HouseResponse {
         let json = """
         {
-          "id": "house-1",
-          "name": "Test House",
+          "id": "\(id)",
+          "name": "\(name)",
           "inviteCode": "JOINME",
           "maxMemberCount": 4,
           "memberIds": ["user-1"],
@@ -352,13 +392,14 @@ enum TestFixture {
     }
 
     static func houseDetails(
+        id: String = "house-1",
+        name: String = "Test House",
         members: [HouseMemberDTO] = [],
         chores: [HouseChoreDTO] = []
     ) -> HouseDetailsResponse {
         HouseDetailsResponse(
-            id: "house-1",
-            name: "Test House",
-            inviteCode: "JOINME",
+            id: id,
+            name: name,
             maxMemberCount: 4,
             ownerId: "user-1",
             profileImage: "",
@@ -368,6 +409,29 @@ enum TestFixture {
             members: members,
             chores: chores,
             announcements: []
+        )
+    }
+
+    static func houseInfo(
+        name: String = "Test House",
+        memberCountLimit: Int = 4,
+        profileImage: String = "",
+        members: [HouseInfoMember] = [
+            HouseInfoMember(
+                isOwner: true,
+                name: "Ada Lovelace",
+                profileImage: "",
+                userId: "user-1"
+            )
+        ]
+    ) -> HouseInfoData {
+        HouseInfoData(
+            houseMemberCount: members.count,
+            houseMemberCountLimit: memberCountLimit,
+            houseMembers: members,
+            houseName: name,
+            houseProfileImage: profileImage,
+            houseType: 1
         )
     }
 
