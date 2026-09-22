@@ -27,6 +27,9 @@ struct GamesHubView: View {
         GameInfo(id: 4, titleKey: "games_rps_title",
                  descriptionKey: "games_rps_card_description",
                  icon: "hand.draw.fill", color: .mint, badgeKey: "games_rps_badge"),
+        GameInfo(id: 5, titleKey: "games_house_switch_title",
+                 descriptionKey: "games_house_switch_card_description",
+                 icon: "arrow.up.arrow.down.circle.fill", color: .teal, badgeKey: "games_house_switch_badge"),
     ]
 
     private let columns = [
@@ -111,6 +114,7 @@ struct GamesHubView: View {
         case 2: VaultRushView()
         case 3: SkylineDashView()
         case 4: RockPaperScissorsView()
+        case 5: HouseSwitchView()
         default: EmptyView()
         }
     }
@@ -152,6 +156,22 @@ private struct HubGameCard: View {
                         .fill(Color.white.opacity(0.14))
                         .frame(width: 46, height: 118)
                         .offset(x: 62, y: 0)
+                } else if game.id == 5 {
+                    Image(systemName: "house.fill")
+                        .font(.system(size: 76, weight: .black))
+                        .foregroundStyle(Color.white.opacity(0.09))
+                        .offset(x: 52, y: 28)
+
+                    VStack(spacing: 34) {
+                        Capsule()
+                            .fill(Color.white.opacity(0.15))
+                            .frame(width: 128, height: 8)
+                        Capsule()
+                            .fill(Color.white.opacity(0.15))
+                            .frame(width: 128, height: 8)
+                    }
+                    .rotationEffect(.degrees(-8))
+                    .offset(x: -48, y: -2)
                 }
 
                 VStack(spacing: AppDesign.Spacing.sm) {
@@ -214,6 +234,13 @@ private struct HubGameCard: View {
                 Color(hex: "0EA5E9"),
                 Color(hex: "2563EB"),
                 Color(hex: "312E81"),
+            ]
+        }
+        if game.id == 5 {
+            return [
+                Color(hex: "071827"),
+                Color(hex: "0E5B63"),
+                Color(hex: "F28A3A"),
             ]
         }
 
