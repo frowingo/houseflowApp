@@ -44,6 +44,8 @@ final class LocalizationStore: ObservableObject {
         values[key]
             ?? RPSLocalization.value(for: key, language: languagePrefix)
             ?? HouseSwitchLocalization.value(for: key, language: languagePrefix)
+            ?? HouseTanksLocalization.value(for: key, language: languagePrefix)
+            ?? LuckySpinLocalization.value(for: key, language: languagePrefix)
             ?? key
     }
 
@@ -51,6 +53,8 @@ final class LocalizationStore: ObservableObject {
         values[key]
             ?? RPSLocalization.value(for: key, language: languagePrefix)
             ?? HouseSwitchLocalization.value(for: key, language: languagePrefix)
+            ?? HouseTanksLocalization.value(for: key, language: languagePrefix)
+            ?? LuckySpinLocalization.value(for: key, language: languagePrefix)
             ?? fallback
     }
 

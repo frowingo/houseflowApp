@@ -20,6 +20,15 @@ final class RockPaperScissorsViewModel: ObservableObject {
             !players.contains { $0.name.caseInsensitiveCompare(name) == .orderedSame }
     }
 
+    var playerValidationKey: String? {
+        let name = newPlayerName.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !name.isEmpty else { return nil }
+        if players.contains(where: { $0.name.caseInsensitiveCompare(name) == .orderedSame }) {
+            return "rps_table_duplicate_name"
+        }
+        return nil
+    }
+
     func addPlayer() {
         guard canAddPlayer else { return }
         let avatar = (0..<8).first { candidate in !players.contains { $0.avatarIndex == candidate } } ?? 0
@@ -46,7 +55,7 @@ final class RockPaperScissorsViewModel: ObservableObject {
         isSending = true
         defer { isSending = false }
         do { try await service.start(players: players, localPlayerID: localID) }
-        catch { errorKey = "rps_error" }
+        catch { errorKey = "rps_table_error" }
     }
 
     func advance() async { await send(.advance) }
@@ -62,7 +71,7 @@ final class RockPaperScissorsViewModel: ObservableObject {
         defer { isSending = false }
         do {
             try await service.send(RPSCommand(sessionID: snapshot.sessionID, expectedRevision: snapshot.revision, action: action))
-        } catch { errorKey = "rps_error" }
+        } catch { errorKey = "rps_table_error" }
     }
 
     func stop() {

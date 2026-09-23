@@ -6,7 +6,7 @@ struct RockPaperScissorsView: View {
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @StateObject private var model: RockPaperScissorsViewModel
     @State private var observationID = UUID()
-    @State private var rulesExpanded = false   
+    @State private var rulesExpanded = false
     @State private var bracketExpanded = false
 
     init(service: (any RPSGameServicing)? = nil) {
@@ -37,7 +37,7 @@ struct RockPaperScissorsView: View {
                 }
             }
         }
-        .foregroundStyle(.white)
+        .foregroundStyle(RPSTheme.paper)
         .environment(\.colorScheme, .dark)
         .safeAreaInset(edge: .top, spacing: 0) { navigationHeader }
         .safeAreaInset(edge: .bottom, spacing: 0) {
@@ -58,27 +58,27 @@ struct RockPaperScissorsView: View {
             model.stop()
             appViewModel.isOverlayPresented = false
         }
-        .alert(appViewModel.localized("rps_error"), isPresented: Binding(
+        .alert(appViewModel.localized("rps_table_error"), isPresented: Binding(
             get: { model.errorKey != nil }, set: { if !$0 { model.errorKey = nil } }
         )) {
-            Button(appViewModel.localized("rps_ok"), role: .cancel) { model.errorKey = nil }
-            Button(appViewModel.localized("rps_edit_players")) { returnToLobby() }
+            Button(appViewModel.localized("rps_table_dismiss_error"), role: .cancel) { model.errorKey = nil }
+            Button(appViewModel.localized("rps_table_edit_players")) { returnToLobby() }
         }
     }
 
     private var navigationHeader: some View {
         HStack {
-            LocalizedText("rps_demo")
+            LocalizedText("rps_table_demo")
                 .font(.system(.caption, design: .rounded, weight: .semibold))
                 .foregroundStyle(RPSTheme.secondary)
             Spacer()
             Button { dismiss() } label: {
                 Image(systemName: "xmark").font(.subheadline.weight(.semibold))
                     .frame(width: 44, height: 44)
-                    .background(.white.opacity(0.06), in: Circle())
+                    .background(RPSTheme.paper.opacity(0.08), in: Circle())
             }
             .accessibilityLabel(appViewModel.localized("rps_close"))
-            .foregroundStyle(.white)
+            .foregroundStyle(RPSTheme.paper)
         }
         .padding(.horizontal, 20).padding(.vertical, 6)
         .background(RPSTheme.ink.opacity(0.96))
@@ -87,23 +87,26 @@ struct RockPaperScissorsView: View {
     private var lobby: some View {
         VStack(spacing: 24) {
             VStack(spacing: 12) {
-                Text(RPSMove.allCases.map(\.emoji).joined(separator: "  "))
-                    .font(.largeTitle)
-                    .accessibilityHidden(true)
-                LocalizedText("rps_hero")
+                HStack(spacing: 10) {
+                    ForEach(RPSMove.allCases, id: \.self) { move in
+                        RPSHeroMoveCard(move: move)
+                    }
+                }
+                .padding(.bottom, 4)
+                LocalizedText("rps_table_hero")
                     .font(.system(.largeTitle, design: .rounded, weight: .bold))
                     .multilineTextAlignment(.center)
                     .fixedSize(horizontal: false, vertical: true)
                     .accessibilityAddTraits(.isHeader)
-                LocalizedText("rps_intro").font(.subheadline).lineSpacing(4)
+                LocalizedText("rps_table_intro").font(.subheadline).lineSpacing(4)
                     .foregroundStyle(RPSTheme.secondary).multilineTextAlignment(.center)
             }
             VStack(alignment: .leading, spacing: 16) {
                 HStack {
-                    sectionTitle("rps_players")
+                    sectionTitle("rps_table_players")
                     Spacer()
                     LocalizedText("rps_count", replacements: ["count": "\(model.players.count)"])
-                        .font(.caption.monospacedDigit()).foregroundStyle(RPSTheme.mint)
+                        .font(.caption.monospacedDigit()).foregroundStyle(RPSTheme.action)
                 }
                 ForEach(model.players) { player in
                     HStack(spacing: 12) {
@@ -112,7 +115,7 @@ struct RockPaperScissorsView: View {
                         Spacer(minLength: 4)
                         LocalizedText(player.id == model.players.first?.id ? "rps_local" : "rps_bot")
                             .font(.system(.caption2, design: .rounded, weight: .semibold))
-                            .foregroundStyle(player.id == model.players.first?.id ? RPSTheme.mint : RPSTheme.secondary)
+                            .foregroundStyle(player.id == model.players.first?.id ? RPSTheme.action : RPSTheme.secondary)
                         if player.id != model.players.first?.id {
                             Button { model.removePlayer(player) } label: {
                                 Image(systemName: "minus.circle").frame(width: 44, height: 44)
@@ -125,37 +128,57 @@ struct RockPaperScissorsView: View {
                     }
                 }
                 if model.players.count < 8 {
-                    HStack {
-                        TextField(appViewModel.localized("rps_name"), text: $model.newPlayerName)
-                            .font(.subheadline).autocorrectionDisabled()
-                            .submitLabel(.done).onSubmit { model.addPlayer() }
-                            .onChange(of: model.newPlayerName) { _, value in
-                                if value.count > 24 { model.newPlayerName = String(value.prefix(24)) }
+                    VStack(alignment: .leading, spacing: 5) {
+                        Text(appViewModel.localized("rps_table_new_player"))
+                            .font(.caption)
+                            .foregroundStyle(RPSTheme.secondary)
+
+                        HStack {
+                            TextField(appViewModel.localized("rps_name"), text: $model.newPlayerName)
+                                .font(.subheadline).autocorrectionDisabled()
+                                .textInputAutocapitalization(.words)
+                                .foregroundStyle(RPSTheme.paper)
+                                .tint(RPSTheme.action)
+                                .frame(minHeight: 44)
+                                .submitLabel(.done).onSubmit { model.addPlayer() }
+                                .onChange(of: model.newPlayerName) { _, value in
+                                    if value.count > 24 { model.newPlayerName = String(value.prefix(24)) }
+                                }
+                            Button { model.addPlayer() } label: {
+                                Image(systemName: "plus").font(.headline).frame(width: 44, height: 44)
+                                    .background(RPSTheme.action.opacity(0.14), in: RoundedRectangle(cornerRadius: 12))
                             }
-                        Button { model.addPlayer() } label: {
-                            Image(systemName: "plus").font(.headline).frame(width: 44, height: 44)
-                                .background(RPSTheme.mint.opacity(0.12), in: RoundedRectangle(cornerRadius: 12))
+                            .foregroundStyle(RPSTheme.action).disabled(!model.canAddPlayer)
+                            .opacity(model.canAddPlayer ? 1 : 0.35)
+                            .accessibilityLabel(appViewModel.localized("rps_add"))
                         }
-                        .foregroundStyle(RPSTheme.mint).disabled(!model.canAddPlayer)
-                        .opacity(model.canAddPlayer ? 1 : 0.35)
-                        .accessibilityLabel(appViewModel.localized("rps_add"))
+                        .padding(.leading, 12)
+                        .background(RPSTheme.paper.opacity(0.06), in: RoundedRectangle(cornerRadius: 12))
+                        .overlay {
+                            RoundedRectangle(cornerRadius: 12)
+                                .stroke(model.playerValidationKey == nil ? RPSTheme.secondary.opacity(0.4) : RPSTheme.coral)
+                        }
+
+                        if let key = model.playerValidationKey {
+                            Text(appViewModel.localized(key))
+                                .font(.caption2)
+                                .foregroundStyle(RPSTheme.coral)
+                        }
                     }
-                    .padding(.leading, 12)
-                    .overlay(RoundedRectangle(cornerRadius: 12).stroke(RPSTheme.secondary.opacity(0.4)))
                 }
                 LocalizedText("rps_name_hint").font(.caption2).foregroundStyle(RPSTheme.secondary)
             }
             DisclosureGroup(isExpanded: $rulesExpanded) {
                 VStack(alignment: .leading, spacing: 16) {
-                    rule(title: "rps_rule_duel", detail: "rps_rule_duel_detail")
-                    rule(title: "rps_rule_bye", detail: "rps_rule_bye_detail")
+                    rule(title: "rps_table_rule_duel", detail: "rps_table_rule_duel_detail")
+                    rule(title: "rps_table_rule_bye", detail: "rps_table_rule_bye_detail")
                     LocalizedText("rps_cycle").font(.caption).lineSpacing(3).foregroundStyle(RPSTheme.secondary)
                 }
                 .padding(.top, 8)
             } label: {
-                sectionTitle("rps_rules").frame(minHeight: 44)
+                sectionTitle("rps_table_rules").frame(minHeight: 44)
             }
-            .tint(RPSTheme.mint)
+            .tint(RPSTheme.action)
         }
         .padding(.top, 12)
     }
@@ -167,10 +190,10 @@ struct RockPaperScissorsView: View {
                 championView(champion, count: state.players.count)
             } else {
                 HStack {
-                    LocalizedText(state.currentRound?.matches.count == 1 && state.currentRound?.bye == nil ? "rps_final" : "rps_round",
+                    LocalizedText(state.currentRound?.matches.count == 1 && state.currentRound?.bye == nil ? "rps_table_final" : "rps_round",
                                   replacements: ["number": "\(state.currentRound?.number ?? 1)"])
                         .font(.system(.caption, design: .rounded, weight: .semibold))
-                        .foregroundStyle(RPSTheme.mint)
+                        .foregroundStyle(RPSTheme.action)
                     Spacer()
                     if let match = state.activeMatch {
                         LocalizedText("rps_attempt", replacements: ["number": "\(match.attempt)"])
@@ -184,25 +207,25 @@ struct RockPaperScissorsView: View {
             DisclosureGroup(isExpanded: $bracketExpanded) {
                 RPSBracket(snapshot: state).padding(.top, 8)
             } label: {
-                sectionTitle("rps_bracket").frame(minHeight: 44)
+                sectionTitle("rps_table_bracket").frame(minHeight: 44)
             }
-            .tint(RPSTheme.mint)
+            .tint(RPSTheme.action)
         }
         .padding(.top, 12)
     }
 
     private func drawView(_ state: RPSSnapshot) -> some View {
         VStack(spacing: 20) {
-            heading("rps_draw_title", detail: "rps_draw_detail")
+            heading("rps_table_draw_title", detail: "rps_table_draw_detail")
             if let bye = state.currentRound?.bye {
                 VStack(spacing: 14) {
                     RPSAvatar(player: bye, size: 56)
                     Text(bye.name).font(.system(.title, design: .rounded, weight: .bold))
-                    LocalizedText("rps_bye_detail").font(.subheadline).foregroundStyle(RPSTheme.secondary)
+                    LocalizedText("rps_table_bye_detail").font(.subheadline).foregroundStyle(RPSTheme.secondary)
                         .multilineTextAlignment(.center)
                 }.frame(maxWidth: .infinity)
             } else {
-                Label { LocalizedText("rps_no_bye") } icon: { Image(systemName: "person.2.fill") }
+                Label { LocalizedText("rps_table_no_bye") } icon: { Image(systemName: "person.2.fill") }
                     .font(.subheadline).foregroundStyle(RPSTheme.secondary)
             }
         }
@@ -216,7 +239,7 @@ struct RockPaperScissorsView: View {
                 VStack {
                     Text(state.countdown.map(String.init) ?? "VS")
                         .font(.system(size: state.countdown == nil ? 17 : 32, weight: .black, design: .rounded))
-                        .foregroundStyle(state.countdown == nil ? RPSTheme.secondary : RPSTheme.mint)
+                        .foregroundStyle(state.countdown == nil ? RPSTheme.secondary : RPSTheme.action)
                         .contentTransition(.numericText())
                         .animation(reduceMotion ? nil : .spring(response: 0.25), value: state.countdown)
                         .frame(width: 42, height: 130)
@@ -228,12 +251,14 @@ struct RockPaperScissorsView: View {
                     ForEach(RPSMove.allCases, id: \.self) { move in
                         Button { Task { await model.play(move) } } label: {
                             VStack(spacing: 12) {
-                                Text(move.emoji).font(.system(size: 40)).accessibilityHidden(true)
+                                RPSMoveMark(move: move, color: RPSTheme.moveColor(move))
+                                    .frame(width: 46, height: 46)
                                 LocalizedText(move.titleKey).font(.system(.subheadline, design: .rounded, weight: .bold))
+                                    .foregroundStyle(RPSTheme.paperInk)
                             }
                             .frame(maxWidth: .infinity).padding(.vertical, 22)
-                            .background(RPSTheme.mint.opacity(0.1), in: RoundedRectangle(cornerRadius: 16))
-                            .overlay(RoundedRectangle(cornerRadius: 16).stroke(RPSTheme.mint.opacity(0.4)))
+                            .background(RPSTheme.paper, in: RoundedRectangle(cornerRadius: 16))
+                            .overlay(RoundedRectangle(cornerRadius: 16).stroke(RPSTheme.moveColor(move).opacity(0.46), lineWidth: 2))
                         }
                         .buttonStyle(ScaleButtonStyle()).disabled(model.isSending)
                     }
@@ -250,14 +275,14 @@ struct RockPaperScissorsView: View {
     private func duelHeading(_ state: RPSSnapshot, match: RPSMatch) -> some View {
         switch state.phase {
         case .choosing:
-            heading(state.localPlayerIsPlaying ? "rps_choose" : "rps_spectator",
-                    detail: state.localPlayerIsPlaying ? "rps_choice_detail" : "rps_spectator_detail")
-        case .countdown: heading("rps_locked", detail: "rps_countdown_detail")
+            heading(state.localPlayerIsPlaying ? "rps_table_choose" : "rps_table_spectator",
+                    detail: state.localPlayerIsPlaying ? "rps_table_choice_detail" : "rps_table_spectator_detail")
+        case .countdown: heading("rps_table_locked", detail: "rps_table_countdown_detail")
         default:
             if let winner = match.winner {
-                heading(winner.id == state.localPlayerID ? "rps_you_won" : "rps_winner",
-                        detail: "rps_win_detail", replacements: ["name": winner.name])
-            } else { heading("rps_tie", detail: "rps_tie_detail") }
+                heading(winner.id == state.localPlayerID ? "rps_table_you_won" : "rps_table_winner",
+                        detail: "rps_table_win_detail", replacements: ["name": winner.name])
+            } else { heading("rps_table_tie", detail: "rps_table_tie_detail") }
         }
     }
 
@@ -267,8 +292,8 @@ struct RockPaperScissorsView: View {
             Text(player.name).font(.system(.headline, design: .rounded)).multilineTextAlignment(.center)
             LocalizedText(move?.titleKey ?? "rps_hidden").font(.caption).foregroundStyle(RPSTheme.secondary)
             if winner {
-                Image(systemName: "crown.fill").foregroundStyle(RPSTheme.mint)
-                    .accessibilityLabel(appViewModel.localized("rps_winner", replacements: ["name": player.name]))
+                Image(systemName: "checkmark.seal.fill").foregroundStyle(RPSTheme.action)
+                    .accessibilityLabel(appViewModel.localized("rps_table_winner", replacements: ["name": player.name]))
             }
         }
         .frame(maxWidth: .infinity)
@@ -277,7 +302,7 @@ struct RockPaperScissorsView: View {
 
     private func roundComplete(_ state: RPSSnapshot) -> some View {
         VStack(spacing: 20) {
-            heading("rps_round_done", detail: "rps_advancing")
+            heading("rps_table_round_done", detail: "rps_table_advancing")
             ForEach(state.currentRound?.advancingPlayers ?? []) { player in
                 HStack {
                     RPSAvatar(player: player)
@@ -292,23 +317,36 @@ struct RockPaperScissorsView: View {
     private func championView(_ player: RPSPlayer, count: Int) -> some View {
         VStack(spacing: 20) {
             VStack(spacing: 12) {
-                Image(systemName: "crown.fill").font(.largeTitle).foregroundStyle(RPSTheme.mint)
+                Image(systemName: "flag.checkered").font(.largeTitle).foregroundStyle(RPSTheme.coral)
                     .accessibilityHidden(true)
                 RPSAvatar(player: player, size: 80)
             }
             VStack(spacing: 8) {
                 Text(player.name).font(.system(.largeTitle, design: .rounded, weight: .bold))
+                    .foregroundStyle(RPSTheme.paperInk)
                     .accessibilityAddTraits(.isHeader)
-                LocalizedText("rps_champion").font(.subheadline).foregroundStyle(RPSTheme.mint)
+                LocalizedText("rps_table_champion").font(.subheadline).foregroundStyle(RPSTheme.felt)
             }
             .multilineTextAlignment(.center)
-            LocalizedText("rps_champion_detail", replacements: ["count": "\(count)"])
-                .font(.subheadline).foregroundStyle(RPSTheme.secondary).multilineTextAlignment(.center)
+            LocalizedText("rps_table_champion_detail", replacements: ["count": "\(count)"])
+                .font(.subheadline).foregroundStyle(RPSTheme.paperInk.opacity(0.72)).multilineTextAlignment(.center)
             Button { returnToLobby() } label: {
-                LocalizedText("rps_edit_players").font(.subheadline.weight(.semibold))
-                    .padding(12).foregroundStyle(RPSTheme.mint)
+                LocalizedText("rps_table_edit_players").font(.subheadline.weight(.semibold))
+                    .padding(.horizontal, 16)
+                    .frame(minHeight: 44)
+                    .foregroundStyle(RPSTheme.paper)
+                    .background(RPSTheme.felt, in: RoundedRectangle(cornerRadius: 12))
             }
         }
+        .padding(.horizontal, 24)
+        .padding(.vertical, 30)
+        .frame(maxWidth: 430)
+        .background(RPSTheme.paper, in: RoundedRectangle(cornerRadius: 24, style: .continuous))
+        .overlay {
+            RoundedRectangle(cornerRadius: 24, style: .continuous)
+                .stroke(RPSTheme.coral.opacity(0.30), lineWidth: 2)
+        }
+        .shadow(color: Color.black.opacity(0.18), radius: 16, x: 0, y: 8)
     }
 
     @ViewBuilder
@@ -316,30 +354,30 @@ struct RockPaperScissorsView: View {
         VStack(spacing: 10) {
             if let state = model.snapshot {
                 switch state.phase {
-                case .draw: advanceButton("rps_enter")
+                case .draw: advanceButton("rps_table_enter")
                 case .choosing:
                     if !state.localPlayerIsPlaying {
-                        RPSPrimaryButton(key: "rps_watch", icon: "play.fill", enabled: !model.isSending) {
+                        RPSPrimaryButton(key: "rps_table_watch", icon: "play.fill", enabled: !model.isSending) {
                             Task { await model.play(nil) }
                         }
                     }
                 case .countdown:
                     HStack(spacing: 10) {
-                        ProgressView().tint(RPSTheme.mint)
-                        LocalizedText("rps_locked").font(.subheadline).foregroundStyle(RPSTheme.secondary)
+                        ProgressView().tint(RPSTheme.action)
+                        LocalizedText("rps_table_locked").font(.subheadline).foregroundStyle(RPSTheme.secondary)
                     }.padding(12)
-                case .reveal: advanceButton(state.activeMatch?.winnerID == nil ? "rps_retry" : "rps_continue")
+                case .reveal: advanceButton(state.activeMatch?.winnerID == nil ? "rps_table_retry" : "rps_table_continue")
                 case .roundComplete:
-                    advanceButton(state.currentRound?.advancingPlayers.count == 1 ? "rps_show_champion" : "rps_next_round")
+                    advanceButton(state.currentRound?.advancingPlayers.count == 1 ? "rps_table_show_champion" : "rps_table_next_round")
                 case .finished:
-                    RPSPrimaryButton(key: "rps_replay", icon: "arrow.clockwise", enabled: !model.isSending) {
+                    RPSPrimaryButton(key: "rps_table_replay", icon: "arrow.clockwise", enabled: !model.isSending) {
                         Task { await model.start() }
                     }
                 }
             } else {
-                LocalizedText("rps_demo_detail").font(.caption2).foregroundStyle(RPSTheme.secondary)
+                LocalizedText("rps_table_demo_detail").font(.caption2).foregroundStyle(RPSTheme.secondary)
                     .multilineTextAlignment(.center)
-                RPSPrimaryButton(key: "rps_start", icon: "shuffle", enabled: !model.isSending) {
+                RPSPrimaryButton(key: "rps_table_start", icon: "shuffle", enabled: !model.isSending) {
                     Task { await model.start() }
                 }
             }
