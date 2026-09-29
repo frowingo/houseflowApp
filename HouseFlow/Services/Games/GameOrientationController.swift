@@ -46,10 +46,18 @@ enum GameOrientationController {
         }
     }
 
-    static func restoreDefaultOrientations() {
-        allowedOrientations = defaultOrientations
-        foregroundWindowScene?.windows.forEach {
+    static func returnToPortrait() {
+        allowedOrientations = .portrait
+
+        guard let windowScene = foregroundWindowScene else { return }
+
+        windowScene.windows.forEach {
             $0.rootViewController?.setNeedsUpdateOfSupportedInterfaceOrientations()
         }
+
+        let preferences = UIWindowScene.GeometryPreferences.iOS(
+            interfaceOrientations: .portrait
+        )
+        windowScene.requestGeometryUpdate(preferences) { _ in }
     }
 }

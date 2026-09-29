@@ -161,4 +161,8 @@ enum HouseTanksMath {
         while value < -.pi { value += .pi * 2 }
         return value
     }
+
+    static func oppositeRotationDirection(after direction: CGFloat) -> CGFloat {
+        direction >= 0 ? -1 : 1
+    }
 }

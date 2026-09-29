@@ -21,7 +21,7 @@ THESIS: A press-and-hold toy-tank duel where one gesture locks aim, fires, and d
 
 OWN-WORLD: Bright household tabletop arena, rounded toy tanks, substantial home-object obstacles, teal/orange/blue player signals, and crisp native overlays.
 
-STORY: Choose the bot demo, learn press-to-fire and hold-to-drive in seconds, survive three short rounds, then replay or return to Games.
+STORY: Choose the bot demo, learn press-to-fire and hold-to-drive in seconds, reverse idle rotation after every drive, survive three short rounds, then return to the portrait Games screen or replay.
 
 FIRST VIEWPORT: Landscape arena owns the screen; slim top HUD shows armor, round score, timer, and pause while the unobscured playfield is the fire target.
 
@@ -31,4 +31,4 @@ FINISH: unreviewed and undocumented is unfinished; this build ends with the fini
 
 ## Constraints
 
-Original assets only; Turkish and English; Reduce Motion; minimum 44 pt controls; bot and human input share the same command path; no networking, matchmaking, persistence, or copied reference assets in the demo.
+Original assets only; Turkish and English; Reduce Motion; minimum 44 pt controls; bot and human input share the same command path; compact toy tanks and varied household-object obstacles; no networking, matchmaking, persistence, or copied reference assets in the demo.

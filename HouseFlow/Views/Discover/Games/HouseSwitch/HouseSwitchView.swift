@@ -85,7 +85,7 @@ struct HouseSwitchView: View {
         }
         .onDisappear {
             model.stopRun()
-            GameOrientationController.restoreDefaultOrientations()
+            GameOrientationController.returnToPortrait()
         }
     }
 

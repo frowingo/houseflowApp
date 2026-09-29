@@ -27,12 +27,13 @@ HouseFlow brings recurring household coordination and small social moments into 
 - Lucky Spin is a household turn-selection tool rather than a casino simulation. The name shown in the result must always match the wheel segment under the fixed top pointer.
 - Rock-Paper-Scissors is presented as a household tabletop tournament: match, round, and tournament-board language replaces arena framing, while the move art uses authored shapes instead of emoji.
 - House-Tanks is a separate landscape-only game. Its demo is one human against two bots, with one player per device rather than shared on-screen controls.
-- House-Tanks uses press-and-hold movement: tanks rotate automatically while idle, lock their firing angle on touch-down, fire once, and move forward in that direction until the touch ends.
+- House-Tanks uses press-and-hold movement: tanks rotate automatically while idle, lock their firing angle on touch-down, fire once, and move forward in that direction until the touch ends. Every return to idle rotation reverses the tank's previous rotation direction.
 - Each House-Tanks player starts a round with five armor points. A round lasts at most 60 seconds; the last survivor or the unique highest-armor player wins. The match ends at three round wins.
 - House-Tanks keeps its future online boundary explicit through commands and revisioned snapshots, but the demo does not include networking, matchmaking, or server authority.
 - House-Tanks must use original household tabletop visuals and sounds rather than copying the reference game's assets.
 - House-Switch remains an existing, separate game surface.
 - House-Switch gameplay is landscape-only. Its lobby explains the requirement before starting and the run begins only after the scene enters a landscape layout.
+- Leaving House-Tanks or House-Switch returns the Games screen to portrait orientation.
 - The course scrolls forward continuously. Hitting a solid obstacle does not pause that movement; a runner that fully leaves the left edge is eliminated.
 - The finite course is twice its original length and contains alternating floor and ceiling gaps. Falling through a gap carries the runner off-screen and ends the run.
 - Small one-use speed pads provide a brief forward gain relative to the camera, helping the runner recover some screen space after obstacles.

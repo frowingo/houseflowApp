@@ -160,7 +160,7 @@ The palette is a cool, dark field with one dominant mint voice and a tightly res
 
 ## Layout
 
-House-Switch uses a full-bleed playfield with safe, compact interface layers above it. The briefing is vertically scrollable, horizontally inset by the extra-large spacing step, and places a prominent landscape-required panel before the rules. Its persistent full-width action either starts immediately from an already-landscape layout or requests rotation and waits; the playable phase begins only after the measured viewport is wider than it is tall. Landscape remains the only supported run layout until the game view exits, when the app's default orientation policy returns.
+House-Switch uses a full-bleed playfield with safe, compact interface layers above it. The briefing is vertically scrollable, horizontally inset by the extra-large spacing step, and places a prominent landscape-required panel before the rules. Its persistent full-width action either starts immediately from an already-landscape layout or requests rotation and waits; the playable phase begins only after the measured viewport is wider than it is tall. Landscape remains the only supported run layout until the game view exits, when the Games screen explicitly returns to portrait.
 
 During play, the top HUD uses a three-part row: a square pause control, a flexible progress meter, and a compact flip counter. A transient tap hint floats near the bottom and never captures touches. The finite course runs 8,840 points, twice its original length, with four alternating floor and ceiling gaps and five one-use speed pads. The camera advances from course progress independently of the player's physical position. A solid front or side impact may hold the house back while the course continues; failure occurs only when the entire runner has passed behind the left viewport edge, not when it is merely clipped. A fall through a rail gap continues off-screen before the run ends.
 
@@ -207,7 +207,7 @@ The player silhouette is a compact house with a peaked roof, outlined body, smal
 
 ### Navigation
 
-The native navigation bar is visible only during the briefing. Active play hides it and exposes an in-world pause control. The run owns landscape orientation until the game view exits. Leaving the app while playing pauses the run; returning never silently advances gameplay.
+The native navigation bar is visible only during the briefing. Active play hides it and exposes an in-world pause control. The run owns landscape orientation until the game view exits, then the Games screen is restored to portrait. Leaving the app while playing pauses the run; returning never silently advances gameplay.
 
 ### Landscape Requirement
 

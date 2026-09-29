@@ -69,7 +69,7 @@ struct HouseTanksView: View {
         }
         .onDisappear {
             model.stop()
-            GameOrientationController.restoreDefaultOrientations()
+            GameOrientationController.returnToPortrait()
         }
     }
 

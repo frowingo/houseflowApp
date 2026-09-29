@@ -8,6 +8,23 @@ private enum HouseTanksPhysicsCategory {
     static let wall: UInt32 = 1 << 3
 }
 
+private enum HouseTanksObstacleStyle {
+    case divider
+    case sofa
+    case roundTable
+    case crate
+}
+
+private struct HouseTanksObstacleSpec {
+    let x: CGFloat
+    let y: CGFloat
+    let width: CGFloat
+    let height: CGFloat
+    let rotation: CGFloat
+    let color: UIColor
+    let style: HouseTanksObstacleStyle
+}
+
 final class HouseTanksScene: SKScene, SKPhysicsContactDelegate {
     var onTankHit: ((UUID, UUID) -> Void)?
 
@@ -28,9 +45,10 @@ final class HouseTanksScene: SKScene, SKPhysicsContactDelegate {
     private let rotationSpeed: CGFloat = 0.88
     private let projectileSpeed: CGFloat = 510
     private let driveForce: CGFloat = 360
-    private let obstacleScale: CGFloat = 0.82
-    private let tankVisualScale: CGFloat = 0.84
-    private let tankSize = CGSize(width: 46, height: 32)
+    private let obstacleScale: CGFloat = 0.72
+    private let tankVisualScale: CGFloat = 0.76
+    private let tankSize = CGSize(width: 40, height: 28)
+    private let projectileSize = CGSize(width: 18, height: 7)
 
     override func didMove(to view: SKView) {
         scaleMode = .resizeFill
@@ -113,6 +131,10 @@ final class HouseTanksScene: SKScene, SKPhysicsContactDelegate {
         guard drivingPlayerIDs.remove(playerID) != nil else { return }
         drivingDirections[playerID] = nil
         tankNodes[playerID]?.physicsBody?.velocity = .zero
+        let previousDirection = rotationDirections[playerID] ?? 1
+        rotationDirections[playerID] = HouseTanksMath.oppositeRotationDirection(
+            after: previousDirection
+        )
     }
 
     @discardableResult
@@ -123,7 +145,7 @@ final class HouseTanksScene: SKScene, SKPhysicsContactDelegate {
         lastFireTime[playerID] = currentSceneTime
 
         let direction = CGVector(dx: cos(angle), dy: sin(angle))
-        let startDistance = tankSize.width / 2 + 12
+        let startDistance = tankSize.width / 2 + 10
         let start = CGPoint(
             x: tank.position.x + direction.dx * startDistance,
             y: tank.position.y + direction.dy * startDistance
@@ -324,45 +346,161 @@ final class HouseTanksScene: SKScene, SKPhysicsContactDelegate {
     }
 
     private func addObstacles() {
-        let specs: [(CGFloat, CGFloat, CGFloat, CGFloat, UIColor)] = [
-            (0.50, 0.50, 0.07, 0.28, UIColor(red: 0.18, green: 0.27, blue: 0.32, alpha: 1)),
-            (0.31, 0.31, 0.18, 0.075, UIColor(red: 0.24, green: 0.47, blue: 0.45, alpha: 1)),
-            (0.69, 0.69, 0.18, 0.075, UIColor(red: 0.84, green: 0.43, blue: 0.22, alpha: 1)),
-            (0.31, 0.73, 0.11, 0.09, UIColor(red: 0.33, green: 0.42, blue: 0.64, alpha: 1)),
-            (0.69, 0.27, 0.11, 0.09, UIColor(red: 0.58, green: 0.43, blue: 0.25, alpha: 1)),
+        let specs: [HouseTanksObstacleSpec] = [
+            HouseTanksObstacleSpec(
+                x: 0.50, y: 0.50, width: 0.07, height: 0.28, rotation: 0,
+                color: UIColor(red: 0.18, green: 0.27, blue: 0.32, alpha: 1), style: .divider
+            ),
+            HouseTanksObstacleSpec(
+                x: 0.31, y: 0.30, width: 0.18, height: 0.075, rotation: 0.04,
+                color: UIColor(red: 0.24, green: 0.47, blue: 0.45, alpha: 1), style: .sofa
+            ),
+            HouseTanksObstacleSpec(
+                x: 0.69, y: 0.70, width: 0.18, height: 0.075, rotation: -0.04,
+                color: UIColor(red: 0.84, green: 0.43, blue: 0.22, alpha: 1), style: .sofa
+            ),
+            HouseTanksObstacleSpec(
+                x: 0.30, y: 0.72, width: 0.12, height: 0.12, rotation: 0,
+                color: UIColor(red: 0.33, green: 0.42, blue: 0.64, alpha: 1), style: .roundTable
+            ),
+            HouseTanksObstacleSpec(
+                x: 0.70, y: 0.28, width: 0.10, height: 0.10, rotation: .pi / 12,
+                color: UIColor(red: 0.58, green: 0.43, blue: 0.25, alpha: 1), style: .crate
+            ),
         ]
 
-        for (x, y, widthRatio, heightRatio, color) in specs {
-            let obstacleSize = CGSize(
-                width: size.width * widthRatio * obstacleScale,
-                height: size.height * heightRatio * obstacleScale
-            )
-            let obstacle = SKShapeNode(
-                rectOf: obstacleSize,
-                cornerRadius: min(18, obstacleSize.height * 0.28)
-            )
+        for spec in specs {
+            let obstacleSize: CGSize
+            switch spec.style {
+            case .roundTable, .crate:
+                let side = size.height * spec.height * obstacleScale
+                obstacleSize = CGSize(width: side, height: side)
+            case .divider, .sofa:
+                obstacleSize = CGSize(
+                    width: size.width * spec.width * obstacleScale,
+                    height: size.height * spec.height * obstacleScale
+                )
+            }
+            let obstacle = makeObstacle(spec: spec, size: obstacleSize)
             obstacle.name = "arena"
-            obstacle.position = CGPoint(x: size.width * x, y: size.height * y)
-            obstacle.fillColor = color
-            obstacle.strokeColor = UIColor.white.withAlphaComponent(0.46)
-            obstacle.lineWidth = 3
+            obstacle.position = CGPoint(x: size.width * spec.x, y: size.height * spec.y)
+            obstacle.zRotation = spec.rotation
             obstacle.zPosition = 2
-            obstacle.physicsBody = SKPhysicsBody(rectangleOf: obstacleSize)
-            obstacle.physicsBody?.isDynamic = false
             obstacle.physicsBody?.categoryBitMask = HouseTanksPhysicsCategory.obstacle
             obstacle.physicsBody?.collisionBitMask = HouseTanksPhysicsCategory.tank
                 | HouseTanksPhysicsCategory.projectile
             obstacle.physicsBody?.contactTestBitMask = HouseTanksPhysicsCategory.projectile
+            addChild(obstacle)
+        }
+    }
 
-            let inset = SKShapeNode(
-                rectOf: CGSize(width: obstacleSize.width * 0.72, height: max(4, obstacleSize.height * 0.16)),
+    private func makeObstacle(
+        spec: HouseTanksObstacleSpec,
+        size obstacleSize: CGSize
+    ) -> SKShapeNode {
+        let obstacle: SKShapeNode
+
+        switch spec.style {
+        case .roundTable:
+            let diameter = min(obstacleSize.width, obstacleSize.height)
+            obstacle = SKShapeNode(circleOfRadius: diameter / 2)
+            obstacle.physicsBody = SKPhysicsBody(circleOfRadius: diameter / 2)
+        default:
+            obstacle = SKShapeNode(
+                rectOf: obstacleSize,
+                cornerRadius: min(14, obstacleSize.height * 0.28)
+            )
+            obstacle.physicsBody = SKPhysicsBody(rectangleOf: obstacleSize)
+        }
+
+        obstacle.fillColor = spec.color
+        obstacle.strokeColor = UIColor.white.withAlphaComponent(0.46)
+        obstacle.lineWidth = 2.4
+        obstacle.physicsBody?.isDynamic = false
+        decorateObstacle(obstacle, style: spec.style, size: obstacleSize)
+        return obstacle
+    }
+
+    private func decorateObstacle(
+        _ obstacle: SKShapeNode,
+        style: HouseTanksObstacleStyle,
+        size obstacleSize: CGSize
+    ) {
+        switch style {
+        case .divider:
+            for yOffset in [CGFloat(-0.26), 0, 0.26] {
+                let slat = SKShapeNode(
+                    rectOf: CGSize(
+                        width: max(5, obstacleSize.width * 0.58),
+                        height: max(3, obstacleSize.height * 0.055)
+                    ),
+                    cornerRadius: 2
+                )
+                slat.position.y = obstacleSize.height * yOffset
+                slat.fillColor = UIColor.white.withAlphaComponent(0.20)
+                slat.strokeColor = .clear
+                obstacle.addChild(slat)
+            }
+
+        case .sofa:
+            let back = SKShapeNode(
+                rectOf: CGSize(
+                    width: obstacleSize.width * 0.78,
+                    height: max(5, obstacleSize.height * 0.18)
+                ),
                 cornerRadius: 3
             )
-            inset.fillColor = UIColor.white.withAlphaComponent(0.20)
-            inset.strokeColor = .clear
-            inset.position.y = obstacleSize.height * 0.18
+            back.position.y = obstacleSize.height * 0.20
+            back.fillColor = UIColor.white.withAlphaComponent(0.20)
+            back.strokeColor = .clear
+            obstacle.addChild(back)
+
+            for xOffset in [CGFloat(-0.24), 0.24] {
+                let seam = SKShapeNode(
+                    rectOf: CGSize(
+                        width: max(2, obstacleSize.width * 0.018),
+                        height: obstacleSize.height * 0.46
+                    ),
+                    cornerRadius: 1
+                )
+                seam.position.x = obstacleSize.width * xOffset
+                seam.fillColor = UIColor.white.withAlphaComponent(0.22)
+                seam.strokeColor = .clear
+                obstacle.addChild(seam)
+            }
+
+        case .roundTable:
+            let inset = SKShapeNode(
+                circleOfRadius: min(obstacleSize.width, obstacleSize.height) * 0.27
+            )
+            inset.fillColor = UIColor.white.withAlphaComponent(0.14)
+            inset.strokeColor = UIColor.white.withAlphaComponent(0.22)
+            inset.lineWidth = 1.5
             obstacle.addChild(inset)
-            addChild(obstacle)
+
+        case .crate:
+            let path = CGMutablePath()
+            path.move(to: CGPoint(
+                x: -obstacleSize.width * 0.27,
+                y: -obstacleSize.height * 0.27
+            ))
+            path.addLine(to: CGPoint(
+                x: obstacleSize.width * 0.27,
+                y: obstacleSize.height * 0.27
+            ))
+            path.move(to: CGPoint(
+                x: -obstacleSize.width * 0.27,
+                y: obstacleSize.height * 0.27
+            ))
+            path.addLine(to: CGPoint(
+                x: obstacleSize.width * 0.27,
+                y: -obstacleSize.height * 0.27
+            ))
+            let cross = SKShapeNode(path: path)
+            cross.strokeColor = UIColor.white.withAlphaComponent(0.24)
+            cross.lineWidth = 2
+            cross.lineCap = .round
+            obstacle.addChild(cross)
         }
     }
 
@@ -445,14 +583,17 @@ final class HouseTanksScene: SKScene, SKPhysicsContactDelegate {
     }
 
     private func makeProjectile(ownerID: UUID, color colorName: String?) -> SKNode {
-        let projectile = SKShapeNode(rectOf: CGSize(width: 22, height: 9), cornerRadius: 4.5)
+        let projectile = SKShapeNode(
+            rectOf: projectileSize,
+            cornerRadius: projectileSize.height / 2
+        )
         projectile.name = "projectile"
         projectile.fillColor = color(for: HouseTanksColor(rawValue: colorName ?? "") ?? .teal)
         projectile.strokeColor = UIColor.white.withAlphaComponent(0.92)
         projectile.lineWidth = 2
         projectile.zPosition = 8
         projectile.userData = ["ownerID": ownerID.uuidString]
-        projectile.physicsBody = SKPhysicsBody(rectangleOf: CGSize(width: 22, height: 9))
+        projectile.physicsBody = SKPhysicsBody(rectangleOf: projectileSize)
         projectile.physicsBody?.affectedByGravity = false
         projectile.physicsBody?.linearDamping = 0
         projectile.physicsBody?.restitution = 0
@@ -468,11 +609,11 @@ final class HouseTanksScene: SKScene, SKPhysicsContactDelegate {
 
     private func addMuzzleFlash(to tank: SKNode, colorName: String?) {
         guard !reduceMotion else { return }
-        let flash = SKShapeNode(circleOfRadius: 7)
+        let flash = SKShapeNode(circleOfRadius: 6)
         flash.fillColor = color(for: HouseTanksColor(rawValue: colorName ?? "") ?? .teal)
         flash.strokeColor = UIColor.white
         flash.lineWidth = 2
-        flash.position = CGPoint(x: tankSize.width / 2 + 7, y: 0)
+        flash.position = CGPoint(x: tankSize.width / 2 + 6, y: 0)
         flash.zPosition = 5
         tank.addChild(flash)
         flash.run(.sequence([

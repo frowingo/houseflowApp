@@ -79,6 +79,15 @@ final class HouseTanksTests: XCTestCase {
         XCTAssertEqual(HouseTanksMath.normalizedAngle(-.pi * 3), -.pi, accuracy: 0.001)
     }
 
+    func testIdleRotationDirectionAlternatesAfterEveryPress() {
+        let clockwise: CGFloat = 1
+        let counterClockwise = HouseTanksMath.oppositeRotationDirection(after: clockwise)
+        let clockwiseAgain = HouseTanksMath.oppositeRotationDirection(after: counterClockwise)
+
+        XCTAssertEqual(counterClockwise, -1)
+        XCTAssertEqual(clockwiseAgain, 1)
+    }
+
     func testBotDifficultyChangesAimTolerance() {
         let bot = HouseTanksBotController(playerID: UUID(), randomUnit: { 0 })
         let observation = HouseTanksBotObservation(
