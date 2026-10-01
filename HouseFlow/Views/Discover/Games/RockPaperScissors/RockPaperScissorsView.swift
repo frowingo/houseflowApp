@@ -21,7 +21,7 @@ struct RockPaperScissorsView: View {
                     VStack(spacing: 24) {
                         Color.clear.frame(height: 0).id("top")
                         if let state = model.snapshot {
-                            tournament(state)
+                            tournament(state) 
                         } else {
                             lobby
                         }

@@ -52,3 +52,45 @@ Parkur uzunluğu 8.840 birimdir. Alt ve üst raylarda ikişer fiziksel boşluk b
 ## Doğrulama
 
 `HouseFlowTests/HouseSwitchTests.swift` güvenli platform kuralını, ölümcül temas politikasını, yerçekimi geçişini, taban temas probunu, sol kenardan tamamen çıkma sınırını, ilerleme sınırlarını ve parkurun ölçeklenmesini kapsar.
+
+---
+
+# House Rockets demo akışı
+
+- `HouseRocketsView`: hazırlık, tek insan oyuncunun 360° joystick kontrolü, HUD, duraklatma ve sonuç ekranı.
+- `HouseRocketsViewModel`: kullanıcı niyetlerini sıra numaralı komutlara dönüştürür; yalnızca yeni maç revizyonlarını kabul eder.
+- `HouseRocketsGameServicing`: demo ile gelecekteki çevrim içi oturumun ortak komut/durum sınırı.
+- `DemoHouseRocketsSession`: 1 insan + 1–3 bot, geri sayım, bot kararları ve maç yaşam döngüsü.
+- `HouseRocketsCourse`: daralan, genişleyen, yükselen/alçalan, kum saati ve kısa dar geçitlerin ortak geometri kaynağı; çizim ve fizik aynı çokgenleri kullanır.
+- `HouseRocketsSimulation`: ekran boyutundan bağımsız dünya koordinatlarında hareket, katı yüzey teması, lider takibi ve arka sınırdan elenme kuralları.
+- `HouseRocketsScene`: SpriteKit döngüsünde simülasyonu ilerletir; dünyayı eşit eksen ölçeğiyle ekrana yansıtır. Oyun kuralları çizim kodunda hesaplanmaz.
+
+## Kontrol ve kazanma kuralları
+
+Joystick yalnızca yönü belirler. Güvenli oyun alanının sağ ve sol %30’luk şeritlerinde başlayan sürüklemeler yön verir; sabit kontrol görünmez. İlk dokunma noktası merkezdir; 5 puanı geçen sürüklemede %55 opaklıkla görünür ve parmak bırakılınca veya hareket iptal edilince kaybolur. Sürükleme kenar alanından ekranın içine taşabilir. Duraklatma düğmesi kontrol katmanının üzerinde kalır. Başlangıç yönü sağdır; bırakıldığında son yön korunur. İnsan ve bot gemileri sürekli itkiyle, 300 dünya birimi/saniye temel hızla hareket eder; çubuğun merkezden uzaklığı hızı değiştirmez. Bütün yönler, geri uçuş dahil, kullanılabilir. Temas durumunda yüzeyin engellediği hareket bileşeni durur; eğimli yüzeyler gerçek yüzey normaliyle çözülür, gemi yüzey boyunca kayabilir ve yön değiştirerek kurtulabilir. Alt/üst platform veya engel teması doğrudan elemez.
+
+Parkur koordinatlarında X ilerleme, Y enine konumdur; koridor 360 birim genişliğindedir. Yatay bölümde 1.200, dikey bölümde 600 birim ilerisi görünür; iki eksen aynı ölçekle çizilir. Gemi çarpışma yarıçapı 10 birim; gövde çizimi önceki sürümün yarı ölçeğindedir. Engellerin dünya konumu sabittir. Kamera, hayattaki en öndeki geminin gerçek konumuna göre ileri kayar; kendiliğinden ilerlemez ve geri gitmez. Herkes engelde takılırsa kamera da durur. Bir geminin çarpışma gövdesi arka sınırdan (yatayda sol, dikeyde alt kenar) tamamen çıktığında elenir. Bir gemi kaldığında maç biter; süre sınırı veya mesafeye göre kazanan seçimi yoktur. Eşzamanlı olarak tüm gemilerin çıkması savunmacı bir beraberlik sonucudur.
+
+Oyun sürdükçe her 25 saniyede bir yatay/dikey geçiş başlar: 25. saniyede yukarı, 50. saniyede sağa, 75. saniyede tekrar yukarı döner. Her geçiş 3 saniye sürer; yön uyarısı geçişten 3 saniye önce görünür ve geçiş boyunca kalır. Cihaz yatay kalır. Joystick komutları ve HUD yönü ekran koordinatlarındadır; simülasyon bunları parkur koordinatlarına çevirir. Dönüş mevcut roketleri, engelleri ve hız alanlarını birlikte taşır; yeni yön girişi olmadığında parkura göre yön korunur. Kamera mesafesi ve liderin 420 birimlik arka payı değişmediğinden dönüş tek başına eleme yaratmaz.
+
+Duraklatma hareketi, dönüşü ve geçen süreyi durdurur. Elenen insan kalan botları izleyebilir. Ekrandan çıkışta oturum görevleri iptal edilir; yeniden başlatma yeni oyuncu/maç kimlikleri ve temiz simülasyon oluşturur.
+
+Bilgi yazıları yatay parkurda üst/alt boşluklarda, dikey parkurda iki yan boşluğun en üst kısmındadır. Üç saniyelik dönüş boyunca bilgiler tamamen gizlenir; duraklatma düğmesi kullanılabilir kalır. Dönüş öncesi bildirim iki tarafta da yön oku ve `Turn` olarak görünür; süre ve kalan oyuncu sayısı simge/sayıyla, izleme durumu kısa bir etiketle verilir. Bilgi katmanı joystick dokunuşlarını engellemez; yalnızca duraklatma düğmesi dokunma alır. Sahne ve bilgi katmanı aynı güvenli ekran alanını kullanır.
+
+## Görsel dil
+
+`HouseRocketsArtwork.swift` referans roketin yuvarlak gövdesini, dairesel penceresini, kanatlarını ve arka bileziğini oyun sahnesi, lobi ve Games kartı için ortak vektör yollarıyla çizer; Games kartının düzeni diğer kartlarla aynıdır. Palet: #780000, #C1121F, #FDF0D5, #003049, #669BBC, #A9D6E5. Koyu lacivert parkur, farklı tonda mavi dış alan, krem yazılar/sınırlar ve bordo engeller kullanılır. Düşük kontrastlı mavi, bordo, kırmızı ve krem topografik konturlar dış alanda sabittir; boyut değişiminde yeniden üretilir. Engel yüzeylerindeki daha belirgin konturlar siluete kırpılır. Kamera yakınlaştırması roketleri, engelleri ve tokenleri aynı oranda büyütür; dünya fiziği değişmez. Parkur yatayda ekranın sağ/sol, dikeyde üst/alt fiziksel kenarına uzanır; bilgi alanları parkurun dışında kalır. Oyuncuların mevcut serileştirilmiş renk kimlikleri korunur, görsel renkleri yeni palete eşlenir.
+
+## Hareketli hız alanları
+
+Engeller arasında ilerleme konumu sabit, parkurun enine ekseninde maç süresine bağlı sinüs hareketi yapan alanlar vardır. Yatay parkurda yukarı/aşağı, dikey parkurda sağa/sola hareket ederler. Görsel ve temas yarıçapı 15,4 birimdir (ilk boyuttan %30 küçük). Salınım hızı %20 artırılmıştır: periyotlar hızlanma için 3,0 saniye, yavaşlama için yaklaşık 3,67 saniyedir. Her beş yerleşimden biri atlanır; iki türün uzun vadeli dağılımı dengelidir. Mavi çift ok 1,3 saniye boyunca ×1,45 (435 birim/s), kırmızı fren 1,4 saniye boyunca ×0,65 (195 birim/s) uygular. Alanlar katı değildir ve gemileri elemez. Aynı alan her gemiyi bağımsız olarak bir kez etkiler; alan diğer yarışçılar için kaybolmaz. Etkiler çarpılmaz; son temas önceki etkiyi değiştirir, süre bitince temel hıza dönülür. Duraklatmada alan hareketi ve etki süresi de donar. Yeniden başlatmada etkiler ve temas geçmişi temizlenir. Kamera gerisinde kalan alanlar/temas kayıtları silinir.
+
+Hız durumu roket çevresindeki halka, itki alevi ve insan oyuncunun HUD etiketiyle gösterilir. Alanların çift ok/fren sembolleri renk ayrımını destekler. Botlar geçidin giriş merkezine ek olarak eğimli geçidin ilerideki merkezini izler; insanla aynı hız ve temas kurallarına tabidir.
+
+## Çevrim içi geçiş noktası
+
+Komutlar maç/oyuncu kimliği, sıra numarası ve radyan cinsinden hedef yönü taşır. Durum görüntüsü oyuncuların ve sabit engellerin dünya koordinatlarını, kamera konumunu, geçen süreyi, hız alanlarının hareket parametrelerini ve oyuncuların etkin hız etkisi/kalan süresini taşır. Cihaz boyutu fizik sonucunu değiştirmez. Gelecekte ağ adaptörü durum görüntülerini sahneye uygulamalı; sunucu kimlikleri, komut sıralamasını ve sonuçları doğrulamalıdır. Demo botları ve yerel simülasyon çevrim içi oyunun otoritesi olarak kabul edilmemelidir. Ağ senkronizasyonu ve sunucu otoritesi bu demoda uygulanmış değildir.
+
+## Doğrulama
+
+`HouseFlowTests/HouseRocketsTests.swift` içindeki 27 test; tam daire yönlendirme ve sabit hız, bırakılan yönün korunması, lider takibi, engellerin sabit konumu, ölümcül olmayan platform/engel teması, yüzeyde kayarak kurtulma, engelin arka yüzü, tam arka sınır çıkışı, eşzamanlı elenmeler, süre sınırının olmaması, 30/120 FPS tutarlılığı, bot geçişleri ve komut serileştirmesini kapsar. Yeni kapsam; farklı geçit profillerini, eğimli yüzeylerin normalini, hız alanlarının yalnızca dikey hareketini, hızlanma/yavaşlama temasını, tek seferlik etkiyi, temel hıza dönüşü ve tüm parkur deseninin botlarla geçişini de doğrular. Tekrarlanan yatay/dikey dönüşlerin zamanlaması ve yön uyarıları, dönüşlerde kameranın ve takılmış roketlerin korunması, ekran yönünde kontrol, alt sınırdan eleme, iPhone/iPad boyutlarında parkurun ekrana sığması ve bilgi alanlarının dönüşte gizlenmesi ve dikey konumda üstte yeniden görünmesi da test edilir. Foundation tabanlı model ve simülasyon, simülatörden bağımsız olarak da test edilebilir.

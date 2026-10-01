@@ -15,6 +15,9 @@ struct GamesHubView: View {
     @State private var appeared = false
 
     private let games: [GameInfo] = [
+        GameInfo(id: 7, titleKey: "games_house_rockets_title",
+                 descriptionKey: "games_house_rockets_card_description",
+                 icon: "arrow.up.right", color: Color(HouseRocketsPalette.red), badgeKey: "games_house_rockets_badge"),
         GameInfo(id: 6, titleKey: "games_house_tanks_title",
                  descriptionKey: "games_house_tanks_card_description",
                  icon: "scope", color: .orange, badgeKey: "games_house_tanks_badge"),
@@ -119,6 +122,7 @@ struct GamesHubView: View {
         case 4: RockPaperScissorsView()
         case 5: HouseSwitchView()
         case 6: HouseTanksView()
+        case 7: HouseRocketsView()
         default: EmptyView()
         }
     }
@@ -185,6 +189,9 @@ private struct HubGameCard: View {
                 CoverToken(symbol: "scissors", rotation: -5)
             }
             .accessibilityHidden(true)
+        } else if game.id == 7 {
+            // The rocket artwork is drawn in the same cover slot as other game icons.
+            Color.clear.frame(height: 40)
         } else {
             Image(systemName: game.icon)
                 .font(.system(size: 40, weight: .medium))
@@ -226,6 +233,9 @@ private struct HubGameCard: View {
                 Color(hex: "F26F2D"),
             ]
         }
+        if game.id == 7 {
+            return [Color(HouseRocketsPalette.navy), Color(HouseRocketsPalette.blue)]
+        }
         if game.id == 0 {
             return [
                 Color(hex: "7C2D12"),
@@ -259,12 +269,20 @@ private struct HubGameCoverBackdrop: View {
                 houseSwitchArtwork
             case 6:
                 houseTanksArtwork
+            case 7:
+                rocketsArtwork
             default:
                 EmptyView()
             }
         }
         .accessibilityHidden(true)
         .allowsHitTesting(false)
+    }
+
+    private var rocketsArtwork: some View {
+        HouseRocketsCoverArtwork()
+            .frame(height: 120)
+            .clipped()
     }
 
     private var luckySpinArtwork: some View {
@@ -445,5 +463,20 @@ struct ScaleButtonStyle: ButtonStyle {
         configuration.label
             .scaleEffect(configuration.isPressed ? 0.97 : 1)
             .animation(.spring(response: 0.3, dampingFraction: 0.7), value: configuration.isPressed)
+    }
+}
+
+/// A tiny race in progress: a rocket threads between opposing wedges.
+private struct HouseRocketsCoverArtwork: View {
+    var body: some View {
+        GeometryReader { geometry in
+            ZStack {
+                HouseRocketsTopography()
+                HouseRocketsRocketMark()
+                    .frame(width: 94, height: 94)
+                    .position(x: geometry.size.width * 0.5, y: 42)
+            }
+        }
+        .accessibilityHidden(true)
     }
 }
