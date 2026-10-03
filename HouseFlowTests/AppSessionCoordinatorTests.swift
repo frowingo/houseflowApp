@@ -25,6 +25,47 @@ final class AppSessionCoordinatorTests: XCTestCase {
         XCTAssertEqual(harness.router.route, .houseSelection)
     }
 
+    func testAutoLoginUsesCachedChosenHouseWhenItIsStillAvailable() async {
+        let harness = makeHarness(hasToken: true)
+        harness.defaults.set("house-2", forKey: "chosenHouse")
+        harness.authService.isAuthHandler = {
+            IsAuthResponse(
+                data: TestFixture.profile(houseIds: ["house-1", "house-2"]),
+                success: true
+            )
+        }
+        harness.houseService.fetchDetailsHandler = { houseId in
+            XCTAssertEqual(houseId, "house-2")
+            return TestFixture.houseDetails(id: houseId, name: "Second House")
+        }
+
+        await harness.coordinator.performAutoLogin()
+
+        XCTAssertEqual(harness.houseStore.currentHouseDetails?.id, "house-2")
+        XCTAssertEqual(harness.defaults.string(forKey: "chosenHouse"), "house-2")
+        XCTAssertEqual(harness.router.route, .dashboard)
+    }
+
+    func testAutoLoginFallsBackToFirstHouseWhenCachedChoiceIsStale() async {
+        let harness = makeHarness(hasToken: true)
+        harness.defaults.set("removed-house", forKey: "chosenHouse")
+        harness.authService.isAuthHandler = {
+            IsAuthResponse(
+                data: TestFixture.profile(houseIds: ["house-1", "house-2"]),
+                success: true
+            )
+        }
+        harness.houseService.fetchDetailsHandler = { houseId in
+            XCTAssertEqual(houseId, "house-1")
+            return TestFixture.houseDetails(id: houseId)
+        }
+
+        await harness.coordinator.performAutoLogin()
+
+        XCTAssertEqual(harness.houseStore.currentHouseDetails?.id, "house-1")
+        XCTAssertEqual(harness.defaults.string(forKey: "chosenHouse"), "house-1")
+    }
+
     func testAutoLoginWithUnverifiedUserRequiresEmailVerification() async {
         let harness = makeHarness(hasToken: true)
         harness.authService.isAuthHandler = {
@@ -90,13 +131,17 @@ final class AppSessionCoordinatorTests: XCTestCase {
             authService: authService,
             userService: userService
         )
-        let houseStore = HouseSessionStore(houseService: FakeHouseService())
+        let defaults = makeDefaults()
+        let houseService = FakeHouseService()
+        let houseStore = HouseSessionStore(
+            houseService: houseService,
+            userDefaults: defaults
+        )
         let localization = TestFixture.localizationStore()
         addTeardownBlock {
             try? FileManager.default.removeItem(at: localization.directory)
         }
         let toastStore = ToastStore()
-        let defaults = makeDefaults()
         let router = AppRouter(
             hasAuthToken: hasToken,
             pendingEmailVerification: nil,
@@ -118,7 +163,10 @@ final class AppSessionCoordinatorTests: XCTestCase {
             keychain: keychain,
             authService: authService,
             authStore: authStore,
-            router: router
+            houseService: houseService,
+            houseStore: houseStore,
+            router: router,
+            defaults: defaults
         )
     }
 
@@ -140,5 +188,8 @@ private struct Harness {
     let keychain: FakeKeychainStore
     let authService: FakeAuthService
     let authStore: AuthSessionStore
+    let houseService: FakeHouseService
+    let houseStore: HouseSessionStore
     let router: AppRouter
+    let defaults: UserDefaults
 }

@@ -16,6 +16,7 @@ extension View {
 
 @main
 struct HouseFlowApp: App {
+    @UIApplicationDelegateAdaptor(HouseFlowAppDelegate.self) private var appDelegate
     @StateObject private var appViewModel = AppViewModel()
     @Environment(\.scenePhase) private var scenePhase
 

@@ -14,6 +14,27 @@ struct JoinHouseRequest: Encodable {
     let inviteCode: String
 }
 
+enum InviteCodeRules {
+    static let requiredLength = 8
+    private static let allowedCharacters = CharacterSet(
+        charactersIn: "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789"
+    )
+
+    static func normalized(_ value: String) -> String {
+        let filtered = value
+            .uppercased()
+            .unicodeScalars
+            .filter { allowedCharacters.contains($0) }
+            .map(String.init)
+            .joined()
+        return String(filtered.prefix(requiredLength))
+    }
+
+    static func isValid(_ value: String) -> Bool {
+        normalized(value).count == requiredLength
+    }
+}
+
 // MARK: - Announcement Request
 
 struct CreateAnnouncementRequest: Encodable {
@@ -70,7 +91,7 @@ extension KeyedDecodingContainer {
 struct HouseResponse: Decodable, Identifiable {
     let id: String
     let name: String
-    let inviteCode: String
+    let inviteCode: String?
     let maxMemberCount: Int
     let memberIds: [String]
     let ownerId: String
@@ -88,7 +109,7 @@ struct HouseResponse: Decodable, Identifiable {
         let container = try decoder.container(keyedBy: CodingKeys.self)
         id = try container.decode(String.self, forKey: .id)
         name = try container.decode(String.self, forKey: .name)
-        inviteCode = try container.decode(String.self, forKey: .inviteCode)
+        inviteCode = try container.decodeIfPresent(String.self, forKey: .inviteCode)
         maxMemberCount = try container.decode(Int.self, forKey: .maxMemberCount)
         memberIds = try container.decode([String].self, forKey: .memberIds)
         ownerId = try container.decode(String.self, forKey: .ownerId)
@@ -104,7 +125,6 @@ struct HouseResponse: Decodable, Identifiable {
 struct HouseDetailsResponse: Decodable, Equatable {
     let id: String
     let name: String
-    let inviteCode: String
     let maxMemberCount: Int
     let ownerId: String
     let profileImage: String
@@ -120,7 +140,6 @@ extension HouseDetailsResponse {
     private enum CodingKeys: String, CodingKey {
         case id
         case name
-        case inviteCode
         case maxMemberCount
         case ownerId
         case profileImage
@@ -137,7 +156,6 @@ extension HouseDetailsResponse {
         let container = try decoder.container(keyedBy: CodingKeys.self)
         id = try container.decode(String.self, forKey: .id)
         name = try container.decode(String.self, forKey: .name)
-        inviteCode = try container.decode(String.self, forKey: .inviteCode)
         maxMemberCount = try container.decode(Int.self, forKey: .maxMemberCount)
         ownerId = try container.decode(String.self, forKey: .ownerId)
         profileImage = try container.decode(String.self, forKey: .profileImage)

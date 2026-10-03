@@ -80,6 +80,13 @@ protocol UserServicing: AnyObject {
 protocol HouseServicing: AnyObject {
     func createHouse(name: String, type: Int, maxMemberCount: Int) async throws -> HouseResponse
     func fetchDetails(houseId: String) async throws -> HouseDetailsResponse
+    func fetchInfo(houseId: String) async throws -> HouseInfoData
+    func updateProfile(
+        houseId: String,
+        request: UpdateHouseProfileRequest
+    ) async throws -> HouseInfoData
+    func createInviteCode(houseId: String) async throws -> HouseInviteCodeData
+    func removeMember(houseId: String, userId: String) async throws
     func joinHouse(inviteCode: String) async throws -> HouseResponse
     func createAnnouncement(
         title: String,

@@ -26,6 +26,10 @@ class AppViewModel: ObservableObject {
     /// Full server profile of the logged-in user (used for profile display & edit).
     var currentUserProfile: IsAuthUserData? { authStore.currentUserProfile }
 
+    var availableHouses: [AuthHouseSummary] {
+        authStore.currentUserProfile?.houseList ?? []
+    }
+
     var dashboardMembers: [User] { dashboardCoordinator.members }
     var dashboardChores: [Chore] { dashboardCoordinator.dashboardChores }
     var currentLanguagePrefix: String? { profileCoordinator.currentLanguagePrefix }
@@ -96,7 +100,10 @@ class AppViewModel: ObservableObject {
             ),
             toastStore: ToastStore(),
             overlayStore: OverlayStore(),
-            houseStore: HouseSessionStore(houseService: dependencies.houseService),
+            houseStore: HouseSessionStore(
+                houseService: dependencies.houseService,
+                userDefaults: dependencies.userDefaults
+            ),
             dashboardStore: DashboardStore(),
             choreStore: ChoreStore(choreService: dependencies.choreService),
             localizationStore: LocalizationStore(
@@ -174,6 +181,7 @@ class AppViewModel: ObservableObject {
         )
         profileCoordinator = ProfileCoordinator(
             authStore: authStore,
+            houseStore: houseStore,
             localizationStore: localizationStore,
             toastStore: toastStore
         )
@@ -324,6 +332,14 @@ class AppViewModel: ObservableObject {
         await sessionCoordinator.performAutoLogin()
     }
 
+    func retryHouseLoading() async {
+        if isAuthenticated {
+            await houseFlowCoordinator.reloadPreferredHouse()
+        } else {
+            await sessionCoordinator.performAutoLogin()
+        }
+    }
+
     // MARK: - Authentication Support Flows
 
     func clearSignupSuccessMessage() {
@@ -372,6 +388,46 @@ class AppViewModel: ObservableObject {
         try await profileCoordinator.fetchProfileImages(category: category)
     }
 
+    func fetchHouseInfo(houseId: String) async throws -> HouseInfoData {
+        try await profileCoordinator.fetchHouseInfo(houseId: houseId)
+    }
+
+    func fetchHouseProfileImages() async throws -> GetImagesResponse {
+        try await profileCoordinator.fetchHouseProfileImages()
+    }
+
+    func createHouseInviteCode(houseId: String) async throws -> HouseInviteCodeData {
+        try await profileCoordinator.createHouseInviteCode(houseId: houseId)
+    }
+
+    func joinHouseFromProfile(inviteCode: String) async throws -> HouseResponse {
+        try await profileCoordinator.joinHouse(inviteCode: inviteCode)
+    }
+
+    func updateHouseProfile(
+        houseId: String,
+        name: String,
+        memberCountLimit: Int,
+        profileImage: String,
+        houseType: Int
+    ) async throws -> HouseInfoData {
+        try await profileCoordinator.updateHouseProfile(
+            houseId: houseId,
+            name: name,
+            memberCountLimit: memberCountLimit,
+            profileImage: profileImage,
+            houseType: houseType
+        )
+    }
+
+    func removeHouseMember(houseId: String, userId: String) async throws {
+        try await profileCoordinator.removeHouseMember(houseId: houseId, userId: userId)
+    }
+
+    func leaveHouse(houseId: String) async throws {
+        try await houseFlowCoordinator.leaveHouse(houseId: houseId)
+    }
+
     func completeBirthdaySetup(with birthDate: Date) async throws {
         try await sessionCoordinator.completeBirthdaySetup(with: birthDate)
     }
@@ -392,6 +448,10 @@ class AppViewModel: ObservableObject {
     /// On any error, navigates back to JoinHouseView and shows a toast.
     func beginJoinHouseFlow(inviteCode: String) async {
         await houseFlowCoordinator.beginJoinHouseFlow(inviteCode: inviteCode)
+    }
+
+    func switchHouse(to house: AuthHouseSummary) async {
+        await houseFlowCoordinator.switchHouse(to: house)
     }
 
     // MARK: - Toast

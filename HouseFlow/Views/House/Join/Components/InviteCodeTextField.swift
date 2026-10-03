@@ -12,15 +12,22 @@ struct InviteCodeTextField: View {
     
     var body: some View {
         TextField(appViewModel.localized("join_house_invite_placeholder"), text: $text)
-            .font(.system(size: 18, weight: .medium, design: .monospaced))
+            .font(.system(.body, design: .monospaced, weight: .semibold))
             .multilineTextAlignment(.center)
-            .textInputAutocapitalization(.never)
+            .textInputAutocapitalization(.characters)
             .autocorrectionDisabled()
+            .keyboardType(.asciiCapable)
             .focused($isFocused)
             .padding(.horizontal, AppDesign.Spacing.lg)
             .padding(.vertical, AppDesign.Spacing.lg)
             .foregroundStyle(AppDesign.Colors.textPrimary)
             .background(fieldBackground)
+            .onChange(of: text) { _, value in
+                let normalizedValue = InviteCodeRules.normalized(value)
+                if normalizedValue != value {
+                    text = normalizedValue
+                }
+            }
             .onSubmit(onSubmit)
     }
     

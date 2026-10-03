@@ -105,7 +105,7 @@ final class AuthSessionStore: ObservableObject {
             createdOn: data.createdOn,
             email: data.email,
             firstName: data.firstName,
-            houseIds: data.houseIds,
+            houseList: currentUserProfile?.houseList ?? [],
             id: data.id,
             imageUrl: data.imageUrl,
             isActive: data.isActive,
@@ -117,6 +117,41 @@ final class AuthSessionStore: ObservableObject {
             phoneNumber: data.phoneNumber,
             updatedOn: data.updatedOn
         )
+    }
+
+    func addOrUpdateHouse(_ house: HouseResponse) {
+        guard var profile = currentUserProfile else { return }
+
+        let summary = AuthHouseSummary(
+            houseId: house.id,
+            houseName: house.name,
+            houseProfile: house.profileImage
+        )
+        if let index = profile.houseList.firstIndex(where: { $0.houseId == house.id }) {
+            profile.houseList[index] = summary
+        } else {
+            profile.houseList.append(summary)
+        }
+        currentUserProfile = profile
+    }
+
+    func updateHouseSummary(houseId: String, name: String, profileImage: String) {
+        guard var profile = currentUserProfile,
+              let index = profile.houseList.firstIndex(where: { $0.houseId == houseId }) else {
+            return
+        }
+        profile.houseList[index] = AuthHouseSummary(
+            houseId: houseId,
+            houseName: name,
+            houseProfile: profileImage
+        )
+        currentUserProfile = profile
+    }
+
+    func removeHouseSummary(houseId: String) {
+        guard var profile = currentUserProfile else { return }
+        profile.houseList.removeAll { $0.houseId == houseId }
+        currentUserProfile = profile
     }
 
     func fetchProfileImages(category: String) async throws -> GetImagesResponse {

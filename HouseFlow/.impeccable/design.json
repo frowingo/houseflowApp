@@ -1,0 +1,203 @@
+{
+  "schemaVersion": 2,
+  "generatedAt": "2026-09-22T22:20:47Z",
+  "title": "Design System: HouseFlow — House-Switch Surface",
+  "extensions": {
+    "colorMeta": {
+      "night-sky": {
+        "role": "neutral",
+        "displayName": "Night Sky",
+        "canonical": "#071827",
+        "tonalRamp": ["#031018", "#071827", "#102A3D", "#24465A", "#486979", "#718F9B", "#A7BBC2", "#E5EDF0"]
+      },
+      "horizon-teal": {
+        "role": "secondary",
+        "displayName": "Horizon Teal",
+        "canonical": "#123D4B",
+        "tonalRamp": ["#082128", "#123D4B", "#1B5868", "#337486", "#5792A1", "#82B1BC", "#B3D1D7", "#E6F1F3"]
+      },
+      "panel-ink": {
+        "role": "neutral",
+        "displayName": "Panel Ink",
+        "canonical": "rgba(10, 28, 45, 0.92)",
+        "tonalRamp": ["#06101A", "#0A1C2D", "#173047", "#2E4A60", "#536C7E", "#7D929F", "#B0BEC6", "#E8EDF0"]
+      },
+      "action-mint": {
+        "role": "primary",
+        "displayName": "Action Mint",
+        "canonical": "#31D7C5",
+        "tonalRamp": ["#063D38", "#075B53", "#087C70", "#0D9F90", "#18BFAE", "#31D7C5", "#8BE9DF", "#D9F9F5"]
+      },
+      "action-ink": {
+        "role": "neutral",
+        "displayName": "Action Ink",
+        "canonical": "#041B22",
+        "tonalRamp": ["#020E12", "#041B22", "#12313A", "#294A54", "#506C75", "#7C9299", "#B0BEC2", "#E8EEEE"]
+      },
+      "hazard-orange": {
+        "role": "tertiary",
+        "displayName": "Hazard Orange",
+        "canonical": "#F28A3A",
+        "tonalRamp": ["#451B05", "#692A08", "#913D0D", "#B95516", "#DA6C24", "#F28A3A", "#F8BA86", "#FDE7D5"]
+      },
+      "primary-ink": {
+        "role": "neutral",
+        "displayName": "Primary Ink",
+        "canonical": "rgba(255, 255, 255, 0.96)",
+        "tonalRamp": ["#262626", "#454545", "#666666", "#898989", "#ADADAD", "#CECECE", "#E9E9E9", "#FFFFFF"]
+      },
+      "secondary-ink": {
+        "role": "neutral",
+        "displayName": "Secondary Ink",
+        "canonical": "rgba(255, 255, 255, 0.72)",
+        "tonalRamp": ["#262626", "#454545", "#666666", "#898989", "#ADADAD", "#CECECE", "#E9E9E9", "#FFFFFF"]
+      },
+      "quiet-track": {
+        "role": "neutral",
+        "displayName": "Quiet Track",
+        "canonical": "rgba(255, 255, 255, 0.16)",
+        "tonalRamp": ["#262626", "#454545", "#666666", "#898989", "#ADADAD", "#CECECE", "#E9E9E9", "#FFFFFF"]
+      }
+    },
+    "typographyMeta": {
+      "display": { "displayName": "Briefing Display", "purpose": "House-Switch briefing title only; native large-title semantics." },
+      "title": { "displayName": "State Title", "purpose": "Pause, crash, and finish overlay titles." },
+      "headline": { "displayName": "Action Headline", "purpose": "Primary actions, rule titles, and compact values." },
+      "body": { "displayName": "Interface Body", "purpose": "Overlay explanations and secondary actions." },
+      "supporting": { "displayName": "Supporting Copy", "purpose": "Rule explanations and transient hints." },
+      "label": { "displayName": "HUD Label", "purpose": "Progress endpoints and compact metadata." }
+    },
+    "shadows": [
+      {
+        "name": "mark-ambient",
+        "value": "0 10px 18px rgba(0, 0, 0, 0.28)",
+        "purpose": "Soft elevation under the large House-Switch briefing mark only."
+      },
+      {
+        "name": "gameplay-signal-glow",
+        "value": "0 0 16px rgba(49, 215, 197, 0.45)",
+        "purpose": "Representative glow for interactive course signals; intensity varies in SpriteKit by state."
+      }
+    ],
+    "motion": [
+      {
+        "name": "gravity-rotation",
+        "value": "180ms",
+        "purpose": "Rotate the house to the new gravity direction using the shortest arc after a supported flip only."
+      },
+      {
+        "name": "flip-pulse",
+        "value": "220ms",
+        "purpose": "Scale and fade the mint player aura after an accepted supported gravity flip."
+      },
+      {
+        "name": "blocked-flip-feedback",
+        "value": "rigid haptic, intensity 0.55",
+        "purpose": "Acknowledge an airborne tap without changing gravity, runner orientation, or flip count."
+      },
+      {
+        "name": "pressed-spring",
+        "value": "spring(response: 300ms, dampingFraction: 0.7)",
+        "purpose": "Scale filled actions to 97% while pressed."
+      },
+      {
+        "name": "laser-cycle",
+        "value": "warning 220ms; pre-active hold 360ms; active 1050ms; cooldown fade 200ms; idle 1350ms",
+        "purpose": "Make laser warning, activation, and cooldown visible through brightness and opacity."
+      }
+    ]
+  },
+  "components": [
+    {
+      "name": "Primary Start Action",
+      "kind": "button",
+      "refersTo": "action-primary",
+      "description": "The full-width mint action that requests landscape and begins only after a landscape viewport is confirmed; it also restarts completed runs.",
+      "html": "<button class=\"ds-action-primary\"><span aria-hidden=\"true\">▭</span><span>ROTATE AND START</span></button>",
+      "css": ".ds-action-primary { width: 100%; min-height: 56px; display: inline-flex; align-items: center; justify-content: center; gap: 8px; padding: 0 20px; border: 0; border-radius: 16px; background: #31D7C5; color: #041B22; font: 600 17px/1.2 -apple-system, BlinkMacSystemFont, sans-serif; transition: transform 180ms ease, filter 180ms ease; } .ds-action-primary:hover { filter: brightness(1.06); } .ds-action-primary:active { transform: scale(0.97); } .ds-action-primary:focus-visible { outline: 3px solid rgba(255,255,255,0.92); outline-offset: 3px; }"
+    },
+    {
+      "name": "Landscape Requirement Panel",
+      "kind": "card",
+      "refersTo": "landscape-notice",
+      "description": "The prominent pre-run prerequisite panel; it changes from mint guidance to orange recovery messaging if automatic rotation fails.",
+      "html": "<section class=\"ds-landscape-panel\"><span class=\"ds-landscape-icon\" aria-hidden=\"true\">▭↻</span><span class=\"ds-landscape-copy\"><span class=\"ds-landscape-heading\"><strong>Landscape required</strong><b>REQUIRED</b></span><small>The screen rotates automatically when the run starts. House-Switch cannot be played in portrait.</small></span></section>",
+      "css": ".ds-landscape-panel { display: grid; grid-template-columns: 48px 1fr; gap: 12px; align-items: center; padding: 16px; border-radius: 20px; background: rgba(10,28,45,0.92); color: rgba(255,255,255,0.96); font-family: -apple-system, BlinkMacSystemFont, sans-serif; } .ds-landscape-icon { width: 48px; height: 48px; display: grid; place-items: center; border-radius: 12px; background: rgba(49,215,197,0.13); color: #31D7C5; font-size: 18px; font-weight: 800; } .ds-landscape-copy { display: grid; gap: 4px; } .ds-landscape-heading { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; } .ds-landscape-heading strong { font-size: 17px; line-height: 1.25; } .ds-landscape-heading b { padding: 4px 8px; border-radius: 999px; background: #31D7C5; color: #041B22; font-size: 11px; line-height: 1; } .ds-landscape-copy small { color: rgba(255,255,255,0.72); font-size: 15px; line-height: 1.35; } .ds-landscape-panel:focus-visible { outline: 3px solid rgba(255,255,255,0.92); outline-offset: 3px; }"
+    },
+    {
+      "name": "Briefing Rule Panel",
+      "kind": "card",
+      "refersTo": "briefing-panel",
+      "description": "A translucent navy teaching panel with five 44-point icon-led rules for supported flips, moving solid geometry, rail gaps, short speed pads, and active lasers.",
+      "html": "<section class=\"ds-rule-panel\"><div class=\"ds-rule-row\"><span class=\"ds-rule-icon\">↕</span><span><strong>Flip from a surface</strong><small>Gravity changes only while the house base touches solid geometry.</small></span></div><div class=\"ds-rule-row\"><span class=\"ds-rule-icon ds-rule-icon-solid\">▥</span><span><strong>Walls are safe</strong><small>Impacts do not kill, but the course keeps moving.</small></span></div><div class=\"ds-rule-row\"><span class=\"ds-rule-icon ds-rule-icon-warn\">□</span><span><strong>Avoid the gaps</strong><small>Floor and ceiling gaps send you off-screen. Flip before reaching them.</small></span></div><div class=\"ds-rule-row\"><span class=\"ds-rule-icon\">→</span><span><strong>Use the speed pads</strong><small>Mint arrow pads give a short speed boost and move you slightly right on screen.</small></span></div><div class=\"ds-rule-row\"><span class=\"ds-rule-icon ds-rule-icon-warn\">!</span><span><strong>Avoid active lasers</strong><small>Touching an active laser ends the run.</small></span></div></section>",
+      "css": ".ds-rule-panel { display: grid; gap: 16px; padding: 20px; border-radius: 20px; background: rgba(10,28,45,0.92); color: rgba(255,255,255,0.96); font-family: -apple-system, BlinkMacSystemFont, sans-serif; } .ds-rule-row { display: grid; grid-template-columns: 44px 1fr; gap: 12px; align-items: start; } .ds-rule-row strong, .ds-rule-row small { display: block; } .ds-rule-row strong { font-size: 17px; line-height: 1.25; } .ds-rule-row small { margin-top: 4px; color: rgba(255,255,255,0.72); font-size: 15px; line-height: 1.35; } .ds-rule-icon { width: 44px; height: 44px; display: grid; place-items: center; border-radius: 12px; background: rgba(49,215,197,0.13); color: #31D7C5; font-weight: 700; } .ds-rule-icon-solid { background: rgba(34,211,238,0.13); color: #67E8F9; } .ds-rule-icon-warn { background: rgba(242,138,58,0.13); color: #F28A3A; }"
+    },
+    {
+      "name": "Gameplay Progress HUD",
+      "kind": "custom",
+      "refersTo": "hud-control",
+      "description": "A compact shadowless progress surface that keeps the course visible.",
+      "html": "<div class=\"ds-progress\" role=\"progressbar\" aria-valuenow=\"42\" aria-valuemin=\"0\" aria-valuemax=\"100\"><div class=\"ds-progress-labels\"><span>START</span><span>FINISH</span></div><div class=\"ds-progress-track\"><span></span></div></div>",
+      "css": ".ds-progress { padding: 8px 12px; border-radius: 12px; background: rgba(10,28,45,0.92); font-family: -apple-system, BlinkMacSystemFont, sans-serif; } .ds-progress-labels { display: flex; justify-content: space-between; margin-bottom: 4px; color: rgba(255,255,255,0.72); font-size: 11px; font-weight: 700; } .ds-progress-track { height: 7px; overflow: hidden; border-radius: 999px; background: rgba(255,255,255,0.16); } .ds-progress-track span { display: block; width: 42%; height: 100%; min-width: 8px; border-radius: inherit; background: #31D7C5; transition: width 180ms ease; } .ds-progress:focus-visible { outline: 3px solid rgba(255,255,255,0.92); outline-offset: 3px; }"
+    },
+    {
+      "name": "Paused State Overlay",
+      "kind": "card",
+      "refersTo": "state-overlay",
+      "description": "The centered state surface for pause, crash, and finish outcomes.",
+      "html": "<section class=\"ds-state-overlay\"><div class=\"ds-state-icon\">Ⅱ</div><h2>Paused</h2><p>Your course is waiting.</p><button>▶ Resume</button><a href=\"#\">Exit game</a></section>",
+      "css": ".ds-state-overlay { width: min(100%, 430px); box-sizing: border-box; padding: 24px; display: grid; justify-items: center; gap: 20px; border-radius: 24px; background: rgba(10,28,45,0.92); color: rgba(255,255,255,0.96); text-align: center; font-family: -apple-system, BlinkMacSystemFont, sans-serif; } .ds-state-icon { width: 76px; height: 76px; display: grid; place-items: center; border-radius: 20px; background: rgba(49,215,197,0.13); color: #31D7C5; font-size: 30px; font-weight: 800; } .ds-state-overlay h2, .ds-state-overlay p { margin: 0; } .ds-state-overlay h2 { font-size: 28px; font-weight: 900; } .ds-state-overlay p { color: rgba(255,255,255,0.72); font-size: 17px; } .ds-state-overlay button { width: 100%; min-height: 56px; border: 0; border-radius: 16px; background: #31D7C5; color: #041B22; font-size: 17px; font-weight: 600; transition: transform 180ms ease, filter 180ms ease; } .ds-state-overlay button:hover { filter: brightness(1.06); } .ds-state-overlay button:active { transform: scale(0.97); } .ds-state-overlay button:focus-visible, .ds-state-overlay a:focus-visible { outline: 3px solid rgba(255,255,255,0.92); outline-offset: 3px; } .ds-state-overlay a { min-height: 44px; display: grid; place-items: center; color: rgba(255,255,255,0.72); text-decoration: none; font-size: 17px; font-weight: 600; }"
+    },
+    {
+      "name": "House Runner Signal",
+      "kind": "custom",
+      "description": "The signature mint house silhouette; supported taps rotate it, airborne taps leave it unchanged, gap falls carry it off-screen, and one-use mint arrow pads briefly move it right relative to the camera.",
+      "html": "<div class=\"ds-runner-stage\"><div class=\"ds-runner-aura\"></div><svg class=\"ds-runner\" viewBox=\"0 0 36 42\" role=\"img\" aria-label=\"House runner\"><path d=\"M2 20 L18 3 L34 20 V40 H2 Z\"/><rect class=\"ds-window\" x=\"8\" y=\"23\" width=\"8\" height=\"8\" rx=\"2\"/><rect class=\"ds-door\" x=\"23\" y=\"28\" width=\"8\" height=\"12\" rx=\"2\"/></svg></div>",
+      "css": ".ds-runner-stage { position: relative; width: 54px; height: 54px; display: grid; place-items: center; } .ds-runner-aura { position: absolute; width: 46px; height: 46px; border-radius: 50%; background: rgba(49,215,197,0.18); box-shadow: 0 0 16px rgba(49,215,197,0.35); transition: transform 220ms ease, opacity 220ms ease; } .ds-runner { position: relative; width: 34px; height: 42px; overflow: visible; fill: #2ED1C7; stroke: rgba(255,255,255,0.82); stroke-width: 2px; filter: drop-shadow(0 0 3px rgba(49,215,197,0.5)); transition: transform 180ms ease; } .ds-window { fill: rgba(13,43,71,0.9); stroke: rgba(255,255,255,0.35); stroke-width: 1px; } .ds-door { fill: #FF8538; stroke: none; } .ds-runner-stage:hover .ds-runner { transform: rotate(180deg); } .ds-runner-stage:hover .ds-runner-aura { transform: scale(1.35); opacity: 0.28; } .ds-runner-stage:focus-visible { outline: 3px solid rgba(255,255,255,0.92); outline-offset: 3px; border-radius: 12px; }"
+    }
+  ],
+  "narrative": {
+    "northStar": "The Neon Household Run",
+    "overview": "House-Switch is a compact, landscape-only arcade world nested inside HouseFlow: a deep, cool nightscape where a small house becomes the runner. It feels energetic without abandoning the app's friendly native character. The lobby clearly establishes the required orientation before play, then the playfield owns the screen for the full run; surrounding interface stays concise, rounded, legible, and unmistakably iOS.\n\nThis document is intentionally bounded to the House-Switch game surface and the reusable visual or interaction vocabulary expressed by that surface. It is not authority to restyle unrelated HouseFlow screens. Within this boundary, mint communicates action, progress, and successful completion; orange communicates explicit danger and high-salience result feedback; translucent navy panels keep controls readable without separating them from the course.",
+    "keyCharacteristics": [
+      "Deep blue-to-teal night atmosphere with restrained neon accents.",
+      "Native iOS typography, controls, accessibility, and navigation behavior.",
+      "A prominent landscape requirement that gates and then locks the playable layout.",
+      "Friendly continuous corners and compact translucent HUD surfaces.",
+      "A house-shaped runner and gravity reversal as the signature visual interaction.",
+      "Motion that explains gameplay state and yields to Reduce Motion."
+    ],
+    "rules": [
+      { "name": "The Two-Signal Rule", "body": "Mint means act, advance, or finish; orange means danger or exceptional result feedback. Do not introduce a third competing accent inside House-Switch.", "section": "colors" },
+      { "name": "The Orange Is Earned Rule", "body": "Warm color stays rare enough that an active laser or crash result remains immediately legible.", "section": "colors" },
+      { "name": "The Native Scale Rule", "body": "Keep non-gameplay copy on iOS semantic text styles so localization and Dynamic Type remain useful; do not freeze interface copy into SpriteKit labels.", "section": "typography" },
+      { "name": "The Course-First Rule", "body": "Once play begins, remove briefing density and give nearly the entire viewport to the course; HUD elements exist only to pause, orient, or report progress.", "section": "layout" },
+      { "name": "The Landscape Gate Rule", "body": "Explain landscape-only play before the start action, wait for a real landscape viewport before entering the playable phase, and keep that orientation locked until the game exits.", "section": "layout" },
+      { "name": "The Signal-Only Glow Rule", "body": "Glow identifies interactive or hazardous course objects. Panels, copy, and routine controls do not glow.", "section": "elevation" }
+    ],
+    "dos": [
+      "Do keep the entire unobscured playfield available as the gravity-flip target while preserving explicit pause controls.",
+      "Do make the landscape-only requirement prominent in the lobby, start only after landscape layout is confirmed, and keep the run locked there until exit.",
+      "Do keep camera and course progression advancing when a solid obstacle blocks the player, and trigger left-behind failure only after the whole runner clears the left viewport edge.",
+      "Do accept gravity flips only from the gravity-facing supported base; use distinct blocked feedback for airborne taps without changing gameplay state.",
+      "Do scale vertical geometry, gravity, and switch velocity from playfield height so phone and iPad landscape traversal stays reachable.",
+      "Do use mint for the principal action/progress channel and orange only for hazards or exceptional result feedback.",
+      "Do keep solid platforms visually substantial and non-lethal; their outline and highlight should distinguish them from lasers.",
+      "Do show the four alternating rail gaps as physical openings with amber edge markers and let a fall finish off-screen before ending the run.",
+      "Do show all five one-use speed pads as short mint strips with right-pointing arrows; their brief boost should recover only a little screen space.",
+      "Do pair motion and haptics with persistent visual state, and replace decorative parallax or large transitions when Reduce Motion is enabled.",
+      "Do preserve native localization, Dynamic Type, semantic accessibility labels, and 44-point minimum controls outside the SpriteKit course."
+    ],
+    "donts": [
+      "Don't extend this dark arcade treatment to unrelated HouseFlow surfaces without a separate design decision.",
+      "Don't style ordinary panels or labels with neon glow; glow belongs to course signals.",
+      "Don't use orange as a general secondary accent or let it compete with active hazards.",
+      "Don't begin a run while the measured layout is portrait or restore portrait support before the game view exits.",
+      "Don't pause course scrolling because a solid obstacle blocks the player, or fail the run while any part of the runner is still inside the left viewport edge.",
+      "Don't let an airborne tap reverse gravity, rotate the house, or increment the flip count.",
+      "Don't make a platform front or side impact look like failure; only explicit hazards, leaving the vertical boundary, or falling fully behind the left viewport end a run.",
+      "Don't depict a gap as a solid platform or let an already-used speed pad imply another available boost.",
+      "Don't copy the reference game's name, artwork, assets, or browser-like chrome."
+    ]
+  }
+}

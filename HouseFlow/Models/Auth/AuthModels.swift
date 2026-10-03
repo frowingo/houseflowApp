@@ -59,12 +59,20 @@ struct IsAuthResponse: Decodable {
     let success: Bool
 }
 
+struct AuthHouseSummary: Decodable, Equatable, Identifiable {
+    let houseId: String
+    let houseName: String
+    let houseProfile: String
+
+    var id: String { houseId }
+}
+
 struct IsAuthUserData: Decodable {
     let birthDate: String?
     let createdOn: String
     let email: String
     let firstName: String
-    let houseIds: [String]
+    var houseList: [AuthHouseSummary]
     let id: String
     let imageUrl: String
     let isActive: Bool
@@ -80,7 +88,7 @@ struct IsAuthUserData: Decodable {
 
     enum CodingKeys: String, CodingKey {
         case birthDate = "birthDay"
-        case createdOn, email, firstName, houseIds, id, imageUrl
+        case createdOn, email, firstName, houseList, id, imageUrl
         case isActive, isVerifyEmail, isVerifyPhone, language, lastLogin, lastName
         case phoneNumber, updatedOn
     }

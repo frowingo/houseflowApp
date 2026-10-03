@@ -43,6 +43,73 @@ final class HouseService {
         return try unwrap(response, fallbackError: "House details could not be loaded.")
     }
 
+    // MARK: - House Information
+
+    /// GET house/infos?houseId=<id> — requires Bearer token
+    func fetchInfo(houseId: String) async throws -> HouseInfoData {
+        guard let token = keychain.authToken else {
+            throw NetworkError.serverError("Not authenticated.")
+        }
+        let response = try await network.get(
+            path: "house/infos",
+            queryItems: [URLQueryItem(name: "houseId", value: houseId)],
+            successType: HouseAPIResponse<HouseInfoData>.self,
+            token: token
+        )
+        return try unwrap(response, fallbackError: "House information could not be loaded.")
+    }
+
+    /// PUT house/profile?houseId=<id> — requires Bearer token
+    func updateProfile(
+        houseId: String,
+        request: UpdateHouseProfileRequest
+    ) async throws -> HouseInfoData {
+        guard let token = keychain.authToken else {
+            throw NetworkError.serverError("Not authenticated.")
+        }
+        let response = try await network.authenticatedRequest(
+            path: "house/profile",
+            method: "PUT",
+            queryItems: [URLQueryItem(name: "houseId", value: houseId)],
+            body: request,
+            successType: HouseAPIResponse<HouseInfoData>.self,
+            token: token
+        )
+        return try unwrap(response, fallbackError: "House information could not be updated.")
+    }
+
+    /// POST house/inviteCode — requires Bearer token
+    func createInviteCode(houseId: String) async throws -> HouseInviteCodeData {
+        guard let token = keychain.authToken else {
+            throw NetworkError.serverError("Not authenticated.")
+        }
+        let response = try await network.authenticatedRequest(
+            path: "house/inviteCode",
+            method: "POST",
+            body: CreateHouseInviteCodeRequest(houseId: houseId),
+            successType: HouseAPIResponse<HouseInviteCodeData>.self,
+            token: token
+        )
+        return try unwrap(response, fallbackError: "An invite code could not be created.")
+    }
+
+    /// POST house/exit — requires Bearer token
+    func removeMember(houseId: String, userId: String) async throws {
+        guard let token = keychain.authToken else {
+            throw NetworkError.serverError("Not authenticated.")
+        }
+        let response = try await network.authenticatedRequest(
+            path: "house/exit",
+            method: "POST",
+            body: ExitHouseRequest(houseId: houseId, userId: userId),
+            successType: HouseActionResponse.self,
+            token: token
+        )
+        guard response.success else {
+            throw NetworkError.serverError(response.error ?? "The member could not be removed.")
+        }
+    }
+
     // MARK: - Join House
 
     /// POST house/join  — requires Bearer token

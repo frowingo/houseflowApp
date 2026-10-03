@@ -48,7 +48,7 @@ struct HouseErrorView: View {
                 // Actions
                 VStack(spacing: AppDesign.Spacing.lg) {
                     Button(action: {
-                        Task { await appViewModel.performAutoLogin() }
+                        Task { await appViewModel.retryHouseLoading() }
                     }) {
                         Text(appViewModel.localized("house_error_retry_button"))
                             .font(AppDesign.Typography.headline)

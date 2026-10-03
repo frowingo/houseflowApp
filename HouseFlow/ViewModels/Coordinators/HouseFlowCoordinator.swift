@@ -64,6 +64,7 @@ final class HouseFlowCoordinator {
             )
             guard isCurrent(activeFlowID), authStore.isAuthenticated else { return }
             houseStore.applyLoadedHouse(result)
+            authStore.addOrUpdateHouse(result.house)
             try? await Task.sleep(for: completionDelay)
             guard isCurrent(activeFlowID), authStore.isAuthenticated else { return }
             router.navigationDirection = .forward
@@ -101,6 +102,7 @@ final class HouseFlowCoordinator {
             )
             guard isCurrent(activeFlowID), authStore.isAuthenticated else { return }
             houseStore.applyLoadedHouse(result)
+            authStore.addOrUpdateHouse(result.house)
             try? await Task.sleep(for: completionDelay)
             guard isCurrent(activeFlowID), authStore.isAuthenticated else { return }
             router.navigationDirection = .forward
@@ -110,6 +112,109 @@ final class HouseFlowCoordinator {
             houseStore.houseError = error.localizedDescription
             router.navigationDirection = .backward
             router.navigate(to: .joinHouse)
+            toastStore.show(message: error.localizedDescription, isError: true)
+        }
+    }
+
+    func switchHouse(to house: AuthHouseSummary) async {
+        guard authStore.isAuthenticated else {
+            router.showUnauthenticatedEntry()
+            return
+        }
+        guard authStore.currentUserProfile?.houseList.contains(where: {
+            $0.houseId == house.houseId
+        }) == true else {
+            return
+        }
+        guard houseStore.currentHouseDetails?.id != house.houseId else { return }
+
+        let activeFlowID = beginFlow()
+        houseStore.houseError = nil
+        router.navigationDirection = .forward
+        router.navigate(to: .houseLoading(.loadingHouse), respectingOnboarding: false)
+
+        do {
+            let details = try await houseStore.loadHouseDetails(
+                houseId: house.houseId,
+                forceRefresh: true
+            )
+            guard isCurrent(activeFlowID), authStore.isAuthenticated else { return }
+            houseStore.applySelectedHouseDetails(
+                details,
+                houseNameOverride: house.houseName
+            )
+            router.navigate(to: .dashboard)
+        } catch {
+            guard isCurrent(activeFlowID), authStore.isAuthenticated else { return }
+            houseStore.houseError = error.localizedDescription
+            router.navigationDirection = .backward
+            router.navigate(to: .dashboard)
+            toastStore.show(message: error.localizedDescription, isError: true)
+        }
+    }
+
+    func leaveHouse(houseId: String) async throws {
+        guard authStore.isAuthenticated, let userId = authStore.currentUserId else {
+            throw NetworkError.serverError("User not authenticated.")
+        }
+        guard let profile = authStore.currentUserProfile,
+              profile.houseList.contains(where: { $0.houseId == houseId }) else {
+            return
+        }
+
+        let isLeavingActiveHouse = houseStore.currentHouseDetails?.id == houseId
+        try await houseStore.leaveHouse(houseId: houseId, userId: userId)
+        authStore.removeHouseSummary(houseId: houseId)
+
+        guard isLeavingActiveHouse else { return }
+
+        houseStore.resetHouseSession()
+        houseStore.clearChosenHouseSelection()
+
+        guard authStore.currentUserProfile?.houseList.isEmpty == false else {
+            router.navigationDirection = .backward
+            router.navigate(to: .houseSelection)
+            return
+        }
+
+        await reloadPreferredHouse()
+    }
+
+    func reloadPreferredHouse() async {
+        guard authStore.isAuthenticated, let profile = authStore.currentUserProfile else {
+            router.showUnauthenticatedEntry()
+            return
+        }
+
+        guard !profile.houseList.isEmpty else {
+            houseStore.resetHouseSession()
+            houseStore.clearChosenHouseSelection()
+            router.navigationDirection = .backward
+            router.navigate(to: .houseSelection)
+            return
+        }
+
+        let activeFlowID = beginFlow()
+        houseStore.houseError = nil
+        router.navigationDirection = .forward
+        router.navigate(to: .houseLoading(.loadingHouse), respectingOnboarding: false)
+
+        do {
+            guard let result = try await houseStore.loadPreferredHouseDetails(for: profile) else {
+                return
+            }
+            guard isCurrent(activeFlowID), authStore.isAuthenticated else { return }
+            houseStore.applySelectedHouseDetails(
+                result.details,
+                houseNameOverride: result.house.houseName
+            )
+            router.navigate(to: .dashboard)
+        } catch {
+            guard isCurrent(activeFlowID), authStore.isAuthenticated else { return }
+            houseStore.resetHouseSession()
+            houseStore.houseError = error.localizedDescription
+            router.navigationDirection = .backward
+            router.navigate(to: .houseError, respectingOnboarding: false)
             toastStore.show(message: error.localizedDescription, isError: true)
         }
     }
