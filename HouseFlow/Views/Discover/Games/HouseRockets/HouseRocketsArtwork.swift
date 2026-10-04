@@ -18,6 +18,10 @@ enum HouseRocketsPalette {
         case .coral: red
         case .blue: blue
         case .gold: burgundy
+        case .violet: UIColor(red: 157 / 255, green: 132 / 255, blue: 190 / 255, alpha: 1)
+        case .orange: UIColor(red: 224 / 255, green: 153 / 255, blue: 96 / 255, alpha: 1)
+        case .pink: UIColor(red: 216 / 255, green: 149 / 255, blue: 173 / 255, alpha: 1)
+        case .teal: UIColor(red: 103 / 255, green: 174 / 255, blue: 167 / 255, alpha: 1)
         }
     }
 }

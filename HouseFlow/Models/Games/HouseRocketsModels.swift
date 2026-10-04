@@ -37,6 +37,10 @@ enum HouseRocketsColor: String, CaseIterable, Codable, Identifiable, Sendable {
     case coral
     case blue
     case gold
+    case violet
+    case orange
+    case pink
+    case teal
 
     var id: String { rawValue }
 }

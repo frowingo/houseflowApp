@@ -1,7 +1,7 @@
 import Foundation
 
 /// Owns the application's production dependency graph.
-/// All services in one graph share the same network transport and keychain.
+/// Services share network/keychain; a separate game URL can be injected for local/staging.
 struct AppDependencies {
     let keychain: any KeychainStoring
     let authService: any AuthServicing
@@ -13,9 +13,11 @@ struct AppDependencies {
     let localizationCache: LocalizationDiskCache
     let houseRocketsSessionFactory: HouseRocketsSessionFactory
 
-    static func live() -> AppDependencies {
+    static func live(gameBaseURL: URL? = nil) -> AppDependencies {
         let keychain = KeychainService()
         let network = NetworkService()
+        let gameURL = gameBaseURL ?? AppEnvironment.current.baseURL
+        let gameNetwork = gameBaseURL == nil ? network : NetworkService(baseURL: gameURL)
 
         return AppDependencies(
             keychain: keychain,
@@ -26,7 +28,7 @@ struct AppDependencies {
             localizationService: LocalizationService(network: network),
             userDefaults: .standard,
             localizationCache: LocalizationDiskCache(),
-            houseRocketsSessionFactory: .localOnly
+            houseRocketsSessionFactory: .live(network: gameNetwork, keychain: keychain, baseURL: gameURL)
         )
     }
 }

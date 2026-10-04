@@ -7,12 +7,12 @@ final class HouseRocketsScene: SKScene {
     private let worldMask = SKSpriteNode(color: .white, size: .zero)
     private let environment = SKNode()
     private var trackSurfaces: [SKShapeNode] = []
-    private var rocketNodes: [UUID: SKNode] = [:]
-    private var flames: [UUID: SKShapeNode] = [:]
-    private var gateNodes: [UUID: SKNode] = [:]
-    private var fieldNodes: [UUID: SKNode] = [:]
+    private var rocketNodes: [String: SKNode] = [:]
+    private var flames: [String: SKShapeNode] = [:]
+    private var gateNodes: [String: SKNode] = [:]
+    private var fieldNodes: [String: SKNode] = [:]
     private var trackDashes: [SKShapeNode] = []
-    private var snapshot: HouseRocketsSnapshot?
+    private var renderFrame: HouseRocketsRenderFrame?
     private var reduceMotion = false
 
     override func didMove(to view: SKView) {
@@ -31,10 +31,14 @@ final class HouseRocketsScene: SKScene {
     }
 
     func applySnapshot(_ incoming: HouseRocketsSnapshot) {
-        if snapshot?.matchID != incoming.matchID {
+        applyFrame(HouseRocketsRenderMapper.local(incoming))
+    }
+
+    func applyFrame(_ incoming: HouseRocketsRenderFrame) {
+        if renderFrame?.sessionID != incoming.sessionID || renderFrame?.courseVersion != incoming.courseVersion {
             clearWorld()
         }
-        snapshot = incoming
+        renderFrame = incoming
         if world.parent == nil { addChild(world) }
         let playerIDs = Set(incoming.players.map(\.id))
         for id in Array(rocketNodes.keys) where !playerIDs.contains(id) {
@@ -57,7 +61,7 @@ final class HouseRocketsScene: SKScene {
     }
 
     func reset() {
-        snapshot = nil
+        renderFrame = nil
         clearWorld()
     }
 
@@ -70,67 +74,67 @@ final class HouseRocketsScene: SKScene {
     }
 
     private func renderWorld() {
-        guard let snapshot, size.width > 0, size.height > 0 else { return }
-        let projection = HouseRocketsProjection(elapsedTime: snapshot.elapsedTime,
-                                               cameraX: snapshot.cameraX,
-                                               width: Double(size.width), height: Double(size.height))
+        guard let renderFrame, size.width > 0, size.height > 0 else { return }
+        let projection = HouseRocketsProjection(elapsedTime: renderFrame.elapsedTime,
+                                               cameraX: renderFrame.cameraX,
+                                               width: Double(size.width), height: Double(size.height), courseAngle: renderFrame.courseAngle)
         // Future course segments must not float into the empty margins during a turn.
         if world.maskNode == nil { world.maskNode = worldMask }
         worldMask.anchorPoint = .zero
-        worldMask.position = CGPoint(x: snapshot.cameraX, y: 0)
+        worldMask.position = CGPoint(x: renderFrame.cameraX, y: 0)
         worldMask.size = CGSize(width: projection.visibleLength, height: HouseRocketsSimulation.trackHeight)
         world.setScale(CGFloat(projection.scale))
         world.zRotation = CGFloat(projection.angle)
         world.position = CGPoint(x: projection.origin.x, y: projection.origin.y)
         environment.setScale(CGFloat(projection.scale))
         environment.zRotation = CGFloat(projection.angle)
-        let rear = projection.point(x: snapshot.cameraX, y: 0)
+        let rear = projection.point(x: renderFrame.cameraX, y: 0)
         environment.position = CGPoint(x: rear.x, y: rear.y)
         for surface in trackSurfaces {
             surface.xScale = CGFloat(projection.visibleLength / HouseRocketsSimulation.viewportWidth)
         }
-        for player in snapshot.players {
+        for player in renderFrame.players {
             let node = rocketNodes[player.id]
             node?.position = CGPoint(x: player.worldX, y: player.worldY)
-            node?.zRotation = player.heading - projection.angle
+            node?.zRotation = player.courseHeading
             node?.alpha = player.isAlive ? 1 : 0.25
             flames[player.id]?.xScale = player.speedEffect == .boost ? 1.7 : (player.speedEffect == .slow ? 0.65 : 1)
             let effectRing = node?.childNode(withName: "speedEffect") as? SKShapeNode
             effectRing?.isHidden = player.speedEffect == nil
             effectRing?.strokeColor = player.speedEffect == .boost ? HouseRocketsPalette.blue : HouseRocketsPalette.cream
-            flames[player.id]?.isHidden = snapshot.phase != .playing || !player.isAlive || reduceMotion
+            flames[player.id]?.isHidden = renderFrame.phase != .playing || !player.isAlive || reduceMotion
         }
-        let activeGateIDs = Set(snapshot.gates.map(\.id))
+        let activeGateIDs = Set(renderFrame.gates.map(\.id))
         for id in Array(gateNodes.keys) where !activeGateIDs.contains(id) {
             gateNodes.removeValue(forKey: id)?.removeFromParent()
         }
-        for gate in snapshot.gates where gateNodes[gate.id] == nil {
+        for gate in renderFrame.gates where gateNodes[gate.id] == nil {
             let node = makeGate(gate)
             world.addChild(node)
             gateNodes[gate.id] = node
         }
-        let activeFields = Set(snapshot.speedFields.map(\.id))
+        let activeFields = Set(renderFrame.speedFields.map(\.id))
         for id in Array(fieldNodes.keys) where !activeFields.contains(id) {
             fieldNodes.removeValue(forKey: id)?.removeFromParent()
         }
-        for field in snapshot.speedFields {
+        for field in renderFrame.speedFields {
             if fieldNodes[field.id] == nil {
                 let node = makeSpeedField(field)
                 world.addChild(node)
                 fieldNodes[field.id] = node
             }
-            fieldNodes[field.id]?.position = CGPoint(x: field.worldX, y: field.worldY(at: snapshot.elapsedTime))
+            fieldNodes[field.id]?.position = CGPoint(x: field.worldX, y: field.worldY(at: renderFrame.elapsedTime))
         }
         // World-anchored markings make leader-driven camera motion visible.
-        let firstDash = floor(snapshot.cameraX / 68)
+        let firstDash = floor(renderFrame.cameraX / 68)
         for (index, dash) in trackDashes.enumerated() {
-            let x = (firstDash + Double(index)) * 68 - snapshot.cameraX
+            let x = (firstDash + Double(index)) * 68 - renderFrame.cameraX
             dash.position.x = CGFloat(x)
             dash.isHidden = x < 0 || x + 28 > projection.visibleLength
         }
     }
 
-    private func makeGate(_ gate: HouseRocketsGateState) -> SKNode {
+    private func makeGate(_ gate: HouseRocketsRenderGate) -> SKNode {
         let node = SKNode()
         node.position.x = gate.worldX
         node.zPosition = 2
@@ -165,7 +169,7 @@ final class HouseRocketsScene: SKScene {
         return node
     }
 
-    private func makeSpeedField(_ field: HouseRocketsSpeedField) -> SKNode {
+    private func makeSpeedField(_ field: HouseRocketsRenderField) -> SKNode {
         let node = SKNode()
         node.zPosition = 3
         let tint: UIColor = field.effect == .boost ? HouseRocketsPalette.blue : HouseRocketsPalette.red

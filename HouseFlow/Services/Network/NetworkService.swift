@@ -17,7 +17,7 @@ enum NetworkError: LocalizedError {
 }
 
 @MainActor
-final class NetworkService: NetworkServicing {
+final class NetworkService: NetworkServicing, HTTPRequestExecuting {
     typealias RequestExecutor = @MainActor (URLRequest) async throws -> (Data, URLResponse)
 
     private let baseURL: URL
@@ -195,6 +195,21 @@ final class NetworkService: NetworkServicing {
                 throw NetworkError.serverError(errorMessage)
             }
             throw NetworkError.unknown(http.statusCode)
+        }
+    }
+
+    /// Raw response path for clients that need status and headers (e.g. realtime admission).
+    /// Existing decoded request methods keep their established error-message behavior.
+    func execute(_ request: URLRequest) async throws -> NetworkHTTPResponse {
+        try Task.checkCancellation()
+        do {
+            let (data, response) = try await requestExecutor(request)
+            try Task.checkCancellation()
+            guard let http = response as? HTTPURLResponse else { throw NetworkError.unknown(-1) }
+            return NetworkHTTPResponse(data: data, response: http)
+        } catch {
+            try Task.checkCancellation()
+            throw error
         }
     }
 

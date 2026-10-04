@@ -82,10 +82,12 @@ struct HouseRocketsProjection {
     let visibleLength: Double
     let origin: HouseRocketsPoint
 
-    init(elapsedTime: TimeInterval, cameraX: Double, width: Double, height: Double) {
-        let progress = HouseRocketsCourse.turnProgress(at: elapsedTime)
+    init(elapsedTime: TimeInterval, cameraX: Double, width: Double, height: Double,
+         courseAngle: Double? = nil) {
+        let progress = courseAngle.map { min(1, max(0, $0 / (.pi / 2))) }
+            ?? HouseRocketsCourse.turnProgress(at: elapsedTime)
         isTurning = HouseRocketsCourse.isTransitioning(at: elapsedTime)
-        angle = HouseRocketsCourse.angle(at: elapsedTime)
+        angle = courseAngle ?? HouseRocketsCourse.angle(at: elapsedTime)
         let baseLength = (HouseRocketsSimulation.viewportWidth - 600 * progress) / Self.cameraZoom
         let c = cos(angle), s = sin(angle)
         let across = HouseRocketsSimulation.trackHeight
@@ -134,7 +136,14 @@ struct HouseRocketsProjection {
 
 }
 
-extension HouseRocketsGateState {
+protocol HouseRocketsGateGeometry {
+    var worldX: Double { get }
+    var sections: [HouseRocketsPassageSection] { get }
+}
+
+extension HouseRocketsGateState: HouseRocketsGateGeometry {}
+
+extension HouseRocketsGateGeometry {
     /// Each segment forms two convex trapezoids, including triangular/sloping faces.
     var solidPolygons: [[HouseRocketsPoint]] {
         zip(sections, sections.dropFirst()).flatMap { left, right -> [[HouseRocketsPoint]] in
