@@ -1,19 +1,8 @@
 import SpriteKit
 import UIKit
 
-struct HouseRocketsTelemetry {
-    let distance: Double
-    let heading: Double
-    let worldX: Double
-    let worldY: Double
-    let speedEffect: HouseRocketsSpeedEffect?
-    let effectRemaining: Double
-}
-
-/// Projects the shared world into the device viewport. Simulation stays in world units.
+/// Renders session snapshots. It never advances physics or decides eliminations.
 final class HouseRocketsScene: SKScene {
-    var onElimination: ((UUID) -> Void)?
-
     private let world = SKCropNode()
     private let worldMask = SKSpriteNode(color: .white, size: .zero)
     private let environment = SKNode()
@@ -23,13 +12,8 @@ final class HouseRocketsScene: SKScene {
     private var gateNodes: [UUID: SKNode] = [:]
     private var fieldNodes: [UUID: SKNode] = [:]
     private var trackDashes: [SKShapeNode] = []
-    private var simulation = HouseRocketsSimulation(playerIDs: [])
-    private var lastFrameTime: TimeInterval = 0
-    private var gameplayEnabled = false
+    private var snapshot: HouseRocketsSnapshot?
     private var reduceMotion = false
-
-    var runElapsed: TimeInterval { simulation.elapsedTime }
-    var cameraX: Double { simulation.cameraX }
 
     override func didMove(to view: SKView) {
         scaleMode = .resizeFill
@@ -46,21 +30,19 @@ final class HouseRocketsScene: SKScene {
         renderWorld()
     }
 
-    func prepare(players: [HouseRocketsPlayer]) {
-        world.removeAllChildren()
-        rocketNodes.removeAll()
-        flames.removeAll()
-        gateNodes.removeAll()
-        fieldNodes.removeAll()
-        simulation = HouseRocketsSimulation(playerIDs: players.map(\.id))
-        lastFrameTime = 0
-        gameplayEnabled = false
-        isPaused = false
+    func applySnapshot(_ incoming: HouseRocketsSnapshot) {
+        if snapshot?.matchID != incoming.matchID {
+            clearWorld()
+        }
+        snapshot = incoming
         if world.parent == nil { addChild(world) }
-
-        for player in players {
+        let playerIDs = Set(incoming.players.map(\.id))
+        for id in Array(rocketNodes.keys) where !playerIDs.contains(id) {
+            rocketNodes.removeValue(forKey: id)?.removeFromParent()
+            flames.removeValue(forKey: id)
+        }
+        for player in incoming.players where rocketNodes[player.id] == nil {
             let (node, flame) = makeRocket(color: player.color, isHuman: player.role == .human)
-            // Preserve the rocket's world-space proportion as the camera zooms.
             node.setScale(0.5)
             world.addChild(node)
             rocketNodes[player.id] = node
@@ -69,123 +51,80 @@ final class HouseRocketsScene: SKScene {
         renderWorld()
     }
 
-    func setGameplayEnabled(_ enabled: Bool) {
-        gameplayEnabled = enabled
-        lastFrameTime = 0
-        renderWorld()
-    }
-
-    func setSimulationPaused(_ paused: Bool) {
-        isPaused = paused
-        lastFrameTime = 0
-    }
-
     func setReduceMotion(_ enabled: Bool) {
         reduceMotion = enabled
         renderWorld()
     }
 
-    func stopMatch() {
-        gameplayEnabled = false
-        isPaused = true
-        renderWorld()
+    func reset() {
+        snapshot = nil
+        clearWorld()
     }
 
-    func steer(playerID: UUID, heading: Double) {
-        guard gameplayEnabled, !isPaused else { return }
-        simulation.steer(playerID: playerID, heading: heading)
-    }
-
-    func botHeading(for playerID: UUID, laneOffset: Double) -> Double? {
-        simulation.botHeading(playerID: playerID, laneOffset: laneOffset)
-    }
-
-    func telemetry() -> [UUID: HouseRocketsTelemetry] {
-        Dictionary(uniqueKeysWithValues: simulation.bodies.map {
-            ($0.id, HouseRocketsTelemetry(
-                distance: $0.x - HouseRocketsSimulation.spawnX,
-                heading: simulation.screenHeading(for: $0), worldX: $0.x, worldY: $0.y,
-                speedEffect: $0.speedEffect, effectRemaining: $0.effectRemaining
-            ))
-        })
-    }
-
-    func speedFieldStates() -> [HouseRocketsSpeedField] { simulation.speedFields }
-
-    func gateStates() -> [HouseRocketsGateState] { simulation.gates }
-
-    func alivePlayerIDs() -> Set<UUID> {
-        Set(simulation.bodies.filter(\.isAlive).map(\.id))
-    }
-
-    override func update(_ currentTime: TimeInterval) {
-        guard gameplayEnabled else { lastFrameTime = 0; return }
-        guard lastFrameTime > 0 else { lastFrameTime = currentTime; return }
-        let delta = max(0, currentTime - lastFrameTime)
-        lastFrameTime = currentTime
-        let previousAlive = alivePlayerIDs()
-        simulation.advance(by: delta)
-        renderWorld()
-        // Deliver only after the complete step, so simultaneous exits resolve together.
-        for id in previousAlive.subtracting(alivePlayerIDs()) { onElimination?(id) }
+    private func clearWorld() {
+        world.removeAllChildren()
+        rocketNodes.removeAll()
+        flames.removeAll()
+        gateNodes.removeAll()
+        fieldNodes.removeAll()
     }
 
     private func renderWorld() {
-        guard size.width > 0, size.height > 0 else { return }
-        let projection = HouseRocketsProjection(elapsedTime: simulation.elapsedTime,
-                                               cameraX: simulation.cameraX,
+        guard let snapshot, size.width > 0, size.height > 0 else { return }
+        let projection = HouseRocketsProjection(elapsedTime: snapshot.elapsedTime,
+                                               cameraX: snapshot.cameraX,
                                                width: Double(size.width), height: Double(size.height))
         // Future course segments must not float into the empty margins during a turn.
         if world.maskNode == nil { world.maskNode = worldMask }
         worldMask.anchorPoint = .zero
-        worldMask.position = CGPoint(x: simulation.cameraX, y: 0)
+        worldMask.position = CGPoint(x: snapshot.cameraX, y: 0)
         worldMask.size = CGSize(width: projection.visibleLength, height: HouseRocketsSimulation.trackHeight)
         world.setScale(CGFloat(projection.scale))
         world.zRotation = CGFloat(projection.angle)
         world.position = CGPoint(x: projection.origin.x, y: projection.origin.y)
         environment.setScale(CGFloat(projection.scale))
         environment.zRotation = CGFloat(projection.angle)
-        let rear = projection.point(x: simulation.cameraX, y: 0)
+        let rear = projection.point(x: snapshot.cameraX, y: 0)
         environment.position = CGPoint(x: rear.x, y: rear.y)
         for surface in trackSurfaces {
             surface.xScale = CGFloat(projection.visibleLength / HouseRocketsSimulation.viewportWidth)
         }
-        for body in simulation.bodies {
-            let node = rocketNodes[body.id]
-            node?.position = CGPoint(x: body.x, y: body.y)
-            node?.zRotation = body.heading
-            node?.alpha = body.isAlive ? 1 : 0.25
-            flames[body.id]?.xScale = body.speedEffect == .boost ? 1.7 : (body.speedEffect == .slow ? 0.65 : 1)
+        for player in snapshot.players {
+            let node = rocketNodes[player.id]
+            node?.position = CGPoint(x: player.worldX, y: player.worldY)
+            node?.zRotation = player.heading - projection.angle
+            node?.alpha = player.isAlive ? 1 : 0.25
+            flames[player.id]?.xScale = player.speedEffect == .boost ? 1.7 : (player.speedEffect == .slow ? 0.65 : 1)
             let effectRing = node?.childNode(withName: "speedEffect") as? SKShapeNode
-            effectRing?.isHidden = body.speedEffect == nil
-            effectRing?.strokeColor = body.speedEffect == .boost ? HouseRocketsPalette.blue : HouseRocketsPalette.cream
-            flames[body.id]?.isHidden = !gameplayEnabled || !body.isAlive || reduceMotion
+            effectRing?.isHidden = player.speedEffect == nil
+            effectRing?.strokeColor = player.speedEffect == .boost ? HouseRocketsPalette.blue : HouseRocketsPalette.cream
+            flames[player.id]?.isHidden = snapshot.phase != .playing || !player.isAlive || reduceMotion
         }
-        let activeGateIDs = Set(simulation.gates.map(\.id))
+        let activeGateIDs = Set(snapshot.gates.map(\.id))
         for id in Array(gateNodes.keys) where !activeGateIDs.contains(id) {
             gateNodes.removeValue(forKey: id)?.removeFromParent()
         }
-        for gate in simulation.gates where gateNodes[gate.id] == nil {
+        for gate in snapshot.gates where gateNodes[gate.id] == nil {
             let node = makeGate(gate)
             world.addChild(node)
             gateNodes[gate.id] = node
         }
-        let activeFields = Set(simulation.speedFields.map(\.id))
+        let activeFields = Set(snapshot.speedFields.map(\.id))
         for id in Array(fieldNodes.keys) where !activeFields.contains(id) {
             fieldNodes.removeValue(forKey: id)?.removeFromParent()
         }
-        for field in simulation.speedFields {
+        for field in snapshot.speedFields {
             if fieldNodes[field.id] == nil {
                 let node = makeSpeedField(field)
                 world.addChild(node)
                 fieldNodes[field.id] = node
             }
-            fieldNodes[field.id]?.position = CGPoint(x: field.worldX, y: field.worldY(at: simulation.elapsedTime))
+            fieldNodes[field.id]?.position = CGPoint(x: field.worldX, y: field.worldY(at: snapshot.elapsedTime))
         }
         // World-anchored markings make leader-driven camera motion visible.
-        let firstDash = floor(simulation.cameraX / 68)
+        let firstDash = floor(snapshot.cameraX / 68)
         for (index, dash) in trackDashes.enumerated() {
-            let x = (firstDash + Double(index)) * 68 - simulation.cameraX
+            let x = (firstDash + Double(index)) * 68 - snapshot.cameraX
             dash.position.x = CGFloat(x)
             dash.isHidden = x < 0 || x + 28 > projection.visibleLength
         }

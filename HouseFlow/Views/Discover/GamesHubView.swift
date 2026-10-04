@@ -12,7 +12,9 @@ private struct GameInfo: Identifiable {
 
 // MARK: - Games Hub View
 struct GamesHubView: View {
+    @EnvironmentObject private var appViewModel: AppViewModel
     @State private var appeared = false
+    let houseRocketsSessionFactory: HouseRocketsSessionFactory
 
     private let games: [GameInfo] = [
         GameInfo(id: 7, titleKey: "games_house_rockets_title",
@@ -122,7 +124,14 @@ struct GamesHubView: View {
         case 4: RockPaperScissorsView()
         case 5: HouseSwitchView()
         case 6: HouseTanksView()
-        case 7: HouseRocketsView()
+        case 7:
+            HouseRocketsView(
+                sessionFactory: houseRocketsSessionFactory,
+                context: HouseRocketsLaunchContext(
+                    houseID: appViewModel.currentHouseDetails?.id,
+                    localPlayerID: appViewModel.currentUserId
+                )
+            )
         default: EmptyView()
         }
     }

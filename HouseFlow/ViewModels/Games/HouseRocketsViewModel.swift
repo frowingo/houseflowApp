@@ -5,43 +5,83 @@ import UIKit
 @MainActor
 final class HouseRocketsViewModel: ObservableObject {
     @Published private(set) var snapshot: HouseRocketsSnapshot?
+    @Published private(set) var selectedMode: HouseRocketsMode?
+    @Published private(set) var context: HouseRocketsLaunchContext
     @Published var botCount = 3
 
-    private let service: any HouseRocketsGameServicing
+    let scene: HouseRocketsScene
+    private let sessionFactory: HouseRocketsSessionFactory
+    private var service: (any HouseRocketsGameServicing)?
+    private var observationTask: Task<Void, Never>?
+    private var generation = UUID()
     private var commandSequence = 0
     private var lastHeading: Double?
+    private var pendingCommand: HouseRocketsCommand?
     private var commandTask: Task<Void, Never>?
 
-    var scene: HouseRocketsScene { service.scene }
-
-    init(service: any HouseRocketsGameServicing) {
-        self.service = service
+    var onlineBlocker: HouseRocketsOnlineBlocker {
+        guard let playerID = context.localPlayerID, !playerID.isEmpty else { return .signInRequired }
+        guard let houseID = context.houseID, !houseID.isEmpty else { return .houseRequired }
+        return .serviceUnavailable
     }
 
-    func observe() async {
-        for await incoming in service.events() {
-            guard !Task.isCancelled else { return }
-            guard snapshot?.matchID != incoming.matchID
-                    || (snapshot?.revision ?? -1) < incoming.revision else { continue }
-            if snapshot?.humanPlayer?.isAlive == true && incoming.humanPlayer?.isAlive == false {
-                UINotificationFeedbackGenerator().notificationOccurred(.warning)
-            } else if snapshot?.phase != .ended && incoming.phase == .ended {
-                UINotificationFeedbackGenerator().notificationOccurred(
-                    incoming.winnerID == incoming.humanPlayer?.id ? .success : .warning
-                )
-            }
-            snapshot = incoming
-        }
+    init(sessionFactory: HouseRocketsSessionFactory, context: HouseRocketsLaunchContext,
+         scene: HouseRocketsScene? = nil) {
+        self.sessionFactory = sessionFactory
+        self.context = context
+        self.scene = scene ?? HouseRocketsScene(size: CGSize(width: 1_180, height: 640))
+    }
+
+    func selectMode(_ mode: HouseRocketsMode) {
+        guard snapshot == nil else { return }
+        selectedMode = mode
+    }
+
+    func returnToModeSelection() {
+        stop()
+        selectedMode = nil
+    }
+
+    func updateContext(_ newContext: HouseRocketsLaunchContext) {
+        guard newContext != context else { return }
+        returnToModeSelection()
+        context = newContext
     }
 
     func startMatch() async {
+        guard selectedMode == .localBots, snapshot == nil, service == nil else { return }
+        let session = sessionFactory.makeBotSession()
+        service = session
         commandSequence = 0
         lastHeading = nil
-        await service.start(configuration: HouseRocketsConfiguration(botCount: botCount))
+        let currentGeneration = generation
+        let events = session.events()
+        observationTask = Task { [weak self] in
+            for await incoming in events {
+                guard !Task.isCancelled, let self, self.generation == currentGeneration else { return }
+                self.receive(incoming)
+            }
+        }
+        await session.start(configuration: HouseRocketsConfiguration(botCount: botCount))
+    }
+
+    private func receive(_ incoming: HouseRocketsSnapshot) {
+        guard snapshot?.matchID != incoming.matchID
+                || (snapshot?.revision ?? -1) < incoming.revision else { return }
+        if snapshot?.humanPlayer?.isAlive == true && incoming.humanPlayer?.isAlive == false {
+            UINotificationFeedbackGenerator().notificationOccurred(.warning)
+        } else if snapshot?.phase != .ended && incoming.phase == .ended {
+            UINotificationFeedbackGenerator().notificationOccurred(
+                incoming.winnerID == incoming.humanPlayer?.id ? .success : .warning
+            )
+        }
+        scene.applySnapshot(incoming)
+        snapshot = incoming
     }
 
     func steer(heading: Double) {
-        guard heading.isFinite, let snapshot, snapshot.phase == .playing,
+        guard heading.isFinite, selectedMode == .localBots,
+              let snapshot, snapshot.phase == .playing,
               let human = snapshot.humanPlayer, human.isAlive else { return }
         if let previous = lastHeading,
            abs(atan2(sin(heading - previous), cos(heading - previous))) < 0.01 { return }
@@ -57,39 +97,61 @@ final class HouseRocketsViewModel: ObservableObject {
     }
 
     func restart() {
-        guard let snapshot else { return }
+        guard selectedMode == .localBots, let snapshot, snapshot.phase == .ended else { return }
         lastHeading = nil
         send(.restart, matchID: snapshot.matchID, playerID: nil)
     }
 
     func pause() {
-        service.pause()
+        guard selectedMode == .localBots else { return }
+        endSteering()
+        pendingCommand = nil
+        service?.pause()
     }
 
-    func resume() { service.resume() }
-    func setReduceMotion(_ enabled: Bool) { service.setReduceMotion(enabled) }
+    func resume() {
+        guard selectedMode == .localBots else { return }
+        service?.resume()
+    }
+
+    func setReduceMotion(_ enabled: Bool) { scene.setReduceMotion(enabled) }
 
     func stop() {
+        generation = UUID()
         lastHeading = nil
+        pendingCommand = nil
         commandTask?.cancel()
         commandTask = nil
-        service.disconnect()
+        observationTask?.cancel()
+        observationTask = nil
+        service?.disconnect()
+        service = nil
         snapshot = nil
+        selectedMode = nil
+        scene.reset()
     }
 
     private func send(_ action: HouseRocketsAction, matchID: UUID, playerID: UUID?) {
+        guard let service else { return }
         commandSequence += 1
-        let command = HouseRocketsCommand(
+        pendingCommand = HouseRocketsCommand(
             matchID: matchID,
             playerID: playerID,
             sequence: commandSequence,
             action: action
         )
-        let previous = commandTask
-        commandTask = Task { [service] in
-            await previous?.value
-            guard !Task.isCancelled else { return }
-            await service.send(command)
+        guard commandTask == nil else { return }
+        let currentGeneration = generation
+        // At most one command is in flight and one latest intent is waiting.
+        commandTask = Task { [weak self, service] in
+            while !Task.isCancelled {
+                guard let self, self.generation == currentGeneration else { return }
+                guard let command = self.pendingCommand else { break }
+                self.pendingCommand = nil
+                await service.send(command)
+            }
+            guard let self, self.generation == currentGeneration else { return }
+            self.commandTask = nil
         }
     }
 }

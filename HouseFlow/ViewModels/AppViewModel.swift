@@ -12,6 +12,7 @@ class AppViewModel: ObservableObject {
     private let localizationStore: LocalizationStore
     let router: AppRouter
     let authenticationViewModel: AuthenticationViewModel
+    let houseRocketsSessionFactory: HouseRocketsSessionFactory
     private let sessionCoordinator: AppSessionCoordinator
     private let houseFlowCoordinator: HouseFlowCoordinator
     private let dashboardCoordinator: DashboardCoordinator
@@ -110,7 +111,8 @@ class AppViewModel: ObservableObject {
                 service: dependencies.localizationService,
                 cache: dependencies.localizationCache
             ),
-            userDefaults: dependencies.userDefaults
+            userDefaults: dependencies.userDefaults,
+            houseRocketsSessionFactory: dependencies.houseRocketsSessionFactory
         )
     }
 
@@ -123,7 +125,8 @@ class AppViewModel: ObservableObject {
         dashboardStore: DashboardStore,
         choreStore: ChoreStore,
         localizationStore: LocalizationStore,
-        userDefaults: UserDefaults
+        userDefaults: UserDefaults,
+        houseRocketsSessionFactory: HouseRocketsSessionFactory? = nil
     ) {
         self.authStore = authStore
         self.toastStore = toastStore
@@ -132,6 +135,7 @@ class AppViewModel: ObservableObject {
         self.dashboardStore = dashboardStore
         self.choreStore = choreStore
         self.localizationStore = localizationStore
+        self.houseRocketsSessionFactory = houseRocketsSessionFactory ?? .localOnly
 
         let router = AppRouter(
             hasAuthToken: keychain.authToken != nil,

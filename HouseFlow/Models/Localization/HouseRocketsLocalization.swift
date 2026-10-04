@@ -1,6 +1,6 @@
 import Foundation
 
-/// Remote plaintext can override these bundled demo strings.
+/// Remote plaintext can override these bundled game strings.
 enum HouseRocketsLocalization {
     static func value(for key: String, language: String?) -> String? {
         guard let copy = values[key] else { return nil }
@@ -10,11 +10,20 @@ enum HouseRocketsLocalization {
     private static let values: [String: (tr: String, en: String)] = [
         "games_house_rockets_title": ("House Rockets", "House Rockets"),
         "games_house_rockets_card_description": ("Roketini yönlendir, engelleri aş ve son kalan ol.", "Guide your rocket past obstacles and be the last one flying."),
-        "games_house_rockets_badge": ("1 OYUNCU · DEMO", "1 PLAYER · DEMO"),
+        "games_house_rockets_badge": ("ROKET YARIŞI", "ROCKET RACE"),
         "house_rockets_title": ("House Rockets", "House Rockets"),
         "house_rockets_subtitle": ("Sen pilot koltuğunda, rakiplerin bot.", "You’re the pilot. Your rivals are bots."),
-        "house_rockets_mode": ("Botlarla demo", "Bot demo"),
-        "house_rockets_online_later": ("Çevrim içi odalar sonraki aşamada", "Online rooms are planned for a later phase"),
+        "house_rockets_mode_prompt": ("Uçuşa nasıl katılmak istersin?", "How would you like to fly?"),
+        "house_rockets_mode_bots": ("Botlarla oyna", "Play with bots"),
+        "house_rockets_mode_bots_detail": ("1–3 yerel bota karşı yarış. İnternet gerekmez.", "Race against 1–3 local bots. No internet needed."),
+        "house_rockets_mode_housemates": ("Ev arkadaşlarınla oyna", "Play with housemates"),
+        "house_rockets_mode_housemates_detail": ("Aynı evin gerçek üyeleriyle çevrim içi yarış. Bu modda bot yok.", "Race online with real members of your house. This mode has no bots."),
+        "house_rockets_change_mode": ("Modu değiştir", "Change mode"),
+        "house_rockets_offline": ("Bu cihazda, internetsiz oynanır", "Play offline on this device"),
+        "house_rockets_online_unavailable": ("Çevrim içi oyun kullanılamıyor", "Online play unavailable"),
+        "house_rockets_online_unavailable_detail": ("Bu sürümde çevrim içi oyun bağlantısı henüz hazır değil. Modu değiştirerek botlarla oynayabilirsin.", "Online play is not connected in this version yet. Change mode to play with bots."),
+        "house_rockets_online_sign_in": ("Ev arkadaşlarınla oynamak için oturum açman gerekiyor.", "Sign in to play with your housemates."),
+        "house_rockets_online_house_required": ("Ev arkadaşlarınla oynamak için önce bir ev seçmen gerekiyor.", "Select a house to play with your housemates."),
         "house_rockets_bot_count": ("Bot sayısı", "Number of bots"),
         "house_rockets_rule_aim": ("Sağ veya sol kenara dokunup sürükleyerek yön ver", "Touch and drag along either edge to steer"),
         "house_rockets_rule_drive": ("İtki sürekli açık; bıraktığında son yön korunur", "Thrust stays on; releasing keeps your heading"),

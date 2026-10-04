@@ -97,7 +97,7 @@ struct MainTabView: View {
         case .home:
             HouseDashboardView()
         case .games:
-            GamesHubView()
+            GamesHubView(houseRocketsSessionFactory: appViewModel.houseRocketsSessionFactory)
         }
     }
 

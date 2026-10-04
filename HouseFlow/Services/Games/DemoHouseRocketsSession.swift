@@ -1,10 +1,9 @@
-import CoreGraphics
 import Foundation
 
+/// Owns local physics, bot decisions and results independently of SpriteKit.
 @MainActor
 final class DemoHouseRocketsSession: HouseRocketsGameServicing {
-    let scene: HouseRocketsScene
-
+    private var simulation = HouseRocketsSimulation(playerIDs: [])
     private var snapshot: HouseRocketsSnapshot?
     private var configuration = HouseRocketsConfiguration.demo
     private var continuation: AsyncStream<HouseRocketsSnapshot>.Continuation?
@@ -12,12 +11,12 @@ final class DemoHouseRocketsSession: HouseRocketsGameServicing {
     private var simulationTask: Task<Void, Never>?
     private var lastHumanSequence = -1
     private var pausedFrom: HouseRocketsPhase?
+    private var lastSimulationTime: TimeInterval?
+    private var lastBotUpdate = 0.0
+    private let now: () -> TimeInterval
 
-    init(scene: HouseRocketsScene? = nil) {
-        self.scene = scene ?? HouseRocketsScene(size: CGSize(width: 1_180, height: 640))
-        self.scene.onElimination = { [weak self] playerID in
-            Task { @MainActor in self?.receiveElimination(playerID) }
-        }
+    init(now: @escaping () -> TimeInterval = { ProcessInfo.processInfo.systemUptime }) {
+        self.now = now
     }
 
     deinit {
@@ -27,7 +26,7 @@ final class DemoHouseRocketsSession: HouseRocketsGameServicing {
 
     func events() -> AsyncStream<HouseRocketsSnapshot> {
         continuation?.finish()
-        return AsyncStream { continuation in
+        return AsyncStream(bufferingPolicy: .bufferingNewest(1)) { continuation in
             self.continuation = continuation
             if let snapshot { continuation.yield(snapshot) }
         }
@@ -35,15 +34,15 @@ final class DemoHouseRocketsSession: HouseRocketsGameServicing {
 
     func start(configuration: HouseRocketsConfiguration) async {
         cancelTasks()
-        self.configuration = HouseRocketsConfiguration(
-            botCount: configuration.normalizedBotCount
-        )
+        self.configuration = HouseRocketsConfiguration(botCount: configuration.normalizedBotCount)
         lastHumanSequence = -1
         pausedFrom = nil
+        lastSimulationTime = nil
+        lastBotUpdate = 0
 
         let colors = HouseRocketsColor.allCases
         let botNames = ["house_rockets_bot_one", "house_rockets_bot_two", "house_rockets_bot_three"]
-        var players = (0...self.configuration.normalizedBotCount).map { index in
+        let players = (0...self.configuration.normalizedBotCount).map { index in
             HouseRocketsPlayer(
                 id: UUID(),
                 nameKey: index == 0 ? "house_rockets_you" : botNames[index - 1],
@@ -56,32 +55,25 @@ final class DemoHouseRocketsSession: HouseRocketsGameServicing {
                 worldY: 0
             )
         }
-        scene.prepare(players: players)
-        let initialTelemetry = scene.telemetry()
-        players = players.map { player in
-            guard let reading = initialTelemetry[player.id] else { return player }
-            var updated = player
-            updated.worldX = reading.worldX
-            updated.worldY = reading.worldY
-            updated.speedEffect = reading.speedEffect
-            updated.effectRemaining = reading.effectRemaining
-            return updated
-        }
-        snapshot = HouseRocketsSnapshot(
-            matchID: UUID(),
+        simulation = HouseRocketsSimulation(playerIDs: players.map(\.id))
+        let matchID = UUID()
+        var initial = HouseRocketsSnapshot(
+            matchID: matchID,
             revision: 0,
             phase: .countdown,
             players: players,
-            gates: scene.gateStates(),
-            speedFields: scene.speedFieldStates(),
+            gates: [],
+            speedFields: [],
             elapsedTime: 0,
             cameraX: 0,
             countdown: 3,
             winnerID: nil,
             lastEliminatedID: nil
         )
+        synchronizeWorld(into: &initial)
+        snapshot = initial
         publish()
-        beginCountdown(from: 3)
+        beginCountdown(from: 3, matchID: matchID)
     }
 
     func send(_ command: HouseRocketsCommand) async {
@@ -97,12 +89,12 @@ final class DemoHouseRocketsSession: HouseRocketsGameServicing {
               playerID == current.humanPlayer?.id,
               current.humanPlayer?.isAlive == true,
               command.sequence > lastHumanSequence else { return }
-        lastHumanSequence = command.sequence
 
         switch command.action {
         case .steer(let heading):
             guard heading.isFinite else { return }
-            scene.steer(playerID: playerID, heading: heading)
+            lastHumanSequence = command.sequence
+            simulation.steer(playerID: playerID, heading: heading)
         case .restart:
             break
         }
@@ -113,9 +105,9 @@ final class DemoHouseRocketsSession: HouseRocketsGameServicing {
               current.phase == .playing || current.phase == .countdown else { return }
         pausedFrom = current.phase
         if current.phase == .countdown { countdownTask?.cancel() }
+        lastSimulationTime = nil
         current.phase = .paused
         snapshot = current
-        scene.setSimulationPaused(true)
         publish()
     }
 
@@ -125,60 +117,73 @@ final class DemoHouseRocketsSession: HouseRocketsGameServicing {
         current.phase = previous
         snapshot = current
         pausedFrom = nil
-        scene.setSimulationPaused(false)
+        lastSimulationTime = now()
         publish()
-        if previous == .countdown { beginCountdown(from: current.countdown ?? 3) }
+        if previous == .countdown {
+            beginCountdown(from: current.countdown ?? 3, matchID: current.matchID)
+        }
     }
-
-    func setReduceMotion(_ enabled: Bool) { scene.setReduceMotion(enabled) }
 
     func disconnect() {
         cancelTasks()
-        scene.stopMatch()
         continuation?.finish()
         continuation = nil
         snapshot = nil
         pausedFrom = nil
+        lastSimulationTime = nil
+        simulation = HouseRocketsSimulation(playerIDs: [])
     }
 
-    private func beginCountdown(from initial: Int) {
+    private func beginCountdown(from initial: Int, matchID: UUID) {
         countdownTask?.cancel()
         countdownTask = Task { [weak self] in
-            guard let self else { return }
             for value in stride(from: initial, through: 1, by: -1) {
-                guard !Task.isCancelled, var current = self.snapshot,
-                      current.phase == .countdown else { return }
+                guard !Task.isCancelled, let self, var current = self.snapshot,
+                      current.matchID == matchID, current.phase == .countdown else { return }
                 current.countdown = value
                 self.snapshot = current
                 self.publish()
                 try? await Task.sleep(nanoseconds: 750_000_000)
             }
-            guard !Task.isCancelled, var current = self.snapshot,
-                  current.phase == .countdown else { return }
+            guard !Task.isCancelled, let self, var current = self.snapshot,
+                  current.matchID == matchID, current.phase == .countdown else { return }
             current.phase = .playing
             current.countdown = nil
             self.snapshot = current
-            self.scene.setGameplayEnabled(true)
+            self.lastSimulationTime = self.now()
             self.publish()
-            self.beginSimulation()
+            self.beginSimulation(matchID: matchID)
         }
     }
 
-    private func beginSimulation() {
+    private func beginSimulation(matchID: UUID) {
         simulationTask?.cancel()
         simulationTask = Task { [weak self] in
             while !Task.isCancelled {
-                try? await Task.sleep(nanoseconds: 120_000_000)
-                guard !Task.isCancelled, let self, var current = self.snapshot else { return }
-                if current.phase == .paused { continue }
+                try? await Task.sleep(nanoseconds: 16_666_667)
+                guard !Task.isCancelled, let self, var current = self.snapshot,
+                      current.matchID == matchID else { return }
+                if current.phase == .paused {
+                    self.lastSimulationTime = nil
+                    continue
+                }
                 guard current.phase == .playing else { return }
 
+                let time = self.now()
+                let delta = self.lastSimulationTime.map { time - $0 } ?? 0
+                self.lastSimulationTime = time
+                let previousAlive = Set(current.players.filter(\.isAlive).map(\.id))
+                self.simulation.advance(by: delta)
                 self.synchronizeWorld(into: &current)
+                // Resolve after every body has completed the same physics batch.
+                current.lastEliminatedID = current.players.first {
+                    previousAlive.contains($0.id) && !$0.isAlive
+                }?.id ?? current.lastEliminatedID
                 self.snapshot = current
-                self.driveBots(players: current.players)
-                if HouseRocketsRules.resolve(players: current.players) != .ongoing {
-                    self.finishIfNeeded()
-                    return
+                if self.finishIfNeeded() { return }
+                if self.simulation.elapsedTime - self.lastBotUpdate >= 0.12 {
+                    self.driveBots(players: current.players)
+                    self.lastBotUpdate = self.simulation.elapsedTime
                 }
                 self.publish()
             }
@@ -188,47 +193,37 @@ final class DemoHouseRocketsSession: HouseRocketsGameServicing {
     private func driveBots(players: [HouseRocketsPlayer]) {
         let laneOffsets = [-18.0, 20.0, 5.0]
         for (index, player) in players.filter({ $0.role == .bot }).enumerated() where player.isAlive {
-            guard let heading = scene.botHeading(for: player.id, laneOffset: laneOffsets[index]) else { continue }
-            scene.steer(playerID: player.id, heading: heading)
+            guard let heading = simulation.botHeading(playerID: player.id, laneOffset: laneOffsets[index]) else { continue }
+            simulation.steer(playerID: player.id, heading: heading)
         }
-    }
-
-    private func receiveElimination(_ id: UUID) {
-        guard var current = snapshot, current.phase == .playing,
-              current.players.contains(where: { $0.id == id && $0.isAlive }) else { return }
-        synchronizeWorld(into: &current)
-        current.lastEliminatedID = id
-        snapshot = current
-        finishIfNeeded()
-        if snapshot?.phase == .playing { publish() }
     }
 
     private func synchronizeWorld(into current: inout HouseRocketsSnapshot) {
-        let telemetry = scene.telemetry()
-        let aliveIDs = scene.alivePlayerIDs()
+        let bodies = Dictionary(uniqueKeysWithValues: simulation.bodies.map { ($0.id, $0) })
         current.players = current.players.map { player in
-            guard let reading = telemetry[player.id] else { return player }
+            guard let body = bodies[player.id] else { return player }
             var updated = player
-            updated.isAlive = aliveIDs.contains(player.id)
-            updated.distance = reading.distance
-            updated.heading = reading.heading
-            updated.worldX = reading.worldX
-            updated.worldY = reading.worldY
-            updated.speedEffect = reading.speedEffect
-            updated.effectRemaining = reading.effectRemaining
+            updated.isAlive = body.isAlive
+            updated.distance = body.x - HouseRocketsSimulation.spawnX
+            updated.heading = simulation.screenHeading(for: body)
+            updated.worldX = body.x
+            updated.worldY = body.y
+            updated.speedEffect = body.speedEffect
+            updated.effectRemaining = body.effectRemaining
             return updated
         }
-        current.gates = scene.gateStates()
-        current.speedFields = scene.speedFieldStates()
-        current.elapsedTime = scene.runElapsed
-        current.cameraX = scene.cameraX
+        current.gates = simulation.gates
+        current.speedFields = simulation.speedFields
+        current.elapsedTime = simulation.elapsedTime
+        current.cameraX = simulation.cameraX
     }
 
-    private func finishIfNeeded() {
-        guard var current = snapshot, current.phase == .playing else { return }
+    @discardableResult
+    private func finishIfNeeded() -> Bool {
+        guard var current = snapshot, current.phase == .playing else { return false }
         switch HouseRocketsRules.resolve(players: current.players) {
         case .ongoing:
-            return
+            return false
         case .draw:
             current.winnerID = nil
         case .winner(let id):
@@ -236,9 +231,9 @@ final class DemoHouseRocketsSession: HouseRocketsGameServicing {
         }
         current.phase = .ended
         snapshot = current
-        scene.stopMatch()
-        simulationTask?.cancel()
+        lastSimulationTime = nil
         publish()
+        return true
     }
 
     private func publish() {

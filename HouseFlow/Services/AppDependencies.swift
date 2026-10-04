@@ -11,6 +11,7 @@ struct AppDependencies {
     let localizationService: any LocalizationServicing
     let userDefaults: UserDefaults
     let localizationCache: LocalizationDiskCache
+    let houseRocketsSessionFactory: HouseRocketsSessionFactory
 
     static func live() -> AppDependencies {
         let keychain = KeychainService()
@@ -24,7 +25,8 @@ struct AppDependencies {
             choreService: ChoreService(network: network, keychain: keychain),
             localizationService: LocalizationService(network: network),
             userDefaults: .standard,
-            localizationCache: LocalizationDiskCache()
+            localizationCache: LocalizationDiskCache(),
+            houseRocketsSessionFactory: .localOnly
         )
     }
 }

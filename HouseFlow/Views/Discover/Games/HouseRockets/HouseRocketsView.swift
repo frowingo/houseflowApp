@@ -10,12 +10,13 @@ struct HouseRocketsView: View {
     @State private var isLandscapeLayout = false
     @State private var isWaitingForLandscape = false
     @State private var orientationRequestFailed = false
+    @State private var orientationRequestID: UUID?
     @State private var eliminationNotice: String?
     @State private var noticeID: UUID?
 
-    init(service: (any HouseRocketsGameServicing)? = nil) {
+    init(sessionFactory: HouseRocketsSessionFactory, context: HouseRocketsLaunchContext) {
         _model = StateObject(wrappedValue: HouseRocketsViewModel(
-            service: service ?? DemoHouseRocketsSession()
+            sessionFactory: sessionFactory, context: context
         ))
     }
 
@@ -41,12 +42,22 @@ struct HouseRocketsView: View {
         .environment(\.colorScheme, .dark)
         .navigationBarTitleDisplayMode(.inline)
         .toolbar(model.snapshot == nil ? .visible : .hidden, for: .navigationBar)
-        .task { await model.observe() }
         .onAppear { model.setReduceMotion(reduceMotion) }
         .onChange(of: reduceMotion) { _, enabled in model.setReduceMotion(enabled) }
         .onChange(of: scenePhase) { _, phase in
             guard phase != .active else { return }
+            if isWaitingForLandscape {
+                isWaitingForLandscape = false
+                orientationRequestID = nil
+                GameOrientationController.returnToPortrait()
+            }
             model.pause()
+        }
+        .onChange(of: appViewModel.currentHouseDetails?.id) { _, _ in refreshContext() }
+        .onChange(of: appViewModel.currentUserId) { _, _ in refreshContext() }
+        .onChange(of: model.snapshot?.matchID) { _, _ in
+            eliminationNotice = nil
+            noticeID = nil
         }
         .onChange(of: model.snapshot?.lastEliminatedID) { _, id in
             guard let id, let player = model.snapshot?.players.first(where: { $0.id == id }) else { return }
@@ -61,6 +72,10 @@ struct HouseRocketsView: View {
             }
         }
         .onDisappear {
+            isWaitingForLandscape = false
+            orientationRequestID = nil
+            eliminationNotice = nil
+            noticeID = nil
             model.stop()
             GameOrientationController.returnToPortrait()
         }
@@ -78,47 +93,34 @@ struct HouseRocketsView: View {
                             Text(copy("house_rockets_title"))
                                 .font(.largeTitle.weight(.black))
                                 .foregroundStyle(HouseRocketsTheme.ink)
-                            Text(copy("house_rockets_subtitle"))
+                            Text(copy(model.selectedMode == .localBots
+                                      ? "house_rockets_subtitle" : "house_rockets_mode_prompt"))
                                 .font(.subheadline)
                                 .foregroundStyle(HouseRocketsTheme.muted)
                         }
                     }
 
-                    VStack(alignment: .leading, spacing: AppDesign.Spacing.lg) {
-                        Label(copy("house_rockets_mode"), systemImage: "person.crop.circle.badge.checkmark")
-                            .font(.headline)
-                            .foregroundStyle(HouseRocketsTheme.accent)
-
-                        HStack(spacing: AppDesign.Spacing.sm) {
-                            ForEach(0..<(model.botCount + 1), id: \.self) { index in
-                                Circle()
-                                    .fill(color(for: HouseRocketsColor.allCases[index]))
-                                    .frame(width: 24, height: 24)
-                                    .overlay(Circle().stroke(HouseRocketsTheme.ink.opacity(0.8), lineWidth: index == 0 ? 2 : 0))
-                                    .accessibilityLabel(index == 0 ? copy("house_rockets_you") : copy(botNameKey(index)))
-                            }
+                    if let mode = model.selectedMode {
+                        HStack {
+                            Label(copy(mode == .localBots ? "house_rockets_mode_bots" : "house_rockets_mode_housemates"),
+                                  systemImage: mode == .localBots ? "gamecontroller" : "person.2")
+                                .font(.headline)
                             Spacer()
-                            Text(copy("house_rockets_online_later"))
-                                .font(.caption)
-                                .foregroundStyle(HouseRocketsTheme.muted)
-                                .multilineTextAlignment(.trailing)
+                            Button(copy("house_rockets_change_mode"), action: changeMode)
+                                .font(.subheadline.weight(.semibold))
+                                .frame(minHeight: 44)
+                                .disabled(isWaitingForLandscape)
                         }
+                        .foregroundStyle(HouseRocketsTheme.accent)
 
-                        Divider().overlay(HouseRocketsTheme.ink.opacity(0.14))
-
-                        Text(copy("house_rockets_bot_count"))
-                            .font(.subheadline.weight(.semibold))
-                            .foregroundStyle(HouseRocketsTheme.muted)
-                        Picker(copy("house_rockets_bot_count"), selection: $model.botCount) {
-                            ForEach(1...3, id: \.self) { count in
-                                Text("\(count)").tag(count)
-                            }
+                        if mode == .localBots {
+                            botLobby
+                        } else {
+                            onlineLobby
                         }
-                        .pickerStyle(.segmented)
+                    } else {
+                        modeSelection
                     }
-                    .padding(AppDesign.Spacing.xl)
-                    .background(HouseRocketsTheme.panel,
-                                in: RoundedRectangle(cornerRadius: AppDesign.CornerRadius.xl))
 
                     VStack(alignment: .leading, spacing: AppDesign.Spacing.lg) {
                         rule("house_rockets_rule_aim", symbol: "move.3d")
@@ -130,36 +132,128 @@ struct HouseRocketsView: View {
                     .background(HouseRocketsTheme.panel,
                                 in: RoundedRectangle(cornerRadius: AppDesign.CornerRadius.xl))
 
-                    Label(copy(orientationRequestFailed
-                               ? "house_rockets_landscape_error"
-                               : "house_rockets_landscape"),
-                          systemImage: "rectangle.landscape.rotate")
-                        .font(.subheadline)
-                        .foregroundStyle(orientationRequestFailed
-                                         ? HouseRocketsTheme.danger : HouseRocketsTheme.muted)
+                    if model.selectedMode == .localBots {
+                        Label(copy(orientationRequestFailed
+                                   ? "house_rockets_landscape_error"
+                                   : "house_rockets_landscape"),
+                              systemImage: "rectangle.landscape.rotate")
+                            .font(.subheadline)
+                            .foregroundStyle(orientationRequestFailed
+                                             ? HouseRocketsTheme.danger : HouseRocketsTheme.muted)
+                    }
                 }
                 .padding(AppDesign.Spacing.xl)
                 .frame(maxWidth: 620)
                 .frame(maxWidth: .infinity)
             }
 
-            Button(action: prepareLandscapeMatch) {
-                HStack(spacing: AppDesign.Spacing.sm) {
-                    if isWaitingForLandscape { ProgressView().tint(HouseRocketsTheme.background) }
-                    Image(systemName: "arrow.up.right")
-                    Text(copy(isWaitingForLandscape ? "house_rockets_rotating" : "house_rockets_start"))
+            if model.selectedMode == .localBots {
+                Button(action: prepareLandscapeMatch) {
+                    HStack(spacing: AppDesign.Spacing.sm) {
+                        if isWaitingForLandscape { ProgressView().tint(HouseRocketsTheme.background) }
+                        Image(systemName: "arrow.up.right")
+                        Text(copy(isWaitingForLandscape ? "house_rockets_rotating" : "house_rockets_start"))
+                    }
+                    .font(.headline)
+                    .foregroundStyle(HouseRocketsTheme.background)
+                    .frame(maxWidth: .infinity, minHeight: AppDesign.Size.buttonHeightLarge)
+                    .background(HouseRocketsTheme.accent,
+                                in: RoundedRectangle(cornerRadius: AppDesign.CornerRadius.lg))
                 }
-                .font(.headline)
-                .foregroundStyle(HouseRocketsTheme.background)
-                .frame(maxWidth: .infinity, minHeight: AppDesign.Size.buttonHeightLarge)
-                .background(HouseRocketsTheme.accent,
-                            in: RoundedRectangle(cornerRadius: AppDesign.CornerRadius.lg))
+                .buttonStyle(ScaleButtonStyle())
+                .disabled(isWaitingForLandscape)
+                .padding(.horizontal, AppDesign.Spacing.xl)
+                .padding(.vertical, AppDesign.Spacing.lg)
             }
-            .buttonStyle(ScaleButtonStyle())
-            .disabled(isWaitingForLandscape)
-            .padding(.horizontal, AppDesign.Spacing.xl)
-            .padding(.vertical, AppDesign.Spacing.lg)
         }
+    }
+
+    private var modeSelection: some View {
+        VStack(spacing: 0) {
+            ForEach(HouseRocketsMode.allCases) { mode in
+                Button { model.selectMode(mode) } label: {
+                    HStack(spacing: AppDesign.Spacing.lg) {
+                        Image(systemName: mode == .localBots ? "gamecontroller" : "person.2")
+                            .font(.title2)
+                            .frame(width: 32)
+                            .foregroundStyle(HouseRocketsTheme.accent)
+                        VStack(alignment: .leading, spacing: AppDesign.Spacing.xs) {
+                            Text(copy(mode == .localBots ? "house_rockets_mode_bots" : "house_rockets_mode_housemates"))
+                                .font(.headline)
+                                .foregroundStyle(HouseRocketsTheme.ink)
+                            Text(copy(mode == .localBots ? "house_rockets_mode_bots_detail" : "house_rockets_mode_housemates_detail"))
+                                .font(.subheadline)
+                                .foregroundStyle(HouseRocketsTheme.muted)
+                                .fixedSize(horizontal: false, vertical: true)
+                        }
+                        Spacer(minLength: 0)
+                        Image(systemName: "chevron.right")
+                            .foregroundStyle(HouseRocketsTheme.muted)
+                    }
+                    .frame(maxWidth: .infinity, minHeight: 44, alignment: .leading)
+                    .padding(AppDesign.Spacing.xl)
+                    .contentShape(Rectangle())
+                }
+                .buttonStyle(ScaleButtonStyle())
+                if mode == .localBots {
+                    Divider().overlay(HouseRocketsTheme.ink.opacity(0.14))
+                        .padding(.horizontal, AppDesign.Spacing.xl)
+                }
+            }
+        }
+        .background(HouseRocketsTheme.panel,
+                    in: RoundedRectangle(cornerRadius: AppDesign.CornerRadius.xl))
+    }
+
+    private var botLobby: some View {
+        VStack(alignment: .leading, spacing: AppDesign.Spacing.lg) {
+            Label(copy("house_rockets_offline"), systemImage: "iphone")
+                .font(.subheadline)
+                .foregroundStyle(HouseRocketsTheme.muted)
+            HStack(spacing: AppDesign.Spacing.sm) {
+                ForEach(0..<(min(3, max(1, model.botCount)) + 1), id: \.self) { index in
+                    Circle()
+                        .fill(color(for: HouseRocketsColor.allCases[index]))
+                        .frame(width: 24, height: 24)
+                        .overlay(Circle().stroke(HouseRocketsTheme.ink.opacity(0.8), lineWidth: index == 0 ? 2 : 0))
+                        .accessibilityLabel(index == 0 ? copy("house_rockets_you") : copy(botNameKey(index)))
+                }
+            }
+            Text(copy("house_rockets_bot_count"))
+                .font(.subheadline.weight(.semibold))
+                .foregroundStyle(HouseRocketsTheme.muted)
+            Picker(copy("house_rockets_bot_count"), selection: $model.botCount) {
+                ForEach(1...3, id: \.self) { count in Text("\(count)").tag(count) }
+            }
+            .pickerStyle(.segmented)
+            .disabled(isWaitingForLandscape)
+        }
+        .padding(AppDesign.Spacing.xl)
+        .background(HouseRocketsTheme.panel,
+                    in: RoundedRectangle(cornerRadius: AppDesign.CornerRadius.xl))
+    }
+
+    private var onlineLobby: some View {
+        VStack(alignment: .leading, spacing: AppDesign.Spacing.md) {
+            Label(copy("house_rockets_online_unavailable"), systemImage: "wifi.exclamationmark")
+                .font(.headline)
+                .foregroundStyle(HouseRocketsTheme.ink)
+            let detailKey: String = {
+                switch model.onlineBlocker {
+                case .signInRequired: return "house_rockets_online_sign_in"
+                case .houseRequired: return "house_rockets_online_house_required"
+                case .serviceUnavailable: return "house_rockets_online_unavailable_detail"
+                }
+            }()
+            Text(copy(detailKey))
+                .font(.subheadline)
+                .foregroundStyle(HouseRocketsTheme.muted)
+                .fixedSize(horizontal: false, vertical: true)
+        }
+        .padding(AppDesign.Spacing.xl)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(HouseRocketsTheme.panel,
+                    in: RoundedRectangle(cornerRadius: AppDesign.CornerRadius.xl))
     }
 
     private func rule(_ key: String, symbol: String) -> some View {
@@ -223,7 +317,7 @@ struct HouseRocketsView: View {
     private func informationLayer(snapshot: HouseRocketsSnapshot) -> some View {
         TimelineView(.animation(minimumInterval: 1.0 / 30, paused: snapshot.phase != .playing)) { _ in
             GeometryReader { geometry in
-                let projection = HouseRocketsProjection(elapsedTime: model.scene.runElapsed,
+                let projection = HouseRocketsProjection(elapsedTime: snapshot.elapsedTime,
                                                        cameraX: snapshot.cameraX,
                                                        width: Double(geometry.size.width),
                                                        height: Double(geometry.size.height))
@@ -381,15 +475,22 @@ struct HouseRocketsView: View {
     }
 
     private func prepareLandscapeMatch() {
+        guard model.selectedMode == .localBots, scenePhase == .active else { return }
         orientationRequestFailed = false
         isWaitingForLandscape = !isLandscapeLayout
+        let requestID = UUID()
+        orientationRequestID = requestID
         GameOrientationController.lockToLandscape {
-            guard model.snapshot == nil else { return }
+            guard orientationRequestID == requestID, model.snapshot == nil,
+                  model.selectedMode == .localBots else { return }
             isWaitingForLandscape = false
+            orientationRequestID = nil
             orientationRequestFailed = true
+            GameOrientationController.returnToPortrait()
         }
-        if isLandscapeLayout {
+        if isLandscapeLayout, !orientationRequestFailed {
             isWaitingForLandscape = false
+            orientationRequestID = nil
             Task { await model.startMatch() }
         }
     }
@@ -398,9 +499,32 @@ struct HouseRocketsView: View {
         guard size.width > 0, size.height > 0 else { return }
         model.scene.size = size
         isLandscapeLayout = size.width > size.height
-        guard isLandscapeLayout, isWaitingForLandscape, model.snapshot == nil else { return }
+        guard isLandscapeLayout, isWaitingForLandscape, model.snapshot == nil,
+              model.selectedMode == .localBots, scenePhase == .active,
+              !orientationRequestFailed else { return }
         isWaitingForLandscape = false
+        orientationRequestID = nil
         Task { await model.startMatch() }
+    }
+
+    private func changeMode() {
+        isWaitingForLandscape = false
+        orientationRequestID = nil
+        orientationRequestFailed = false
+        eliminationNotice = nil
+        noticeID = nil
+        model.returnToModeSelection()
+        GameOrientationController.returnToPortrait()
+    }
+
+    private func refreshContext() {
+        let context = HouseRocketsLaunchContext(
+            houseID: appViewModel.currentHouseDetails?.id,
+            localPlayerID: appViewModel.currentUserId
+        )
+        guard model.context != context else { return }
+        changeMode()
+        model.updateContext(context)
     }
 
     private func exitGame() {

@@ -1,5 +1,24 @@
 import Foundation
 
+enum HouseRocketsMode: String, CaseIterable, Identifiable, Sendable {
+    case localBots
+    case housemates
+
+    var id: String { rawValue }
+}
+
+/// Captured at screen entry; local play does not require either identifier.
+struct HouseRocketsLaunchContext: Equatable, Sendable {
+    let houseID: String?
+    let localPlayerID: String?
+}
+
+enum HouseRocketsOnlineBlocker: Equatable {
+    case signInRequired
+    case houseRequired
+    case serviceUnavailable
+}
+
 enum HouseRocketsPhase: String, Codable, Sendable {
     case countdown
     case playing
