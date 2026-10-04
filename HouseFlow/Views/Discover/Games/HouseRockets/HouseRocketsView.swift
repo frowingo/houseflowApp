@@ -24,7 +24,7 @@ struct HouseRocketsView: View {
         GeometryReader { geometry in
             ZStack {
                 HouseRocketsTheme.background.ignoresSafeArea()
-                if model.snapshot == nil { HouseRocketsTopography().ignoresSafeArea() }
+                if model.snapshot == nil && model.onlineFrame == nil { HouseRocketsTopography().ignoresSafeArea() }
 
                 if let snapshot = model.snapshot {
                     SpriteView(scene: model.scene)
@@ -32,6 +32,11 @@ struct HouseRocketsView: View {
                                          ? .vertical : .horizontal)
                         .allowsHitTesting(false)
                     gameLayer(snapshot: snapshot)
+                } else if let frame = model.onlineFrame {
+                    SpriteView(scene: model.scene)
+                        .ignoresSafeArea(edges: frame.courseAngle > .pi / 4 ? .vertical : .horizontal)
+                        .allowsHitTesting(false)
+                    HouseRocketsOnlineFlightOverlay(state: model.onlineState, frame: frame, onExit: exitGame)
                 } else {
                     lobby
                 }
@@ -41,10 +46,25 @@ struct HouseRocketsView: View {
         }
         .environment(\.colorScheme, .dark)
         .navigationBarTitleDisplayMode(.inline)
-        .toolbar(model.snapshot == nil ? .visible : .hidden, for: .navigationBar)
-        .onAppear { model.setReduceMotion(reduceMotion) }
+        .toolbar(model.snapshot == nil && model.onlineFrame == nil ? .visible : .hidden, for: .navigationBar)
+        .navigationBarBackButtonHidden(model.selectedMode == .housemates)
+        .toolbar {
+            ToolbarItem(placement: .topBarLeading) {
+                if model.selectedMode == .housemates {
+                    Button(action: exitGame) { Image(systemName: "chevron.left") }
+                        .accessibilityLabel(copy("house_rockets_exit"))
+                        .disabled(model.onlineState.isLeaving)
+                }
+            }
+        }
+        .onAppear {
+            model.setReduceMotion(reduceMotion)
+            model.setForeground(scenePhase == .active)
+        }
         .onChange(of: reduceMotion) { _, enabled in model.setReduceMotion(enabled) }
         .onChange(of: scenePhase) { _, phase in
+            model.setForeground(phase == .active)
+            if phase == .active { prepareOnlineFlightLandscape() }
             guard phase != .active else { return }
             if isWaitingForLandscape {
                 isWaitingForLandscape = false
@@ -52,6 +72,14 @@ struct HouseRocketsView: View {
                 GameOrientationController.returnToPortrait()
             }
             model.pause()
+        }
+        .onChange(of: model.onlineFrame?.sessionID) { _, id in
+            if id != nil { prepareOnlineFlightLandscape() }
+        }
+        .onChange(of: model.onlineState.session?.state) { _, state in
+            if orientationRequestFailed, state == .countdown || state == .running {
+                Task { await model.leaveOnline() }
+            }
         }
         .onChange(of: appViewModel.currentHouseDetails?.id) { _, _ in refreshContext() }
         .onChange(of: appViewModel.currentUserId) { _, _ in refreshContext() }
@@ -109,7 +137,7 @@ struct HouseRocketsView: View {
                             Button(copy("house_rockets_change_mode"), action: changeMode)
                                 .font(.subheadline.weight(.semibold))
                                 .frame(minHeight: 44)
-                                .disabled(isWaitingForLandscape)
+                                .disabled(isWaitingForLandscape || model.onlineState.isLeaving)
                         }
                         .foregroundStyle(HouseRocketsTheme.accent)
 
@@ -132,7 +160,7 @@ struct HouseRocketsView: View {
                     .background(HouseRocketsTheme.panel,
                                 in: RoundedRectangle(cornerRadius: AppDesign.CornerRadius.xl))
 
-                    if model.selectedMode == .localBots {
+                    if model.selectedMode == .localBots || (orientationRequestFailed && model.selectedMode == nil) {
                         Label(copy(orientationRequestFailed
                                    ? "house_rockets_landscape_error"
                                    : "house_rockets_landscape"),
@@ -233,27 +261,46 @@ struct HouseRocketsView: View {
                     in: RoundedRectangle(cornerRadius: AppDesign.CornerRadius.xl))
     }
 
+    @ViewBuilder
     private var onlineLobby: some View {
-        VStack(alignment: .leading, spacing: AppDesign.Spacing.md) {
-            Label(copy("house_rockets_online_unavailable"), systemImage: "wifi.exclamationmark")
-                .font(.headline)
-                .foregroundStyle(HouseRocketsTheme.ink)
-            let detailKey: String = {
-                switch model.onlineBlocker {
-                case .signInRequired: return "house_rockets_online_sign_in"
-                case .houseRequired: return "house_rockets_online_house_required"
-                case .serviceUnavailable: return "house_rockets_online_unavailable_detail"
-                }
-            }()
-            Text(copy(detailKey))
-                .font(.subheadline)
-                .foregroundStyle(HouseRocketsTheme.muted)
-                .fixedSize(horizontal: false, vertical: true)
+        if let blocker = model.onlineBlocker {
+            VStack(alignment: .leading, spacing: AppDesign.Spacing.md) {
+                Label(copy("house_rockets_online_unavailable"), systemImage: "wifi.exclamationmark")
+                    .font(.headline)
+                    .foregroundStyle(HouseRocketsTheme.ink)
+                Text(copy(blockerKey(blocker)))
+                    .font(.subheadline)
+                    .foregroundStyle(HouseRocketsTheme.muted)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+            .padding(AppDesign.Spacing.xl)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .background(HouseRocketsTheme.panel,
+                        in: RoundedRectangle(cornerRadius: AppDesign.CornerRadius.xl))
+        } else {
+            HouseRocketsOnlineLobbyView(
+                state: model.onlineState, localPlayerID: model.context.localPlayerID,
+                memberNames: (appViewModel.currentHouseDetails?.members ?? []).reduce(into: [:]) { names, member in
+                    names[member.id] = member.fullName
+                },
+                isWaitingForLandscape: isWaitingForLandscape, orientationFailed: orientationRequestFailed,
+                onReady: {
+                    if model.onlineState.localPlayer(model.context.localPlayerID)?.state == .ready {
+                        model.setOnlineReady(false)
+                    } else {
+                        prepareLandscapeMatch()
+                    }
+                }, onRetry: model.retryOnline, onExit: exitGame
+            )
         }
-        .padding(AppDesign.Spacing.xl)
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .background(HouseRocketsTheme.panel,
-                    in: RoundedRectangle(cornerRadius: AppDesign.CornerRadius.xl))
+    }
+
+    private func blockerKey(_ blocker: HouseRocketsOnlineBlocker) -> String {
+        switch blocker {
+        case .signInRequired: return "house_rockets_online_sign_in"
+        case .houseRequired: return "house_rockets_online_house_required"
+        case .serviceUnavailable: return "house_rockets_online_unavailable_detail"
+        }
     }
 
     private func rule(_ key: String, symbol: String) -> some View {
@@ -475,36 +522,59 @@ struct HouseRocketsView: View {
     }
 
     private func prepareLandscapeMatch() {
-        guard model.selectedMode == .localBots, scenePhase == .active else { return }
+        guard model.selectedMode != nil, scenePhase == .active else { return }
+        if model.selectedMode == .housemates {
+            guard model.onlineState.canChangeReady(playerID: model.context.localPlayerID) else { return }
+        }
+        requestLandscape()
+    }
+
+    private func prepareOnlineFlightLandscape() {
+        guard model.selectedMode == .housemates, model.onlineFrame != nil, scenePhase == .active,
+              orientationRequestID == nil, !orientationRequestFailed, !model.onlineState.isLeaving else { return }
+        requestLandscape()
+    }
+
+    private func requestLandscape() {
         orientationRequestFailed = false
         isWaitingForLandscape = !isLandscapeLayout
         let requestID = UUID()
         orientationRequestID = requestID
         GameOrientationController.lockToLandscape {
-            guard orientationRequestID == requestID, model.snapshot == nil,
-                  model.selectedMode == .localBots else { return }
+            guard orientationRequestID == requestID else { return }
             isWaitingForLandscape = false
             orientationRequestID = nil
             orientationRequestFailed = true
+            model.setLandscape(false)
+            if model.selectedMode == .housemates,
+               model.onlineState.session?.state == .countdown || model.onlineState.session?.state == .running {
+                Task { await model.leaveOnline() }
+            }
             GameOrientationController.returnToPortrait()
         }
-        if isLandscapeLayout, !orientationRequestFailed {
-            isWaitingForLandscape = false
-            orientationRequestID = nil
-            Task { await model.startMatch() }
-        }
+        if isLandscapeLayout, !orientationRequestFailed { finishLandscapePreparation() }
     }
 
     private func handleViewportSize(_ size: CGSize) {
         guard size.width > 0, size.height > 0 else { return }
         model.scene.size = size
         isLandscapeLayout = size.width > size.height
+        model.setLandscape(isLandscapeLayout)
         guard isLandscapeLayout, isWaitingForLandscape, model.snapshot == nil,
-              model.selectedMode == .localBots, scenePhase == .active,
+              model.selectedMode != nil, scenePhase == .active,
               !orientationRequestFailed else { return }
+        finishLandscapePreparation()
+    }
+
+    private func finishLandscapePreparation() {
         isWaitingForLandscape = false
-        orientationRequestID = nil
-        Task { await model.startMatch() }
+        if model.selectedMode == .housemates {
+            // Keep the request identity to handle a late system rotation failure.
+            model.setOnlineReady(true)
+        } else {
+            orientationRequestID = nil
+            Task { await model.startMatch() }
+        }
     }
 
     private func changeMode() {
@@ -513,8 +583,14 @@ struct HouseRocketsView: View {
         orientationRequestFailed = false
         eliminationNotice = nil
         noticeID = nil
-        model.returnToModeSelection()
-        GameOrientationController.returnToPortrait()
+        if model.selectedMode == .housemates {
+            Task {
+                if await model.leaveOnline() { GameOrientationController.returnToPortrait() }
+            }
+        } else {
+            model.returnToModeSelection()
+            GameOrientationController.returnToPortrait()
+        }
     }
 
     private func refreshContext() {
@@ -523,13 +599,25 @@ struct HouseRocketsView: View {
             localPlayerID: appViewModel.currentUserId
         )
         guard model.context != context else { return }
-        changeMode()
+        isWaitingForLandscape = false
+        orientationRequestID = nil
+        orientationRequestFailed = false
+        eliminationNotice = nil
+        noticeID = nil
         model.updateContext(context)
+        GameOrientationController.returnToPortrait()
     }
 
     private func exitGame() {
-        model.stop()
-        dismiss()
+        if model.selectedMode == .housemates {
+            guard !model.onlineState.isLeaving else { return }
+            Task {
+                if await model.leaveOnline() { dismiss() }
+            }
+        } else {
+            model.stop()
+            dismiss()
+        }
     }
 
     private func botNameKey(_ index: Int) -> String {

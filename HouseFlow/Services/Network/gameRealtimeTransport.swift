@@ -78,6 +78,14 @@ final class GameRealtimeTransport: GameRealtimeTransporting {
         socket = nil
     }
 
+    /// The game gateway accepts JSON in WebSocket text frames only.
+    static func textMessage(from data: Data) throws -> URLSessionWebSocketTask.Message {
+        guard let text = String(data: data, encoding: .utf8) else {
+            throw GameRealtimeError.invalidResponse
+        }
+        return .string(text)
+    }
+
     private func currentSocket() throws -> (any GameWebSocketConnecting, UUID) {
         try Task.checkCancellation()
         guard let socket else { throw GameRealtimeError.notConnected }
@@ -121,7 +129,7 @@ private final class URLSessionGameWebSocket: GameWebSocketConnecting {
 
     func send(_ data: Data) async throws {
         do {
-            try await task.send(.data(data))
+            try await task.send(GameRealtimeTransport.textMessage(from: data))
         } catch { throw upgradeFailure(or: error) }
     }
 
