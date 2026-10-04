@@ -3,6 +3,8 @@ import UIKit
 
 /// Renders session snapshots. It never advances physics or decides eliminations.
 final class HouseRocketsScene: SKScene {
+    /// Samples an injected presentation source at the device's rendering cadence.
+    var frameProvider: (() -> HouseRocketsRenderFrame?)?
     private let world = SKCropNode()
     private let worldMask = SKSpriteNode(color: .white, size: .zero)
     private let environment = SKNode()
@@ -28,6 +30,10 @@ final class HouseRocketsScene: SKScene {
         guard size.width > 0, size.height > 0 else { return }
         drawEnvironment()
         renderWorld()
+    }
+
+    override func update(_ currentTime: TimeInterval) {
+        if let incoming = frameProvider?() { applyFrame(incoming) }
     }
 
     func applySnapshot(_ incoming: HouseRocketsSnapshot) {
@@ -61,6 +67,7 @@ final class HouseRocketsScene: SKScene {
     }
 
     func reset() {
+        frameProvider = nil
         renderFrame = nil
         clearWorld()
     }

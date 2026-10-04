@@ -46,6 +46,8 @@ enum HouseRocketsRenderMapper {
     static func online(_ snapshot: HouseRocketsSnapshotDTO, localPlayerID: String) throws -> HouseRocketsRenderFrame {
         try GameRealtimeCodec.validateCompatibility(courseVersion: snapshot.courseVersion, gameKey: snapshot.gameKey)
         guard !snapshot.sessionId.isEmpty, snapshot.players.count <= 8,
+              snapshot.runtimeEpoch >= 0, snapshot.stateSequence >= 0, snapshot.tick >= 0,
+              snapshot.gates.count <= 64, snapshot.speedFields.count <= 64,
               snapshot.elapsedSeconds.isFinite, snapshot.elapsedSeconds >= 0,
               snapshot.cameraX.isFinite, snapshot.courseAngle.isFinite,
               (0...Double.pi / 2).contains(snapshot.courseAngle),
@@ -56,7 +58,8 @@ enum HouseRocketsRenderMapper {
         }
         let players = try snapshot.players.map { player in
             guard !player.playerId.isEmpty, player.worldX.isFinite, player.worldY.isFinite,
-                  player.courseHeading.isFinite, player.effectRemainingSeconds.isFinite else {
+                  player.courseHeading.isFinite, player.effectRemainingSeconds.isFinite,
+                  player.effectRemainingSeconds >= 0, player.lastProcessedInputSequence >= 0 else {
                 throw GameRealtimeError.invalidResponse
             }
             return HouseRocketsRenderPlayer(id: player.playerId, name: .displayName(player.displayName),
@@ -66,7 +69,7 @@ enum HouseRocketsRenderMapper {
                 effectRemaining: player.effectRemainingSeconds)
         }
         let gates = try snapshot.gates.map { gate in
-            guard !gate.id.isEmpty, gate.worldX.isFinite, gate.sections.count >= 2 else {
+            guard !gate.id.isEmpty, gate.worldX.isFinite, (2...16).contains(gate.sections.count) else {
                 throw GameRealtimeError.invalidResponse
             }
             var lastX = -Double.infinity

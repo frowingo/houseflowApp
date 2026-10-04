@@ -43,6 +43,8 @@ enum HouseRocketsLocalization {
         "house_rockets_online_launching_detail": ("Ekranı yatay tut. Uçuş birlikte başlayacak.", "Keep your screen landscape. The flight will start together."),
         "house_rockets_online_waiting_start": ("Başlangıç bekleniyor", "Waiting for launch"),
         "house_rockets_online_flying": ("Canlı uçuş", "Live flight"),
+        "house_rockets_online_waiting_control": ("Yönlendirme hazırlanıyor", "Preparing controls"),
+        "house_rockets_online_eliminated": ("{names} elendi", "{names} eliminated"),
         "house_rockets_online_syncing_lobby": ("Lobi güncelleniyor…", "Syncing the lobby…"),
         "house_rockets_online_syncing_flight": ("Uçuş durumu alınıyor…", "Syncing the flight…"),
         "house_rockets_online_finalizing": ("Sonuç kaydediliyor…", "Saving the result…"),

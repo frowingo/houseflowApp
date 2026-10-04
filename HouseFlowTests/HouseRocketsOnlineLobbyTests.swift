@@ -337,6 +337,31 @@ final class HouseRocketsOnlineLobbyTests: XCTestCase {
         XCTAssertFalse(state.canReconnect(at: 110))
     }
 
+    func testInvalidTerminalGeometryIsNotRepublishedIntoFlightSink() async throws {
+        let rig = try LobbyRig()
+        let flight = HouseRocketsOnlineFlight(localPlayerID: LobbyFixture.playerID,
+            send: { _, _ in }, resync: {})
+        defer { rig.close(); flight.disconnect() }
+        try await rig.connectJoined()
+        var invalidSeen = false
+        rig.lobby.onStateChange = { state in
+            do { try flight.consume(state) }
+            catch { invalidSeen = true; rig.lobby.invalidateGameplay() }
+        }
+        rig.transport.push(try LobbyFixture.server("playing") { message in
+            var payload = message["payload"] as! [String: Any]
+            payload["phase"] = "ended"
+            payload["gates"] = [["id": "invalid-gate", "worldX": 900.0, "sections": [
+                ["offsetX": 0.0, "lowerY": 80.0, "upperY": 280.0],
+                ["offsetX": 0.0, "lowerY": 80.0, "upperY": 280.0]
+            ]]]
+            message["payload"] = payload
+        })
+        try await eventually { invalidSeen && rig.latest?.connection == .failed }
+        XCTAssertNil(rig.latest?.game)
+        XCTAssertNil(flight.presentation())
+    }
+
     private func eventually(_ predicate: () -> Bool, file: StaticString = #filePath, line: UInt = #line) async throws {
         let deadline = ProcessInfo.processInfo.systemUptime + 1
         while !predicate() {

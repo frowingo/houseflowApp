@@ -3,6 +3,9 @@ import Foundation
 /// Owns online lobby orchestration and application heartbeat. No UI or local physics.
 @MainActor
 final class HouseRocketsOnlineLobby {
+    // Synchronous service sinks preserve critical updates before the UI projection coalesces.
+    var onStateChange: ((HouseRocketsOnlineLobbyState) -> Void)?
+    var onGameplayRejected: ((String?, GameRealtimeRejection) -> Void)?
     private let session: OnlineHouseRocketsSession
     private let context: HouseRocketsLaunchContext
     private let clock: GameRealtimeClock
@@ -150,6 +153,35 @@ final class HouseRocketsOnlineLobby {
         sendLifecycle(.setReady(ready))
     }
 
+    func sendSteering(_ message: GameRealtimeClientMessage, grant: HouseRocketsControlGrantDTO) async throws {
+        guard !isClosed, state.validControl(playerID: context.localPlayerID) == grant,
+              case .steer(let controlGeneration, _, _) = message.action,
+              controlGeneration == grant.controlGeneration else { throw GameRealtimeError.invalidContext }
+        let expected = generation
+        do {
+            try await session.send(message)
+            guard expected == generation, !isClosed else { throw CancellationError() }
+        } catch {
+            guard expected == generation, !isClosed else { throw CancellationError() }
+            fail(.connection(failure(from: error)))
+            throw error
+        }
+    }
+
+    func resyncGameplay() {
+        guard !isClosed, pendingSyncID == nil, !state.isTerminal else { return }
+        state.controlGrant = nil
+        requestSync()
+        publish()
+    }
+
+    func invalidateGameplay() {
+        // Do not republish invalid terminal geometry into the same presentation sink.
+        state.game = nil
+        state.gameReceivedUptime = nil
+        fail(.connection(.invalidPayload))
+    }
+
     /// Explicit user exit; socket cleanup by itself is never business leave.
     func leave() async {
         guard !isClosed, !state.isLeaving else { return }
@@ -180,6 +212,8 @@ final class HouseRocketsOnlineLobby {
         state = HouseRocketsOnlineLobbyState()
         publish()
         continuation.finish()
+        onStateChange = nil
+        onGameplayRejected = nil
     }
 
     private func receive(_ received: GameRealtimeReceivedMessage) {
@@ -197,6 +231,7 @@ final class HouseRocketsOnlineLobby {
                 return
             }
             hasWelcome = true
+            state.runtimeSettings = welcome.settings
             heartbeatInterval = interval
             heartbeatTimeout = timeout
             lastPongAt = received.receivedUptime
@@ -218,7 +253,10 @@ final class HouseRocketsOnlineLobby {
                 state.pendingCommand?.accepted = true
             }
         case .rejected(let rejection):
-            guard let pending = state.pendingCommand, pending.message.messageId == message.messageId else { return }
+            guard let pending = state.pendingCommand, pending.message.messageId == message.messageId else {
+                onGameplayRejected?(message.messageId, rejection)
+                return
+            }
             state.pendingCommand = nil
             if pending.message.action == .join, rejection.code == "game.error.player_already_joined" {
                 // A concurrent/replayed join needs roster proof, not an optimistic local player.
@@ -244,6 +282,7 @@ final class HouseRocketsOnlineLobby {
                     (snapshot.runtimeEpoch == current.runtimeEpoch && snapshot.stateSequence > current.stateSequence) else { return }
             }
             state.game = snapshot
+            state.gameReceivedUptime = received.receivedUptime
             if let grant = state.controlGrant, grant.runtimeEpoch < snapshot.runtimeEpoch {
                 state.controlGrant = nil
             }
@@ -440,5 +479,8 @@ final class HouseRocketsOnlineLobby {
         return .transport
     }
 
-    private func publish() { continuation.yield(state) }
+    private func publish() {
+        onStateChange?(state)
+        continuation.yield(state)
+    }
 }

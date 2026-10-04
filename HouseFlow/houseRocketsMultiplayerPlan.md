@@ -457,13 +457,13 @@ mevcut factory/scene/service sırf bu liste nedeniyle tekrar oluşturulmaz.
 Dosya yolları sorumluluk önerisidir; güncel mobil dizin düzeniyle uzlaştırılır.
 Yeni dosya adları camelCase, Swift tip adları mevcut PascalCase dil kuralını izler:
 
-- `Services/Network/gameRealtimeTransport.swift`: URLSession tabanlı socket,
+- `Services/Network/GameRealtimeTransport.swift`: URLSession tabanlı socket,
   auth header, send/receive, ping, bağlantı ve cancellation. Oyunu hesaplamaz.
-- `Services/Games/gameSessionService.swift`: Mevcut HTTP session yolları,
+- `Services/Games/GameSessionService.swift`: Mevcut HTTP session yolları,
   typed DTO/envelope ve hata eşleme.
-- `Services/Games/onlineHouseRocketsSession.swift`: Session akışı, game DTO
+- `Services/Games/OnlineHouseRocketsSession.swift`: Session akışı, game DTO
   mapping, input coalescing, sıra/epoch takibi, resync ve snapshot akışı.
-- `Models/Games/gameSessionModels.swift` ve `houseRocketsWireModels.swift`:
+- `Models/Games/GameSessionModels.swift` ve `HouseRocketsWireModels.swift`:
   Wire DTO'lar; Swift associated-value enum serileştirmesi API yerine kullanılmaz.
 - `HouseRocketsViewModel`: Mod, lobby, connection ve presentation state;
   kullanıcı niyetleri; hata ve pending command durumları.

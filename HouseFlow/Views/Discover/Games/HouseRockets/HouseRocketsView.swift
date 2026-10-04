@@ -36,7 +36,17 @@ struct HouseRocketsView: View {
                     SpriteView(scene: model.scene)
                         .ignoresSafeArea(edges: frame.courseAngle > .pi / 4 ? .vertical : .horizontal)
                         .allowsHitTesting(false)
-                    HouseRocketsOnlineFlightOverlay(state: model.onlineState, frame: frame, onExit: exitGame)
+                    if model.onlinePresentation?.canSteer == true, scenePhase == .active {
+                        HouseRocketsFloatingJoystick(
+                            heading: (frame.players.first(where: { $0.role == .human })?.courseHeading ?? 0) + frame.courseAngle,
+                            label: copy("house_rockets_joystick"), hint: copy("house_rockets_joystick_hint"),
+                            onSteer: model.steer, onEnd: model.endSteering, onAdjust: model.adjustHeading
+                        )
+                        .id(geometry.size)
+                    }
+                    if let presentation = model.onlinePresentation {
+                        HouseRocketsOnlineFlightOverlay(state: model.onlineState, presentation: presentation, onExit: exitGame)
+                    }
                 } else {
                     lobby
                 }

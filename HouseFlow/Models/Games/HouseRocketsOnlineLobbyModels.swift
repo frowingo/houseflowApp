@@ -15,6 +15,8 @@ struct HouseRocketsOnlineLobbyState: Equatable, Sendable {
     var isLeaving = false
     var serverClock: HouseRocketsServerClock?
     var retryNotBefore: TimeInterval?
+    var runtimeSettings: HouseRocketsRuntimeSettingsDTO?
+    var gameReceivedUptime: TimeInterval?
 
     var participants: [GameSessionPlayerDTO] { session?.players.filter { $0.state != .left } ?? [] }
     var readyCount: Int { participants.filter { $0.state == .ready }.count }
@@ -32,6 +34,18 @@ struct HouseRocketsOnlineLobbyState: Equatable, Sendable {
         guard connection == .connected, isSynced, isForeground, isLobby,
               pendingCommand == nil, !isLeaving, let player = localPlayer(playerID) else { return false }
         return player.state == .waiting || player.state == .ready
+    }
+
+    func validControl(playerID: String?) -> HouseRocketsControlGrantDTO? {
+        guard connection == .connected, isSynced, isForeground, isLandscape,
+              !isLeaving, !isTerminal, session?.state == .running,
+              let game, game.phase == .playing, let grant = controlGrant,
+              grant.sessionId == game.sessionId, grant.sessionId == session?.sessionId,
+              grant.playerId == playerID, grant.runtimeEpoch == game.runtimeEpoch,
+              !grant.controlGeneration.isEmpty,
+              let player = game.players.first(where: { $0.playerId == playerID }),
+              player.isAlive, player.connected, player.controlGeneration == grant.controlGeneration else { return nil }
+        return grant
     }
 
     func canReconnect(at uptime: TimeInterval) -> Bool {

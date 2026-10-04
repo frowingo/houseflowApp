@@ -195,11 +195,12 @@ struct HouseRocketsOnlineLobbyView: View {
     }
 }
 
-/// Initial authoritative presentation; steering/interpolation are introduced by M3.
+/// Shares the sampled frame with the scene; never computes physics or control authority.
 struct HouseRocketsOnlineFlightOverlay: View {
     @EnvironmentObject private var appViewModel: AppViewModel
     let state: HouseRocketsOnlineLobbyState
-    let frame: HouseRocketsRenderFrame
+    let presentation: HouseRocketsOnlinePresentation
+    private var frame: HouseRocketsRenderFrame { presentation.frame }
     let onExit: () -> Void
 
     var body: some View {
@@ -222,20 +223,44 @@ struct HouseRocketsOnlineFlightOverlay: View {
                 let region = regions[index]
                 VStack(spacing: AppDesign.Spacing.xs) {
                     if index == 0 {
-                        Label(copy(statusKey), systemImage: "antenna.radiowaves.left.and.right")
-                    } else {
-                        LazyVGrid(columns: Array(repeating: GridItem(.flexible(), alignment: .leading),
-                                                count: region.width < 340 ? 2 : 4),
-                                  alignment: .leading, spacing: AppDesign.Spacing.xs) {
-                            ForEach(frame.players) { player in
-                                HStack(spacing: 4) {
-                                    Circle().fill(Color(HouseRocketsPalette.player(player.color))).frame(width: 7, height: 7)
-                                    if case .displayName(let name) = player.name {
-                                        Text(verbatim: name).strikethrough(!player.isAlive)
-                                    }
-                                }
-                                .foregroundStyle(player.isAlive ? HouseRocketsTheme.ink : HouseRocketsTheme.muted)
+                        HStack(spacing: AppDesign.Spacing.sm) {
+                            Label(copy(statusKey), systemImage: presentation.isSyncing ? "arrow.triangle.2.circlepath" : "antenna.radiowaves.left.and.right")
+                            if frame.phase == .playing {
+                                Label("\(Int(frame.elapsedTime))", systemImage: "timer")
+                                    .monospacedDigit()
+                                    .accessibilityLabel(copy("house_rockets_time") + " \(Int(frame.elapsedTime))")
+                                Label("\(frame.players.filter(\.isAlive).count)", systemImage: "person.2.fill")
+                                    .accessibilityLabel(appViewModel.localized("house_rockets_alive", replacements: [
+                                        "count": "\(frame.players.filter(\.isAlive).count)"
+                                    ]))
                             }
+                        }
+                        if let effect = frame.players.first(where: { $0.role == .human })?.speedEffect {
+                            Text(copy(effect == .boost ? "house_rockets_boost_active" : "house_rockets_slow_active"))
+                                .foregroundStyle(HouseRocketsTheme.accent)
+                        }
+                    } else {
+                        if presentation.eliminations.isEmpty {
+                            LazyVGrid(columns: Array(repeating: GridItem(.flexible(), alignment: .leading),
+                                                     count: region.width < 340 ? 2 : 4),
+                                      alignment: .leading, spacing: AppDesign.Spacing.xs) {
+                                ForEach(frame.players) { player in
+                                    HStack(spacing: 4) {
+                                        Circle().fill(Color(HouseRocketsPalette.player(player.color))).frame(width: 7, height: 7)
+                                        if case .displayName(let name) = player.name {
+                                            Text(verbatim: name).strikethrough(!player.isAlive)
+                                        }
+                                    }
+                                    .foregroundStyle(player.isAlive ? HouseRocketsTheme.ink : HouseRocketsTheme.muted)
+                                }
+                            }
+                        } else {
+                            Text(appViewModel.localized("house_rockets_online_eliminated", replacements: [
+                                "names": presentation.eliminations.map(\.displayName).joined(separator: ", ")
+                            ]))
+                            .foregroundStyle(HouseRocketsTheme.danger)
+                            .lineLimit(region.width < 340 ? 4 : 2)
+                            .accessibilityAddTraits(.updatesFrequently)
                         }
                     }
                 }
@@ -270,6 +295,11 @@ struct HouseRocketsOnlineFlightOverlay: View {
 
     private var statusKey: String {
         if state.isTerminal { return "house_rockets_online_ended" }
+        if presentation.isSyncing { return "house_rockets_online_syncing_flight" }
+        if frame.phase == .playing, frame.players.first(where: { $0.role == .human })?.isAlive == false {
+            return "house_rockets_spectating_short"
+        }
+        if frame.phase == .playing, !presentation.canSteer { return "house_rockets_online_waiting_control" }
         switch frame.phase {
         case .countdown: return "house_rockets_online_launching"
         case .recovering: return "house_rockets_online_syncing_flight"

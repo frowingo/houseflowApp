@@ -5,10 +5,10 @@ struct HouseRocketsRenderFrame: Equatable, Sendable {
     let sessionID: String
     let courseVersion: Int
     let phase: HouseRocketsRenderPhase
-    let elapsedTime: TimeInterval
-    let cameraX: Double
-    let courseAngle: Double
-    let players: [HouseRocketsRenderPlayer]
+    var elapsedTime: TimeInterval
+    var cameraX: Double
+    var courseAngle: Double
+    var players: [HouseRocketsRenderPlayer]
     let gates: [HouseRocketsRenderGate]
     let speedFields: [HouseRocketsRenderField]
 }
@@ -28,11 +28,11 @@ struct HouseRocketsRenderPlayer: Identifiable, Equatable, Sendable {
     let role: HouseRocketsRole
     let color: HouseRocketsColor
     let isAlive: Bool
-    let worldX: Double
-    let worldY: Double
-    let courseHeading: Double
-    let speedEffect: HouseRocketsSpeedEffect?
-    let effectRemaining: Double
+    var worldX: Double
+    var worldY: Double
+    var courseHeading: Double
+    var speedEffect: HouseRocketsSpeedEffect?
+    var effectRemaining: Double
 }
 
 struct HouseRocketsRenderGate: Identifiable, Equatable, Sendable, HouseRocketsGateGeometry {
