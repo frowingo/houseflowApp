@@ -4,7 +4,7 @@ import XCTest
 
 @MainActor
 final class HouseRocketsOnlineFlightTests: XCTestCase {
-    func testTwoFourEightPlayerMappingAndLiteralNames() throws {
+    func testTwoFourEightPlayerMappingAndLiteralNames() async throws {
         for count in [2, 4, 8] {
             let snapshot = try FlightFixture.snapshot(players: count)
             let frame = try HouseRocketsRenderMapper.online(snapshot, localPlayerID: FlightFixture.playerID)
@@ -15,7 +15,7 @@ final class HouseRocketsOnlineFlightTests: XCTestCase {
         }
     }
 
-    func testGrantAndSnapshotCanArriveInEitherOrder() throws {
+    func testGrantAndSnapshotCanArriveInEitherOrder() async throws {
         for grantFirst in [true, false] {
             let rig = try FlightRig()
             defer { rig.flight.disconnect() }
@@ -33,7 +33,7 @@ final class HouseRocketsOnlineFlightTests: XCTestCase {
         }
     }
 
-    func testAllControlGates() throws {
+    func testAllControlGates() async throws {
         let rig = try FlightRig()
         defer { rig.flight.disconnect() }
         try rig.feed()
@@ -55,7 +55,7 @@ final class HouseRocketsOnlineFlightTests: XCTestCase {
         XCTAssertNil(invalid.validControl(playerID: FlightFixture.playerID))
     }
 
-    func testInterpolationSharesCameraCourseAndFieldTime() throws {
+    func testInterpolationSharesCameraCourseAndFieldTime() async throws {
         let rig = try FlightRig()
         defer { rig.flight.disconnect() }
         try rig.feed(elapsed: 24.95, x: 100, camera: 20)
@@ -161,7 +161,7 @@ final class HouseRocketsOnlineFlightTests: XCTestCase {
         XCTAssertTrue(try XCTUnwrap(rig.flight.presentation()).canSteer)
     }
 
-    func testSnapshotLossFreezesExtrapolationAndRequestsBoundedResync() throws {
+    func testSnapshotLossFreezesExtrapolationAndRequestsBoundedResync() async throws {
         let rig = try FlightRig()
         defer { rig.flight.disconnect() }
         try rig.feed(grant: false)
@@ -174,7 +174,7 @@ final class HouseRocketsOnlineFlightTests: XCTestCase {
         XCTAssertEqual(rig.resyncCount, 1)
     }
 
-    func testPredictionDoesNotEliminateOrAdvanceAuthoritativeCamera() throws {
+    func testPredictionDoesNotEliminateOrAdvanceAuthoritativeCamera() async throws {
         let rig = try FlightRig()
         defer { rig.flight.disconnect() }
         try rig.feed(x: 100, camera: 1_000)
@@ -183,7 +183,7 @@ final class HouseRocketsOnlineFlightTests: XCTestCase {
         XCTAssertEqual(frame.cameraX, 1_000)
     }
 
-    func testSimultaneousEliminationsSurviveTerminalPhaseAndDoNotReplay() throws {
+    func testSimultaneousEliminationsSurviveTerminalPhaseAndDoNotReplay() async throws {
         let rig = try FlightRig()
         defer { rig.flight.disconnect() }
         try rig.feed()
@@ -197,7 +197,7 @@ final class HouseRocketsOnlineFlightTests: XCTestCase {
         XCTAssertEqual(rig.eliminations.count, 2)
     }
 
-    func testPredictionUsesConfirmedSpeedEffectsAndExactContacts() throws {
+    func testPredictionUsesConfirmedSpeedEffectsAndExactContacts() async throws {
         var player = try HouseRocketsRenderMapper.online(FlightFixture.snapshot(), localPlayerID: FlightFixture.playerID).players[0]
         player.worldX = 0; player.worldY = 50
         player.speedEffect = .boost; player.effectRemaining = 1
@@ -246,7 +246,7 @@ final class HouseRocketsOnlineFlightTests: XCTestCase {
         XCTAssertEqual(rig.resyncCount, 1)
     }
 
-    func testMissingGrantEventuallyResyncsWhileSnapshotsContinue() throws {
+    func testMissingGrantEventuallyResyncsWhileSnapshotsContinue() async throws {
         let rig = try FlightRig()
         defer { rig.flight.disconnect() }
         try rig.feed(grant: false)
@@ -288,7 +288,7 @@ final class HouseRocketsOnlineFlightTests: XCTestCase {
         XCTAssertEqual(rig.messages.count, 0)
     }
 
-    func testSnapshotBufferKeepsOnlyRecentFrames() throws {
+    func testSnapshotBufferKeepsOnlyRecentFrames() async throws {
         let rig = try FlightRig()
         defer { rig.flight.disconnect() }
         for index in 0..<20 {

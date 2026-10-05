@@ -91,8 +91,10 @@ final class HouseSwitchTests: XCTestCase {
             gravity: .up
         )
 
-        XCTAssertLessThan(downProbe.midY, position.y - size.height / 2)
-        XCTAssertGreaterThan(upProbe.midY, position.y + size.height / 2)
+        XCTAssertEqual(downProbe.midY, position.y - size.height / 2, accuracy: 0.001)
+        XCTAssertLessThan(downProbe.minY, position.y - size.height / 2)
+        XCTAssertEqual(upProbe.midY, position.y + size.height / 2, accuracy: 0.001)
+        XCTAssertGreaterThan(upProbe.maxY, position.y + size.height / 2)
         XCTAssertGreaterThan(downProbe.minX, position.x - size.width / 2)
         XCTAssertLessThan(downProbe.maxX, position.x + size.width / 2)
         XCTAssertEqual(downProbe.width, upProbe.width, accuracy: 0.001)

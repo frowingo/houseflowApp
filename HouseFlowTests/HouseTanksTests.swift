@@ -4,7 +4,7 @@ import XCTest
 
 @MainActor
 final class HouseTanksTests: XCTestCase {
-    func testDamageRemovesOneArmorAndEliminatesAtZero() {
+    func testDamageRemovesOneArmorAndEliminatesAtZero() async {
         let targetID = UUID()
         var players = makePlayers(targetID: targetID, targetArmor: 2)
 
@@ -17,7 +17,7 @@ final class HouseTanksTests: XCTestCase {
         XCTAssertEqual(players.first { $0.id == targetID }?.isAlive, false)
     }
 
-    func testRoundEndsOnlyWhenOneTankRemains() {
+    func testRoundEndsOnlyWhenOneTankRemains() async {
         let players = makePlayers().enumerated().map { index, player in
             var updated = player
             updated.isAlive = index == 0
@@ -31,7 +31,7 @@ final class HouseTanksTests: XCTestCase {
         )
     }
 
-    func testSimultaneousEliminationIsDraw() {
+    func testSimultaneousEliminationIsDraw() async {
         let players = makePlayers().map { player in
             var updated = player
             updated.isAlive = false
@@ -45,7 +45,7 @@ final class HouseTanksTests: XCTestCase {
         )
     }
 
-    func testTimerUsesUniqueHighestArmorAndDrawsOnTie() {
+    func testTimerUsesUniqueHighestArmorAndDrawsOnTie() async {
         var players = makePlayers()
         players[0].armor = 4
         players[1].armor = 2
@@ -62,7 +62,7 @@ final class HouseTanksTests: XCTestCase {
         )
     }
 
-    func testThreeRoundWinsProducesChampion() {
+    func testThreeRoundWinsProducesChampion() async {
         var players = makePlayers()
         let winnerID = players[1].id
 
@@ -74,12 +74,12 @@ final class HouseTanksTests: XCTestCase {
         XCTAssertEqual(players[1].roundsWon, 3)
     }
 
-    func testAnglesAreNormalizedForAimLocking() {
+    func testAnglesAreNormalizedForAimLocking() async {
         XCTAssertEqual(HouseTanksMath.normalizedAngle(.pi * 3), .pi, accuracy: 0.001)
         XCTAssertEqual(HouseTanksMath.normalizedAngle(-.pi * 3), -.pi, accuracy: 0.001)
     }
 
-    func testIdleRotationDirectionAlternatesAfterEveryPress() {
+    func testIdleRotationDirectionAlternatesAfterEveryPress() async {
         let clockwise: CGFloat = 1
         let counterClockwise = HouseTanksMath.oppositeRotationDirection(after: clockwise)
         let clockwiseAgain = HouseTanksMath.oppositeRotationDirection(after: counterClockwise)
@@ -88,7 +88,7 @@ final class HouseTanksTests: XCTestCase {
         XCTAssertEqual(clockwiseAgain, 1)
     }
 
-    func testBotDifficultyChangesAimTolerance() {
+    func testBotDifficultyChangesAimTolerance() async {
         let bot = HouseTanksBotController(playerID: UUID(), randomUnit: { 0 })
         let observation = HouseTanksBotObservation(
             aimError: 0.32,

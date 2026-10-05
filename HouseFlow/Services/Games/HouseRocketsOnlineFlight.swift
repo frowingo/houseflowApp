@@ -9,6 +9,7 @@ final class HouseRocketsOnlineFlight {
     private let localPlayerID: String
     private let clock: GameRealtimeClock
     private let configuration: HouseRocketsFlightConfiguration
+    private let acceptanceRecorder: HouseRocketsAcceptanceRecorder?
     private let send: Send
     private let resync: () -> Void
     private var state = HouseRocketsOnlineLobbyState()
@@ -39,10 +40,12 @@ final class HouseRocketsOnlineFlight {
 
     init(localPlayerID: String, clock: GameRealtimeClock? = nil,
          configuration: HouseRocketsFlightConfiguration? = nil,
+         acceptanceRecorder: HouseRocketsAcceptanceRecorder? = nil,
          send: @escaping Send, resync: @escaping () -> Void) {
         self.localPlayerID = localPlayerID
         self.clock = clock ?? .live
         self.configuration = configuration ?? .init()
+        self.acceptanceRecorder = acceptanceRecorder
         self.send = send
         self.resync = resync
     }
@@ -154,6 +157,11 @@ final class HouseRocketsOnlineFlight {
         if let player = incoming.game?.players.first(where: { $0.playerId == localPlayerID }), binding != nil {
             guard player.lastProcessedInputSequence >= lastACK else { throw GameRealtimeError.invalidResponse }
             if player.lastProcessedInputSequence > lastACK { retransmits = 0 }
+            if let acceptanceRecorder {
+                for input in inputs where input.sequence <= player.lastProcessedInputSequence {
+                    acceptanceRecorder.record(.inputAck, seconds: now - input.sentUptime)
+                }
+            }
             lastACK = player.lastProcessedInputSequence
             sequence = max(sequence, lastACK)
             inputs.removeAll { $0.sequence <= lastACK }

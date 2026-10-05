@@ -14,6 +14,9 @@ final class HouseRocketsViewModel: ObservableObject {
     @Published var botCount = 3
 
     let scene: HouseRocketsScene
+    let preferredFramesPerSecond: Int
+    private let acceptanceRecorder: HouseRocketsAcceptanceRecorder?
+    private var presentationCadence = HouseRocketsPresentationCadence()
     private let sessionFactory: HouseRocketsSessionFactory
     private var service: (any HouseRocketsGameServicing)?
     private var onlineLobby: HouseRocketsOnlineLobby?
@@ -46,6 +49,14 @@ final class HouseRocketsViewModel: ObservableObject {
         self.sessionFactory = sessionFactory
         self.context = context
         self.scene = scene ?? HouseRocketsScene(size: CGSize(width: 1_180, height: 640))
+        let configuration = HouseRocketsAcceptanceConfiguration.current
+        preferredFramesPerSecond = configuration.requestedFramesPerSecond
+        acceptanceRecorder = configuration.isEnabled ? HouseRocketsAcceptanceRecorder(configuration: configuration) : nil
+        if let recorder = acceptanceRecorder {
+            self.scene.onRenderedFrame = { [weak recorder] time, maximumFPS in
+                recorder?.renderedFrame(at: time, screenMaximumFPS: maximumFPS)
+            }
+        }
     }
 
     deinit {
@@ -56,6 +67,7 @@ final class HouseRocketsViewModel: ObservableObject {
     func selectMode(_ mode: HouseRocketsMode) {
         guard snapshot == nil, onlineLobby == nil else { return }
         selectedMode = mode
+        acceptanceRecorder?.begin(mode: mode)
         if mode == .housemates { connectOnline() }
     }
 
@@ -83,6 +95,7 @@ final class HouseRocketsViewModel: ObservableObject {
 
     func setForeground(_ active: Bool) {
         isForeground = active
+        acceptanceRecorder?.setForeground(active)
         onlineLobby?.setForeground(active)
     }
 
@@ -115,12 +128,15 @@ final class HouseRocketsViewModel: ObservableObject {
         onlineFlight?.disconnect()
         onlineLobby?.disconnect()
         onlinePresentation = nil
+        presentationCadence = .init()
+        if excludingSessionID != nil { acceptanceRecorder?.begin(mode: .housemates) }
         onlineState = HouseRocketsOnlineLobbyState()
         onlineResultState = HouseRocketsOnlineResultState()
         scene.reset()
         let session = makeSession()
         let lobby = HouseRocketsOnlineLobby(session: session, context: context,
-                                           excludingSessionID: excludingSessionID)
+                                           excludingSessionID: excludingSessionID,
+                                           acceptanceRecorder: acceptanceRecorder)
         onlineLobby = lobby
         let expected = generation
         let result = HouseRocketsOnlineResult(houseID: context.houseID ?? "",
@@ -129,8 +145,10 @@ final class HouseRocketsViewModel: ObservableObject {
         result.onStateChange = { [weak self, weak lobby] state in
             guard let self, self.generation == expected else { return }
             let hadResult = self.onlineResultState.result != nil
+            let couldRematch = self.onlineResultState.canRematch
             self.onlineResultState = state
             if state.canRematch {
+                if !couldRematch { self.acceptanceRecorder?.flush(.result) }
                 self.scene.frameProvider = nil
                 self.onlineFlight?.disconnect()
                 lobby?.finish()
@@ -141,6 +159,7 @@ final class HouseRocketsViewModel: ObservableObject {
             }
         }
         let flight = HouseRocketsOnlineFlight(localPlayerID: context.localPlayerID ?? "",
+            acceptanceRecorder: acceptanceRecorder,
             send: { [weak lobby] message, grant in
                 guard let lobby else { throw CancellationError() }
                 try await lobby.sendSteering(message, grant: grant)
@@ -161,7 +180,7 @@ final class HouseRocketsViewModel: ObservableObject {
             guard let self, let flight, self.generation == expected else { return }
             do { try flight.consume(state) }
             catch { lobby?.invalidateGameplay(); return }
-            self.onlineState = state
+            if self.onlineState != state { self.onlineState = state }
             if let frame = self.sampleOnlineFrame() {
                 self.scene.applyFrame(frame)
             }
@@ -174,7 +193,9 @@ final class HouseRocketsViewModel: ObservableObject {
 
     private func sampleOnlineFrame() -> HouseRocketsRenderFrame? {
         let presentation = onlineFlight?.presentation()
-        if presentation != onlinePresentation { onlinePresentation = presentation }
+        if presentationCadence.shouldPublish(presentation, at: ProcessInfo.processInfo.systemUptime) {
+            onlinePresentation = presentation
+        }
         return presentation?.frame
     }
 
@@ -233,6 +254,7 @@ final class HouseRocketsViewModel: ObservableObject {
 
     func restart() {
         guard selectedMode == .localBots, let snapshot, snapshot.phase == .ended else { return }
+        acceptanceRecorder?.begin(mode: .localBots)
         lastHeading = nil
         send(.restart, matchID: snapshot.matchID, playerID: nil)
     }
@@ -251,11 +273,13 @@ final class HouseRocketsViewModel: ObservableObject {
 
     func setReduceMotion(_ enabled: Bool) {
         reduceMotion = enabled
+        acceptanceRecorder?.setReduceMotion(enabled)
         scene.setReduceMotion(enabled)
         onlineFlight?.setReduceMotion(enabled)
     }
 
     func stop() {
+        acceptanceRecorder?.flush(.stop)
         generation = UUID()
         lastHeading = nil
         pendingCommand = nil
@@ -273,6 +297,7 @@ final class HouseRocketsViewModel: ObservableObject {
         onlineLobby = nil
         onlineState = HouseRocketsOnlineLobbyState()
         onlinePresentation = nil
+        presentationCadence = .init()
         onlineResultState = HouseRocketsOnlineResultState()
         snapshot = nil
         previousOnlineSessionID = nil

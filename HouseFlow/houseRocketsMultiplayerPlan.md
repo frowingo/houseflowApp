@@ -228,6 +228,10 @@ doğrulanır; agent izinsiz production process'i öldürmez/secret değiştirmez
 
 #### M6 — Ortak gerçek cihaz ve yayın kabulü
 
+Mobil durum (5 Ekim 2026): **geliştiriliyor**. Opt-in DEBUG ölçümleri, FPS deneme
+ayarı ve native kabul testleri eklendi; çalıştırılmış kanıtlar bölüm 12’de.
+İki fiziksel cihaz ve koşullandırılmış ağ/owner kaybı kabulü henüz açık.
+
 İki gerçek cihaz/hesap ile tam maç; 100/200/400 ms RTT, jitter, kısa kopmalar,
 30/60/120 FPS desteklenen cihazlar, iPhone/iPad/orientation ve reduceMotion
 kontrolü. Yerel bot/diğer oyun regresyonları korunur. Test yöntemi, ortam,
@@ -1889,3 +1893,157 @@ oyuncunun çıkarılması testleri geçti. Mobil repo değiştirilmedi/build edi
 iki fiziksel iOS cihazı veya production yük/failover kabulü yapılmadı.
 Test için açılan Mongo/Redis/init container'ları durduruldu; çalışan container
 kalmadığı doğrulandı. Volume'lar korundu, deploy ve commit yapılmadı.
+
+
+## 12. Mobil M6 kabul kaydı — 5 Ekim 2026
+
+### 12.1. Durum ve yöntem
+
+Mobil kabul araçları uygulanmıştır; **M6/Paket 7 ortak yayın kapısı geçilmedi**.
+Başlangıç mobil HEAD: `485af81`; bu kaydın geliştirmeleri henüz commit edilmedi.
+Wire/fixture sözleşmesi değiştirilmedi: `houseRockets.v2.1`, protocol 2,
+course 1, schema 1. Backend production flag, concurrency/admission veya instance
+ayarları değiştirilmedi; deploy yapılmadı.
+
+| Katman | Ortam/yöntem | Çalıştırılan sonuç | Sınır |
+| --- | --- | --- | --- |
+| Foundation | macOS üzerinde Swift package; codec, simülasyon, mock transport ve servisler | **125 test geçti**, 14 yeni M6 testi | Mock/virtual clock; fiziksel cihaz veya ağ kabulü değildir. |
+| iPhone native | Xcode 26 / Swift 6.2; iOS 26.0 iPhone 15 Pro simülatörü | **204 uygulama testi geçti**, 0 failure/skip | Tüm uygulama regresyonu; fiziksel telefon değildir. |
+| iPad native | iOS 26.0 iPad Air 11-inch M3 simülatörü | **20 M6 testi geçti**, 0 failure/skip | Ölçüm, native render/resize, Reduce Motion, offline bot ve fixture UI. |
+| Görsel inceleme | XCTest attachment; portrait/landscape boyutları, büyük erişilebilirlik yazısı | Mode seçimi, bağlantı ve iptal sonucu görüntüleri incelendi | Fixture sunumu; oynanmış iki cihazlı maç veya VoiceOver/gesture kabulü değildir. |
+| Canlı servis | macOS native URLSession WebSocket; mevcut development API `https://houseflowapi.fly.dev/api/v1`; aynı evde iki yetkili test hesabı | Join/ready/countdown/playing, ACK, background/foreground servis çağrıları, socket kesintisi/reconnect, aynı kullanıcıda kontrol devri, event/HTTP result, rematch ve iptal **geçti** | Headless istemciler; gerçek iOS suspension, joystick hissi ve FPS ölçülmedi. |
+| Release yolu | DEBUG tanımı olmadan bütün iOS Swift kaynaklarında typecheck | **Geçti** | Release archive/deploy veya cihaz kabulü değildir. |
+| Gerçek cihazlar | Mac'te eşleşmiş iPhone 15 Pro görüldü; ikinci fiziksel cihaz/staging bilgisi bekleniyor | **Yapılmadı** | Eşleşmiş cihaz görülmesi test çalıştırıldığı anlamına gelmez. |
+
+Geçici kanıtlar: `/tmp/HouseRocketsM6Final.xcresult`,
+`/tmp/HouseRocketsM6Pad.xcresult`, `/tmp/houseRocketsM6Tests.log`.
+XCTest result bundle'ları tekrar çalıştırmada yeni bir dosya adıyla üretilmelidir.
+Geçici dosyalar kalıcı yayın kabul arşivi yerine geçmez; ortak cihaz koşusunda
+ilgili `.xcresult`, Console ölçümleri ve cihaz/ağ kaydı ayrıca saklanır.
+
+İlk tam simülatör koşusu başarılı değildi. Senkron actor testlerinin cleanup'ı
+`swift_task_deinitOnExecutorImpl` / `TaskLocal::StopLookupScope` içinde çöktü;
+yeni M6 ve mevcut Flight/Tanks actor testleri async XCTest task'ında çalıştırıldı.
+Native screenshot harness'i, test AppViewModel'i bırakılmadan hosting graph'ını
+temizler. İz, [Swift runtime kaydı #88036](https://github.com/swiftlang/swift/issues/88036)
+ile örtüşür; gerçek cihaz/OS yaşam döngüsü yine ayrıca doğrulanır.
+House Switch destek probu testi, mevcut geometrinin yüzeydeki merkezini ve
+0,5 birim dışarı uzanan kenarını doğru kontrol edecek şekilde düzeltildi;
+oyun fiziği değiştirilmedi. Son iPhone koşusunda bütün 204 test geçti.
+
+Son native doğrulamada çalıştırılan komutlar (repo root'ta):
+
+```sh
+xcodebuild -project HouseFlow.xcodeproj -scheme HouseFlow \
+  -destination 'platform=iOS Simulator,id=21C42281-29FD-4750-8F51-8A6A2144CE05' \
+  -derivedDataPath /tmp/HouseRocketsM6Build \
+  -resultBundlePath /tmp/HouseRocketsM6Final.xcresult \
+  -parallel-testing-enabled NO test
+
+xcodebuild -project HouseFlow.xcodeproj -scheme HouseFlow \
+  -destination 'platform=iOS Simulator,id=71181120-37AE-4474-9213-6DCBE3DA7CF4' \
+  -derivedDataPath /tmp/HouseRocketsM6Build \
+  -resultBundlePath /tmp/HouseRocketsM6Pad.xcresult \
+  -parallel-testing-enabled NO \
+  -only-testing:HouseFlowTests/HouseRocketsAcceptanceTests \
+  -only-testing:HouseFlowTests/HouseRocketsNativeAcceptanceTests test
+```
+
+Bu iki UDID yalnız koşu için oluşturulan geçici simülatörlere aittir; teslimde
+kapatılıp silinir. Tekrarda kendi mevcut iPhone/iPad simülatörünün UDID'sini ve
+yeni result bundle adını kullan. Foundation harness'i `/tmp` altındadır;
+kalıcı repo testleri yukarıdaki native XCTest hedefinde de çalışır.
+
+### 12.2. DEBUG cihaz ölçümlerini açma
+
+Xcode → Scheme → Run → Arguments Passed On Launch:
+
+```text
+-HouseRocketsDiagnostics
+-HouseRocketsFPS 30
+```
+
+FPS argümanını ayrı koşularda `30`, `60`, `120` yap. Diagnostics argümanı
+olmadan FPS override etkin değildir; desteklenmeyen değer 60'a döner.
+Release bu argümanları okumaz. Normal oynanışın tercihi 60 FPS olarak korunur.
+Debug Info.plist'te `CADisableMinimumFrameDurationOnPhone` boolean `true`
+olarak birleştirilir; [Apple'ın ProMotion anahtarı](https://developer.apple.com/documentation/bundleresources/information-property-list/cadisableminimumframedurationonphone)
+gerçek donanımın desteklediği yüksek frame rate'i istemeye izin verir.
+İstenen değer gerçek FPS garantisi değildir; düşük güç ve ekran FPS limiti
+tercihleri de koşu kaydına yazılmalıdır. Simülatörde 120 frame'lik virtual-clock
+provider testinin geçmesi, 120 FPS donanım kabulü değildir.
+
+Xcode Console veya bağlı cihazın Console kaydında subsystem `HouseFlow`,
+category `HouseRocketsAcceptance` filtresini kullan. Kayıtlar beş saniyede bir,
+background/sonuç/çıkış sınırlarında sınırlı JSON raporlarıdır. Token, e-posta,
+oyuncu/ev/session/connection kimliği, control generation veya wire payload
+rapora eklenmez. Her maç/rematch ölçüm penceresini sıfırlar.
+
+| Ölçüm | Anlamı |
+| --- | --- |
+| `frameInterval` / `measuredFramesPerSecond` | Foreground'da scene update aralıkları; gerçek render callback cadence. Background aralığı frame hitch sayılmaz. FPS, son penceredeki ortalama frame aralığından hesaplanır. |
+| `roundTrip` | Mevcut uygulama ping'inin eşleşen pong'a kadar istemcide geçen süresi; lifecycle ve uçuş örnekleri. Yeni ping trafiği eklenmez. |
+| `snapshotInterval` | Foreground playing snapshot'larının istemcideki receipt aralığı. Countdown/recovery ve epoch/connection sınırları aynı cadence penceresine karıştırılmaz. |
+| `inputAck` | Steer komutunun planlanmasından, sequence'i kapsayan snapshot ACK'sinin client'ta işlenmesine kadar. Atlanan her sequence'in ayrı physics tick'te uygulanmış olduğunu kanıtlamaz. |
+| `count` / `windowCount` | Geçerli toplam örnek sayısı / son en çok 240 örnek. Mean, p50, p95 ve maximum bu bounded pencereye aittir. |
+| `reconnectCount` / `controlTransferCount` | Bağlantı girişimi generation değişimi / kontrol devri sınırı; gerçek cihaz ağ koşulu kaydıyla birlikte yorumlanır. |
+
+Render her scene frame'inde örneklenir. SwiftUI HUD yayını en çok 20 Hz'dir;
+kontrol kaybı, elenme, phase veya session değişimi bu sınırı beklemez.
+Background SpriteView render'ını durdurur; online server simülasyonu pause
+edilmez. Bu ölçümler oyun otoritesi veya kazanan hesabı üretmez.
+
+Canlı headless koşudan gözlenen son RTT/ACK raporu (ms):
+
+| İstemci | RTT örnek | RTT mean / p95 | ACK örnek | ACK mean / p95 |
+| --- | --- | --- | --- | --- |
+| A | 27 | 93,94 / 344,04 | 4 | 109,86 / 114,56 |
+| B | 27 | 83,32 / 143,87 | 2 | 81,48 / 99,29 |
+
+A'da kontrollü kopma/foreground/kontrol devri de uygulandı. Bu kısa, doğal ağ
+koşusudur; 100/200/400 ms profili veya jitter dağılımı uygulanmadı. Az sayıdaki
+ACK örneği kontrol hissi/p95 yayın eşiği olarak kabul edilmez; backend'in physics
+latency metriğiyle de aynı ölçüm değildir. Headless koşuda FPS ölçümü yoktur.
+
+### 12.3. İki gerçek cihazla doldurulacak kabul matrisi
+
+Her koşuda tarih, mobil/backend revision, API/region, cihaz modeli/iOS, gerçek
+FPS, düşük güç/FPS limiti, Reduce Motion ve ağ yöntemini kaydet. Cihaz A/B
+etiketleri kullan; credential veya kişisel kimlikleri kanıta ekleme.
+Ağ koşullandırması cihaz/OS veya koordineli ağ geçidinde yapılır; uygulama içi
+sleep/mock gecikmesi gerçek ağ kabulü diye yazılmaz. Profil değerini ayarlamak
+yetmez; uygulama ping'iyle ölçülen RTT p50/p95'i ayrıca kaydet.
+
+| Koşu | Ağ/FPS/cihaz koşulu | Beklenen kontrol | Durum |
+| --- | --- | --- | --- |
+| Tam maç | İki fiziksel cihaz, doğal ağ | Join → açık ready → countdown → playing → ortak kalıcı sonuç → yeni rematch/ready | Bekliyor |
+| Gecikme 100 | Hedef 100 ms RTT; ölçülen RTT ve jitter ayrıca yazılır | İki cihazda joystick/ACK/remote hareket; bounded prediction; kontrol hissi kaydı | Bekliyor |
+| Gecikme 200 | Hedef 200 ms RTT | Aynı kriterler; kayıp/rejection ve buffer sınırları | Bekliyor |
+| Gecikme 400 | Hedef 400 ms RTT | Donma/resync durumunun anlaşılır olması; eski input replay/spawn yok | Bekliyor |
+| Jitter/kısa kopma | Operatörün uyguladığı jitter aralığı ve kesinti süresi kaydedilir | Aynı session'a full sync; yeni geçerli grant; kontrol tekrarında tutarlılık | Bekliyor |
+| FPS | 30/60; yalnız destekleyen fiziksel cihazda 120 | İstenen/ölçülen FPS ayrı; doğru input cadence, dönüş ve kontrol hissi | Bekliyor |
+| iPhone/iPad/orientation | Desteklenen cihazlar; portrait → landscape, yön isteği başarısızlığı ve çıkış | Başarısız landscape ready açmaz; oyun/joystick/HUD doğru yerleşir; çıkış portrait'i geri verir | Bekliyor |
+| Reduce Motion/büyük yazı | Sistem ayarı açık/kapalı; büyük erişilebilirlik yazısı | Dekoratif alev/correction azalır; kontrol ve gerçek geometri değişmez; scroll/aksiyonlar erişilebilir | Bekliyor |
+| OS background | Home/lock ve foreground; grace altında/üstünde süreler | Server devam eder; heartbeat/input yok; full sync; elenmiş oyuncu spectator | Bekliyor |
+| Aynı hesap, ikinci cihaz | İlk cihazın joystick'i kullanılırken ikinci bind | Eski cihaz izleyici; otomatik bind yarışı yok; açık reclaim ile tek controller | Bekliyor |
+| Grace/Exit/elenme | Ağ grace'ini aşma, açık Exit ve elendikten sonra reconnect | Bir kez forfeit, yeni spawn/steering yok; sonuç tutarlı | Bekliyor |
+| Logout/ev/mod/rematch | Akış sırasında context değiştirme | Geç gelen task/snapshot yeni user/house/session'ı etkilemez | Bekliyor |
+| Eşzamanlı elenme/result publish kaybı | Backend ile kontrollü staging senaryosu | Aynı sonuç; event kaybında aynı eski ID'nin HTTP sonucu | Bekliyor |
+| Owner kaybı | Backend'in koordineli staging owner durdurması | Yüksek epoch + valid checkpoint veya açık recoveryFailed iptali; eski owner yazısı yok | Bekliyor |
+| Yerel bot/diğer oyunlar | Ağ kapalı bot; Games geçişleri ve mevcut oyunlar | HTTP/socket olmadan 1 insan + 1–3 bot; pause/resume/çıkış ve diğer oyunlar korunur | Bekliyor |
+| Protocol/kapasite/uzun maç | Bölüm 9 ve Paket 7 ile backend kanıtı eşleştirilir | Uyumsuz sürüm sessiz decode edilmez; admission/expiry/cleanup ve kaynak bütçesi | Bekliyor |
+
+Bir koşunun kaydı: **yöntem / ortam / A-B model-iOS / hedef-ölçülen FPS /
+ağ hedefi ve ölçülen RTT-jitter / adımlar / gözlem / kanıt dosyası /
+pass-fail-bekliyor / açık issue**. Kontrol hissi değerlendirmesini, frame/ACK
+istatistiklerinin yanına insan gözlemi olarak yaz; otomatik log'dan türetme.
+
+### 12.4. Ortak yayın kararı için açık kapılar
+
+- İki fiziksel cihaz ve koşullandırılmış ağ matrisinin kanıtlı sonucu.
+- Staging owner kaybı ve gerçek OS background/grace kabulü.
+- Fiziksel cihaz/OS üzerinde cleanup runtime davranışı ve joystick/orientation.
+- Backend Paket 7'nin gerçek Fly kapasite/hedef concurrent room, CPU/RSS,
+  Redis/egress, instance headroom ve maliyet kabulü; eşikler tahmin edilmez.
+- Mobil kontrol hissi/doğruluk/lifecycle sorunlarının kapatılması ve ortak
+  yayın kararı. Bu kayıt tek başına production açma yetkisi veya kabulü değildir.

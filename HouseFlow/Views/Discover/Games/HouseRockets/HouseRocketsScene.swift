@@ -5,6 +5,7 @@ import UIKit
 final class HouseRocketsScene: SKScene {
     /// Samples an injected presentation source at the device's rendering cadence.
     var frameProvider: (() -> HouseRocketsRenderFrame?)?
+    var onRenderedFrame: ((TimeInterval, Int?) -> Void)?
     private let world = SKCropNode()
     private let worldMask = SKSpriteNode(color: .white, size: .zero)
     private let environment = SKNode()
@@ -34,6 +35,9 @@ final class HouseRocketsScene: SKScene {
 
     override func update(_ currentTime: TimeInterval) {
         if let incoming = frameProvider?() { applyFrame(incoming) }
+        if renderFrame != nil {
+            onRenderedFrame?(currentTime, view?.window?.windowScene?.screen.maximumFramesPerSecond)
+        }
     }
 
     func applySnapshot(_ incoming: HouseRocketsSnapshot) {
@@ -225,6 +229,7 @@ final class HouseRocketsScene: SKScene {
         }
         let flame = part(HouseRocketsArtwork.flame, fill: HouseRocketsPalette.cream,
                          stroke: HouseRocketsPalette.red)
+        flame.name = "thrust"
         flame.isHidden = true
         // Color the full silhouette so nearby players remain distinguishable.
         _ = part(HouseRocketsArtwork.fins, fill: tint)

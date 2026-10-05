@@ -11,6 +11,7 @@ final class HouseRocketsOnlineLobby {
     private let clock: GameRealtimeClock
     private let excludingSessionID: String?
     private let reconnectPolicy: HouseRocketsReconnectPolicy
+    private let acceptanceRecorder: HouseRocketsAcceptanceRecorder?
     private var attemptID = UUID()
     private var reconnectDeadline: TimeInterval?
     private var reconnectTask: Task<Void, Never>?
@@ -46,12 +47,14 @@ final class HouseRocketsOnlineLobby {
 
     init(session: OnlineHouseRocketsSession, context: HouseRocketsLaunchContext,
          clock: GameRealtimeClock? = nil, excludingSessionID: String? = nil,
-         reconnectPolicy: HouseRocketsReconnectPolicy? = nil) {
+         reconnectPolicy: HouseRocketsReconnectPolicy? = nil,
+         acceptanceRecorder: HouseRocketsAcceptanceRecorder? = nil) {
         self.session = session
         self.context = context
         self.clock = clock ?? .live
         self.excludingSessionID = excludingSessionID
         self.reconnectPolicy = reconnectPolicy ?? .init()
+        self.acceptanceRecorder = acceptanceRecorder
         let stream = AsyncStream<HouseRocketsOnlineLobbyState>.makeStream(bufferingPolicy: .bufferingNewest(1))
         updates = stream.stream
         continuation = stream.continuation
@@ -384,6 +387,7 @@ final class HouseRocketsOnlineLobby {
         case .pong(let pong):
             guard let ping = pendingPing, pong.pingId == ping.id else { return }
             let rtt = max(0, received.receivedUptime - ping.uptime)
+            acceptanceRecorder?.record(.roundTrip, seconds: rtt)
             if rtt <= bestRTT {
                 bestRTT = rtt
                 state.serverClock = .init(serverTime: pong.serverTime,
@@ -718,6 +722,7 @@ final class HouseRocketsOnlineLobby {
     }
 
     private func publish() {
+        acceptanceRecorder?.consume(state)
         onStateChange?(state)
         continuation.yield(state)
     }

@@ -28,7 +28,8 @@ struct HouseRocketsView: View {
                 if model.snapshot == nil && model.onlineFrame == nil { HouseRocketsTopography().ignoresSafeArea() }
 
                 if let snapshot = model.snapshot {
-                    SpriteView(scene: model.scene)
+                    SpriteView(scene: model.scene, isPaused: scenePhase != .active,
+                               preferredFramesPerSecond: model.preferredFramesPerSecond)
                         .ignoresSafeArea(edges: HouseRocketsCourse.angle(at: snapshot.elapsedTime) > .pi / 4
                                          ? .vertical : .horizontal)
                         .allowsHitTesting(false)
@@ -38,7 +39,8 @@ struct HouseRocketsView: View {
                         localPlayerID: model.context.localPlayerID, memberNames: memberNames,
                         onRetry: model.retryOnlineResult, onRematch: rematchOnline, onExit: exitGame)
                 } else if let frame = model.onlineFrame {
-                    SpriteView(scene: model.scene)
+                    SpriteView(scene: model.scene, isPaused: scenePhase != .active,
+                               preferredFramesPerSecond: model.preferredFramesPerSecond)
                         .ignoresSafeArea(edges: frame.courseAngle > .pi / 4 ? .vertical : .horizontal)
                         .allowsHitTesting(false)
                     if model.onlinePresentation?.canSteer == true, scenePhase == .active {
