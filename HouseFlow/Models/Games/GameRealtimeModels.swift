@@ -1,6 +1,7 @@
 import Foundation
 
 enum GameRealtimeError: Error, Equatable, Sendable {
+    case accessRevoked
     case unsupportedProtocol(Int)
     case unsupportedCourse(Int)
     case unsupportedMessage(String)

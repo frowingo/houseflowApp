@@ -129,7 +129,8 @@ struct GamesHubView: View {
                 sessionFactory: houseRocketsSessionFactory,
                 context: HouseRocketsLaunchContext(
                     houseID: appViewModel.currentHouseDetails?.id,
-                    localPlayerID: appViewModel.currentUserId
+                    localPlayerID: appViewModel.currentUserId,
+                    houseOwnerID: appViewModel.currentHouseDetails?.ownerId
                 )
             )
         default: EmptyView()

@@ -13,6 +13,7 @@ struct HouseRocketsView: View {
     @State private var orientationRequestID: UUID?
     @State private var eliminationNotice: String?
     @State private var noticeID: UUID?
+    @State private var showsCancelConfirmation = false
 
     init(sessionFactory: HouseRocketsSessionFactory, context: HouseRocketsLaunchContext) {
         _model = StateObject(wrappedValue: HouseRocketsViewModel(
@@ -32,6 +33,10 @@ struct HouseRocketsView: View {
                                          ? .vertical : .horizontal)
                         .allowsHitTesting(false)
                     gameLayer(snapshot: snapshot)
+                } else if model.onlineResultState.isVisible {
+                    HouseRocketsOnlineResultView(state: model.onlineResultState,
+                        localPlayerID: model.context.localPlayerID, memberNames: memberNames,
+                        onRetry: model.retryOnlineResult, onRematch: rematchOnline, onExit: exitGame)
                 } else if let frame = model.onlineFrame {
                     SpriteView(scene: model.scene)
                         .ignoresSafeArea(edges: frame.courseAngle > .pi / 4 ? .vertical : .horizontal)
@@ -45,7 +50,10 @@ struct HouseRocketsView: View {
                         .id(geometry.size)
                     }
                     if let presentation = model.onlinePresentation {
-                        HouseRocketsOnlineFlightOverlay(state: model.onlineState, presentation: presentation, onExit: exitGame)
+                        HouseRocketsOnlineFlightOverlay(state: model.onlineState, presentation: presentation,
+                            canCancel: model.onlineState.canCancel(context: model.context),
+                            onRetry: model.retryOnline, onReclaimControl: model.reclaimOnlineControl,
+                            onCancel: { showsCancelConfirmation = true }, onExit: exitGame)
                     }
                 } else {
                     lobby
@@ -55,6 +63,10 @@ struct HouseRocketsView: View {
             .onChange(of: geometry.size) { _, size in handleViewportSize(size) }
         }
         .environment(\.colorScheme, .dark)
+        .confirmationDialog(copy("house_rockets_cancel_confirmation"), isPresented: $showsCancelConfirmation,
+                            titleVisibility: .visible) {
+            Button(copy("house_rockets_cancel_flight"), role: .destructive, action: model.cancelOnlineMatch)
+        }
         .navigationBarTitleDisplayMode(.inline)
         .toolbar(model.snapshot == nil && model.onlineFrame == nil ? .visible : .hidden, for: .navigationBar)
         .navigationBarBackButtonHidden(model.selectedMode == .housemates)
@@ -93,6 +105,12 @@ struct HouseRocketsView: View {
         }
         .onChange(of: appViewModel.currentHouseDetails?.id) { _, _ in refreshContext() }
         .onChange(of: appViewModel.currentUserId) { _, _ in refreshContext() }
+        .onChange(of: appViewModel.isAuthenticated) { _, authenticated in
+            if !authenticated { model.stop(); GameOrientationController.returnToPortrait() }
+        }
+        .onChange(of: model.requiresAuthentication) { _, required in
+            if required { model.stop(); appViewModel.logout(); GameOrientationController.returnToPortrait() }
+        }
         .onChange(of: model.snapshot?.matchID) { _, _ in
             eliminationNotice = nil
             noticeID = nil
@@ -290,9 +308,7 @@ struct HouseRocketsView: View {
         } else {
             HouseRocketsOnlineLobbyView(
                 state: model.onlineState, localPlayerID: model.context.localPlayerID,
-                memberNames: (appViewModel.currentHouseDetails?.members ?? []).reduce(into: [:]) { names, member in
-                    names[member.id] = member.fullName
-                },
+                memberNames: memberNames,
                 isWaitingForLandscape: isWaitingForLandscape, orientationFailed: orientationRequestFailed,
                 onReady: {
                     if model.onlineState.localPlayer(model.context.localPlayerID)?.state == .ready {
@@ -300,7 +316,9 @@ struct HouseRocketsView: View {
                     } else {
                         prepareLandscapeMatch()
                     }
-                }, onRetry: model.retryOnline, onExit: exitGame
+                }, onRetry: model.retryOnline,
+                canCancel: model.onlineState.canCancel(context: model.context),
+                onCancel: { showsCancelConfirmation = true }, onExit: exitGame
             )
         }
     }
@@ -540,7 +558,8 @@ struct HouseRocketsView: View {
     }
 
     private func prepareOnlineFlightLandscape() {
-        guard model.selectedMode == .housemates, model.onlineFrame != nil, scenePhase == .active,
+        guard model.selectedMode == .housemates, !model.onlineResultState.isVisible,
+              model.onlineFrame != nil, scenePhase == .active,
               orientationRequestID == nil, !orientationRequestFailed, !model.onlineState.isLeaving else { return }
         requestLandscape()
     }
@@ -606,7 +625,8 @@ struct HouseRocketsView: View {
     private func refreshContext() {
         let context = HouseRocketsLaunchContext(
             houseID: appViewModel.currentHouseDetails?.id,
-            localPlayerID: appViewModel.currentUserId
+            localPlayerID: appViewModel.currentUserId,
+            houseOwnerID: appViewModel.currentHouseDetails?.ownerId
         )
         guard model.context != context else { return }
         isWaitingForLandscape = false
@@ -615,6 +635,23 @@ struct HouseRocketsView: View {
         eliminationNotice = nil
         noticeID = nil
         model.updateContext(context)
+        GameOrientationController.returnToPortrait()
+    }
+
+    private var memberNames: [String: String] {
+        (appViewModel.currentHouseDetails?.members ?? []).reduce(into: [:]) { names, member in
+            names[member.id] = member.fullName
+        }
+    }
+
+    private func rematchOnline() {
+        guard model.onlineResultState.canRematch else { return }
+        isWaitingForLandscape = false
+        orientationRequestID = nil
+        orientationRequestFailed = false
+        showsCancelConfirmation = false
+        model.setLandscape(false)
+        model.rematchOnline()
         GameOrientationController.returnToPortrait()
     }
 

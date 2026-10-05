@@ -10,6 +10,8 @@ struct HouseRocketsOnlineLobbyView: View {
     let orientationFailed: Bool
     let onReady: () -> Void
     let onRetry: () -> Void
+    let canCancel: Bool
+    let onCancel: () -> Void
     let onExit: () -> Void
 
     var body: some View {
@@ -26,6 +28,13 @@ struct HouseRocketsOnlineLobbyView: View {
                 .font(.subheadline)
                 .foregroundStyle(HouseRocketsTheme.muted)
                 .fixedSize(horizontal: false, vertical: true)
+            if state.connection == .reconnecting {
+                TimelineView(.periodic(from: .now, by: 0.25)) { _ in
+                    let remaining = max(0, Int(ceil((state.retryNotBefore ?? 0) - ProcessInfo.processInfo.systemUptime)))
+                    Text(copy("house_rockets_reconnect_wait", replacements: ["seconds": "\(remaining)"]))
+                        .font(.subheadline).monospacedDigit().foregroundStyle(HouseRocketsTheme.muted)
+                }
+            }
 
             if !state.participants.isEmpty {
                 VStack(spacing: AppDesign.Spacing.md) {
@@ -72,7 +81,7 @@ struct HouseRocketsOnlineLobbyView: View {
                 }
             }
 
-            if let issue = state.issue {
+            if let issue = state.issue, state.connection != .reconnecting {
                 Text(copy(issueKey(issue)))
                     .font(.subheadline)
                     .foregroundStyle(HouseRocketsTheme.danger)
@@ -117,6 +126,10 @@ struct HouseRocketsOnlineLobbyView: View {
                     .foregroundStyle(HouseRocketsTheme.muted)
                     .fixedSize(horizontal: false, vertical: true)
             }
+            if canCancel {
+                Button(copy("house_rockets_cancel_flight"), action: onCancel)
+                    .foregroundStyle(HouseRocketsTheme.danger).frame(minHeight: 44)
+            }
             Button(copy(state.isLeaving ? "house_rockets_leaving" : "house_rockets_exit"), action: onExit)
                 .font(.subheadline.weight(.semibold))
                 .foregroundStyle(HouseRocketsTheme.ink)
@@ -140,6 +153,8 @@ struct HouseRocketsOnlineLobbyView: View {
     private var statusKey: String {
         if state.isLeaving { return "house_rockets_leaving" }
         if state.isTerminal { return "house_rockets_online_ended" }
+        if state.connection == .reconnecting { return "house_rockets_reconnecting" }
+        if state.connection == .syncing { return "house_rockets_online_syncing_lobby" }
         if state.connection == .failed { return "house_rockets_online_connection_failed" }
         if state.connection == .connected, !state.isSynced { return "house_rockets_online_syncing_lobby" }
         if state.connection != .connected { return "house_rockets_online_connecting" }
@@ -152,6 +167,8 @@ struct HouseRocketsOnlineLobbyView: View {
 
     private var detailKey: String {
         if state.isTerminal { return "house_rockets_online_ended_detail" }
+        if state.connection == .reconnecting { return "house_rockets_reconnecting_detail" }
+        if state.connection == .syncing { return "house_rockets_online_syncing_lobby" }
         if state.connection == .failed { return "house_rockets_online_connection_failed_detail" }
         if state.connection == .connected, !state.isSynced { return "house_rockets_online_syncing_lobby" }
         if state.connection != .connected { return "house_rockets_online_connecting_detail" }
@@ -200,6 +217,10 @@ struct HouseRocketsOnlineFlightOverlay: View {
     @EnvironmentObject private var appViewModel: AppViewModel
     let state: HouseRocketsOnlineLobbyState
     let presentation: HouseRocketsOnlinePresentation
+    let canCancel: Bool
+    let onRetry: () -> Void
+    let onReclaimControl: () -> Void
+    let onCancel: () -> Void
     private var frame: HouseRocketsRenderFrame { presentation.frame }
     let onExit: () -> Void
 
@@ -209,13 +230,18 @@ struct HouseRocketsOnlineFlightOverlay: View {
                                                    width: Double(geometry.size.width), height: Double(geometry.size.height),
                                                    courseAngle: frame.courseAngle)
             let regions = projection.informationRegions(width: Double(geometry.size.width), height: Double(geometry.size.height))
-            Button(action: onExit) {
-                Image(systemName: "xmark")
+            Menu {
+                Button(copy("house_rockets_exit"), action: onExit)
+                if canCancel {
+                    Button(copy("house_rockets_cancel_flight"), role: .destructive, action: onCancel)
+                }
+            } label: {
+                Image(systemName: "ellipsis")
                     .foregroundStyle(HouseRocketsTheme.ink)
                     .frame(width: 44, height: 44)
                     .background(HouseRocketsTheme.panel, in: Circle())
             }
-            .accessibilityLabel(copy("house_rockets_exit"))
+            .accessibilityLabel(copy("house_rockets_flight_actions"))
             .disabled(state.isLeaving)
             .position(x: geometry.size.width - 30, y: geometry.size.height - 30)
 
@@ -290,11 +316,18 @@ struct HouseRocketsOnlineFlightOverlay: View {
                     .accessibilityAddTraits(.updatesFrequently)
                 }
             }
+            if state.connection != .connected || !state.isSynced || frame.phase == .recovering || state.controlTransferred {
+                HouseRocketsOnlineConnectionView(state: state, onRetry: onRetry, onReclaimControl: onReclaimControl)
+                    .frame(maxWidth: min(430, geometry.size.width - 48), maxHeight: geometry.size.height - 96)
+                    .position(x: geometry.size.width / 2, y: geometry.size.height / 2)
+            }
         }
     }
 
     private var statusKey: String {
         if state.isTerminal { return "house_rockets_online_ended" }
+        if state.controlTransferred { return "house_rockets_control_transferred" }
+        if state.connection == .reconnecting { return "house_rockets_reconnecting" }
         if presentation.isSyncing { return "house_rockets_online_syncing_flight" }
         if frame.phase == .playing, frame.players.first(where: { $0.role == .human })?.isAlive == false {
             return "house_rockets_spectating_short"

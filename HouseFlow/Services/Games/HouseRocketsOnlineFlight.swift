@@ -5,6 +5,7 @@ import Foundation
 final class HouseRocketsOnlineFlight {
     typealias Send = (GameRealtimeClientMessage, HouseRocketsControlGrantDTO) async throws -> Void
     var onEliminations: (([HouseRocketsOnlineElimination]) -> Void)?
+    var onControlLost: (() -> Void)?
     private let localPlayerID: String
     private let clock: GameRealtimeClock
     private let configuration: HouseRocketsFlightConfiguration
@@ -34,6 +35,7 @@ final class HouseRocketsOnlineFlight {
     private var generation = UUID()
     private var isClosed = false
     private var reduceMotion = false
+    private var suppressHistoricalEliminations = false
 
     init(localPlayerID: String, clock: GameRealtimeClock? = nil,
          configuration: HouseRocketsFlightConfiguration? = nil,
@@ -70,6 +72,7 @@ final class HouseRocketsOnlineFlight {
         notices.removeAll()
         clearControl()
         onEliminations = nil
+        onControlLost = nil
     }
 
     func setReduceMotion(_ enabled: Bool) {
@@ -83,19 +86,27 @@ final class HouseRocketsOnlineFlight {
         let now = clock.uptime()
         let oldPrediction = predictedLocal(at: now)
         let previous = frames.last
+        let changedConnection = state.connectionGeneration != incoming.connectionGeneration
         state = incoming
-        if incoming.connection == .failed || incoming.game == nil {
+        if incoming.game == nil {
             frames.removeAll()
             notices.removeAll()
             clearControl()
             return
         }
+        if changedConnection || incoming.connection != .connected || !incoming.isForeground || !incoming.isSynced {
+            clearControl()
+            notices.removeAll()
+            frames = Array(frames.suffix(1))
+            suppressHistoricalEliminations = true
+        }
         var appended = false
         var resetTimeline = false
-        if let snapshot = incoming.game, snapshot != previous?.snapshot {
+        if let snapshot = incoming.game, snapshot != previous?.snapshot ||
+            (suppressHistoricalEliminations && incoming.isSynced && incoming.connection == .connected) {
             if let previous, snapshot.sessionId == previous.snapshot.sessionId,
                snapshot.runtimeEpoch == previous.snapshot.runtimeEpoch {
-                guard snapshot.stateSequence > previous.snapshot.stateSequence else { return }
+                guard snapshot.stateSequence >= previous.snapshot.stateSequence else { return }
                 guard snapshot.tick >= previous.snapshot.tick,
                       snapshot.elapsedSeconds >= previous.snapshot.elapsedSeconds else { throw GameRealtimeError.invalidResponse }
             }
@@ -103,13 +114,14 @@ final class HouseRocketsOnlineFlight {
             resetTimeline = previous?.snapshot.sessionId != snapshot.sessionId
                 || previous?.snapshot.runtimeEpoch != snapshot.runtimeEpoch
                 || previous?.snapshot.phase != snapshot.phase
+                || suppressHistoricalEliminations
             let sameWorld = previous?.snapshot.sessionId == snapshot.sessionId && previous?.snapshot.runtimeEpoch == snapshot.runtimeEpoch
             if resetTimeline {
                 frames.removeAll()
                 if !sameWorld { notices.removeAll() }
                 clearControl()
             }
-            if sameWorld, let previous {
+            if sameWorld, !suppressHistoricalEliminations, let previous {
                 let alive = Set(previous.snapshot.players.filter(\.isAlive).map(\.playerId))
                 let eliminated = snapshot.players.filter { !$0.isAlive && alive.contains($0.playerId) }.map {
                     HouseRocketsOnlineElimination(sessionID: snapshot.sessionId, epoch: snapshot.runtimeEpoch,
@@ -125,10 +137,11 @@ final class HouseRocketsOnlineFlight {
             frames.append(.init(snapshot: snapshot, frame: frame, receivedUptime: incoming.gameReceivedUptime ?? now))
             frames = Array(frames.suffix(max(2, min(16, configuration.snapshotCapacity))))
             appended = true
+            if incoming.isSynced, incoming.connection == .connected { suppressHistoricalEliminations = false }
         }
         let grant = incoming.validControl(playerID: localPlayerID)
         if grant == nil, incoming.isSynced, incoming.isForeground, incoming.isLandscape,
-           incoming.game?.phase == .playing, !incoming.isTerminal,
+           incoming.game?.phase == .playing, !incoming.isTerminal, !incoming.controlTransferred,
            incoming.game?.players.first(where: { $0.playerId == localPlayerID && $0.isAlive && $0.connected }) != nil {
             if controlWaitStartedAt == nil { controlWaitStartedAt = now }
         } else { controlWaitStartedAt = nil }
@@ -181,6 +194,10 @@ final class HouseRocketsOnlineFlight {
         guard let messageID, inputs.contains(where: { $0.messageID == messageID }) else { return }
         // Never replay a rejected sequence or let an obsolete rejection revoke a new binding.
         clearControl()
+        if ["houseRockets.error.stale_control", "houseRockets.error.control_unavailable"].contains(rejection.code) {
+            onControlLost?()
+            return
+        }
         if rejection.code == "realtime.error.rate_limited" { backoffUntil = clock.uptime() + 0.5 }
         requestResync(at: clock.uptime())
     }
@@ -191,7 +208,8 @@ final class HouseRocketsOnlineFlight {
         guard !isClosed, let newest = frames.last else { return nil }
         var frame = newest.frame
         let age = max(0, now - newest.receivedUptime)
-        if frame.phase == .playing, !state.isTerminal {
+        if frame.phase == .playing, !state.isTerminal, state.connection == .connected,
+           state.isSynced, state.isForeground {
             let target = newest.frame.elapsedTime + age - configuration.interpolationDelay
             if let right = frames.firstIndex(where: { $0.frame.elapsedTime >= target }), right > 0 {
                 frame = HouseRocketsFlightMath.interpolate(frames[right - 1].frame, frames[right].frame, at: target)
@@ -239,12 +257,14 @@ final class HouseRocketsOnlineFlight {
         }
         notices.removeAll { now - $0.receivedUptime > 1.8 }
         return .init(frame: frame, canSteer: canSteer(at: now),
-            isSyncing: frame.phase == .recovering || (frame.phase == .playing && (!state.isSynced || age > configuration.maximumExtrapolation)),
+            isSyncing: state.connection != .connected || frame.phase == .recovering || (frame.phase == .playing && (!state.isSynced || age > configuration.maximumExtrapolation)),
             eliminations: notices)
     }
 
     func tick(at now: TimeInterval) {
-        guard !isClosed, let newest = frames.last, newest.frame.phase == .playing, state.isForeground, !state.isTerminal else { return }
+        guard !isClosed, let newest = frames.last, newest.frame.phase == .playing,
+              state.connection == .connected, state.isForeground, state.isSynced,
+              !state.controlTransferred, !state.isTerminal else { return }
         if let sendingAt, now - sendingAt >= 1 {
             // A blocked native write closes through its cancellation handler; no writes pile up.
             sendTask?.cancel(); sendTask = nil
@@ -329,6 +349,8 @@ final class HouseRocketsOnlineFlight {
 
     private func clearControl() {
         generation = UUID()
+        sendTask?.cancel(); sendTask = nil
+        sendingAt = nil; sendingID = nil
         binding = nil
         inputs.removeAll()
         intent = nil
@@ -339,7 +361,8 @@ final class HouseRocketsOnlineFlight {
     }
 
     private func requestResync(at now: TimeInterval) {
-        guard state.isForeground, !state.isTerminal, now - lastResyncAt >= 1 else { return }
+        guard state.connection == .connected, state.isForeground, !state.controlTransferred,
+              !state.isTerminal, now - lastResyncAt >= 1 else { return }
         lastResyncAt = now
         resync()
     }

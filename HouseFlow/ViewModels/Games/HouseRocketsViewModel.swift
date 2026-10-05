@@ -9,6 +9,7 @@ final class HouseRocketsViewModel: ObservableObject {
     @Published private(set) var context: HouseRocketsLaunchContext
     @Published private(set) var onlineState = HouseRocketsOnlineLobbyState()
     @Published private(set) var onlinePresentation: HouseRocketsOnlinePresentation?
+    @Published private(set) var onlineResultState = HouseRocketsOnlineResultState()
     var onlineFrame: HouseRocketsRenderFrame? { onlinePresentation?.frame }
     @Published var botCount = 3
 
@@ -17,6 +18,8 @@ final class HouseRocketsViewModel: ObservableObject {
     private var service: (any HouseRocketsGameServicing)?
     private var onlineLobby: HouseRocketsOnlineLobby?
     private var onlineFlight: HouseRocketsOnlineFlight?
+    private var onlineResult: HouseRocketsOnlineResult?
+    private var previousOnlineSessionID: String?
     private var reduceMotion = false
     private var isForeground = true
     private var isLandscape = false
@@ -31,6 +34,11 @@ final class HouseRocketsViewModel: ObservableObject {
         guard let playerID = context.localPlayerID, !playerID.isEmpty else { return .signInRequired }
         guard let houseID = context.houseID, !houseID.isEmpty else { return .houseRequired }
         return sessionFactory.makeOnlineSession == nil ? .serviceUnavailable : nil
+    }
+
+    var requiresAuthentication: Bool {
+        if case .http(401, _) = onlineResultState.failure { return true }
+        return onlineState.requiresAuthentication
     }
 
     init(sessionFactory: HouseRocketsSessionFactory, context: HouseRocketsLaunchContext,
@@ -65,7 +73,7 @@ final class HouseRocketsViewModel: ObservableObject {
     func retryOnline() {
         guard selectedMode == .housemates,
               onlineState.canReconnect(at: ProcessInfo.processInfo.systemUptime) else { return }
-        connectOnline()
+        onlineLobby?.retry()
     }
 
     func setLandscape(_ landscape: Bool) {
@@ -79,6 +87,15 @@ final class HouseRocketsViewModel: ObservableObject {
     }
 
     func setOnlineReady(_ ready: Bool) { onlineLobby?.setReady(ready) }
+    func cancelOnlineMatch() { onlineLobby?.cancelMatch() }
+    func retryOnlineResult() { onlineResult?.retry() }
+    func reclaimOnlineControl() { onlineLobby?.reclaimControl() }
+
+    func rematchOnline() {
+        guard selectedMode == .housemates, onlineResultState.canRematch,
+              let oldSessionID = onlineResultState.sessionID else { return }
+        connectOnline(excludingSessionID: oldSessionID)
+    }
 
     @discardableResult
     func leaveOnline() async -> Bool {
@@ -89,18 +106,40 @@ final class HouseRocketsViewModel: ObservableObject {
         return true
     }
 
-    private func connectOnline() {
+    private func connectOnline(excludingSessionID: String? = nil) {
         guard onlineBlocker == nil, let makeSession = sessionFactory.makeOnlineSession else { return }
         generation = UUID()
+        previousOnlineSessionID = excludingSessionID
         observationTask?.cancel()
+        onlineResult?.disconnect()
         onlineFlight?.disconnect()
         onlineLobby?.disconnect()
         onlinePresentation = nil
         onlineState = HouseRocketsOnlineLobbyState()
+        onlineResultState = HouseRocketsOnlineResultState()
         scene.reset()
-        let lobby = HouseRocketsOnlineLobby(session: makeSession(), context: context)
+        let session = makeSession()
+        let lobby = HouseRocketsOnlineLobby(session: session, context: context,
+                                           excludingSessionID: excludingSessionID)
         onlineLobby = lobby
         let expected = generation
+        let result = HouseRocketsOnlineResult(houseID: context.houseID ?? "",
+            read: session.resultReader(houseID: context.houseID ?? ""))
+        onlineResult = result
+        result.onStateChange = { [weak self, weak lobby] state in
+            guard let self, self.generation == expected else { return }
+            let hadResult = self.onlineResultState.result != nil
+            self.onlineResultState = state
+            if state.canRematch {
+                self.scene.frameProvider = nil
+                self.onlineFlight?.disconnect()
+                lobby?.finish()
+            }
+            if !hadResult, let final = state.result, final.status == .completed {
+                UINotificationFeedbackGenerator().notificationOccurred(
+                    final.winnerId == self.context.localPlayerID ? .success : .warning)
+            }
+        }
         let flight = HouseRocketsOnlineFlight(localPlayerID: context.localPlayerID ?? "",
             send: { [weak lobby] message, grant in
                 guard let lobby else { throw CancellationError() }
@@ -108,6 +147,7 @@ final class HouseRocketsViewModel: ObservableObject {
             }, resync: { [weak lobby] in lobby?.resyncGameplay() })
         onlineFlight = flight
         flight.setReduceMotion(reduceMotion)
+        flight.onControlLost = { [weak lobby] in lobby?.controlLost() }
         flight.onEliminations = { [weak self] eliminated in
             guard let self, self.generation == expected else { return }
             if eliminated.contains(where: { $0.playerID == self.context.localPlayerID }) {
@@ -117,17 +157,15 @@ final class HouseRocketsViewModel: ObservableObject {
         lobby.onGameplayRejected = { [weak flight] id, rejection in
             flight?.reject(messageID: id, rejection: rejection)
         }
-        lobby.onStateChange = { [weak self, weak flight, weak lobby] state in
+        lobby.onStateChange = { [weak self, weak flight, weak lobby, weak result] state in
             guard let self, let flight, self.generation == expected else { return }
             do { try flight.consume(state) }
             catch { lobby?.invalidateGameplay(); return }
             self.onlineState = state
-            if state.connection == .failed {
-                self.onlinePresentation = nil
-                self.scene.reset()
-            } else if let frame = self.sampleOnlineFrame() {
+            if let frame = self.sampleOnlineFrame() {
                 self.scene.applyFrame(frame)
             }
+            result?.consume(state)
         }
         scene.frameProvider = { [weak self] in self?.sampleOnlineFrame() }
         flight.start()
@@ -227,13 +265,17 @@ final class HouseRocketsViewModel: ObservableObject {
         observationTask = nil
         service?.disconnect()
         service = nil
+        onlineResult?.disconnect()
+        onlineResult = nil
         onlineFlight?.disconnect()
         onlineFlight = nil
         onlineLobby?.disconnect()
         onlineLobby = nil
         onlineState = HouseRocketsOnlineLobbyState()
         onlinePresentation = nil
+        onlineResultState = HouseRocketsOnlineResultState()
         snapshot = nil
+        previousOnlineSessionID = nil
         selectedMode = nil
         scene.reset()
     }

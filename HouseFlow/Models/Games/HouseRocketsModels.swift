@@ -11,6 +11,7 @@ enum HouseRocketsMode: String, CaseIterable, Identifiable, Sendable {
 struct HouseRocketsLaunchContext: Equatable, Sendable {
     let houseID: String?
     let localPlayerID: String?
+    var houseOwnerID: String? = nil
 }
 
 enum HouseRocketsOnlineBlocker: Equatable {

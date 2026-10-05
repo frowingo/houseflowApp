@@ -1,7 +1,7 @@
 import Foundation
 
 enum GameRealtimeConnectionState: Equatable, Sendable {
-    case idle, connecting, connected, failed
+    case idle, connecting, reconnecting, syncing, connected, failed
 }
 
 enum GameRealtimeSessionFailure: Equatable, Sendable {
@@ -21,8 +21,8 @@ struct HouseRocketsOnlineEvent: Sendable {
     let payload: Payload
 }
 
-/// M1 session plumbing. It does not automatically join, ready, steer or run physics.
-/// Lobby orchestration and control gating are added in M2/M3.
+/// Owns the pinned match's wire streams and socket lifetime, including temporary reconnect.
+/// Lobby and flight services own lifecycle commands, control gating and presentation timing.
 @MainActor
 final class OnlineHouseRocketsSession {
     private let sessions: any GameSessionServicing
@@ -68,7 +68,7 @@ final class OnlineHouseRocketsSession {
     func snapshots() -> AsyncStream<GameRealtimeReceivedMessage> { snapshotStream }
 
     @discardableResult
-    func connect(context: HouseRocketsLaunchContext) async throws -> GameSessionDTO {
+    func connect(context: HouseRocketsLaunchContext, excludingSessionID: String? = nil) async throws -> GameSessionDTO {
         guard !isClosed, let houseID = context.houseID, let playerID = context.localPlayerID,
               !houseID.isEmpty, !playerID.isEmpty else { throw GameRealtimeError.invalidContext }
         try GameRealtimeCodec.validateIdentifier(houseID)
@@ -80,6 +80,9 @@ final class OnlineHouseRocketsSession {
         do {
             let session = try await sessions.ensureHouseRocketsSession(houseID: houseID)
             try requireCurrent(expected)
+            guard session.state != .finished, session.state != .cancelled,
+                  session.sessionId != excludingSessionID else { throw GameRealtimeError.unexpectedSession }
+            self.session = session // Pin the ID even if the upgrade fails.
             let request = try sessions.realtimeRequest(sessionID: session.sessionId)
             try await transport.connect(request: request)
             try requireCurrent(expected)
@@ -94,6 +97,31 @@ final class OnlineHouseRocketsSession {
             try emit(.connection(.failed), generation: expected)
             throw error
         }
+    }
+
+    /// Reopen the same match with the current token; never PUT or implicitly join.
+    func reconnect() async throws {
+        guard !isClosed, context != nil, let previous = session else { throw GameRealtimeError.invalidContext }
+        suspendConnection()
+        let expected = generation
+        do {
+            let request = try sessions.realtimeRequest(sessionID: previous.sessionId)
+            try await transport.connect(request: request)
+            try requireCurrent(expected)
+            beginReceiving(generation: expected, sessionID: previous.sessionId)
+        } catch {
+            try requireCurrent(expected)
+            transport.disconnect()
+            throw error
+        }
+    }
+
+    /// Temporary transport cleanup. Critical observers and the pinned match survive.
+    func suspendConnection() {
+        guard !isClosed else { return }
+        let previous = session
+        stopConnection()
+        session = previous
     }
 
     func send(_ message: GameRealtimeClientMessage) async throws {
@@ -121,6 +149,19 @@ final class OnlineHouseRocketsSession {
         } catch {
             try requireCurrent(expected)
             throw error
+        }
+    }
+
+    /// Captures HTTP dependencies and house scope, never the mutable socket context.
+    /// The result coordinator owns cancellation and pins the old match ID.
+    func resultReader(houseID: String) -> HouseRocketsOnlineResult.Reader {
+        let sessions = self.sessions
+        return { sessionID in
+            try Task.checkCancellation()
+            let result = try await sessions.houseRocketsResult(sessionID: sessionID)
+            try Task.checkCancellation()
+            try result.validate(sessionID: sessionID, houseID: houseID)
+            return result
         }
     }
 
@@ -154,7 +195,8 @@ final class OnlineHouseRocketsSession {
                     try self.validateSession(message, expected: sessionID)
                     let received = GameRealtimeReceivedMessage(message: message,
                         receivedAt: self.clock.wallTime(), receivedUptime: self.clock.uptime(), generation: expected)
-                    if case .snapshot(let snapshot) = message.payload, snapshot.phase == .playing {
+                    if case .snapshot(let snapshot) = message.payload, snapshot.phase == .playing,
+                       message.messageId?.isEmpty != false {
                         self.snapshotContinuation.yield(received)
                     } else {
                         try self.emit(.message(received), generation: expected)
@@ -166,7 +208,6 @@ final class OnlineHouseRocketsSession {
             } catch {
                 guard let self, !Task.isCancelled, self.generation == expected, !self.isClosed else { return }
                 self.transport.disconnect()
-                self.session = nil
                 do {
                     try self.emit(.failure(self.failure(from: error)), generation: expected)
                     try self.emit(.connection(.failed), generation: expected)
@@ -213,6 +254,7 @@ final class OnlineHouseRocketsSession {
     }
 
     private func failure(from error: Error) -> GameRealtimeSessionFailure {
+        if error as? GameRealtimeError == .accessRevoked { return .http(statusCode: 403, retryAfterSeconds: nil) }
         if let error = error as? NetworkHTTPFailure {
             return .http(statusCode: error.statusCode, retryAfterSeconds: error.retryAfterSeconds(at: clock.wallTime()))
         }

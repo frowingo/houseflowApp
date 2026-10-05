@@ -155,6 +155,10 @@ private final class URLSessionGameWebSocket: GameWebSocketConnecting {
     }
 
     private func upgradeFailure(or error: Error) -> Error {
+        if task.closeCode == .policyViolation,
+           task.closeReason.flatMap({ String(data: $0, encoding: .utf8) }) == "house membership revoked" {
+            return GameRealtimeError.accessRevoked
+        }
         guard let response = task.response as? HTTPURLResponse, response.statusCode >= 400 else { return error }
         return NetworkHTTPFailure(response: .init(data: Data(), response: response))
     }
