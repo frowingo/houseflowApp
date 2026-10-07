@@ -117,7 +117,7 @@ M5 doğrulaması (5 Ekim 2026): `HouseRocketsReconnectTests.swift` içinde 24 ye
 
 `HouseRocketsPresentationCadence`, scene'in her frame'deki örneklemesini korurken SwiftUI HUD yayınına 20 Hz sınırı uygular. Kontrol kaybı/elenme/phase/session değişimi hemen yayınlanır. SpriteView arka planda render'ı durdurur; online server simülasyonu pause edilmez.
 
-M6 hazırlık doğrulaması: 125 Foundation testi, iPhone simülatöründe tüm 204 uygulama testi, iPad simülatöründe 20 M6 testi ve DEBUG tanımı olmadan iOS typecheck geçti. Native fixture görüntüleri incelendi; canlı headless iki hesap akışında RTT/ACK ölçüm kancaları doğrulandı. Bu sonuç iki fiziksel cihaz/koşullandırılmış ağ kabulü değildir. Ayrıntılı yöntem, gerçek ölçümler, test cleanup düzenlemeleri ve doldurulacak yayın kabul matrisi kök `houseRocketsMultiplayerPlan.md` bölüm 12'de; M6 ortak kapısı açıktır.
+M6 hazırlık doğrulaması: 125 Foundation testi, iPhone simülatöründe tüm 204 uygulama testi, iPad simülatöründe 20 M6 testi ve DEBUG tanımı olmadan iOS typecheck geçti. Native fixture görüntüleri incelendi; canlı headless iki hesap akışında RTT/ACK ölçüm kancaları doğrulandı. Bu sonuç iki fiziksel cihaz/koşullandırılmış ağ kabulü değildir. Ayrıntılı yöntem, gerçek ölçümler, test cleanup düzenlemeleri ve doldurulacak yayın kabul matrisi `Documents/houseRocketsMultiplayerPlan.md` bölüm 12'de; M6 ortak kapısı açıktır.
 
 ## Doğrulama
 

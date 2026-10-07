@@ -21,9 +21,36 @@
 		A10000000000000000000001 /* HouseFlowTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = HouseFlowTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
 
+/* Begin PBXFileSystemSynchronizedBuildFileExceptionSet section */
+		A1000000000000000000000D /* Exceptions for "HouseFlow" folder in "HouseFlow" target */ = {
+			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
+			membershipExceptions = (
+				.impeccable/design.json,
+				.impeccable/surfaces/ews-discover-games-housetanks-housetanksview-swift.md,
+				.impeccable/surfaces/house-rockets.md,
+				.impeccable/surfaces/house-switch.md,
+				DESIGN.md,
+				Documents/.impeccable/design.json,
+				Documents/.impeccable/surfaces/ews-discover-games-housetanks-housetanksview-swift.md,
+				Documents/.impeccable/surfaces/house-rockets.md,
+				Documents/.impeccable/surfaces/house-switch.md,
+				Documents/DESIGN.md,
+				Documents/Games/README.md,
+				Documents/houseRocketsMultiplayerPlan.md,
+				Documents/PRODUCT.md,
+				Documents/README.md,
+				PRODUCT.md,
+			);
+			target = 0F6663B12ED8FB930023ADA0 /* HouseFlow */;
+		};
+/* End PBXFileSystemSynchronizedBuildFileExceptionSet section */
+
 /* Begin PBXFileSystemSynchronizedRootGroup section */
 		0F6663B42ED8FB930023ADA0 /* HouseFlow */ = {
 			isa = PBXFileSystemSynchronizedRootGroup;
+			exceptions = (
+				A1000000000000000000000D /* Exceptions for "HouseFlow" folder in "HouseFlow" target */,
+			);
 			path = HouseFlow;
 			sourceTree = "<group>";
 		};

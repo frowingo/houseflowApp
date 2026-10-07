@@ -36,6 +36,15 @@ enum HouseRocketsTheme {
     static let muted = Color(HouseRocketsPalette.cream).opacity(0.76)
 }
 
+enum HouseRocketsPreparationTheme {
+    static let ink = Color(HouseRocketsPalette.navy)
+    static let muted = ink.opacity(0.72)
+    static let accent = Color(HouseRocketsPalette.burgundy)
+    static let danger = Color(HouseRocketsPalette.red)
+    static let surface = Color(HouseRocketsPalette.cream)
+    static let hairline = ink.opacity(0.13)
+}
+
 /// Curved vector contours based on the supplied rocket.png, normalized to face right.
 /// A single drawing keeps the in-game silhouette and cover illustration consistent.
 enum HouseRocketsArtwork {
@@ -156,6 +165,33 @@ struct HouseRocketsTopography: View {
                                with: .color(color.opacity(HouseRocketsArtwork.outerContourOpacity(at: index))),
                                lineWidth: index.isMultiple(of: 4) ? 1.2 : 0.75)
             }
+        }
+        .allowsHitTesting(false)
+        .accessibilityHidden(true)
+    }
+}
+
+/// The same terrain language as the course, softened for reading and choosing a mode.
+struct HouseRocketsPreparationBackdrop: View {
+    var body: some View {
+        GeometryReader { geometry in
+            ZStack {
+                Color(HouseRocketsPalette.cream)
+                LinearGradient(
+                    colors: [Color(HouseRocketsPalette.cream),
+                             Color(HouseRocketsPalette.ice).opacity(0.9),
+                             Color(HouseRocketsPalette.blue).opacity(0.38)],
+                    startPoint: .topLeading, endPoint: .bottomTrailing
+                )
+                Canvas { context, size in
+                    for (index, path) in HouseRocketsArtwork.topography(in: size).enumerated() {
+                        let color = Color(HouseRocketsArtwork.outerContourColor(at: index))
+                        context.stroke(Path(path), with: .color(color.opacity(0.09)),
+                                       lineWidth: index.isMultiple(of: 4) ? 1.1 : 0.7)
+                    }
+                }
+            }
+            .frame(width: geometry.size.width, height: geometry.size.height)
         }
         .allowsHitTesting(false)
         .accessibilityHidden(true)

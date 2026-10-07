@@ -21,11 +21,18 @@ struct HouseRocketsView: View {
         ))
     }
 
+    private var isPreparing: Bool {
+        model.snapshot == nil && model.onlineFrame == nil && !model.onlineResultState.isVisible
+    }
+
     var body: some View {
         GeometryReader { geometry in
             ZStack {
-                HouseRocketsTheme.background.ignoresSafeArea()
-                if model.snapshot == nil && model.onlineFrame == nil { HouseRocketsTopography().ignoresSafeArea() }
+                if isPreparing {
+                    HouseRocketsPreparationBackdrop().ignoresSafeArea()
+                } else {
+                    HouseRocketsTheme.background.ignoresSafeArea()
+                }
 
                 if let snapshot = model.snapshot {
                     SpriteView(scene: model.scene, isPaused: scenePhase != .active,
@@ -64,7 +71,7 @@ struct HouseRocketsView: View {
             .onAppear { handleViewportSize(geometry.size) }
             .onChange(of: geometry.size) { _, size in handleViewportSize(size) }
         }
-        .environment(\.colorScheme, .dark)
+        .environment(\.colorScheme, isPreparing ? .light : .dark)
         .confirmationDialog(copy("house_rockets_cancel_confirmation"), isPresented: $showsCancelConfirmation,
                             titleVisibility: .visible) {
             Button(copy("house_rockets_cancel_flight"), role: .destructive, action: model.cancelOnlineMatch)
@@ -142,34 +149,40 @@ struct HouseRocketsView: View {
     private var lobby: some View {
         VStack(spacing: 0) {
             ScrollView(showsIndicators: false) {
-                VStack(alignment: .leading, spacing: AppDesign.Spacing.xxl) {
+                VStack(alignment: .leading, spacing: 28) {
                     HStack(alignment: .center, spacing: AppDesign.Spacing.lg) {
-                        HouseRocketsRocketMark()
-                            .frame(width: 76, height: 76)
-
+                        HouseRocketsRocketMark().frame(width: 68, height: 68)
+                            .frame(width: 88, height: 88)
+                            .background(Color(HouseRocketsPalette.navy),
+                                        in: RoundedRectangle(cornerRadius: 24, style: .continuous))
                         VStack(alignment: .leading, spacing: AppDesign.Spacing.xs) {
                             Text(copy("house_rockets_title"))
                                 .font(.largeTitle.weight(.black))
-                                .foregroundStyle(HouseRocketsTheme.ink)
+                                .foregroundStyle(HouseRocketsPreparationTheme.ink)
                             Text(copy(model.selectedMode == .localBots
                                       ? "house_rockets_subtitle" : "house_rockets_mode_prompt"))
                                 .font(.subheadline)
-                                .foregroundStyle(HouseRocketsTheme.muted)
+                                .foregroundStyle(HouseRocketsPreparationTheme.muted)
                         }
                     }
 
                     if let mode = model.selectedMode {
-                        HStack {
+                        HStack(spacing: AppDesign.Spacing.md) {
                             Label(copy(mode == .localBots ? "house_rockets_mode_bots" : "house_rockets_mode_housemates"),
                                   systemImage: mode == .localBots ? "gamecontroller" : "person.2")
-                                .font(.headline)
+                                .font(.title3.weight(.bold))
                             Spacer()
                             Button(copy("house_rockets_change_mode"), action: changeMode)
                                 .font(.subheadline.weight(.semibold))
+                                .foregroundStyle(HouseRocketsPreparationTheme.accent)
                                 .frame(minHeight: 44)
                                 .disabled(isWaitingForLandscape || model.onlineState.isLeaving)
                         }
-                        .foregroundStyle(HouseRocketsTheme.accent)
+                        .foregroundStyle(HouseRocketsPreparationTheme.ink)
+                        .padding(.bottom, AppDesign.Spacing.sm)
+                        .overlay(alignment: .bottom) {
+                            HouseRocketsPreparationTheme.hairline.frame(height: 1)
+                        }
 
                         if mode == .localBots {
                             botLobby
@@ -180,15 +193,7 @@ struct HouseRocketsView: View {
                         modeSelection
                     }
 
-                    VStack(alignment: .leading, spacing: AppDesign.Spacing.lg) {
-                        rule("house_rockets_rule_aim", symbol: "move.3d")
-                        rule("house_rockets_rule_drive", symbol: "arrow.right")
-                        rule("house_rockets_rule_fields", symbol: "bolt.horizontal.fill")
-                        rule("house_rockets_rule_survive", symbol: "shield.fill")
-                    }
-                    .padding(AppDesign.Spacing.xl)
-                    .background(HouseRocketsTheme.panel,
-                                in: RoundedRectangle(cornerRadius: AppDesign.CornerRadius.xl))
+                    flightGuide
 
                     if model.selectedMode == .localBots || (orientationRequestFailed && model.selectedMode == nil) {
                         Label(copy(orientationRequestFailed
@@ -197,7 +202,7 @@ struct HouseRocketsView: View {
                               systemImage: "rectangle.landscape.rotate")
                             .font(.subheadline)
                             .foregroundStyle(orientationRequestFailed
-                                             ? HouseRocketsTheme.danger : HouseRocketsTheme.muted)
+                                             ? HouseRocketsPreparationTheme.danger : HouseRocketsPreparationTheme.muted)
                     }
                 }
                 .padding(AppDesign.Spacing.xl)
@@ -208,14 +213,14 @@ struct HouseRocketsView: View {
             if model.selectedMode == .localBots {
                 Button(action: prepareLandscapeMatch) {
                     HStack(spacing: AppDesign.Spacing.sm) {
-                        if isWaitingForLandscape { ProgressView().tint(HouseRocketsTheme.background) }
+                        if isWaitingForLandscape { ProgressView().tint(HouseRocketsPreparationTheme.surface) }
                         Image(systemName: "arrow.up.right")
                         Text(copy(isWaitingForLandscape ? "house_rockets_rotating" : "house_rockets_start"))
                     }
                     .font(.headline)
-                    .foregroundStyle(HouseRocketsTheme.background)
+                    .foregroundStyle(HouseRocketsPreparationTheme.surface)
                     .frame(maxWidth: .infinity, minHeight: AppDesign.Size.buttonHeightLarge)
-                    .background(HouseRocketsTheme.accent,
+                    .background(HouseRocketsPreparationTheme.accent,
                                 in: RoundedRectangle(cornerRadius: AppDesign.CornerRadius.lg))
                 }
                 .buttonStyle(ScaleButtonStyle())
@@ -227,68 +232,69 @@ struct HouseRocketsView: View {
     }
 
     private var modeSelection: some View {
-        VStack(spacing: 0) {
-            ForEach(HouseRocketsMode.allCases) { mode in
-                Button { model.selectMode(mode) } label: {
-                    HStack(spacing: AppDesign.Spacing.lg) {
-                        Image(systemName: mode == .localBots ? "gamecontroller" : "person.2")
-                            .font(.title2)
-                            .frame(width: 32)
-                            .foregroundStyle(HouseRocketsTheme.accent)
-                        VStack(alignment: .leading, spacing: AppDesign.Spacing.xs) {
-                            Text(copy(mode == .localBots ? "house_rockets_mode_bots" : "house_rockets_mode_housemates"))
-                                .font(.headline)
-                                .foregroundStyle(HouseRocketsTheme.ink)
-                            Text(copy(mode == .localBots ? "house_rockets_mode_bots_detail" : "house_rockets_mode_housemates_detail"))
-                                .font(.subheadline)
-                                .foregroundStyle(HouseRocketsTheme.muted)
-                                .fixedSize(horizontal: false, vertical: true)
-                        }
-                        Spacer(minLength: 0)
-                        Image(systemName: "chevron.right")
-                            .foregroundStyle(HouseRocketsTheme.muted)
-                    }
-                    .frame(maxWidth: .infinity, minHeight: 44, alignment: .leading)
-                    .padding(AppDesign.Spacing.xl)
-                    .contentShape(Rectangle())
-                }
-                .buttonStyle(ScaleButtonStyle())
-                if mode == .localBots {
-                    Divider().overlay(HouseRocketsTheme.ink.opacity(0.14))
-                        .padding(.horizontal, AppDesign.Spacing.xl)
-                }
-            }
+        VStack(spacing: AppDesign.Spacing.md) {
+            ForEach(HouseRocketsMode.allCases) { mode in modeButton(mode) }
         }
-        .background(HouseRocketsTheme.panel,
-                    in: RoundedRectangle(cornerRadius: AppDesign.CornerRadius.xl))
+    }
+
+    private func modeButton(_ mode: HouseRocketsMode) -> some View {
+        let isBots = mode == .localBots
+        let fill = Color(isBots ? HouseRocketsPalette.navy : HouseRocketsPalette.burgundy)
+        return Button { model.selectMode(mode) } label: {
+            VStack(alignment: .leading, spacing: AppDesign.Spacing.md) {
+                HStack(spacing: AppDesign.Spacing.md) {
+                    Image(systemName: isBots ? "gamecontroller.fill" : "person.2.fill")
+                        .font(.title3)
+                        .foregroundStyle(Color(isBots ? HouseRocketsPalette.ice : HouseRocketsPalette.cream))
+                        .frame(width: 44, height: 44)
+                        .background(Color(HouseRocketsPalette.cream).opacity(0.12),
+                                    in: RoundedRectangle(cornerRadius: 12))
+                    Text(copy(isBots ? "house_rockets_mode_bots" : "house_rockets_mode_housemates"))
+                        .font(.headline.weight(.bold))
+                        .foregroundStyle(Color(HouseRocketsPalette.cream))
+                    Spacer(minLength: 0)
+                    Image(systemName: "arrow.up.right")
+                        .font(.subheadline.weight(.bold))
+                        .foregroundStyle(Color(HouseRocketsPalette.cream))
+                }
+                Text(copy(isBots ? "house_rockets_mode_bots_detail" : "house_rockets_mode_housemates_detail"))
+                    .font(.subheadline)
+                    .foregroundStyle(Color(HouseRocketsPalette.cream).opacity(0.84))
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+            .padding(AppDesign.Spacing.lg)
+            .frame(maxWidth: .infinity, minHeight: 104, alignment: .leading)
+            .background(fill, in: RoundedRectangle(cornerRadius: AppDesign.CornerRadius.lg))
+            .contentShape(RoundedRectangle(cornerRadius: AppDesign.CornerRadius.lg))
+        }
+        .buttonStyle(ScaleButtonStyle())
     }
 
     private var botLobby: some View {
         VStack(alignment: .leading, spacing: AppDesign.Spacing.lg) {
             Label(copy("house_rockets_offline"), systemImage: "iphone")
                 .font(.subheadline)
-                .foregroundStyle(HouseRocketsTheme.muted)
+                .foregroundStyle(HouseRocketsPreparationTheme.muted)
             HStack(spacing: AppDesign.Spacing.sm) {
                 ForEach(0..<(min(3, max(1, model.botCount)) + 1), id: \.self) { index in
                     Circle()
                         .fill(color(for: HouseRocketsColor.allCases[index]))
                         .frame(width: 24, height: 24)
-                        .overlay(Circle().stroke(HouseRocketsTheme.ink.opacity(0.8), lineWidth: index == 0 ? 2 : 0))
+                        .overlay(Circle().stroke(HouseRocketsPreparationTheme.ink, lineWidth: index == 0 ? 2 : 0))
                         .accessibilityLabel(index == 0 ? copy("house_rockets_you") : copy(botNameKey(index)))
                 }
             }
             Text(copy("house_rockets_bot_count"))
                 .font(.subheadline.weight(.semibold))
-                .foregroundStyle(HouseRocketsTheme.muted)
+                .foregroundStyle(HouseRocketsPreparationTheme.ink)
             Picker(copy("house_rockets_bot_count"), selection: $model.botCount) {
                 ForEach(1...3, id: \.self) { count in Text("\(count)").tag(count) }
             }
             .pickerStyle(.segmented)
+            .tint(HouseRocketsPreparationTheme.accent)
             .disabled(isWaitingForLandscape)
         }
-        .padding(AppDesign.Spacing.xl)
-        .background(HouseRocketsTheme.panel,
-                    in: RoundedRectangle(cornerRadius: AppDesign.CornerRadius.xl))
+        .padding(.vertical, AppDesign.Spacing.sm)
     }
 
     @ViewBuilder
@@ -297,15 +303,15 @@ struct HouseRocketsView: View {
             VStack(alignment: .leading, spacing: AppDesign.Spacing.md) {
                 Label(copy("house_rockets_online_unavailable"), systemImage: "wifi.exclamationmark")
                     .font(.headline)
-                    .foregroundStyle(HouseRocketsTheme.ink)
+                    .foregroundStyle(HouseRocketsPreparationTheme.ink)
                 Text(copy(blockerKey(blocker)))
                     .font(.subheadline)
-                    .foregroundStyle(HouseRocketsTheme.muted)
+                    .foregroundStyle(HouseRocketsPreparationTheme.muted)
                     .fixedSize(horizontal: false, vertical: true)
             }
             .padding(AppDesign.Spacing.xl)
             .frame(maxWidth: .infinity, alignment: .leading)
-            .background(HouseRocketsTheme.panel,
+            .background(HouseRocketsPreparationTheme.surface,
                         in: RoundedRectangle(cornerRadius: AppDesign.CornerRadius.xl))
         } else {
             HouseRocketsOnlineLobbyView(
@@ -333,11 +339,55 @@ struct HouseRocketsView: View {
         }
     }
 
-    private func rule(_ key: String, symbol: String) -> some View {
-        Label(copy(key), systemImage: symbol)
-            .font(.subheadline.weight(.medium))
-            .foregroundStyle(HouseRocketsTheme.ink)
-            .fixedSize(horizontal: false, vertical: true)
+    private var flightGuide: some View {
+        VStack(alignment: .leading, spacing: AppDesign.Spacing.lg) {
+            Text(copy("house_rockets_how_to_play"))
+                .font(.title2.weight(.bold))
+                .foregroundStyle(HouseRocketsPreparationTheme.ink)
+            VStack(alignment: .leading, spacing: 0) {
+                guideStep(title: "house_rockets_step_steer", detail: "house_rockets_rule_aim",
+                          symbol: "hand.draw.fill", tint: Color(HouseRocketsPalette.navy),
+                          symbolInk: Color(HouseRocketsPalette.cream))
+                guideStep(title: "house_rockets_step_thrust", detail: "house_rockets_rule_drive",
+                          symbol: "arrow.up.right", tint: Color(HouseRocketsPalette.burgundy),
+                          symbolInk: Color(HouseRocketsPalette.cream))
+                guideStep(title: "house_rockets_step_fields", detail: "house_rockets_rule_fields",
+                          symbol: "bolt.fill", tint: Color(HouseRocketsPalette.blue),
+                          symbolInk: Color(HouseRocketsPalette.navy))
+                guideStep(title: "house_rockets_step_survive", detail: "house_rockets_rule_survive",
+                          symbol: "shield.fill", tint: Color(HouseRocketsPalette.red),
+                          symbolInk: Color(HouseRocketsPalette.cream), isLast: true)
+            }
+        }
+    }
+
+    private func guideStep(title: String, detail: String, symbol: String,
+                           tint: Color, symbolInk: Color, isLast: Bool = false) -> some View {
+        HStack(alignment: .top, spacing: AppDesign.Spacing.lg) {
+            VStack(spacing: 0) {
+                Image(systemName: symbol)
+                    .font(.body.weight(.semibold))
+                    .foregroundStyle(symbolInk)
+                    .frame(width: 44, height: 44)
+                    .background(tint, in: Circle())
+                if !isLast {
+                    Rectangle()
+                        .fill(HouseRocketsPreparationTheme.hairline)
+                        .frame(width: 2, height: 38)
+                }
+            }
+            VStack(alignment: .leading, spacing: AppDesign.Spacing.xs) {
+                Text(copy(title))
+                    .font(.headline)
+                    .foregroundStyle(HouseRocketsPreparationTheme.ink)
+                Text(copy(detail))
+                    .font(.subheadline)
+                    .foregroundStyle(HouseRocketsPreparationTheme.muted)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+            .padding(.top, 2)
+            .padding(.bottom, AppDesign.Spacing.lg)
+        }
     }
 
     private func gameLayer(snapshot: HouseRocketsSnapshot) -> some View {
@@ -588,7 +638,7 @@ struct HouseRocketsView: View {
 
     private func handleViewportSize(_ size: CGSize) {
         guard size.width > 0, size.height > 0 else { return }
-        model.scene.size = size
+        // SpriteView extends beyond the safe area; resizeFill must size the scene to that actual view.
         isLandscapeLayout = size.width > size.height
         model.setLandscape(isLandscapeLayout)
         guard isLandscapeLayout, isWaitingForLandscape, model.snapshot == nil,

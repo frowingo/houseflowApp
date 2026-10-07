@@ -18,21 +18,21 @@ struct HouseRocketsOnlineLobbyView: View {
         VStack(alignment: .leading, spacing: AppDesign.Spacing.lg) {
             HStack(spacing: AppDesign.Spacing.sm) {
                 if !state.isTerminal && state.connection != .failed && (state.connection == .connecting || state.connection == .idle || !state.isSynced || state.pendingCommand != nil || state.isLeaving) {
-                    ProgressView().tint(HouseRocketsTheme.accent)
+                    ProgressView().tint(HouseRocketsPreparationTheme.accent)
                 }
                 Label(copy(statusKey), systemImage: state.connection == .failed ? "wifi.exclamationmark" : "person.2")
                     .font(.headline)
-                    .foregroundStyle(HouseRocketsTheme.ink)
+                    .foregroundStyle(HouseRocketsPreparationTheme.ink)
             }
             Text(copy(detailKey, replacements: ["minimum": "\(state.session?.rules.minimumPlayers ?? 2)"]))
                 .font(.subheadline)
-                .foregroundStyle(HouseRocketsTheme.muted)
+                .foregroundStyle(HouseRocketsPreparationTheme.muted)
                 .fixedSize(horizontal: false, vertical: true)
             if state.connection == .reconnecting {
                 TimelineView(.periodic(from: .now, by: 0.25)) { _ in
                     let remaining = max(0, Int(ceil((state.retryNotBefore ?? 0) - ProcessInfo.processInfo.systemUptime)))
                     Text(copy("house_rockets_reconnect_wait", replacements: ["seconds": "\(remaining)"]))
-                        .font(.subheadline).monospacedDigit().foregroundStyle(HouseRocketsTheme.muted)
+                        .font(.subheadline).monospacedDigit().foregroundStyle(HouseRocketsPreparationTheme.muted)
                 }
             }
 
@@ -43,20 +43,21 @@ struct HouseRocketsOnlineLobbyView: View {
                             Circle()
                                 .fill(Color(HouseRocketsPalette.player(HouseRocketsColor.allCases[index % 8])))
                                 .frame(width: 10, height: 10)
+                                .overlay(Circle().stroke(HouseRocketsPreparationTheme.ink.opacity(0.35), lineWidth: 1))
                             Text(verbatim: memberNames[player.playerId] ?? copy(player.playerId == localPlayerID
                                                                                ? "house_rockets_you" : "house_rockets_member"))
                                 .font(.subheadline.weight(.semibold))
-                                .foregroundStyle(HouseRocketsTheme.ink)
+                                .foregroundStyle(HouseRocketsPreparationTheme.ink)
                             if player.playerId == localPlayerID, memberNames[player.playerId] != nil {
                                 Text(copy("house_rockets_you"))
                                     .font(.caption)
-                                    .foregroundStyle(HouseRocketsTheme.muted)
+                                    .foregroundStyle(HouseRocketsPreparationTheme.muted)
                             }
                             Spacer(minLength: 8)
                             Label(copy(playerStatusKey(player.state)),
                                   systemImage: player.state == .ready ? "checkmark.circle.fill" : "clock")
                                 .font(.caption.weight(.semibold))
-                                .foregroundStyle(player.state == .ready ? HouseRocketsTheme.accent : HouseRocketsTheme.muted)
+                                .foregroundStyle(player.state == .ready ? HouseRocketsPreparationTheme.accent : HouseRocketsPreparationTheme.muted)
                         }
                         .accessibilityElement(children: .combine)
                     }
@@ -64,7 +65,7 @@ struct HouseRocketsOnlineLobbyView: View {
                 Text(copy("house_rockets_ready_count", replacements: ["ready": "\(state.readyCount)",
                                                                         "total": "\(state.participants.count)"]))
                     .font(.subheadline.weight(.semibold))
-                    .foregroundStyle(HouseRocketsTheme.accent)
+                    .foregroundStyle(HouseRocketsPreparationTheme.accent)
             }
 
             if state.session?.state == .readyWindow || state.session?.state == .countdown {
@@ -75,7 +76,7 @@ struct HouseRocketsOnlineLobbyView: View {
                                   replacements: ["seconds": "\(seconds)"]))
                             .font(.subheadline.weight(.semibold))
                             .monospacedDigit()
-                            .foregroundStyle(HouseRocketsTheme.ink)
+                            .foregroundStyle(HouseRocketsPreparationTheme.ink)
                             .accessibilityAddTraits(.updatesFrequently)
                     }
                 }
@@ -84,13 +85,13 @@ struct HouseRocketsOnlineLobbyView: View {
             if let issue = state.issue, state.connection != .reconnecting {
                 Text(copy(issueKey(issue)))
                     .font(.subheadline)
-                    .foregroundStyle(HouseRocketsTheme.danger)
+                    .foregroundStyle(HouseRocketsPreparationTheme.danger)
                     .fixedSize(horizontal: false, vertical: true)
             }
             if orientationFailed {
                 Text(copy("house_rockets_landscape_error"))
                     .font(.subheadline)
-                    .foregroundStyle(HouseRocketsTheme.danger)
+                    .foregroundStyle(HouseRocketsPreparationTheme.danger)
                     .fixedSize(horizontal: false, vertical: true)
             }
 
@@ -102,8 +103,8 @@ struct HouseRocketsOnlineLobbyView: View {
                         Button(copy(remaining > 0 ? "house_rockets_online_retry_after" : "house_rockets_online_retry",
                                     replacements: ["seconds": "\(remaining)"]), action: onRetry)
                             .buttonStyle(.borderedProminent)
-                            .tint(HouseRocketsTheme.accent)
-                            .foregroundStyle(HouseRocketsTheme.background)
+                            .tint(HouseRocketsPreparationTheme.accent)
+                            .foregroundStyle(HouseRocketsPreparationTheme.surface)
                             .frame(minHeight: 44)
                             .disabled(!state.canReconnect(at: now))
                     }
@@ -114,31 +115,31 @@ struct HouseRocketsOnlineLobbyView: View {
                                : state.localPlayer(localPlayerID)?.state == .ready ? "house_rockets_not_ready_action"
                                : "house_rockets_ready_action"), systemImage: "rectangle.landscape.rotate")
                         .font(.headline)
-                        .foregroundStyle(HouseRocketsTheme.background)
+                        .foregroundStyle(HouseRocketsPreparationTheme.surface)
                         .frame(maxWidth: .infinity, minHeight: AppDesign.Size.buttonHeightLarge)
-                        .background(HouseRocketsTheme.accent,
+                        .background(HouseRocketsPreparationTheme.accent,
                                     in: RoundedRectangle(cornerRadius: AppDesign.CornerRadius.lg))
                 }
                 .buttonStyle(ScaleButtonStyle())
                 .disabled(isWaitingForLandscape || !state.canChangeReady(playerID: localPlayerID))
                 Text(copy("house_rockets_online_ready_detail"))
                     .font(.caption)
-                    .foregroundStyle(HouseRocketsTheme.muted)
+                    .foregroundStyle(HouseRocketsPreparationTheme.muted)
                     .fixedSize(horizontal: false, vertical: true)
             }
             if canCancel {
                 Button(copy("house_rockets_cancel_flight"), action: onCancel)
-                    .foregroundStyle(HouseRocketsTheme.danger).frame(minHeight: 44)
+                    .foregroundStyle(HouseRocketsPreparationTheme.danger).frame(minHeight: 44)
             }
             Button(copy(state.isLeaving ? "house_rockets_leaving" : "house_rockets_exit"), action: onExit)
                 .font(.subheadline.weight(.semibold))
-                .foregroundStyle(HouseRocketsTheme.ink)
+                .foregroundStyle(HouseRocketsPreparationTheme.ink)
                 .frame(minHeight: 44)
                 .disabled(state.isLeaving)
         }
         .padding(AppDesign.Spacing.xl)
         .frame(maxWidth: .infinity, alignment: .leading)
-        .background(HouseRocketsTheme.panel, in: RoundedRectangle(cornerRadius: AppDesign.CornerRadius.xl))
+        .background(HouseRocketsPreparationTheme.surface, in: RoundedRectangle(cornerRadius: AppDesign.CornerRadius.xl))
     }
 
     private func playerStatusKey(_ state: GameSessionPlayerState) -> String {

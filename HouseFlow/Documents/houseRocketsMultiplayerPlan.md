@@ -57,7 +57,7 @@ eder, bu listeyi eksiksiz mobil audit veya test başarısı kabul etmez.
 ### 0.2. Kaynaklar, sürümler ve çalışma sınırı
 
 - Kanonik belge: backend repo `external/doc/houseRocketsMultiplayerPlan.md`.
-  Mobil repoda görülen `HouseFlow/houseRocketsMultiplayerPlan.md` kopyası güncel
+  Mobil repoda görülen `HouseFlow/Documents/houseRocketsMultiplayerPlan.md` kopyası güncel
   kabul edilmez. Kopya kullanılacaksa bu revizyonla eşitliği doğrulanır;
   farklı planlarla iki paralel sözleşme yürütülmez.
 - Uygulama kodu için backend bölüm 5'teki modeller/decoder ve aşağıdaki JSON
@@ -355,19 +355,19 @@ işlerle güncellenmiştir; tekrar uygulanacak görev değildir.
 | --- | --- |
 | [GamesHubView.swift](/Users/frowing/Projects/houseflowApp/HouseFlow/Views/Discover/GamesHubView.swift) | House Rockets ekranını varsayılan initializer ile açıyor; production oyun bağımlılığı taşımıyor. |
 | [HouseRocketsView.swift](/Users/frowing/Projects/houseflowApp/HouseFlow/Views/Discover/Games/HouseRockets/HouseRocketsView.swift) | Varsayılan servis demo; bot seçimi, landscape bekleme, pause, sonuç ve rematch burada. `scenePhase` değişimi yerel pause çağırıyor. |
-| [HouseRocketsViewModel.swift](/Users/frowing/Projects/houseflowApp/HouseFlow/ViewModels/Games/HouseRocketsViewModel.swift) | Sıra numaralı niyet gönderiyor; tek revision filtresi var; her komut önceki Task'i bekliyor. Online direksiyon için kuyruk birikmesi önlenmeli. |
-| [HouseRocketsGameServicing.swift](/Users/frowing/Projects/houseflowApp/HouseFlow/Services/Games/HouseRocketsGameServicing.swift) | Servis enjeksiyonu mevcut; ancak `start(botCount)`, `scene`, pause/resume ve yalnız snapshot akışına bağlı. Online lobby ve bağlantı hataları için yeterli değil. |
-| [DemoHouseRocketsSession.swift](/Users/frowing/Projects/houseflowApp/HouseFlow/Services/Games/DemoHouseRocketsSession.swift) | Bir insan ve botları üretir; sonucu yerel hesaplar. Snapshot/bot görev aralığı 120 ms, fizik sahnede çalışır. Countdown'ın her sayısı 750 ms bekler. |
-| [HouseRocketsModels.swift](/Users/frowing/Projects/houseflowApp/HouseFlow/Models/Games/HouseRocketsModels.swift) | Oyuncu ve match kimlikleri UUID; isim `nameKey`; yerel `.human` ve `.remote` rolleri var. Wire DTO değildir. |
-| [HouseRocketsSimulation.swift](/Users/frowing/Projects/houseflowApp/HouseFlow/Models/Games/HouseRocketsSimulation.swift) | Ekrandan bağımsız dünya fiziği; 1/120 s alt adımlar; lider kamera takibi, yüzey teması ve hız alanları. |
-| [HouseRocketsCourse.swift](/Users/frowing/Projects/houseflowApp/HouseFlow/Models/Games/HouseRocketsCourse.swift) | İndeksle belirlenen parkur geometrisi; her üretimde rastgele UUID; zamana bağlı parkur dönüşü ve viewport projection. |
+| [HouseRocketsViewModel.swift](/Users/frowing/Projects/houseflowApp/HouseFlow/ViewModels/Games/HouseRockets/HouseRocketsViewModel.swift) | Sıra numaralı niyet gönderiyor; tek revision filtresi var; her komut önceki Task'i bekliyor. Online direksiyon için kuyruk birikmesi önlenmeli. |
+| [HouseRocketsGameServicing.swift](/Users/frowing/Projects/houseflowApp/HouseFlow/Services/Games/HouseRockets/HouseRocketsGameServicing.swift) | Servis enjeksiyonu mevcut; ancak `start(botCount)`, `scene`, pause/resume ve yalnız snapshot akışına bağlı. Online lobby ve bağlantı hataları için yeterli değil. |
+| [DemoHouseRocketsSession.swift](/Users/frowing/Projects/houseflowApp/HouseFlow/Services/Games/HouseRockets/DemoHouseRocketsSession.swift) | Bir insan ve botları üretir; sonucu yerel hesaplar. Snapshot/bot görev aralığı 120 ms, fizik sahnede çalışır. Countdown'ın her sayısı 750 ms bekler. |
+| [HouseRocketsModels.swift](/Users/frowing/Projects/houseflowApp/HouseFlow/Models/Games/HouseRockets/HouseRocketsModels.swift) | Oyuncu ve match kimlikleri UUID; isim `nameKey`; yerel `.human` ve `.remote` rolleri var. Wire DTO değildir. |
+| [HouseRocketsSimulation.swift](/Users/frowing/Projects/houseflowApp/HouseFlow/Models/Games/HouseRockets/HouseRocketsSimulation.swift) | Ekrandan bağımsız dünya fiziği; 1/120 s alt adımlar; lider kamera takibi, yüzey teması ve hız alanları. |
+| [HouseRocketsCourse.swift](/Users/frowing/Projects/houseflowApp/HouseFlow/Models/Games/HouseRockets/HouseRocketsCourse.swift) | İndeksle belirlenen parkur geometrisi; her üretimde rastgele UUID; zamana bağlı parkur dönüşü ve viewport projection. |
 | [HouseRocketsScene.swift](/Users/frowing/Projects/houseflowApp/HouseFlow/Views/Discover/Games/HouseRockets/HouseRocketsScene.swift) | Simülasyonu sahiplenir, `update` ile ilerletir ve çizimi simulation state'inden üretir. Online snapshot uygulama yolu yok. |
 | [HouseRocketsTests.swift](/Users/frowing/Projects/houseflowApp/HouseFlowTests/HouseRocketsTests.swift) | Geometri, yön, hız, kamera, elenme ve dönüşler için mevcut regresyon senaryoları. |
 | [AppDependencies.swift](/Users/frowing/Projects/houseflowApp/HouseFlow/Services/AppDependencies.swift) | Ortak network/keychain grafiği; henüz oyun servisi veya realtime transport yok. |
 | [NetworkService.swift](/Users/frowing/Projects/houseflowApp/HouseFlow/Services/Network/NetworkService.swift) | HTTP transport; enjekte edilebilir executor; HTTP status bilgisini üst katmana yapılandırılmış biçimde taşımıyor. |
 | [AppEnvironment.swift](/Users/frowing/Projects/houseflowApp/HouseFlow/Services/Network/AppEnvironment.swift) | Development URL'i Fly HTTP API'si; local multiplayer denemesi için ayrı base URL seçimi gerekecek. |
 | [AppViewModel.swift](/Users/frowing/Projects/houseflowApp/HouseFlow/ViewModels/AppViewModel.swift) | `currentUserId` ve `currentHouseDetails.id` mevcut. Online açılışta context buradan oluşturulabilir; token keychain bağımlılığından okunur. |
-| [GameOrientationController.swift](/Users/frowing/Projects/houseflowApp/HouseFlow/Services/Games/GameOrientationController.swift) | Landscape kilidi ve failure callback'i kullanılabilir. |
+| [GameOrientationController.swift](/Users/frowing/Projects/houseflowApp/HouseFlow/Services/Games/General/GameOrientationController.swift) | Landscape kilidi ve failure callback'i kullanılabilir. |
 
 Genel oyun taramasında RPS ve House Tanks'ın da service + command + snapshot
 sınırları kullandığı, House Switch'in solo fizik akışı olduğu görüldü. Ortak
@@ -463,11 +463,11 @@ Yeni dosya adları camelCase, Swift tip adları mevcut PascalCase dil kuralını
 
 - `Services/Network/GameRealtimeTransport.swift`: URLSession tabanlı socket,
   auth header, send/receive, ping, bağlantı ve cancellation. Oyunu hesaplamaz.
-- `Services/Games/GameSessionService.swift`: Mevcut HTTP session yolları,
+- `Services/Games/HouseRockets/GameSessionService.swift`: Mevcut HTTP session yolları,
   typed DTO/envelope ve hata eşleme.
-- `Services/Games/OnlineHouseRocketsSession.swift`: Session akışı, game DTO
+- `Services/Games/HouseRockets/OnlineHouseRocketsSession.swift`: Session akışı, game DTO
   mapping, input coalescing, sıra/epoch takibi, resync ve snapshot akışı.
-- `Models/Games/GameSessionModels.swift` ve `HouseRocketsWireModels.swift`:
+- `Models/Games/General/GameSessionModels.swift` ve `HouseRocketsWireModels.swift`:
   Wire DTO'lar; Swift associated-value enum serileştirmesi API yerine kullanılmaz.
 - `HouseRocketsViewModel`: Mod, lobby, connection ve presentation state;
   kullanıcı niyetleri; hata ve pending command durumları.
