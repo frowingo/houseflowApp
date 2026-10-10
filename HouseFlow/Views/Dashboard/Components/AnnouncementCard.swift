@@ -1,4 +1,5 @@
 import SwiftUI
+import HouseFlowCore
 
 /// Collapsible list of active house announcements.
 /// Read state stays on this device and is namespaced by user and house.

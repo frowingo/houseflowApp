@@ -1,5 +1,6 @@
 import Foundation
 import Combine
+import HouseFlowCore
 
 @MainActor
 class AppViewModel: ObservableObject {

@@ -1,17 +1,24 @@
 import Foundation
 
-struct User: Identifiable, Codable, Equatable {
-    let id: String
+public struct User: Identifiable, Codable, Equatable, Sendable {
+    public let id: String
     /// The server-assigned user ID (nil for locally created / preview users).
-    let apiId: String?
-    let name: String
-    let firstName: String
-    let lastName: String
-    let initials: String
-    let points: Int
-    let imageUrl: String?
+    public let apiId: String?
+    public let name: String
+    public let firstName: String
+    public let lastName: String
+    public let initials: String
+    public let points: Int
+    public let imageUrl: String?
 
-    init(id: String? = nil, firstName: String, lastName: String, apiId: String? = nil, points: Int = 0, imageUrl: String? = nil) {
+    public init(
+        id: String? = nil,
+        firstName: String,
+        lastName: String,
+        apiId: String? = nil,
+        points: Int = 0,
+        imageUrl: String? = nil
+    ) {
         self.id = apiId ?? id ?? "\(firstName)-\(lastName)".lowercased()
         self.apiId = apiId
         self.firstName = firstName
@@ -22,8 +29,13 @@ struct User: Identifiable, Codable, Equatable {
         self.imageUrl = imageUrl
     }
 
-    /// Convenience init for preview/sample data where only a full name is available.
-    init(id: String? = nil, name: String, points: Int = 0, imageUrl: String? = nil) {
+    /// Convenience initializer for preview/sample data where only a full name is available.
+    public init(
+        id: String? = nil,
+        name: String,
+        points: Int = 0,
+        imageUrl: String? = nil
+    ) {
         let components = name.split(separator: " ", maxSplits: 1)
         self.id = id ?? name.lowercased()
         self.apiId = nil

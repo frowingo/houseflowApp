@@ -1,5 +1,6 @@
 import Foundation
 import Combine
+import HouseFlowCore
 
 @MainActor
 final class DashboardStore: ObservableObject {

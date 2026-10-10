@@ -1,5 +1,6 @@
 import SwiftUI
 import UIKit
+import HouseFlowCore
 
 struct HouseInviteCodeSection: View {
     @EnvironmentObject private var appViewModel: AppViewModel

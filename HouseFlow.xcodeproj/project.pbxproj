@@ -6,6 +6,11 @@
 	objectVersion = 77;
 	objects = {
 
+/* Begin PBXBuildFile section */
+		A20000000000000000000003 /* HouseFlowCore in Frameworks */ = {isa = PBXBuildFile; productRef = A20000000000000000000002 /* HouseFlowCore */; };
+		A20000000000000000000005 /* HouseFlowCore in Frameworks */ = {isa = PBXBuildFile; productRef = A20000000000000000000004 /* HouseFlowCore */; };
+/* End PBXBuildFile section */
+
 /* Begin PBXContainerItemProxy section */
 		A10000000000000000000007 /* PBXContainerItemProxy */ = {
 			isa = PBXContainerItemProxy;
@@ -26,20 +31,21 @@
 			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
 			membershipExceptions = (
 				.impeccable/design.json,
-				.impeccable/surfaces/ews-discover-games-housetanks-housetanksview-swift.md,
-				.impeccable/surfaces/house-rockets.md,
-				.impeccable/surfaces/house-switch.md,
+				".impeccable/surfaces/ews-discover-games-housetanks-housetanksview-swift.md",
+				".impeccable/surfaces/house-rockets.md",
+				".impeccable/surfaces/house-switch.md",
 				DESIGN.md,
 				Documents/.impeccable/design.json,
-				Documents/.impeccable/surfaces/ews-discover-games-housetanks-housetanksview-swift.md,
-				Documents/.impeccable/surfaces/house-rockets.md,
-				Documents/.impeccable/surfaces/house-switch.md,
+				"Documents/.impeccable/surfaces/ews-discover-games-housetanks-housetanksview-swift.md",
+				"Documents/.impeccable/surfaces/house-rockets.md",
+				"Documents/.impeccable/surfaces/house-switch.md",
 				Documents/DESIGN.md,
 				Documents/Games/README.md,
 				Documents/houseRocketsMultiplayerPlan.md,
 				Documents/PRODUCT.md,
 				Documents/README.md,
 				PRODUCT.md,
+				shared,
 			);
 			target = 0F6663B12ED8FB930023ADA0 /* HouseFlow */;
 		};
@@ -66,6 +72,7 @@
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				A20000000000000000000003 /* HouseFlowCore in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -73,6 +80,7 @@
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				A20000000000000000000005 /* HouseFlowCore in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -117,6 +125,7 @@
 			);
 			name = HouseFlow;
 			packageProductDependencies = (
+				A20000000000000000000002 /* HouseFlowCore */,
 			);
 			productName = HouseFlow;
 			productReference = 0F6663B22ED8FB930023ADA0 /* HouseFlow.app */;
@@ -140,6 +149,7 @@
 			);
 			name = HouseFlowTests;
 			packageProductDependencies = (
+				A20000000000000000000004 /* HouseFlowCore */,
 			);
 			productName = HouseFlowTests;
 			productReference = A10000000000000000000001 /* HouseFlowTests.xctest */;
@@ -173,6 +183,9 @@
 			);
 			mainGroup = 0F6663A92ED8FB930023ADA0;
 			minimizedProjectReferenceProxies = 1;
+			packageReferences = (
+				A20000000000000000000001 /* XCLocalSwiftPackageReference "HouseFlow/shared" */,
+			);
 			preferredProjectObjectVersion = 77;
 			productRefGroup = 0F6663B32ED8FB930023ADA0 /* Products */;
 			projectDirPath = "";
@@ -504,6 +517,26 @@
 			defaultConfigurationName = Release;
 		};
 /* End XCConfigurationList section */
+
+/* Begin XCLocalSwiftPackageReference section */
+		A20000000000000000000001 /* XCLocalSwiftPackageReference "HouseFlow/shared" */ = {
+			isa = XCLocalSwiftPackageReference;
+			relativePath = HouseFlow/shared;
+		};
+/* End XCLocalSwiftPackageReference section */
+
+/* Begin XCSwiftPackageProductDependency section */
+		A20000000000000000000002 /* HouseFlowCore */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = A20000000000000000000001 /* XCLocalSwiftPackageReference "HouseFlow/shared" */;
+			productName = HouseFlowCore;
+		};
+		A20000000000000000000004 /* HouseFlowCore */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = A20000000000000000000001 /* XCLocalSwiftPackageReference "HouseFlow/shared" */;
+			productName = HouseFlowCore;
+		};
+/* End XCSwiftPackageProductDependency section */
 	};
 	rootObject = 0F6663AA2ED8FB930023ADA0 /* Project object */;
 }

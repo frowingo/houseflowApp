@@ -1,4 +1,5 @@
 import SwiftUI
+import HouseFlowCore
 
 struct ProfileHouseInformationCard: View {
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize

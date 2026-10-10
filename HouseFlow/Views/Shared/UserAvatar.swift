@@ -1,4 +1,5 @@
 import SwiftUI
+import HouseFlowCore
 
 /// Kullanıcı avatarı component'i - imageUrl varsa gösterir, yoksa initials fallback
 struct UserAvatar: View {

@@ -1,4 +1,5 @@
 import SwiftUI
+import HouseFlowCore
 
 /// Custom text field style for invite code input
 /// Features: Monospaced font, centered text, error state, validation border

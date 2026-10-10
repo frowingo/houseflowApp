@@ -1,4 +1,5 @@
 import SwiftUI
+import HouseFlowCore
 
 struct ProfileView: View {
     @EnvironmentObject private var appViewModel: AppViewModel

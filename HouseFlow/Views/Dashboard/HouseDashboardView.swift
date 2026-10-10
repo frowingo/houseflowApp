@@ -1,4 +1,5 @@
 import SwiftUI
+import HouseFlowCore
 
 /// Ana dashboard view - ev görevlerini ve üyelerini gösterir
 /// Refactored: Component'lere bölündü, Design System kullanıyor

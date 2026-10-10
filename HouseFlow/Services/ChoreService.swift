@@ -1,4 +1,5 @@
 import Foundation
+import HouseFlowCore
 
 final class ChoreService {
     private let network: any NetworkServicing

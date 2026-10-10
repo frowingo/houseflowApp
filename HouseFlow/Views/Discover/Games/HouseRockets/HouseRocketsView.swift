@@ -1,5 +1,6 @@
 import SpriteKit
 import SwiftUI
+import HouseFlowCore
 
 struct HouseRocketsView: View {
     @Environment(\.dismiss) private var dismiss

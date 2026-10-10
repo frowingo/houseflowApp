@@ -1,4 +1,5 @@
 import Foundation
+import HouseFlowCore
 @testable import HouseFlow
 
 enum TestError: LocalizedError {

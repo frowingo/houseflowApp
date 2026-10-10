@@ -1,4 +1,5 @@
 import Foundation
+import HouseFlowCore
 
 final class AuthService {
     private let network: any NetworkServicing

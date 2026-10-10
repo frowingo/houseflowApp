@@ -1,4 +1,5 @@
 import Foundation
+import HouseFlowCore
 
 final class UserService {
     private let network: any NetworkServicing

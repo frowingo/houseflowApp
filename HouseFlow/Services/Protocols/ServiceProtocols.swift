@@ -1,4 +1,5 @@
 import Foundation
+import HouseFlowCore
 
 @MainActor
 protocol NetworkServicing: AnyObject {

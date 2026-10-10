@@ -1,4 +1,5 @@
 import SwiftUI
+import HouseFlowCore
 
 /// Join house screen with invite code input
 /// Refactored: Component'lere bölündü, Design System kullanıyor

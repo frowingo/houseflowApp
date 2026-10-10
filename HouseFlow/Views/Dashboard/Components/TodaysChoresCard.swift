@@ -1,4 +1,5 @@
 import SwiftUI
+import HouseFlowCore
 
 /// 🎨 Ultra-Modern Today's Chores Card with Interactive Animations
 /// Features: Swipe gestures, 3D transforms, particle effects, progress tracking

@@ -1,12 +1,9 @@
 import Foundation
+import HouseFlowCore
 
-// MARK: - Enums
+// MARK: - iOS presentation
 
-enum ChoreLevel: Int, Codable {
-    case easy   = 10
-    case medium = 20
-    case hard   = 30
-
+extension ChoreLevel {
     var localizationKey: String {
         switch self {
         case .easy: return "chore_level_easy"
@@ -16,12 +13,7 @@ enum ChoreLevel: Int, Codable {
     }
 }
 
-enum ChoreStatus: Int, Codable {
-    case draft     = 0
-    case progress  = 1
-    case inTest    = 2
-    case completed = 3
-
+extension ChoreStatus {
     var localizationKey: String {
         switch self {
         case .draft: return "chore_status_draft"
@@ -32,114 +24,7 @@ enum ChoreStatus: Int, Codable {
     }
 }
 
-// MARK: - Create Chore
-
-struct CreateChoreRequest: Encodable {
-    let assignedTo: String
-    let description: String
-    let dueDate: String          // ISO-8601, e.g. "2026-07-12T00:00:00Z"
-    let houseId: String
-    let isRecurring: Bool
-    let level: Int               // ChoreLevel raw value
-    let recurringInterval: Int
-    let title: String
-}
-
-// MARK: - Update Chore
-
-struct UpdateChoreRequest: Encodable {
-    let assignedTo: String
-    let description: String
-    let dueDate: String
-    let houseId: String
-    let isRecurring: Bool
-    let level: Int
-    let recurringInterval: Int
-    let title: String
-}
-
-// MARK: - Update Chore Status
-
-struct ChoreStatusUpdateItem: Encodable {
-    let choreId: String
-    let status: Int              // ChoreStatus raw value
-}
-
-struct UpdateChoreStatusRequest: Encodable {
-    let chores: [ChoreStatusUpdateItem]
-    let houseId: String
-}
-
-// MARK: - Review Chore
-
-struct ReviewChoreRequest: Encodable {
-    let choreId: String
-    let isApproved: Bool
-}
-
-struct ChoreReviewVote: Codable, Identifiable, Equatable {
-    let id: String
-    let choreId: String
-    let houseId: String
-    let reviewRound: Int
-    let reviewerId: String
-    let isApproved: Bool
-    let createdOn: String
-
-    private enum CodingKeys: String, CodingKey {
-        case id, choreId, houseId, reviewRound, reviewerId, isApproved, createdOn
-    }
-
-    init(from decoder: Decoder) throws {
-        let container = try decoder.container(keyedBy: CodingKeys.self)
-        id = try container.decode(String.self, forKey: .id)
-        choreId = try container.decode(String.self, forKey: .choreId)
-        houseId = try container.decode(String.self, forKey: .houseId)
-        reviewRound = try container.decode(Int.self, forKey: .reviewRound)
-        reviewerId = try container.decode(String.self, forKey: .reviewerId)
-        isApproved = try container.decode(Bool.self, forKey: .isApproved)
-        createdOn = try container.decodeAPITime(forKey: .createdOn)
-    }
-}
-
-struct ChoreReviewResponse: Decodable, Identifiable, Equatable {
-    let id: String
-    let status: Int
-    let reviewRound: Int
-    let isCompleted: Bool
-    let reviewVotes: [ChoreReviewVote]
-}
-
-// MARK: - Chore Response
-
-struct ChoreResponse: Decodable, Identifiable, Equatable {
-    let id: String
-    let title: String
-    let description: String
-    let houseId: String
-    let houseOwnerId: String
-    let assignedTo: String
-    let dueDate: String
-    let isCompleted: Bool
-    let isRecurring: Bool
-    let level: Int
-    let recurringInterval: Int
-    let status: Int
-    let createdOn: String
-    let completedAt: String?
-    let completedBy: String?
-    let statusHistories: [ChoreStatusHistoryResponse]
-    let reviewRound: Int
-    let reviewVotes: [ChoreReviewVote]
-}
-
-struct ChoreStatusHistoryResponse: Decodable, Identifiable, Equatable {
-    let id: String
-    let choreId: String
-    let status: Int
-    let updater: String
-    let dateTime: String
-}
+// MARK: - App adapters
 
 extension ChoreResponse {
     var houseChoreDTO: HouseChoreDTO {
@@ -175,5 +60,11 @@ private extension ChoreStatusHistoryResponse {
             updater: updater,
             dateTime: dateTime
         )
+    }
+}
+
+extension HouseChoreDTO {
+    var dueLabelString: String {
+        HouseFlowDateFormatter.dueLabel(from: dueDate)
     }
 }

@@ -1,26 +1,86 @@
 import Foundation
 
-// MARK: - Create House
+// MARK: - Requests
 
-struct CreateHouseRequest: Encodable {
-    let name: String
-    let maxMemberCount: Int
-    let type: Int
+public struct CreateHouseRequest: Encodable, Equatable, Sendable {
+    public let name: String
+    public let maxMemberCount: Int
+    public let type: Int
+
+    public init(name: String, maxMemberCount: Int, type: Int) {
+        self.name = name
+        self.maxMemberCount = maxMemberCount
+        self.type = type
+    }
 }
 
-// MARK: - Join House
+public struct JoinHouseRequest: Encodable, Equatable, Sendable {
+    public let inviteCode: String
 
-struct JoinHouseRequest: Encodable {
-    let inviteCode: String
+    public init(inviteCode: String) {
+        self.inviteCode = inviteCode
+    }
 }
 
-enum InviteCodeRules {
-    static let requiredLength = 8
+public struct CreateAnnouncementRequest: Encodable, Equatable, Sendable {
+    public let description: String
+    public let houseId: String
+    public let title: String
+
+    public init(description: String, houseId: String, title: String) {
+        self.description = description
+        self.houseId = houseId
+        self.title = title
+    }
+}
+
+public struct UpdateHouseProfileRequest: Encodable, Equatable, Sendable {
+    public let houseMemberCountLimit: Int
+    public let houseName: String
+    public let houseProfileImage: String
+    public let houseType: Int
+
+    public init(
+        houseMemberCountLimit: Int,
+        houseName: String,
+        houseProfileImage: String,
+        houseType: Int
+    ) {
+        self.houseMemberCountLimit = houseMemberCountLimit
+        self.houseName = houseName
+        self.houseProfileImage = houseProfileImage
+        self.houseType = houseType
+    }
+}
+
+public struct ExitHouseRequest: Encodable, Equatable, Sendable {
+    public let houseId: String
+    public let userId: String
+
+    public init(houseId: String, userId: String) {
+        self.houseId = houseId
+        self.userId = userId
+    }
+}
+
+public struct CreateHouseInviteCodeRequest: Encodable, Equatable, Sendable {
+    public let houseId: String
+
+    public init(houseId: String) {
+        self.houseId = houseId
+    }
+}
+
+// MARK: - Invite code rule
+
+public enum InviteCodeRules: Sendable {
+    public static let requiredLength = 8
+
     private static let allowedCharacters = CharacterSet(
         charactersIn: "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789"
     )
 
-    static func normalized(_ value: String) -> String {
+    public static func normalized(_ value: String) -> String {
         let filtered = value
             .uppercased()
             .unicodeScalars
@@ -30,33 +90,22 @@ enum InviteCodeRules {
         return String(filtered.prefix(requiredLength))
     }
 
-    static func isValid(_ value: String) -> Bool {
+    public static func isValid(_ value: String) -> Bool {
         normalized(value).count == requiredLength
     }
 }
 
-// MARK: - Announcement Request
+// MARK: - Response envelope and wire time
 
-struct CreateAnnouncementRequest: Encodable {
-    let description: String
-    let houseId: String
-    let title: String
+public struct HouseAPIResponse<Payload: Decodable>: Decodable {
+    public let data: Payload?
+    public let success: Bool
+    public let error: String?
 }
 
-// MARK: - House API Envelope
-
-struct HouseAPIResponse<Data: Decodable>: Decodable {
-    let data: Data?
-    let success: Bool
-    let error: String?
-}
-
-// MARK: - API Time
-
-/// The house API may return dates either as ISO-8601 strings or as
-/// `{ "time.Time": "..." }`. Keeping the normalized value as a string lets
-/// the rest of the app continue using `HouseFlowDateFormatter`.
-struct APITimeValue: Decodable {
+/// House endpoints return timestamps as either an ISO-8601 string or a
+/// `{ "time.Time": "..." }` object. DTOs retain the normalized wire value.
+private struct APITimeValue: Decodable {
     let rawValue: String
 
     private enum CodingKeys: String, CodingKey {
@@ -75,7 +124,7 @@ struct APITimeValue: Decodable {
     }
 }
 
-extension KeyedDecodingContainer {
+private extension KeyedDecodingContainer {
     func decodeAPITime(forKey key: Key) throws -> String {
         try decode(APITimeValue.self, forKey: key).rawValue
     }
@@ -86,26 +135,26 @@ extension KeyedDecodingContainer {
     }
 }
 
-// MARK: - House Response (create & join share the same shape)
+// MARK: - House response
 
-struct HouseResponse: Decodable, Identifiable {
-    let id: String
-    let name: String
-    let inviteCode: String?
-    let maxMemberCount: Int
-    let memberIds: [String]
-    let ownerId: String
-    let profileImage: String
-    let type: Int
-    let createdOn: String
-    let updatedOn: String
+public struct HouseResponse: Decodable, Identifiable, Sendable {
+    public let id: String
+    public let name: String
+    public let inviteCode: String?
+    public let maxMemberCount: Int
+    public let memberIds: [String]
+    public let ownerId: String
+    public let profileImage: String
+    public let type: Int
+    public let createdOn: String
+    public let updatedOn: String
 
     private enum CodingKeys: String, CodingKey {
         case id, name, inviteCode, maxMemberCount, memberIds, ownerId
         case profileImage, type, createdOn, updatedOn
     }
 
-    init(from decoder: Decoder) throws {
+    public init(from decoder: Decoder) throws {
         let container = try decoder.container(keyedBy: CodingKeys.self)
         id = try container.decode(String.self, forKey: .id)
         name = try container.decode(String.self, forKey: .name)
@@ -120,39 +169,53 @@ struct HouseResponse: Decodable, Identifiable {
     }
 }
 
-// MARK: - House Details Response
+// MARK: - House details
 
-struct HouseDetailsResponse: Decodable, Equatable {
-    let id: String
-    let name: String
-    let maxMemberCount: Int
-    let ownerId: String
-    let profileImage: String
-    let type: Int
-    let createdOn: String
-    let updatedOn: String
-    let members: [HouseMemberDTO]
-    let chores: [HouseChoreDTO]
-    var announcements: [HouseAnnouncementDTO] = []
-}
+public struct HouseDetailsResponse: Decodable, Equatable, Sendable {
+    public let id: String
+    public let name: String
+    public let maxMemberCount: Int
+    public let ownerId: String
+    public let profileImage: String
+    public let type: Int
+    public let createdOn: String
+    public let updatedOn: String
+    public let members: [HouseMemberDTO]
+    public let chores: [HouseChoreDTO]
+    public var announcements: [HouseAnnouncementDTO]
 
-extension HouseDetailsResponse {
-    private enum CodingKeys: String, CodingKey {
-        case id
-        case name
-        case maxMemberCount
-        case ownerId
-        case profileImage
-        case type
-        case createdOn
-        case updatedOn
-        case members
-        case chores
-        case announcements
-        case activeAnnouncements
+    public init(
+        id: String,
+        name: String,
+        maxMemberCount: Int,
+        ownerId: String,
+        profileImage: String,
+        type: Int,
+        createdOn: String,
+        updatedOn: String,
+        members: [HouseMemberDTO],
+        chores: [HouseChoreDTO],
+        announcements: [HouseAnnouncementDTO] = []
+    ) {
+        self.id = id
+        self.name = name
+        self.maxMemberCount = maxMemberCount
+        self.ownerId = ownerId
+        self.profileImage = profileImage
+        self.type = type
+        self.createdOn = createdOn
+        self.updatedOn = updatedOn
+        self.members = members
+        self.chores = chores
+        self.announcements = announcements
     }
 
-    init(from decoder: Decoder) throws {
+    private enum CodingKeys: String, CodingKey {
+        case id, name, maxMemberCount, ownerId, profileImage, type
+        case createdOn, updatedOn, members, chores, announcements, activeAnnouncements
+    }
+
+    public init(from decoder: Decoder) throws {
         let container = try decoder.container(keyedBy: CodingKeys.self)
         id = try container.decode(String.self, forKey: .id)
         name = try container.decode(String.self, forKey: .name)
@@ -176,18 +239,18 @@ extension HouseDetailsResponse {
 
 // MARK: - Announcement DTO
 
-struct HouseAnnouncementDTO: Decodable, Identifiable, Equatable {
-    let id: String
-    let houseId: String?
-    let title: String
-    let message: String
-    let createdOn: String
-    let updatedOn: String?
-    let isActive: Bool
-    let publisherId: String?
-    let publisherName: String?
+public struct HouseAnnouncementDTO: Decodable, Identifiable, Equatable, Sendable {
+    public let id: String
+    public let houseId: String?
+    public let title: String
+    public let message: String
+    public let createdOn: String
+    public let updatedOn: String?
+    public let isActive: Bool
+    public let publisherId: String?
+    public let publisherName: String?
 
-    init(
+    public init(
         id: String,
         houseId: String? = nil,
         title: String,
@@ -210,39 +273,14 @@ struct HouseAnnouncementDTO: Decodable, Identifiable, Equatable {
     }
 
     private enum CodingKeys: String, CodingKey {
-        case id
-        case announcementId
-        case houseId
-        case announcedBy
-        case title
-        case message
-        case content
-        case description
-        case body
-        case createdOn
-        case createdAt
-        case updatedOn
-        case updatedAt
-        case isActive
-        case createdBy
-        case createdById
-        case createdByUserId
-        case creatorId
-        case publisherId
-        case userId
-        case memberId
-        case publisherName
-        case createdByName
-        case authorName
-        case createdByFirstName
-        case createdByLastName
-        case createdByUser
-        case creator
-        case publisher
-        case author
+        case id, announcementId, houseId, announcedBy, title, message, content
+        case description, body, createdOn, createdAt, updatedOn, updatedAt, isActive
+        case createdBy, createdById, createdByUserId, creatorId, publisherId
+        case userId, memberId, publisherName, createdByName, authorName
+        case createdByFirstName, createdByLastName, createdByUser, creator, publisher, author
     }
 
-    init(from decoder: Decoder) throws {
+    public init(from decoder: Decoder) throws {
         let container = try decoder.container(keyedBy: CodingKeys.self)
 
         id = try container.decodeIfPresent(String.self, forKey: .id)
@@ -265,7 +303,10 @@ struct HouseAnnouncementDTO: Decodable, Identifiable, Equatable {
         )
         publisherId = Self.decodeString(
             from: container,
-            keys: [.announcedBy, .createdById, .createdByUserId, .creatorId, .publisherId, .userId, .memberId, .createdBy]
+            keys: [
+                .announcedBy, .createdById, .createdByUserId, .creatorId,
+                .publisherId, .userId, .memberId, .createdBy,
+            ]
         ) ?? nestedPublisher?.id
 
         let directName = Self.decodeString(
@@ -332,13 +373,7 @@ private struct AnnouncementPublisherPayload: Decodable {
     }
 
     private enum CodingKeys: String, CodingKey {
-        case id
-        case userId
-        case memberId
-        case firstName
-        case lastName
-        case name
-        case fullName
+        case id, userId, memberId, firstName, lastName, name, fullName
     }
 
     init(from decoder: Decoder) throws {
@@ -355,24 +390,24 @@ private struct AnnouncementPublisherPayload: Decodable {
 
 // MARK: - Member DTO
 
-struct HouseMemberDTO: Decodable, Identifiable, Equatable {
-    let id: String
-    let firstName: String
-    let lastName: String
-    let email: String
-    let imageUrl: String
-    let isActive: Bool
-    let isVerifyEmail: Bool
-    let isVerifyPhone: Bool
-    let language: String?
-    let phoneNumber: String
-    let birthDate: String?
-    let houseIds: [String]
-    let createdOn: String
-    let updatedOn: String
-    let lastLogin: String
+public struct HouseMemberDTO: Decodable, Identifiable, Equatable, Sendable {
+    public let id: String
+    public let firstName: String
+    public let lastName: String
+    public let email: String
+    public let imageUrl: String
+    public let isActive: Bool
+    public let isVerifyEmail: Bool
+    public let isVerifyPhone: Bool
+    public let language: String?
+    public let phoneNumber: String
+    public let birthDate: String?
+    public let houseIds: [String]
+    public let createdOn: String
+    public let updatedOn: String
+    public let lastLogin: String
 
-    var fullName: String { "\(firstName) \(lastName)" }
+    public var fullName: String { "\(firstName) \(lastName)" }
 
     private enum CodingKeys: String, CodingKey {
         case id, firstName, lastName, email, imageUrl, isActive
@@ -381,7 +416,7 @@ struct HouseMemberDTO: Decodable, Identifiable, Equatable {
         case birthDate = "birthDay"
     }
 
-    init(
+    public init(
         id: String,
         firstName: String,
         lastName: String,
@@ -415,7 +450,7 @@ struct HouseMemberDTO: Decodable, Identifiable, Equatable {
         self.lastLogin = lastLogin
     }
 
-    init(from decoder: Decoder) throws {
+    public init(from decoder: Decoder) throws {
         let container = try decoder.container(keyedBy: CodingKeys.self)
         id = try container.decode(String.self, forKey: .id)
         firstName = try container.decode(String.self, forKey: .firstName)
@@ -435,36 +470,29 @@ struct HouseMemberDTO: Decodable, Identifiable, Equatable {
     }
 }
 
-// MARK: - Chore DTO
+// MARK: - Nested chore DTOs in house details
 
-struct HouseChoreDTO: Decodable, Identifiable, Equatable {
-    let id: String
-    let title: String
-    let description: String
-    let houseId: String
-    let houseOwnerId: String
-    let assignedTo: String
-    let dueDate: String
-    let isCompleted: Bool
-    let isRecurring: Bool
-    let level: Int
-    let recurringInterval: Int
-    let status: Int
-    let createdOn: String
-    let completedAt: String?
-    let completedBy: String?
-    let statusHistories: [ChoreStatusHistory]
-    let reviewRound: Int
-    let reviewVotes: [ChoreReviewVote]
+public struct HouseChoreDTO: Decodable, Identifiable, Equatable, Sendable {
+    public let id: String
+    public let title: String
+    public let description: String
+    public let houseId: String
+    public let houseOwnerId: String
+    public let assignedTo: String
+    public let dueDate: String
+    public let isCompleted: Bool
+    public let isRecurring: Bool
+    public let level: Int
+    public let recurringInterval: Int
+    public let status: Int
+    public let createdOn: String
+    public let completedAt: String?
+    public let completedBy: String?
+    public let statusHistories: [ChoreStatusHistory]
+    public let reviewRound: Int
+    public let reviewVotes: [ChoreReviewVote]
 
-    private enum CodingKeys: String, CodingKey {
-        case id, title, description, houseId, houseOwnerId, assignedTo
-        case dueDate, isCompleted, isRecurring, level, recurringInterval
-        case status, createdOn, completedAt, completedBy, statusHistories
-        case reviewRound, reviewVotes
-    }
-
-    init(
+    public init(
         id: String,
         title: String,
         description: String,
@@ -504,7 +532,14 @@ struct HouseChoreDTO: Decodable, Identifiable, Equatable {
         self.reviewVotes = reviewVotes
     }
 
-    init(from decoder: Decoder) throws {
+    private enum CodingKeys: String, CodingKey {
+        case id, title, description, houseId, houseOwnerId, assignedTo
+        case dueDate, isCompleted, isRecurring, level, recurringInterval
+        case status, createdOn, completedAt, completedBy, statusHistories
+        case reviewRound, reviewVotes
+    }
+
+    public init(from decoder: Decoder) throws {
         let container = try decoder.container(keyedBy: CodingKeys.self)
         id = try container.decode(String.self, forKey: .id)
         title = try container.decode(String.self, forKey: .title)
@@ -527,18 +562,14 @@ struct HouseChoreDTO: Decodable, Identifiable, Equatable {
     }
 }
 
-struct ChoreStatusHistory: Decodable, Identifiable, Equatable {
-    let id: String
-    let choreId: String
-    let status: Int
-    let updater: String
-    let dateTime: String
+public struct ChoreStatusHistory: Decodable, Identifiable, Equatable, Sendable {
+    public let id: String
+    public let choreId: String
+    public let status: Int
+    public let updater: String
+    public let dateTime: String
 
-    private enum CodingKeys: String, CodingKey {
-        case id, choreId, status, updater, dateTime
-    }
-
-    init(id: String, choreId: String, status: Int, updater: String, dateTime: String) {
+    public init(id: String, choreId: String, status: Int, updater: String, dateTime: String) {
         self.id = id
         self.choreId = choreId
         self.status = status
@@ -546,7 +577,11 @@ struct ChoreStatusHistory: Decodable, Identifiable, Equatable {
         self.dateTime = dateTime
     }
 
-    init(from decoder: Decoder) throws {
+    private enum CodingKeys: String, CodingKey {
+        case id, choreId, status, updater, dateTime
+    }
+
+    public init(from decoder: Decoder) throws {
         let container = try decoder.container(keyedBy: CodingKeys.self)
         id = try container.decode(String.self, forKey: .id)
         choreId = try container.decode(String.self, forKey: .choreId)
@@ -556,11 +591,115 @@ struct ChoreStatusHistory: Decodable, Identifiable, Equatable {
     }
 }
 
-// MARK: - HouseChoreDTO helpers
+public struct ChoreReviewVote: Codable, Identifiable, Equatable, Sendable {
+    public let id: String
+    public let choreId: String
+    public let houseId: String
+    public let reviewRound: Int
+    public let reviewerId: String
+    public let isApproved: Bool
+    public let createdOn: String
 
-extension HouseChoreDTO {
-    /// Converts `dueDate` (ISO-8601) into a human-readable due label.
-    var dueLabelString: String {
-        HouseFlowDateFormatter.dueLabel(from: dueDate)
+    public init(
+        id: String,
+        choreId: String,
+        houseId: String,
+        reviewRound: Int,
+        reviewerId: String,
+        isApproved: Bool,
+        createdOn: String
+    ) {
+        self.id = id
+        self.choreId = choreId
+        self.houseId = houseId
+        self.reviewRound = reviewRound
+        self.reviewerId = reviewerId
+        self.isApproved = isApproved
+        self.createdOn = createdOn
     }
+
+    private enum CodingKeys: String, CodingKey {
+        case id, choreId, houseId, reviewRound, reviewerId, isApproved, createdOn
+    }
+
+    public init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        id = try container.decode(String.self, forKey: .id)
+        choreId = try container.decode(String.self, forKey: .choreId)
+        houseId = try container.decode(String.self, forKey: .houseId)
+        reviewRound = try container.decode(Int.self, forKey: .reviewRound)
+        reviewerId = try container.decode(String.self, forKey: .reviewerId)
+        isApproved = try container.decode(Bool.self, forKey: .isApproved)
+        createdOn = try container.decodeAPITime(forKey: .createdOn)
+    }
+}
+
+// MARK: - House information
+
+public struct HouseInfoData: Decodable, Equatable, Sendable {
+    public let houseMemberCount: Int
+    public let houseMemberCountLimit: Int
+    public let houseMembers: [HouseInfoMember]
+    public let houseName: String
+    public let houseProfileImage: String
+    public let houseType: Int
+
+    public init(
+        houseMemberCount: Int,
+        houseMemberCountLimit: Int,
+        houseMembers: [HouseInfoMember],
+        houseName: String,
+        houseProfileImage: String,
+        houseType: Int
+    ) {
+        self.houseMemberCount = houseMemberCount
+        self.houseMemberCountLimit = houseMemberCountLimit
+        self.houseMembers = houseMembers
+        self.houseName = houseName
+        self.houseProfileImage = houseProfileImage
+        self.houseType = houseType
+    }
+
+    public func isOwner(userId: String?) -> Bool {
+        guard let userId else { return false }
+        return houseMembers.first(where: { $0.userId == userId })?.isOwner == true
+    }
+
+    public func removingMember(userId: String) -> HouseInfoData {
+        let remainingMembers = houseMembers.filter { $0.userId != userId }
+        return HouseInfoData(
+            houseMemberCount: remainingMembers.count,
+            houseMemberCountLimit: houseMemberCountLimit,
+            houseMembers: remainingMembers,
+            houseName: houseName,
+            houseProfileImage: houseProfileImage,
+            houseType: houseType
+        )
+    }
+}
+
+public struct HouseInfoMember: Decodable, Equatable, Identifiable, Sendable {
+    public let isOwner: Bool
+    public let name: String
+    public let profileImage: String
+    public let userId: String
+
+    public var id: String { userId }
+
+    public init(isOwner: Bool, name: String, profileImage: String, userId: String) {
+        self.isOwner = isOwner
+        self.name = name
+        self.profileImage = profileImage
+        self.userId = userId
+    }
+}
+
+public struct HouseInviteCodeData: Decodable, Equatable, Sendable {
+    public let expiresInSeconds: Int
+    public let inviteCode: String
+}
+
+public struct HouseActionResponse: Decodable, Equatable, Sendable {
+    public let success: Bool
+    public let error: String?
 }

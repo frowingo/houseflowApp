@@ -1,4 +1,5 @@
 import SwiftUI
+import HouseFlowCore
 
 /// House member carousel using the cool-toned Create House palette.
 struct HouseMembersCard: View {

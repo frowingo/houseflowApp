@@ -1,4 +1,5 @@
 import SwiftUI
+import HouseFlowCore
 
 // MARK: - Game Info Model
 private struct GameInfo: Identifiable {

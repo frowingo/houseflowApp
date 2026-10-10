@@ -1,4 +1,5 @@
 import SwiftUI
+import HouseFlowCore
 
 /// Tek bir görev satırını gösteren component
 struct ChoreRow: View {
