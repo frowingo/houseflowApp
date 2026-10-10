@@ -1,4 +1,5 @@
 import Foundation
+import HouseFlowCore
 
 enum NetworkError: LocalizedError {
     case invalidURL
@@ -18,12 +19,12 @@ enum NetworkError: LocalizedError {
 
 @MainActor
 final class NetworkService: NetworkServicing, HTTPRequestExecuting {
-    typealias RequestExecutor = @MainActor (URLRequest) async throws -> (Data, URLResponse)
+    typealias RequestExecutor = URLSessionHTTPClient.RequestExecutor
 
-    private let baseURL: URL
     private let encoder: JSONEncoder
     private let decoder: JSONDecoder
-    private let requestExecutor: RequestExecutor
+    private let client: any HTTPClient
+    private let rawClient: URLSessionHTTPClient
 
     convenience init() {
         self.init(baseURL: AppEnvironment.current.baseURL)
@@ -34,19 +35,18 @@ final class NetworkService: NetworkServicing, HTTPRequestExecuting {
         session: URLSession? = nil,
         encoder: JSONEncoder = JSONEncoder(),
         decoder: JSONDecoder = JSONDecoder(),
-        requestExecutor: RequestExecutor? = nil
+        requestExecutor: RequestExecutor? = nil,
+        httpClient: (any HTTPClient)? = nil
     ) {
-        self.baseURL = baseURL
         self.encoder = encoder
         self.decoder = decoder
-        if let requestExecutor {
-            self.requestExecutor = requestExecutor
-        } else {
-            let resolvedSession = session ?? Self.makeDefaultSession()
-            self.requestExecutor = { request in
-                try await resolvedSession.data(for: request)
-            }
-        }
+        let adapter = URLSessionHTTPClient(
+            baseURL: baseURL,
+            session: session,
+            requestExecutor: requestExecutor
+        )
+        rawClient = adapter
+        client = httpClient ?? adapter
     }
 
     // MARK: - Core request
@@ -60,7 +60,7 @@ final class NetworkService: NetworkServicing, HTTPRequestExecuting {
         body: Body,
         successType: Success.Type
     ) async throws -> Success {
-        let request = try makeRequest(
+        let request = makeRequest(
             path: path,
             method: method,
             body: try encoder.encode(body)
@@ -77,7 +77,7 @@ final class NetworkService: NetworkServicing, HTTPRequestExecuting {
         successType: Success.Type,
         token: String
     ) async throws -> Success {
-        let request = try makeRequest(
+        let request = makeRequest(
             path: path,
             method: method,
             body: try encoder.encode(body),
@@ -96,7 +96,7 @@ final class NetworkService: NetworkServicing, HTTPRequestExecuting {
         successType: Success.Type,
         token: String
     ) async throws -> Success {
-        let request = try makeRequest(
+        let request = makeRequest(
             path: path,
             method: method,
             queryItems: queryItems,
@@ -113,7 +113,7 @@ final class NetworkService: NetworkServicing, HTTPRequestExecuting {
         queryItems: [URLQueryItem] = [],
         successType: Success.Type
     ) async throws -> Success {
-        let request = try makeRequest(
+        let request = makeRequest(
             path: path,
             method: "GET",
             queryItems: queryItems
@@ -127,7 +127,7 @@ final class NetworkService: NetworkServicing, HTTPRequestExecuting {
         successType: Success.Type,
         token: String
     ) async throws -> Success {
-        let request = try makeRequest(
+        let request = makeRequest(
             path: path,
             method: "GET",
             queryItems: queryItems,
@@ -142,59 +142,43 @@ final class NetworkService: NetworkServicing, HTTPRequestExecuting {
         queryItems: [URLQueryItem] = [],
         body: Data? = nil,
         token: String? = nil
-    ) throws -> URLRequest {
-        guard var components = URLComponents(
-            url: baseURL.appendingPathComponent(path),
-            resolvingAgainstBaseURL: true
-        ) else { throw NetworkError.invalidURL }
+    ) -> HTTPRequest {
+        var headers: [String: String] = [:]
+        if body != nil { headers["Content-Type"] = "application/json" }
+        if let token { headers["Authorization"] = "Bearer \(token)" }
 
-        if !queryItems.isEmpty {
-            components.queryItems = queryItems
-        }
-
-        guard let url = components.url else { throw NetworkError.invalidURL }
-
-        var request = URLRequest(url: url)
-        request.httpMethod = method
-
-        if let body {
-            request.setValue("application/json", forHTTPHeaderField: "Content-Type")
-            request.httpBody = body
-        }
-
-        if let token {
-            request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
-        }
-
-        return request
+        return HTTPRequest(
+            path: path,
+            method: method,
+            queryItems: queryItems.map { HTTPQueryItem(name: $0.name, value: $0.value) },
+            headers: headers,
+            body: body
+        )
     }
 
     private func send<Success: Decodable>(
-        _ request: URLRequest,
+        _ request: HTTPRequest,
         successType: Success.Type
     ) async throws -> Success {
-        let (data, response) = try await requestExecutor(request)
-
-        guard let http = response as? HTTPURLResponse else {
+        let response: HTTPResponse
+        do {
+            response = try await client.send(request)
+        } catch HTTPClientError.invalidURL {
+            throw NetworkError.invalidURL
+        } catch HTTPClientError.invalidResponse {
             throw NetworkError.unknown(-1)
         }
 
-        if (200...399).contains(http.statusCode) {
+        if (200...399).contains(response.statusCode) {
             do {
-                return try decoder.decode(Success.self, from: data)
+                return try decoder.decode(Success.self, from: response.body)
             } catch {
                 throw NetworkError.decodingError(error)
             }
         } else {
-            if let errorBody = try? decoder.decode(APIErrorResponse.self, from: data) {
-                throw NetworkError.serverError(errorBody.message ?? errorBody.error ?? "Request failed.")
-            }
-            if let errorMessage = String(data: data, encoding: .utf8)?
-                .trimmingCharacters(in: .whitespacesAndNewlines),
-               !errorMessage.isEmpty {
-                throw NetworkError.serverError(errorMessage)
-            }
-            throw NetworkError.unknown(http.statusCode)
+            let failure = HTTPStatusFailure(response: response, decoder: decoder)
+            if let message = failure.message { throw NetworkError.serverError(message) }
+            throw NetworkError.unknown(failure.statusCode)
         }
     }
 
@@ -203,7 +187,7 @@ final class NetworkService: NetworkServicing, HTTPRequestExecuting {
     func execute(_ request: URLRequest) async throws -> NetworkHTTPResponse {
         try Task.checkCancellation()
         do {
-            let (data, response) = try await requestExecutor(request)
+            let (data, response) = try await rawClient.executeRaw(request)
             try Task.checkCancellation()
             guard let http = response as? HTTPURLResponse else { throw NetworkError.unknown(-1) }
             return NetworkHTTPResponse(data: data, response: http)
@@ -213,16 +197,4 @@ final class NetworkService: NetworkServicing, HTTPRequestExecuting {
         }
     }
 
-    private static func makeDefaultSession() -> URLSession {
-        let configuration = URLSessionConfiguration.default
-        configuration.timeoutIntervalForRequest = 30
-        return URLSession(configuration: configuration)
-    }
-}
-
-// MARK: - Shared error response shape
-
-struct APIErrorResponse: Decodable {
-    let error: String?
-    let message: String?
 }

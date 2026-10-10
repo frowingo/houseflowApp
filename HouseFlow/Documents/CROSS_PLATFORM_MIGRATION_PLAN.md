@@ -426,24 +426,24 @@ F12 sonrası karar ────────────────────�
 
 #### Faz 3 — Portlar ve iOS adapter'ları
 
-- **Durum / owner / tarih / karar / kanıt:** `Not started` · Owner: TBD · Tarih: — · ADR: port API ve error mapping · Kanıt: adapter contract CI.
+- **Durum / owner / tarih / karar / kanıt:** `Implementation done; device gate pending` · Uygulama owner'ı: Codex; kalıcı proje owner'ı: TBD · 2026-10-10 · Karar: [Faz 3 port kararları](PHASE3_PORT_DECISIONS.md) · Kanıt: Core package testleri 32/32; generic iOS Simulator app build ve build-for-testing başarılı; adapter contract simülatör testleri 3 geçti, gerçek Keychain testi imzasız host nedeniyle 1 atlandı; mevcut NetworkService/AuthService/AppRouter regresyon testleri 15/15 geçti.
 - **Amaç:** Core'un bağımlı olacağı minimum portları tanımlayıp mevcut iOS platform servislerini adapter arkasına almak.
 - **Önkoşullar:** F2'nin gerekli DTO grupları; F0 token, preference, localization ve HTTP davranışı envanteri.
 - **Kapsam içi:** HTTP, secure storage, preferences, localization, clock/logging için gerçekten kullanılan minimum sözleşmeler; iOS implementasyonu.
 - **Kapsam dışı:** Android adapter, geniş kapsamlı dependency injection framework, generic ağ abstraction'ı veya ürün akışı değişimi.
 - **Görevler:**
-  - [ ] Her portu kullanan use case'i ve platforma bağımlı işlemi eşleştir; kullanılmayan soyutlama ekleme.
-  - [ ] `HTTPRequest/HTTPResponse/HTTPClient` ve normalize hata tipini mevcut status/error envelope'a göre tanımla.
-  - [ ] Keychain, preferences ve localization cache için typed, küçük kontratlar oluştur; token/log redaction kuralını belirt.
-  - [ ] Clock ve logging portlarını yalnız determinism/diagnostic ihtiyacı olan Core use case'lerine ekle.
-  - [ ] `URLSession`, `Security`, `UserDefaults`, `UIKit` kullanımlarını iOS adapter'da tut; `AppDependencies` üzerinden graph kur.
-  - [ ] Her adapter için fake/contract test yaz; mevcut iOS servisini port arkasına tek tek geçir.
+  - [x] Her portu kullanan akışı ve platforma bağımlı işlemi eşleştir; kullanılmayan soyutlama ekleme.
+  - [x] `HTTPRequest/HTTPResponse/HTTPClient` ve normalize hata tipini mevcut status/error envelope'a göre tanımla.
+  - [x] Keychain, preferences ve localization cache için typed, küçük kontratlar oluştur; token/log redaction kuralını belirt.
+  - [x] Clock ve logging portlarını yalnız ihtiyaç varsa ekleme kararını kaydet: bu fazda Core tüketicisi yok, port eklenmedi.
+  - [x] `URLSession`, `Security`, `UserDefaults`, `UIKit` kullanımlarını iOS sınırında tut; `AppDependencies` üzerinden graph kur.
+  - [x] HTTP, preferences ve localization adapter contract testleri ile mevcut servisleri port arkasına geçir; Keychain için test tanımlandı, ancak gerçek round-trip imzalı cihaz kapısında bekliyor.
 - **Dokunulacak mevcut dosyalar/dizinler:** `Services/Protocols/ServiceProtocols.swift`, `Services/Network/**`, `Services/KeychainService.swift`, `Services/LocalizationService.swift`, `Services/AppDependencies.swift`, gereken `Services/**` call site'ları.
 - **Yeni çıktılar:** `shared/Sources/HouseFlowCore/Ports/**`, iOS `Platform/` veya mevcut `Services/Platform/` altında HTTP/Keychain/preferences/localization adapter'ları, adapter test doubles ve port ADR.
 - **Küçük PR dilimleri:** (1) HTTP contract + URLSession adapter, (2) secure storage/preferences, (3) localization/cache, (4) composition root ve endpoint migration. Sözleşme değişirse önce ADR/fixture PR.
-- **Doğrulama:** Hata zarfı/status/header/query/encoding contract; token load-save-delete; old preference migration; localization fallback/cache; iOS akışları eski sonuçları üretir.
+- **Doğrulama:** HTTP hata zarfı/status/header/query/encoding, eski preference key'lerinin doğrudan okunması, eski localization JSON'u/fallback'i ve mevcut login/API error/router akışları test edildi. İmzasız simülatörde `Security` erişimi olmadığı için gerçek token load-save-delete testi atlandı; imzalı cihazda tekrar koşulmalı.
 - **Performans ölçümü:** URLSession round-trip, JSON decode, localization cache hit/miss; adapter katmanı latency/alloc baseline'ı anlamlı artırmamalı.
-- **Çıkış kriteri:** iOS üretim graph'ı tüm taşınmış portları adapter ile sağlar; hiçbir token platformlar arası plaintext'e düşmez; iOS golden akışları geçer.
+- **Çıkış kriteri:** Kod sınırı ve iOS regresyonları sağlandı; token plaintext'e aktarılmıyor. Gerçek Keychain persist/reopen/delete ve runtime performans karşılaştırması beklediğinden Faz 4'e geçiş kapısı henüz tamamen kapanmadı.
 - **Rollback noktası:** Port başına `AppDependencies` binding eski servise döner; henüz ortak feature state'e toplu geçiş yapılmaz.
 - **Tahmini efor:** 7–12 kişi-gün.
 - **Sonraki faza geçiş kapısı:** En az bir HTTP, storage ve localization contract iOS'ta uygulanıp kanıtlı; iOS login/restore ve bir API hata akışı aynı.

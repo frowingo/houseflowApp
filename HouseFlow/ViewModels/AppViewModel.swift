@@ -126,7 +126,7 @@ class AppViewModel: ObservableObject {
         dashboardStore: DashboardStore,
         choreStore: ChoreStore,
         localizationStore: LocalizationStore,
-        userDefaults: UserDefaults,
+        userDefaults: any PreferencesStore,
         houseRocketsSessionFactory: HouseRocketsSessionFactory? = nil
     ) {
         self.authStore = authStore

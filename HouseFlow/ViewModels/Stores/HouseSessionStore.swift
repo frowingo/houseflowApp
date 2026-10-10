@@ -12,13 +12,13 @@ final class HouseSessionStore: ObservableObject {
 
     private let refreshCooldown: TimeInterval = 30
     private let houseService: any HouseServicing
-    private let userDefaults: UserDefaults
+    private let userDefaults: any PreferencesStore
     private var detailsTasks: [String: Task<HouseDetailsResponse, Error>] = [:]
     private var lastDetailsFetchAt: [String: Date] = [:]
 
     private static let chosenHouseKey = "chosenHouse"
 
-    init(houseService: any HouseServicing, userDefaults: UserDefaults = .standard) {
+    init(houseService: any HouseServicing, userDefaults: any PreferencesStore = UserDefaults.standard) {
         self.houseService = houseService
         self.userDefaults = userDefaults
     }

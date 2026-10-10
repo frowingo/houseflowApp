@@ -1,5 +1,6 @@
 import Foundation
 import Combine
+import HouseFlowCore
 
 enum NavigationDirection {
     case forward, backward
@@ -88,14 +89,14 @@ final class AppRouter: ObservableObject {
     @Published private(set) var route: AppRoute
     @Published var navigationDirection: NavigationDirection = .forward
 
-    private let userDefaults: UserDefaults
+    private let userDefaults: any PreferencesStore
     private let isAuthenticated: () -> Bool
     private let pendingEmailVerification: () -> String?
 
     init(
         hasAuthToken: Bool,
         pendingEmailVerification initialPendingEmail: String?,
-        userDefaults: UserDefaults = .standard,
+        userDefaults: any PreferencesStore = UserDefaults.standard,
         isAuthenticated: @escaping () -> Bool,
         pendingEmailVerification: @escaping () -> String?
     ) {

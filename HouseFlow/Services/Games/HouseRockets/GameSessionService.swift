@@ -1,4 +1,5 @@
 import Foundation
+import HouseFlowCore
 
 /// Shares HTTP/keychain dependencies with the app; never creates a network graph.
 @MainActor

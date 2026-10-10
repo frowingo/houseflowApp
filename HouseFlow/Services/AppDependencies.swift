@@ -1,4 +1,5 @@
 import Foundation
+import HouseFlowCore
 
 /// Owns the application's production dependency graph.
 /// Services share network/keychain; a separate game URL can be injected for local/staging.
@@ -9,8 +10,8 @@ struct AppDependencies {
     let houseService: any HouseServicing
     let choreService: any ChoreServicing
     let localizationService: any LocalizationServicing
-    let userDefaults: UserDefaults
-    let localizationCache: LocalizationDiskCache
+    let userDefaults: any PreferencesStore
+    let localizationCache: any LocalizationCacheStore
     let houseRocketsSessionFactory: HouseRocketsSessionFactory
 
     static func live(gameBaseURL: URL? = nil) -> AppDependencies {
@@ -26,7 +27,7 @@ struct AppDependencies {
             houseService: HouseService(network: network, keychain: keychain),
             choreService: ChoreService(network: network, keychain: keychain),
             localizationService: LocalizationService(network: network),
-            userDefaults: .standard,
+            userDefaults: UserDefaults.standard,
             localizationCache: LocalizationDiskCache(),
             houseRocketsSessionFactory: .live(network: gameNetwork, keychain: keychain, baseURL: gameURL)
         )

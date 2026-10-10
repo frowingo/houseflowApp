@@ -4,6 +4,7 @@ import PackageDescription
 
 let package = Package(
     name: "HouseFlowShared",
+    platforms: [.iOS(.v13)],
     products: [
         .library(
             name: "HouseFlowCore",

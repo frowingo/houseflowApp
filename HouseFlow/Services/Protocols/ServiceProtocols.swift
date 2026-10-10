@@ -46,13 +46,8 @@ protocol NetworkServicing: AnyObject {
     ) async throws -> Success
 }
 
-protocol KeychainStoring: AnyObject {
-    var authToken: String? { get set }
-    var userEmail: String? { get set }
-    var userFirstName: String? { get set }
-    var userLastName: String? { get set }
-    var pendingEmailVerification: String? { get set }
-}
+/// Keeps existing iOS call sites compatible while exposing the Core storage port.
+protocol KeychainStoring: SecureSessionStore {}
 
 protocol AuthServicing: AnyObject {
     func signup(
