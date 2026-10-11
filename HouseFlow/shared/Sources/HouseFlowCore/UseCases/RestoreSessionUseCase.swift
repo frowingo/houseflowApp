@@ -29,21 +29,8 @@ public struct RestoreSessionUseCase {
             throw SessionRestoreError.missingToken
         }
 
-        let response = try await httpClient.send(HTTPRequest(
-            path: "auth/isAuth",
-            method: "GET",
-            headers: ["Authorization": "Bearer \(token)"]
-        ))
+        let response = try await httpClient.send(AuthWireContract.profileRequest(token: token))
         try Task.checkCancellation()
-
-        guard (200...399).contains(response.statusCode) else {
-            throw HTTPStatusFailure(response: response, decoder: decoder)
-        }
-
-        let payload = try decoder.decode(IsAuthResponse.self, from: response.body)
-        guard payload.success, let profile = payload.data else {
-            throw SessionRestoreError.invalidProfile
-        }
-        return profile
+        return try AuthWireContract.profile(from: response, decoder: decoder)
     }
 }

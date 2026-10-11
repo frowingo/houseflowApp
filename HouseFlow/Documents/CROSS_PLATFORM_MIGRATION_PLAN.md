@@ -306,7 +306,7 @@ Bu belgede tahmini efor ve performans eşikleri planlama başlangıç değerleri
 
 ## Detaylı geliştirme fazları ve takip planı
 
-Bu ek, yukarıdaki özet fazları uygulanabilir iş paketlerine açar. Mevcut ürün davranışı ve UX/UI guardrail'leri aynen geçerlidir. “Dokunulacak” listeleri planlanan sınırı gösterir; her dosyanın tek PR'da taşınması gerekmez. Faz başında kapsam netleştirilir, sonunda kanıt eklenmeden faz `Done` yapılmaz. Test/build burada yalnızca gelecek uygulama işinin doğrulama planıdır; bu belgeyi hazırlarken çalıştırma anlamına gelmez.
+Bu bölüm, faz planını, kararları, ilerlemeyi ve doğrulama kanıtlarını tek yerde tutan takip kaynağıdır. Fazlara özel ayrı Markdown raporları/checklist'leri oluşturulmayacak; sonuçlar ve açık işler ilgili faz kartına işlenecek. Mevcut ürün davranışı ve UX/UI guardrail'leri aynen geçerlidir. “Dokunulacak” listeleri planlanan sınırı gösterir; her dosyanın tek PR'da taşınması gerekmez. Faz başında kapsam netleştirilir, sonunda kanıt eklenmeden faz `Done` yapılmaz. Test/build burada yalnızca gelecek uygulama işinin doğrulama planıdır; bu belgeyi hazırlarken çalıştırma anlamına gelmez.
 
 ### Faz durumları ve takip biçimi
 
@@ -352,20 +352,22 @@ F12 sonrası karar ────────────────────�
 
 #### Faz 0 — Baseline ve davranış envanteri
 
-- **Durum / owner / tarih / karar / kanıt:** `Not started` · Owner: TBD · Başlangıç–bitiş: — · ADR: Android destek matrisi ve baseline bütçesi · Kanıt: checklist + ölçüm raporu linkleri.
+- **Durum / owner / tarih / karar / kanıt:** `In progress — auth referansı sahibi tarafından doğrulandı; cihaz/performance baseline ve Android destek matrisi açık` · Owner: TBD · Başlangıç–bitiş: — · Karar: auth akışlarını simülatörde tekrar etme gerekmiyor; mevcut iOS davranışı referans · Kanıt: uygulama sahibi tüm auth varyasyonlarını fiziksel iPhone'da geliştirici modunda test ettiğini ve beklenen şekilde çalıştığını bildirdi. Ek manuel auth envanteri istenmiyor.
 - **Amaç:** Taşınacak davranışı, teknik başlangıç değerlerini ve belirsizlikleri kod değiştirmeden görünür kılmak.
 - **Önkoşullar:** Repo ve erişilebilir iOS scheme/CI hakkında bilgi; kritik akışları çalıştırabilecek test cihazı/simülatör veya kayıtlı çıktılar.
 - **Kapsam içi:** Akış, API, model, localization, depolama anahtarları, oyun kuralları, CI/toolchain ve ölçüm envanteri.
 - **Kapsam dışı:** Kod taşıma, UI yenileme, Android ekran implementasyonu, backend sözleşmesi değiştirme.
 - **Görevler:**
   - [ ] `Documents/PRODUCT.md`, `Documents/DESIGN.md`, `Documents/Games/README.md` ve multiplayer planından gözlemlenebilir akış/oyun kuralı checklist'leri çıkar.
-  - [ ] Login, signup, doğrulama, otomatik login, house seçimi/oluşturma/katılma, chores, profile, localization, logout ve hata/boş/yükleniyor durumlarının mevcut ekran sırası ile sonuçlarını kaydet.
+  - [x] Auth referansı: uygulama sahibi login ve auth akışlarının tüm varyasyonlarını fiziksel iPhone'da test ettiğini; sorun görmediğini bildirdi. Aynı akışları simülatörde yeniden çalıştırma yok.
+  - [ ] House seçimi/oluşturma/katılma, chores, profile, oyunlar ve hata/boş/yükleniyor durumlarının iOS davranış envanterini tamamla.
   - [ ] API path, method, query, JSON, status/error envelope, realtime frame ve localization key örneklerini mevcut dosyalardan/fixture'lardan envanterle; belirsiz olanı tahmin etmeden işaretle.
   - [ ] Keychain/UserDefaults anahtarları, cache yeri/expiry, iOS scheme/deployment target, test suite ve mevcut CI/toolchain listesini kaydet.
+  - [x] Localization kaynağı örneği alındı: sağlanan EN payload'ı 415 benzersiz `{key, language, value}` kaydı içeriyor; Android'de `key` tanımlayıcı, EN plaintext `value` olarak kalacak.
   - [ ] iOS cold/warm startup, idle/oyun bellek, House Rockets frame pacing ve app boyutu için cihaz/build/senaryo bilgisini içeren baseline raporu planla/al.
   - [ ] Android minSdk, hedef cihaz/ABI ve desteklenecek release kanallarına dair ürün varsayımını karar sahibiyle kayda geçir.
 - **Dokunulacak mevcut dosyalar/dizinler:** Yalnız okuma: `Models/**`, `Services/**`, `ViewModels/**`, `Views/**`, `HouseFlowApp.swift`, `Documents/PRODUCT.md`, `Documents/DESIGN.md`, `Documents/Games/README.md`, `HouseFlow.xcodeproj/**`, CI yapılandırması varsa ilgili dosyalar.
-- **Yeni çıktılar:** Öneri: `docs/migration/behavior-inventory.md`, `docs/migration/baseline.md`, `docs/adr/0001-android-support-matrix.md`. Dosya adları repo doküman düzenine göre uyarlanabilir; mevcut `Documents/` yapısı korunabilir.
+- **Yeni çıktılar:** Envanter, ölçüm, destek matrisi ve karar kayıtları bu belgenin ilgili faz/karar bölümlerinde tutulur; faz başına ayrı Markdown dosyası açılmaz.
 - **Küçük PR dilimleri:** (1) davranış envanteri, (2) teknik/toolchain envanteri, (3) ölçüm baseline raporu/karar kaydı. Dokümantasyon dışında kaynak değişikliği yok.
 - **Doğrulama:** Her temel akış ürün belgelerine ve gerçek iOS gözlemine bağlanmış olmalı; açık farklar/varsayımlar listelenmeli. Faz içinde app build/test gerekiyorsa bu uygulama işi başlayınca ekipçe yürütülür; bu plan yazılırken çalıştırılmaz.
 - **Performans ölçümü:** Ölçüm cihazı, OS, release/debug durumu, tekrar sayısı, p50/p95 ve belirsizlik kaydedilir. Sonraki fazlar aynı senaryoyu tekrar edebilir olmalıdır.
@@ -426,7 +428,7 @@ F12 sonrası karar ────────────────────�
 
 #### Faz 3 — Portlar ve iOS adapter'ları
 
-- **Durum / owner / tarih / karar / kanıt:** `iOS simulator accepted; device/performance follow-up` · Uygulama owner'ı: Codex; kalıcı proje owner'ı: TBD · 2026-10-10 · Karar: [Faz 3 port kararları](PHASE3_PORT_DECISIONS.md) · Kanıt: Core package testleri 32/32; generic iOS Simulator app build ve build-for-testing başarılı; adapter contract simülatör testleri 3 geçti, imzasız host gerçek Keychain testini 1 kez atladı; mevcut NetworkService/AuthService/AppRouter regresyon testleri 15/15 geçti. Kullanıcı, uygulamanın manuel simülatör kontrollerinin geçtiğini ve sorun görünmediğini bildirdi.
+- **Durum / owner / tarih / karar / kanıt:** `iOS simulator accepted; signed-device Keychain/performance follow-up` · Owner: Codex · Tarih: 2026-10-10 · Karar: sadece Core'da kullanılan minimum `HTTPClient`, `SecureSessionStore`, `PreferencesStore` ve `LocalizationCacheStore` portları eklendi; bu fazda tüketicisi olmadığı için `Clock`/`Logger` portları eklenmedi. HTTP 30 saniye timeout ve 200–399 başarı aralığını korur; hata metni `message` → `error` → varsayılan sırasıyla, JSON olmayan hata gövdesi trim edilmiş metinle eşlenir. Eski Keychain anahtarları, UserDefaults domain/key'leri ve localization cache (`language`, `updatedAt`, `values`) korunur. · Kanıt: Core 32/32; generic iOS Simulator app ve test build başarılı; adapter contract 3 geçti; mevcut NetworkService/AuthService/AppRouter regresyonları 15/15 geçti; kullanıcı manuel simülatör kontrollerinin sorunsuz olduğunu bildirdi. İmzasız test host'unda gerçek Keychain round-trip atlandı; runtime performans karşılaştırması yapılmadı.
 - **Amaç:** Core'un bağımlı olacağı minimum portları tanımlayıp mevcut iOS platform servislerini adapter arkasına almak.
 - **Önkoşullar:** F2'nin gerekli DTO grupları; F0 token, preference, localization ve HTTP davranışı envanteri.
 - **Kapsam içi:** HTTP, secure storage, preferences, localization, clock/logging için gerçekten kullanılan minimum sözleşmeler; iOS implementasyonu.
@@ -450,7 +452,7 @@ F12 sonrası karar ────────────────────�
 
 #### Faz 4 — Tek uçtan uca iOS Core pilotu
 
-- **Durum / owner / tarih / karar / kanıt:** `Implementation done; manual/performance gate pending` · Uygulama owner'ı: Codex; kalıcı proje owner'ı: TBD · 2026-10-10 · Karar ve senaryo raporu: [iOS oturum geri yükleme pilotu](PHASE4_IOS_SESSION_PILOT.md) · Kanıt: Core package 40/40; generic iOS Simulator app/test build başarılı; son oturum coordinator simülatör koşusu 11/11, önceki birleşik coordinator/login/router koşusu 21/21 geçti.
+- **Durum / owner / tarih / karar / kanıt:** `Implementation done; performance baseline follow-up` · Owner: Codex · Tarih: 2026-10-10 · Karar: açılış/foreground session restore `RestoreSessionUseCase` ile Core'a bağlandı; Core token'ı `SecureSessionStore`'dan alıp tek `GET auth/isAuth` çağrısı yapar. Route ve kullanıcıya gösterilen metin iOS coordinator'da kalır; `sessionRestorer: nil` eski yola geri dönüş noktasıdır. Token yoksa ağ isteği yapılmaz; pending verification doğrulama route'una; başarılı profile göre email verification, birthday setup, house selection veya dashboard'a gider. 401/API mesajı korunur; offline/transport hatasında token kalır ve hata route'u gösterilir. · Kanıt: Core 40/40; generic iOS Simulator app/test build başarılı; coordinator 11/11, önceki coordinator/login/router birleşik koşusu 21/21; Core restore senaryolarında 8 yeni test (401, offline, malformed profile, cancellation ve benzeri). Gerçek kullanıcı auth varyasyonları iPhone'da sorunsuz test ettiğini bildirdi; sayısal latency/cold-start karşılaştırması yok.
 - **Amaç:** Bir gerçek iOS akışını View → ViewModel/use case → Core → adapter → backend boyunca ortak sınırdan yürütmek.
 - **Önkoşullar:** F3 portları ve iOS adapter'ları; pilot akış için API fixture ve UX baseline.
 - **Kapsam içi:** Önerilen auth session restore/login alt akışı veya küçük, az riskli house sorgusu; tek seam.
@@ -463,7 +465,7 @@ F12 sonrası karar ────────────────────�
   - [x] `AppDependencies.live` yalnız açılış restore yolunu Core'a bağlar; `sessionRestorer: nil` eski servise dönüş yoludur.
   - [x] Başlangıç route'u ve 401/geçersiz profil hata metni iOS regresyon testleriyle karşılaştırıldı; gerçek backend/simülatör manuel kabulü bekliyor.
 - **Dokunulacak mevcut dosyalar/dizinler:** `ViewModels/AppViewModel.swift`, `ViewModels/AuthenticationViewModel.swift`, `ViewModels/Navigation/AppRouter.swift` veya seçilen dar feature, `Services/AppDependencies.swift`, ilgili `Views/**` yalnız binding gerektikçe.
-- **Yeni çıktılar:** `Core/UseCases/**`, pilot `Core/State/**` ve unit tests; `docs/migration/ios-pilot.md`.
+- **Yeni çıktılar:** `Core/UseCases/**`, pilot unit tests ve bu faz kartındaki karar/kanıt kaydı.
 - **Küçük PR dilimleri:** Use case/state test; iOS ViewModel binding; dependency graph switch; davranış karşılaştırma raporu.
 - **Doğrulama:** Core 40/40; iOS coordinator 11/11 ve önceki coordinator/login/router 21/21; app ve test hedefi derlendi. Gerçek backend'le açılış/foreground, doğrulanmamış hesap, 401 ve offline manuel simülatör kabulü bekliyor.
 - **Performans ölçümü:** Restore/login akış latency, cold-start ve allocations karşılaştırılır; pilotun UI startup'ına ek gecikmesi raporlanır.
@@ -474,7 +476,7 @@ F12 sonrası karar ────────────────────�
 
 #### Faz 5 — Android Gradle shell ve Swift SDK/JNI roundtrip
 
-- **Durum / owner / tarih / karar / kanıt:** `Closed — yerel spike kanıtıyla; sürüm kapıları ertelendi` · Owner: Codex · Tarih: 2026-10-11 · Karar: Swift/JNI bridge spike; minSdk 31 ve arm64-v8a+x86_64 geçici derleme hedefleri. İki ABI debug/release cross-compile, APK/AAB/AAR paketleri, API 36.1 arm64 JNI testleri ve kullanıcı tarafından çalıştırılan 14/14 Android instrumentation testi ile boş kabuk açılışı geçti. Kullanıcı talebiyle Faz 5 bu teknik kapsamda kapatıldı. Temiz GitHub CI, API 31/x86_64 runtime, fiziksel cihaz ve performans bütçesi kanıtı sürüm öncesi kontrolüne ertelendi; mevcut ayarlar bu cihaz matrisinin ürün desteği olarak onaylandığı anlamına gelmez. Ayrıntılar: [`PHASE5_ANDROID_BRIDGE_SPIKE.md`](PHASE5_ANDROID_BRIDGE_SPIKE.md), [`PHASE5_PHASE6_ACCEPTANCE.md`](PHASE5_PHASE6_ACCEPTANCE.md).
+- **Durum / owner / tarih / karar / kanıt:** `Closed — yerel spike; release kapıları ertelendi` · Owner: Codex · Tarih: 2026-10-11 · Geçici pinler: Swift 6.4.0 / `swift-6.4.0-RELEASE_android`, NDK r30 (`30.0.16248370`), swift-java 0.6.0, Gradle 8.13 / AGP 8.13.2, Kotlin 2.0.21, Gradle JDK 17+ (yerelde 21), SwiftKitCore publish için JDK 25; build minSdk 31, compile/target 36, arm64-v8a + x86_64. Bu pinler deneme yapılandırmasıdır, ürün destek matrisi onayı değildir. İki ABI cross-compile/package, API 36.1 arm64 JNI smoke ve kullanıcının çalıştırdığı 14/14 instrumentation testi geçti; boş Android Activity açıldı. Tek yerel tanısal ölçüm: debug cold start 842 ms / PSS 61,934 KB; release denemesi 606 ms / 34,837 KB. Bunlar tek emülatör ölçümü, kontrollü kıyas veya kabul edilmiş performans bütçesi değildir.
 - **Amaç:** Android host iskeletini ve en küçük Swift çağrısını üretim UI akışından bağımsız doğrulamak.
 - **Önkoşullar:** F4 Core API pilotu; Android destek matrisi taslak/onay; toolchain araştırması.
 - **Kapsam içi:** Gradle shell, NDK/Swift SDK/JDK pinleme, native library packaging, bir input/output JNI façade ve smoke.
@@ -488,7 +490,7 @@ F12 sonrası karar ────────────────────�
   - [ ] Min API ve ABI matrisi üzerinde emulator/cihaz smoke çalıştır; debug/release paketlemeyi kıyasla.
   - [x] CI'da pin kontrolü, cross-compile ve wrapper/codegen contract kontrolü ekle (workflow yazıldı; clean CI sonucu bekleniyor).
 - **Dokunulacak mevcut dosyalar/dizinler:** `shared/Package.swift` / Core public API (yalnız gerekli tip), CI/pin dosyaları; mevcut iOS ekranları değişmez.
-- **Yeni çıktılar:** `android/settings.gradle.kts`, root/app Gradle dosyaları, wrapper, `android/app/src/main/**`, `android/app/src/test/**`, JNI façade/generated binding policy, Swift SDK/NDK pin manifest, `android/scripts/check-android-toolchain.sh` benzeri doğrulama script'i, spike raporu.
+- **Yeni çıktılar:** `android/settings.gradle.kts`, root/app Gradle dosyaları, wrapper, `android/app/src/main/**`, `android/app/src/test/**`, JNI façade/generated binding policy, Swift SDK/NDK pin manifest, Android scripts. Spike kararı/kanıtı bu faz kartında tutulur.
 - **Küçük PR dilimleri:** (1) Gradle empty shell, (2) pinned Swift cross-compile CI, (3) JNI ping/value DTO, (4) API/ABI/device smoke ve size report.
 - **Doğrulama:** Cross-compile, .so load, roundtrip, release shrink/package ve desteklenen API/ABI; generated code tekrar üretimi aynı sonuçta.
 - **Performans ölçümü:** Startup'a native load etkisi, JNI çağrı latency/allocation, birleşik ve ABI split AAB teslim boyutu, native memory.
@@ -499,7 +501,7 @@ F12 sonrası karar ────────────────────�
 
 #### Faz 6 — Android platform adapter'ları
 
-- **Durum / owner / tarih / karar / kanıt:** `Closed — adapter baseline; ürün entegrasyonu F7'de` · Owner: Codex · Tarih: 2026-10-11 · Karar: Keystore oturum, DataStore hassas olmayan tercihler, OkHttp transport, disk localization cache, lifecycle bridge ve sabit kodlu loglar. Android 8/8 JVM, 14/14 API 36.1 arm64 instrumentation testi ve iOS contract testleri kullanıcı tarafından tamamlandı; Android kabuk uygulaması başarıyla açıldı. Kullanıcı talebiyle Faz 6 mevcut adapter kapsamıyla kapatıldı. API 31/x86_64, cihaz üzeri süreç ölümü ve performans/boyut bütçesi sürüm öncesi kontrolüne ertelendi. Core auth/JNI entegrasyonu ve lifecycle sinyalinin use case'e bağlanması Faz 7 kapsamındadır. Ayrıntılar: [`PHASE6_ANDROID_ADAPTERS.md`](PHASE6_ANDROID_ADAPTERS.md), [`PHASE5_PHASE6_ACCEPTANCE.md`](PHASE5_PHASE6_ACCEPTANCE.md).
+- **Durum / owner / tarih / karar / kanıt:** `Closed — adapter baseline; Core auth entegrasyonu F7'de` · Owner: Codex · Tarih: 2026-10-11 · Adapter'lar: Keystore AES-256-GCM secure session store (backup/device-transfer dışı; bozuk/kayıp key reauthentication gerektirir; IO `Dispatchers.IO`); yalnız hassas olmayan `hasSeenOnboarding`/`chosenHouse` DataStore; 30 saniye timeout/coroutine cancel/HTTPS kurallı HTTP adapter; atomic localization cache, offline son cache ve missing-key fallback; lifecycle event bridge ve sabit kodlu, PII içermeyen log olayları. Kanıt: 8/8 JVM unit testi, API 36.1 arm64 emülatöründe 14/14 instrumentation testi (3 JNI, 6 Keystore, 1 DataStore, 4 localization), iOS contract testleri ve kabuk launch'ı kullanıcı tarafından doğrulandı. Kullanıcı talebiyle mevcut adapter kapsamı kapatıldı; Core auth/JNI çağrı sahipliği henüz entegre değil.
 - **Amaç:** Core portlarını Android platform API'leriyle güvenli ve aynı sözleşmede çalıştırmak.
 - **Önkoşullar:** F3 port kontratları; F5 JNI ve Android shell kapısı.
 - **Kapsam içi:** Keystore destekli secure storage, DataStore preferences, HTTP, remote localization/cache, lifecycle ve log adapter'ları.
@@ -513,7 +515,7 @@ F12 sonrası karar ────────────────────�
   - [x] Sabit olay kodlu log ekle; serbest metin alanı olmadığı için token, auth header, e-posta/PII ve oyun payload'ı loglanamaz.
   - [ ] Ortak HTTP fixture iOS/Android'de mevcut; Android cihazda storage reopen geçti. iOS fixture testi, gerçek process-death ve min API güvenlik/offline kabulü tamamlanacak.
 - **Dokunulacak mevcut dosyalar/dizinler:** Core `Ports/**`, Android `platform/**`; iOS `Services/Network/**`, `KeychainService.swift`, `LocalizationService.swift` yalnız port kontratı güncellemesi gerekirse.
-- **Yeni çıktılar:** Kotlin `SecureTokenStore`, `PreferencesStore`, `HTTPAdapter`, `LocalizationRepository`, `LifecycleBridge`, `AppLogger`; unit/instrumentation/contract tests; security notes.
+- **Yeni çıktılar:** Kotlin `SecureTokenStore`, `PreferencesStore`, `HTTPAdapter`, `LocalizationRepository`, `LifecycleBridge`, `AppLogger`; unit/instrumentation/contract tests; güvenlik sınırları bu faz kartında tutulur.
 - **Küçük PR dilimleri:** Secure storage; HTTP + error map; preferences; localization; lifecycle/logging. Bir PR bir port.
 - **Doğrulama:** Shared fixture contract, TLS/timeout/cancel, key invalidation/logout, encrypted-at-rest review, offline/cache/fallback, log scan.
 - **Performans ölçümü:** HTTP request overhead, secure-store read/write latency, localization cold/hot cache, background wake-up ve heap.
@@ -522,29 +524,42 @@ F12 sonrası karar ────────────────────�
 - **Tahmini efor:** 8–14 kişi-gün.
 - **Sonraki faza geçiş kapısı:** Auth için gerekli token, HTTP, preferences ve lifecycle adapter'ları desteklenen min API'de kanıtlı; güvenlik ve offline hata semantiği review edilmiş.
 
+##### Faz 5–6 release öncesi açık kontroller
+
+Bu maddeler Faz 5/6'nın kapatılmasını geri almaz; release readiness ve sonraki Android auth entegrasyonu için açık kalır:
+
+- GitHub Actions `HouseFlow Android bridge` temiz `workflow_dispatch` koşusu; workflow içindeki API 31 x86_64 runtime testi.
+- Ürün sahibi minSdk/ABI destek matrisini açıkça onaylamalı; API 31/x86_64 veya fiziksel arm64 doğrulaması gerekirse o hedefte smoke yapılmalı.
+- Gerçek process-death sonrası oturumun korunması, logout sonrası geri gelmemesi ve Keystore key kaybında reauthentication doğrulanmalı. API 36.1 adapter testi depolamayı yeniden açar ama gerçek OS process-death testi değildir.
+- Gerçek backend HTTPS sertifika zinciri ve offline davranış cihaz/emülatörde doğrulanmalı.
+- Kabul edilen performans/boyut bütçesi belirlenip cold start, native ilk yükleme, PSS/RSS, HTTP/cache latency ve ABI'ye göre indirilen boyut ölçülmeli. Yaklaşık 63 MB AAB ve 203 MB imzasız universal release APK, split teslim boyutu değildir; 16 KB APK hizası doğrulandı.
+
 #### Faz 7 — İlk Android dikey feature
 
-- **Durum / owner / tarih / karar / kanıt:** `Not started` · Owner: TBD · Tarih: — · ADR: ilk Android feature kapsamı · Kanıt: Compose akış testi + baseline checklist.
+- **Durum / owner / tarih / karar / kanıt:** `Implementation ve yerel manuel kabul tamam — release matrisi açık` · Owner: Codex · Tarih: 2026-10-11 · Karar: ilk dikey dilim iOS AuthView ile aynı görünümde Android sign-in, session restore, logout ve sonraki route kararının aktarılmasıdır. Core `AuthWireContract` login/profile wire ve route önceliğini sahiplenir; Swift/JNI v2 yalnız kaba JSON çağrılarını taşır; Android HTTP/Keystore/Compose state'i platformda kalır. F8'e ait signup/verification/forgot-password ve auth sonrası gerçek ürün ekranları burada açılmadı. Kanıt: Core 43/43, bridge host 2/2, Android JVM 14/14 ve API 36.1 arm64 emülatör instrumentation 16/16 geçti; JNI v2 binding kontrolü geçti. Ürün sahibi 2026-10-11'de iletilen manuel testlerin başarılı olduğunu bildirdi. Tek debug cold-start `am start -W` ölçümü 1084 ms; karşılaştırmalı bütçe henüz yok.
 - **Amaç:** Bir kullanıcı akışını Compose → ViewModel → Core → Android adapter → API hattında tamamlamak.
 - **Önkoşullar:** F5/6 geçilmiş; F0 UX baseline; F4 iOS pilot.
 - **Kapsam içi:** Auth login/session restore veya kararlaştırılmış en küçük tam auth dilimi; state, route ve mevcut metin/validation.
-- **Kapsam dışı:** Yeni onboarding, görünür tercih, redesign, iOS ekranını piksel kopyalama, tüm auth edge-case'leri aynı PR'da.
+- **Kapsam dışı:** Yeni onboarding, görünür tercih, redesign, signup/email verification/forgot-password'ın gerçek ekranları ve auth sonrası dashboard/house ekranları (F8). Mevcut iOS AuthView görsel hiyerarşisi korunur.
 - **Görevler:**
-  - [ ] Android auth ekranı ve state geçişini mevcut iOS/ürün baseline'ından tanımla: alan, mevcut validation, hata/başarı ve route.
-  - [ ] Compose ViewModel'i Core state/use case'e bağla; coroutine lifecycle/cancel kurallarını belirle.
-  - [ ] Navigation Compose graph'ta yalnız ilgili route/back dönüşünü uygula; başlangıç route önceliğini koru.
-  - [ ] Mevcut metin/localization key ve loading/error state eşlemesini yap; yeni kullanıcıya görünen seçenek ekleme.
-  - [ ] TalkBack, sistem font ölçeği, klavye submit/back ve Android system back'i aynı akışın semantiğine göre kontrol et.
-  - [ ] Aynı backend fixture ve iOS senaryosuyla login başarı/başarısızlık, restore ve logout testini tamamla.
+  - [x] Android sign-in alan, boş-alan validation, API hata, loading ve route state'i iOS AuthView/AuthSessionCoordinator kaynağından eşlendi; Compose ekranında yeni ürün kontrolü eklenmedi.
+  - [x] Compose ViewModel → Swift Core JNI façade → Android HTTP/Keystore adapter zinciri kuruldu; ağ/depolama `Dispatchers.IO`, UI `StateFlow`, iş iptali coroutine ile yönetilir.
+  - [x] Navigation Compose auth/status graph ve pending verification → token restore → profile route önceliği eklendi; 15 dakika arka plan sonrası yeniden doğrulama iOS eşik değeriyle eşlendi.
+  - [x] Auth ekranındaki mevcut localization key'leri ve loading/error state'i kullanıldı; SwiftUI'nin açık renk tercihi Android'de korundu.
+  - [x] Localization wire formatı `{ key, language, value }` olarak kaldı; `key` tanımlayıcı, plaintext `value` olarak kullanılır. EN örneği 415 key içerir.
+  - [x] İlk açılışta cache hızlı gösterim, sonra desteklenen cihaz dili tam/base eşleşme → sunucu varsayılanı → ilk aktif dil; login sonrası profil dili uygulanır.
+  - [x] Seçili dil ve dil başına cache kalır; yeni değerler `StateFlow` ile ekrana yansır; offline cache/key fallback UI'ı bloke etmez. Profil dilini sunucuya yazan ayarlar akışı F8'deki gerçek localization ekranına bağlıdır.
+  - [x] Klavye Done ile submit, boş formda disabled submit, TalkBack alan etiketleri ve Android back davranışı uygulandı; ürün sahibi iletilen manuel testlerin başarılı olduğunu bildirdi, cihaz/OS ayrıntısı kaydedilmedi.
+  - [x] Fixture'la login başarı/başarısızlık, restore, pending verification önceliği ve logout JVM/JNI testleriyle doğrulandı; ürün sahibi manuel testlerin başarılı olduğunu bildirdi.
 - **Dokunulacak mevcut dosyalar/dizinler:** Core auth use case/port; iOS `Views/Authentication/**`, `ViewModels/AuthenticationViewModel.swift`, `AppRouter.swift` yalnız baseline karşılaştırması için okunur.
-- **Yeni çıktılar:** Android `ui/auth/**`, `viewmodel/AuthViewModel.kt`, `navigation/**`, Compose UI/instrumentation tests; Android feature parity checklist.
-- **Küçük PR dilimleri:** (1) state/use case binding, (2) Compose screens, (3) navigation + keyboard/back, (4) auth contract/smoke parity.
-- **Doğrulama:** State test, Compose semantics/instrumentation, min API/cihaz smoke, UX checklist; visible copy/layout difference review edilir ama iOS'u yeniden tasarlamaya dönüştürülmez.
-- **Performans ölçümü:** Android cold start, auth screen first interactive, recomposition count/duration, native library first call ve auth request latency.
-- **Çıkış kriteri:** Android'de aynı iş akışı ve sonuç; sistem erişilebilirlik davranışı; hata/route parity; performans sınırı içinde.
+- **Yeni çıktılar:** Android `ui/auth/**`, `viewmodel/AuthViewModel.kt`, `platform/AuthSessionRepository.kt`, `platform/AndroidLocalizationState.kt`, Compose/JNI/JVM testleri; sonuçlar yalnız bu faz kartında izlenir.
+- **Uygulama paketi:** Kullanıcının isteğiyle F7 tek çalışma kapsamında tamamlandı; faza özel yeni Markdown dosyası oluşturulmadı.
+- **Doğrulama:** Core 43/43; bridge host 2/2; Android JVM 14/14; emülatör instrumentation 16/16; generated JNI 5 method v2. Mevcut AVD'de System UI ANR bir kez çıktı; Wait sonrası HouseFlow auth ekranı normal açıldı. iOS tam uygulama test hedefi tekrar koşulmadı: `simctl` kullanılabilir iOS cihazı göstermedi; değişen iOS çağrı yolunun Core unit testleri geçti. Ürün sahibi iletilen manuel testlerin başarılı olduğunu bildirdi; cihaz/OS ve tekil senaryo sonuçları ayrıca kaydedilmedi.
+- **Performans ölçümü:** API 36.1 arm64 emülatörde tek debug cold start 1084 ms; JNI genel roundtrip testinde p50 2.3 µs/p95 5.5 µs. Auth request latency, ilk etkileşim, recomposition ve destek matrisi için kontrollü baseline henüz yok; F0/release gate ile kıyaslanacak.
+- **Çıkış kriteri:** İlk sign-in/restore dilimi ve route kararı hazır; yerel manuel kabul ürün sahibi tarafından başarılı bildirildi. İkinci API/cihaz ve ölçüm bütçesi sürüm kabulünde hâlâ doğrulanmalı; bu kanıtlar olmadan Faz 7'nin release kapısı kapalı sayılmaz. F8 ürün ekranları tamamlanana kadar başarılı auth mevcut iOS loading görünümündeki handoff durumunda kalır.
 - **Rollback noktası:** Auth route Android'de önceki placeholder/native fallback'e döner; Core port/adapter testleri kalabilir. iOS route etkilenmez.
 - **Tahmini efor:** 6–10 kişi-gün.
-- **Sonraki faza geçiş kapısı:** İki cihaz/API düzeyinde auth checklist geçer; ürün copy/state farkı yok; platform back/keyboard erişilebilirlik bulguları kapalı.
+- **Sonraki faza geçiş kapısı:** Yerel auth pilotu manuel olarak kabul edildiği için F8 geliştirmesi başlayabilir. Ürün sürümü öncesinde iki cihaz/API düzeyinde auth checklist, copy/state paritesi, erişilebilirlik ve performans bütçesi ayrıca doğrulanır.
 
 #### Faz 8 — Kalan auth, house, chore, profile ve localization dalgaları
 
@@ -560,9 +575,10 @@ F12 sonrası karar ────────────────────�
   - [ ] House seçimi ve membership state'ini auth session lifecycle ile eşle; token invalid/house absent gibi kenarları fixture ile test et.
   - [ ] Chore recurring/status/review, announcements ve profile update semantiğini mevcut Swift servisleriyle karşılaştır.
   - [ ] Localization remote/fallback/cache ve locale değişiminde mevcut ekran metinlerinin yenilenmesini doğrula.
+  - [ ] Sağlanan `en` localization payload'ını (415 key/value kaydı) aynı wire sözleşmesiyle işle; yeni cihaz, sonraki açılış, giriş sonrası profil dili, manuel dil değişimi ve çevrimdışı cache senaryolarını iOS davranışıyla parity checklist'inde doğrula. Payload'ı uygulama kaynaklarına tek ve değişmez dil olarak gömmek yerine mevcut remote localization akışını koru.
   - [ ] Her akışta sistem back, process recreation, offline/error ve erişilebilirlik checklist'ini tamamla.
 - **Dokunulacak mevcut dosyalar/dizinler:** Core `Domain/Services/Ports/**`; iOS `Services/AuthService.swift`, `HouseService.swift`, `ChoreService.swift`, `UserService.swift`, ilgili `ViewModels/**` ve `Views/**` baseline için.
-- **Yeni çıktılar:** Android `ui/house/**`, `ui/dashboard/**`, `ui/profile/**`, `viewmodel/**`, feature tests, localization adapter/resources; `docs/migration/parity/**` indeks.
+- **Yeni çıktılar:** Android `ui/house/**`, `ui/dashboard/**`, `ui/profile/**`, `viewmodel/**`, feature tests ve localization adapter/resources; parity checklist'leri bu belgedeki faz kartında tutulur.
 - **Küçük PR dilimleri:** Signup/verif; house choose/create; join/invite; dashboard read; chore update/review; announcements; profile update; localization/cache. Her slice tek user journey.
 - **Doğrulama:** Shared contract fixtures + ViewModel state tests + Compose semantics/UI smoke; backend staging varsa contract integration; iOS reference checklist.
 - **Performans ölçümü:** Dashboard data load, image/cache davranışı mevcut platform beklentisine göre; list recomposition/scroll frame time; profile image fetch; localization refresh latency.
@@ -662,7 +678,7 @@ F12 sonrası karar ────────────────────�
   - [ ] Release/debug configuration, crash reporting privacy, signing, CI required checks, rollback artifact ve release runbook doğrula.
   - [ ] Release candidate akışları için golden UX/behavior screenshots/checklists karşılaştır; onaysız UI farkı varsa release'i blokla.
 - **Dokunulacak mevcut dosyalar/dizinler:** CI, pin manifests, `android/scripts/**`, iOS/Android platform adapters, only measured Core hot paths; `Documents/DESIGN.md`/product docs değişmez unless separately approved.
-- **Yeni çıktılar:** `docs/release/android-release-checklist.md`, perf/security report, ABI/AAB manifest, rollback/runbook ve release notes.
+- **Yeni çıktılar:** Bu belgedeki release checklist/ölçüm kayıtları, ABI/AAB manifesti, rollback/runbook ve release notes; faza özgü yeni Markdown dosyası açılmaz.
 - **Küçük PR dilimleri:** Tek ölçüm kategorisi veya güvenlik açığı başına PR; release wiring ve runbook ayrı.
 - **Doğrulama:** Release build test matrix, device smoke, security/privacy review, contract suite, accessibility audit, rollback rehearsal (non-production).
 - **Performans ölçümü:** Tüm F0 budget metrikleri aynı cihaz/senaryoda; outlier ve regression trendi açıklanır. Bütçe aşılırsa UI/behavior'ı sadeleştirme önerilmez; ölçüm sahibi ve teknik seçenek karara sunulur.

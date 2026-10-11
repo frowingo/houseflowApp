@@ -32,8 +32,15 @@ internal class AndroidPreferencesStore internal constructor(
         }
     }
 
+    suspend fun selectedLanguage(): String? = store.data.first()[SELECTED_LANGUAGE]
+
+    suspend fun setSelectedLanguage(value: String) {
+        store.edit { it[SELECTED_LANGUAGE] = value }
+    }
+
     private companion object {
         val HAS_SEEN_ONBOARDING = booleanPreferencesKey("hasSeenOnboarding")
         val CHOSEN_HOUSE = stringPreferencesKey("chosenHouse")
+        val SELECTED_LANGUAGE = stringPreferencesKey("selectedLanguage")
     }
 }
