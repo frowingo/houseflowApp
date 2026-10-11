@@ -11,7 +11,7 @@ on:
 jobs:
   bridge:
     runs-on: ubuntu-24.04
-    timeout-minutes: 60
+    timeout-minutes: 90
     permissions:
       contents: read
     defaults:
@@ -80,3 +80,24 @@ jobs:
           sh android/scripts/check-android-package.sh android/app/build/outputs/bundle/release/app-release.aab
           "$ANDROID_SDK_ROOT/build-tools/36.0.0/zipalign" -c -P 16 4 android/app/build/outputs/apk/debug/app-debug.apk
           "$ANDROID_SDK_ROOT/build-tools/36.0.0/zipalign" -c -P 16 4 android/app/build/outputs/apk/release/app-release-unsigned.apk
+      # The local Apple Silicon AVD covers API 36/arm64. Run this on demand to
+      # prove the declared minSdk and x86_64 runtime without a second local image.
+      - name: Enable KVM for API 31 smoke
+        if: github.event_name == 'workflow_dispatch'
+        run: |
+          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
+          sudo udevadm control --reload-rules
+          sudo udevadm trigger --name-match=kvm
+      - name: API 31 x86_64 instrumentation smoke
+        if: github.event_name == 'workflow_dispatch'
+        uses: reactivecircus/android-emulator-runner@v2
+        with:
+          api-level: 31
+          target: google_apis
+          arch: x86_64
+          profile: pixel_5
+          disable-animations: true
+          emulator-options: -no-window -no-snapshot-save -noaudio -no-boot-anim -gpu swiftshader_indirect
+          script: |
+            cd HouseFlow/android
+            ./gradlew :app:connectedDebugAndroidTest --no-daemon

@@ -1,0 +1,12 @@
+path=house/details
+method=PUT
+queryName=houseId
+queryValue=house 1
+authorization=Bearer token
+contentType=application/json
+body={"name":"Home"}
+responseStatus=422
+responseHeaderName=X-Request-ID
+responseHeaderValue=request-1
+responseBody={"error":"Invalid house."}
+failureMessage=Invalid house.

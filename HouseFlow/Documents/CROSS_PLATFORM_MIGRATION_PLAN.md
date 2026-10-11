@@ -474,7 +474,7 @@ F12 sonrası karar ────────────────────�
 
 #### Faz 5 — Android Gradle shell ve Swift SDK/JNI roundtrip
 
-- **Durum / owner / tarih / karar / kanıt:** `In progress` · Owner: Codex + ürün sahibi destek matrisi · Tarih: 2026-10-11 · Karar: dar ayrı Swift/JNI bridge spike, geçici minSdk 31/arm64-v8a+x86_64 · Kanıt ve açık kapılar: [`PHASE5_ANDROID_BRIDGE_SPIKE.md`](PHASE5_ANDROID_BRIDGE_SPIKE.md). İki ABI debug/release cross-compile, APK/AAB/AAR paketleri ve API 36.1 arm64-v8a emülatöründe JNI roundtrip geçti; clean CI, minimum API ve fiziksel cihaz kabulü henüz yok.
+- **Durum / owner / tarih / karar / kanıt:** `Closed — yerel spike kanıtıyla; sürüm kapıları ertelendi` · Owner: Codex · Tarih: 2026-10-11 · Karar: Swift/JNI bridge spike; minSdk 31 ve arm64-v8a+x86_64 geçici derleme hedefleri. İki ABI debug/release cross-compile, APK/AAB/AAR paketleri, API 36.1 arm64 JNI testleri ve kullanıcı tarafından çalıştırılan 14/14 Android instrumentation testi ile boş kabuk açılışı geçti. Kullanıcı talebiyle Faz 5 bu teknik kapsamda kapatıldı. Temiz GitHub CI, API 31/x86_64 runtime, fiziksel cihaz ve performans bütçesi kanıtı sürüm öncesi kontrolüne ertelendi; mevcut ayarlar bu cihaz matrisinin ürün desteği olarak onaylandığı anlamına gelmez. Ayrıntılar: [`PHASE5_ANDROID_BRIDGE_SPIKE.md`](PHASE5_ANDROID_BRIDGE_SPIKE.md), [`PHASE5_PHASE6_ACCEPTANCE.md`](PHASE5_PHASE6_ACCEPTANCE.md).
 - **Amaç:** Android host iskeletini ve en küçük Swift çağrısını üretim UI akışından bağımsız doğrulamak.
 - **Önkoşullar:** F4 Core API pilotu; Android destek matrisi taslak/onay; toolchain araştırması.
 - **Kapsam içi:** Gradle shell, NDK/Swift SDK/JDK pinleme, native library packaging, bir input/output JNI façade ve smoke.
@@ -499,19 +499,19 @@ F12 sonrası karar ────────────────────�
 
 #### Faz 6 — Android platform adapter'ları
 
-- **Durum / owner / tarih / karar / kanıt:** `Not started` · Owner: TBD · Tarih: — · ADR: Android storage/network adapter seçimi · Kanıt: contract test ve security review.
+- **Durum / owner / tarih / karar / kanıt:** `Closed — adapter baseline; ürün entegrasyonu F7'de` · Owner: Codex · Tarih: 2026-10-11 · Karar: Keystore oturum, DataStore hassas olmayan tercihler, OkHttp transport, disk localization cache, lifecycle bridge ve sabit kodlu loglar. Android 8/8 JVM, 14/14 API 36.1 arm64 instrumentation testi ve iOS contract testleri kullanıcı tarafından tamamlandı; Android kabuk uygulaması başarıyla açıldı. Kullanıcı talebiyle Faz 6 mevcut adapter kapsamıyla kapatıldı. API 31/x86_64, cihaz üzeri süreç ölümü ve performans/boyut bütçesi sürüm öncesi kontrolüne ertelendi. Core auth/JNI entegrasyonu ve lifecycle sinyalinin use case'e bağlanması Faz 7 kapsamındadır. Ayrıntılar: [`PHASE6_ANDROID_ADAPTERS.md`](PHASE6_ANDROID_ADAPTERS.md), [`PHASE5_PHASE6_ACCEPTANCE.md`](PHASE5_PHASE6_ACCEPTANCE.md).
 - **Amaç:** Core portlarını Android platform API'leriyle güvenli ve aynı sözleşmede çalıştırmak.
 - **Önkoşullar:** F3 port kontratları; F5 JNI ve Android shell kapısı.
 - **Kapsam içi:** Keystore destekli secure storage, DataStore preferences, HTTP, remote localization/cache, lifecycle ve log adapter'ları.
 - **Kapsam dışı:** Görünür UI, yeni auth davranışı, API endpoint/schema değişikliği, generic Android platform framework.
 - **Görevler:**
-  - [ ] Token ve hassas değer için Keystore-backed encryption/key invalidation ve logout silme politikasını tanımla.
-  - [ ] DataStore'a onboarding/session preference eşlemesini idempotent yap; hassas token DataStore/plain preferences'a yazılmasın.
-  - [ ] HTTP adapter'da URL/query/header/body/error envelope, timeout, cancellation ve TLS konfigürasyonunu iOS contract ile eşleştir.
-  - [ ] Localization endpoint/cache key, invalidation, fallback ve dil seçimi verisini mevcut sözleşmeyle uygula.
-  - [ ] Lifecycle event'lerini yalnız Core session/use case'e gerekli active/background sinyali olarak aktar.
-  - [ ] Structured log ekle; token, auth header, e-posta/PII ve oyun payload'ını redakte et.
-  - [ ] Adapter contract testlerini aynı fixture ile çalıştır; cihaz üzerinde storage reopen ve process death senaryosunu doğrula.
+  - [x] Token ve hassas değer için Keystore-backed encryption/key invalidation ve logout silme politikasını tanımla; tek emülatörde adapter testini çalıştır.
+  - [x] DataStore'a onboarding ve seçili ev tercihlerini idempotent eşle; hassas token DataStore/plain preferences'a yazılmasın.
+  - [x] HTTP adapter'da URL/query/header/body/ham status, timeout, cancellation ve HTTPS konfigürasyonunu iOS contract ile eşleştir.
+  - [x] Localization endpoint/cache key, atomic refresh, offline fallback ve dil verisini mevcut sözleşmeyle uygula.
+  - [ ] Lifecycle active/background sinyali Activity'den adapter'a aktarılıyor; Core session/use case bağlantısı F7'deki async JNI sınırı seçilince doğrulanacak.
+  - [x] Sabit olay kodlu log ekle; serbest metin alanı olmadığı için token, auth header, e-posta/PII ve oyun payload'ı loglanamaz.
+  - [ ] Ortak HTTP fixture iOS/Android'de mevcut; Android cihazda storage reopen geçti. iOS fixture testi, gerçek process-death ve min API güvenlik/offline kabulü tamamlanacak.
 - **Dokunulacak mevcut dosyalar/dizinler:** Core `Ports/**`, Android `platform/**`; iOS `Services/Network/**`, `KeychainService.swift`, `LocalizationService.swift` yalnız port kontratı güncellemesi gerekirse.
 - **Yeni çıktılar:** Kotlin `SecureTokenStore`, `PreferencesStore`, `HTTPAdapter`, `LocalizationRepository`, `LifecycleBridge`, `AppLogger`; unit/instrumentation/contract tests; security notes.
 - **Küçük PR dilimleri:** Secure storage; HTTP + error map; preferences; localization; lifecycle/logging. Bir PR bir port.

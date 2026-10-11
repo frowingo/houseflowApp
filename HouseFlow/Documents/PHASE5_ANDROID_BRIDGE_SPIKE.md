@@ -1,6 +1,6 @@
 # Faz 5 — Android Swift köprü denemesi
 
-Durum (11 Ekim 2026): **yerel API 36.1 / 16 KB emülatöründe debug ve release native yükleme doğrulandı; Faz 5'in tam kabulü bekliyor**. iOS ürün koduna ve `shared/` paketine bu dilimde dokunulmadı. Android tarafı yalnız boş bir `Activity` ve JNI test yüzeyi içerir; ürün arayüzü değildir.
+Durum (11 Ekim 2026): **Faz 5 kullanıcı kararıyla kapatıldı; teknik spike yerel emülatörde doğrulandı.** İki ABI cross-compile ve paketleme, API 36.1 / arm64-v8a JNI testleri, kullanıcı tarafından sonradan çalıştırılan 14/14 Android instrumentation testi ve kabuk açılışı geçti. Temiz GitHub CI, API 31 x86_64 runtime, fiziksel cihaz ve kabul edilmiş performans bütçesi sürüm öncesi kontrolüne ertelendi. Geçici minSdk/ABI ayarları bu hedeflerin ürün desteği olarak kabul edildiğini göstermez. Android tarafı yalnız boş bir `Activity` ve JNI test yüzeyi içerir; ürün arayüzü değildir. Sonraki Faz 6 adapter'ları eklendi; bu belge JNI spike kararını kaydeder.
 
 ## Mimari karar
 
@@ -42,12 +42,14 @@ minSdk 31 seçimi muhafazakârdır: swift-java'nın API 28–30 JNI VM erişimiy
 - Debug APK normal açılışta `842 ms` cold start, `61.934 KB` toplam PSS gösterdi. 1.000 JNI çağrısının tanısal p50/p95 değeri `2.208/2.292 µs`, native heap değişimi `160 bayt` olarak loglandı. Yerel test anahtarıyla geçici imzalanan release APK da R8 sonrası açıldı (`606 ms`, `34.837 KB` PSS). Bu tekil emülatör ölçümleri doğrudan performans karşılaştırması veya ürün bütçesi değildir; geçici release APK temizlendi ve emülatöre debug APK geri yüklendi.
 - Kullanıcının tek emülatör tercihiyle API 31 sistem imajı, AVD'si ve SDK platformu kaldırıldı; Android Studio da kaldırıldı. API 36.1 emülatörü ve CLI derleme araçları korunuyor. Repo kökündeki `.github/workflows/houseflow-android-bridge.yml` SDK/NDK bağlantı adımıyla güncellendi; workflow GitHub'da henüz çalışmadı.
 
-## Kabul kapıları ve performans
+## Kapatma kararı ve sürüm öncesi kontroller
 
-- Wrapper, `Package.resolved`, host JNI codegen, iki ABI cross-compile ve yerel debug/release paketlemesi doğrulandı. Açık kapı: temiz GitHub CI çalışması.
-- API 36.1 / arm64-v8a emülatöründe debug JNI roundtrip ve test imzalı release açılışı geçti. API 31 minimum sürüm, x86_64 runtime ve fiziksel arm64-v8a cihaz çalışması henüz doğrulanmadı. Kullanıcının tek emülatör tercihi nedeniyle API 31 testi ertelendi; minSdk 31 çalışma garantisi bu koşuda kanıtlanmış sayılmaz.
+- Wrapper, `Package.resolved`, host JNI codegen, iki ABI cross-compile ve yerel debug/release paketlemesi doğrulandı. Kullanıcının çalıştırdığı API 36.1 / arm64-v8a emülatör instrumentation testleri 14/14 geçti; uygulama kabuğu COLD launch durumuyla açıldı.
+- Kullanıcı talebiyle Faz 5, bu yerel teknik kapsamda kapatıldı. Temiz GitHub CI, API 31 minimum sürüm, x86_64 runtime ve fiziksel arm64 cihaz çalışması doğrulanmadı; bunlar sürüm öncesi kontrol maddeleridir, test edilmiş gibi raporlanmamalıdır.
 - Cold start için native çağrı açık/kapalı kontrollü ölçüm, ilk native load süresi, gerçek cihaz RSS ve ABI başına indirme boyutu henüz yok. Tanısal emülatör metrikleri F0 bütçeleriyle kıyaslanmadan ve dağıtım boyutu değerlendirilmeden 'performanslı' denmeyecek.
 - Ürün sahibi minSdk/ABI matrisini onaylamadan kapsam genişletilmeyecek. JNI girişleri gerçek auth/IO use case'lerine bu kapı geçmeden bağlanmayacak.
+- Sürüm öncesi GitHub'da ilgili dalın `Actions → HouseFlow Android bridge → Run workflow` koşumu ve API 31 x86_64 adımı yeşil olmalı. Workflow henüz gönderilmediği için CI koşumu yoktur. Yerel tek API 36.1 imajı korunur; ikinci yerel imaj gerekmez.
+- Faz 6 bağımlılıklarından sonra release AAB yaklaşık 63 MB, imzasız release APK yaklaşık 203 MB'dir; iki ABI için paket kontrolünde 42'şer native `.so` girdisi ve 16 KB APK hizası geçti. Bunlar teslim edilen ABI split boyutunu ve ürün bütçesini kanıtlamaz.
 
 ## Kaynaklar
 

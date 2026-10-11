@@ -9,6 +9,8 @@
 /* Begin PBXBuildFile section */
 		A20000000000000000000003 /* HouseFlowCore in Frameworks */ = {isa = PBXBuildFile; productRef = A20000000000000000000002 /* HouseFlowCore */; };
 		A20000000000000000000005 /* HouseFlowCore in Frameworks */ = {isa = PBXBuildFile; productRef = A20000000000000000000004 /* HouseFlowCore */; };
+		A30000000000000000000001 /* HouseFlowApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = A30000000000000000000003 /* HouseFlowApp.swift */; };
+		A30000000000000000000002 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = A30000000000000000000004 /* Assets.xcassets */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -24,40 +26,29 @@
 /* Begin PBXFileReference section */
 		0F6663B22ED8FB930023ADA0 /* HouseFlow.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = HouseFlow.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		A10000000000000000000001 /* HouseFlowTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = HouseFlowTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
+		A30000000000000000000003 /* HouseFlowApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HouseFlowApp.swift; sourceTree = "<group>"; };
+		A30000000000000000000004 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
-/* Begin PBXFileSystemSynchronizedBuildFileExceptionSet section */
-		A1000000000000000000000D /* Exceptions for "HouseFlow" folder in "HouseFlow" target */ = {
-			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
-			membershipExceptions = (
-				.impeccable/design.json,
-				".impeccable/surfaces/ews-discover-games-housetanks-housetanksview-swift.md",
-				".impeccable/surfaces/house-rockets.md",
-				".impeccable/surfaces/house-switch.md",
-				DESIGN.md,
-				Documents/.impeccable/design.json,
-				"Documents/.impeccable/surfaces/ews-discover-games-housetanks-housetanksview-swift.md",
-				"Documents/.impeccable/surfaces/house-rockets.md",
-				"Documents/.impeccable/surfaces/house-switch.md",
-				Documents/DESIGN.md,
-				Documents/Games/README.md,
-				Documents/houseRocketsMultiplayerPlan.md,
-				Documents/PRODUCT.md,
-				Documents/README.md,
-				PRODUCT.md,
-				shared,
-			);
-			target = 0F6663B12ED8FB930023ADA0 /* HouseFlow */;
-		};
-/* End PBXFileSystemSynchronizedBuildFileExceptionSet section */
-
 /* Begin PBXFileSystemSynchronizedRootGroup section */
-		0F6663B42ED8FB930023ADA0 /* HouseFlow */ = {
+		A30000000000000000000005 /* Models */ = {
 			isa = PBXFileSystemSynchronizedRootGroup;
-			exceptions = (
-				A1000000000000000000000D /* Exceptions for "HouseFlow" folder in "HouseFlow" target */,
-			);
-			path = HouseFlow;
+			path = Models;
+			sourceTree = "<group>";
+		};
+		A30000000000000000000006 /* Services */ = {
+			isa = PBXFileSystemSynchronizedRootGroup;
+			path = Services;
+			sourceTree = "<group>";
+		};
+		A30000000000000000000007 /* Views */ = {
+			isa = PBXFileSystemSynchronizedRootGroup;
+			path = Views;
+			sourceTree = "<group>";
+		};
+		A30000000000000000000008 /* ViewModels */ = {
+			isa = PBXFileSystemSynchronizedRootGroup;
+			path = ViewModels;
 			sourceTree = "<group>";
 		};
 		A10000000000000000000002 /* HouseFlowTests */ = {
@@ -105,6 +96,19 @@
 			name = Products;
 			sourceTree = "<group>";
 		};
+		0F6663B42ED8FB930023ADA0 /* HouseFlow */ = {
+			isa = PBXGroup;
+			children = (
+				A30000000000000000000003 /* HouseFlowApp.swift */,
+				A30000000000000000000004 /* Assets.xcassets */,
+				A30000000000000000000005 /* Models */,
+				A30000000000000000000006 /* Services */,
+				A30000000000000000000007 /* Views */,
+				A30000000000000000000008 /* ViewModels */,
+			);
+			path = HouseFlow;
+			sourceTree = "<group>";
+		};
 /* End PBXGroup section */
 
 /* Begin PBXNativeTarget section */
@@ -121,7 +125,10 @@
 			dependencies = (
 			);
 			fileSystemSynchronizedGroups = (
-				0F6663B42ED8FB930023ADA0 /* HouseFlow */,
+				A30000000000000000000005 /* Models */,
+				A30000000000000000000006 /* Services */,
+				A30000000000000000000007 /* Views */,
+				A30000000000000000000008 /* ViewModels */,
 			);
 			name = HouseFlow;
 			packageProductDependencies = (
@@ -202,6 +209,7 @@
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				A30000000000000000000002 /* Assets.xcassets in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -219,6 +227,7 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				A30000000000000000000001 /* HouseFlowApp.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

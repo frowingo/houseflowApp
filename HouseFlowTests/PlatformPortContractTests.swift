@@ -8,6 +8,7 @@ final class PlatformPortContractTests: XCTestCase {
     private static let localizationService = ContractLocalizationService()
 
     func testHTTPAdapterPreservesMethodQueryHeadersBodyAndStatus() async throws {
+        let fixture = try platformHTTPFixture()
         var captured: URLRequest?
         let client = URLSessionHTTPClient(
             baseURL: URL(string: "https://example.com/api/v1")!,
@@ -15,33 +16,53 @@ final class PlatformPortContractTests: XCTestCase {
                 captured = request
                 let response = HTTPURLResponse(
                     url: request.url!,
-                    statusCode: 422,
+                    statusCode: try XCTUnwrap(Int(fixture["responseStatus"] ?? "")),
                     httpVersion: nil,
-                    headerFields: ["X-Request-ID": "request-1"]
+                    headerFields: [
+                        try XCTUnwrap(fixture["responseHeaderName"]):
+                            try XCTUnwrap(fixture["responseHeaderValue"])
+                    ]
                 )!
-                return (Data(#"{"error":"Invalid house."}"#.utf8), response)
+                return (Data(try XCTUnwrap(fixture["responseBody"]).utf8), response)
             }
         )
 
         let response = try await client.send(HTTPRequest(
-            path: "house/details",
-            method: "PUT",
-            queryItems: [HTTPQueryItem(name: "houseId", value: "house 1")],
-            headers: ["Authorization": "Bearer token", "Content-Type": "application/json"],
-            body: Data(#"{"name":"Home"}"#.utf8)
+            path: try XCTUnwrap(fixture["path"]),
+            method: try XCTUnwrap(fixture["method"]),
+            queryItems: [HTTPQueryItem(
+                name: try XCTUnwrap(fixture["queryName"]),
+                value: try XCTUnwrap(fixture["queryValue"])
+            )],
+            headers: [
+                "Authorization": try XCTUnwrap(fixture["authorization"]),
+                "Content-Type": try XCTUnwrap(fixture["contentType"])
+            ],
+            body: Data(try XCTUnwrap(fixture["body"]).utf8)
         ))
 
         let request = try XCTUnwrap(captured)
-        XCTAssertEqual(request.url?.path, "/api/v1/house/details")
+        XCTAssertEqual(request.url?.path, "/api/v1/\(try XCTUnwrap(fixture["path"]))")
         XCTAssertEqual(URLComponents(url: request.url!, resolvingAgainstBaseURL: false)?.queryItems,
-                       [URLQueryItem(name: "houseId", value: "house 1")])
-        XCTAssertEqual(request.httpMethod, "PUT")
-        XCTAssertEqual(request.value(forHTTPHeaderField: "Authorization"), "Bearer token")
-        XCTAssertEqual(request.value(forHTTPHeaderField: "Content-Type"), "application/json")
-        XCTAssertEqual(request.httpBody, Data(#"{"name":"Home"}"#.utf8))
-        XCTAssertEqual(response.statusCode, 422)
-        XCTAssertEqual(response.headers["x-request-id"], "request-1")
-        XCTAssertEqual(HTTPStatusFailure(response: response).message, "Invalid house.")
+                       [URLQueryItem(name: try XCTUnwrap(fixture["queryName"]), value: try XCTUnwrap(fixture["queryValue"]))])
+        XCTAssertEqual(request.httpMethod, fixture["method"])
+        XCTAssertEqual(request.value(forHTTPHeaderField: "Authorization"), fixture["authorization"])
+        XCTAssertEqual(request.value(forHTTPHeaderField: "Content-Type"), fixture["contentType"])
+        XCTAssertEqual(request.httpBody, Data(try XCTUnwrap(fixture["body"]).utf8))
+        XCTAssertEqual(response.statusCode, Int(fixture["responseStatus"] ?? ""))
+        XCTAssertEqual(response.headers["x-request-id"], fixture["responseHeaderValue"])
+        XCTAssertEqual(HTTPStatusFailure(response: response).message, fixture["failureMessage"])
+    }
+
+    private func platformHTTPFixture() throws -> [String: String] {
+        let repositoryDirectory = URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent().deletingLastPathComponent()
+        let path = repositoryDirectory.appendingPathComponent("HouseFlow/shared/Fixtures/platform_http_contract.txt")
+        let text = try String(contentsOf: path, encoding: .utf8)
+        return Dictionary(uniqueKeysWithValues: text.split(separator: "\n").map { line in
+            let parts = line.split(separator: "=", maxSplits: 1, omittingEmptySubsequences: false)
+            return (String(parts[0]), String(parts[1]))
+        })
     }
 
     func testPreferencesAdapterReadsExistingKeysAndWritesSameDomain() throws {
