@@ -18,7 +18,7 @@ enum NetworkError: LocalizedError {
 }
 
 @MainActor
-final class NetworkService: NetworkServicing, HTTPRequestExecuting {
+final class NetworkService: NetworkServicing, HTTPRequestExecuting, HTTPClient {
     typealias RequestExecutor = URLSessionHTTPClient.RequestExecutor
 
     private let encoder: JSONEncoder
@@ -180,6 +180,11 @@ final class NetworkService: NetworkServicing, HTTPRequestExecuting {
             if let message = failure.message { throw NetworkError.serverError(message) }
             throw NetworkError.unknown(failure.statusCode)
         }
+    }
+
+    /// Lets Core use cases share the existing iOS HTTP transport/session.
+    func send(_ request: HTTPRequest) async throws -> HTTPResponse {
+        try await client.send(request)
     }
 
     /// Raw response path for clients that need status and headers (e.g. realtime admission).

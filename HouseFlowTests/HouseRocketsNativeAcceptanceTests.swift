@@ -163,7 +163,7 @@ final class HouseRocketsNativeAcceptanceTests: XCTestCase {
         let suite = "HouseRocketsM6-\(UUID().uuidString)"
         let defaults = UserDefaults(suiteName: suite)!
         let directory = FileManager.default.temporaryDirectory.appendingPathComponent(suite)
-        let dependencies = AppDependencies(keychain: FakeKeychainStore(), authService: FakeAuthService(),
+        let dependencies = AppDependencies(keychain: FakeKeychainStore(), authService: FakeAuthService(), sessionRestorer: nil,
             userService: FakeUserService(), houseService: FakeHouseService(), choreService: FakeChoreService(),
             localizationService: FakeLocalizationService(), userDefaults: defaults,
             localizationCache: LocalizationDiskCache(baseDirectory: directory), houseRocketsSessionFactory: .localOnly)

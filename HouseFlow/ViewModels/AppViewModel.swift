@@ -98,7 +98,8 @@ class AppViewModel: ObservableObject {
             authStore: AuthSessionStore(
                 keychain: dependencies.keychain,
                 authService: dependencies.authService,
-                userService: dependencies.userService
+                userService: dependencies.userService,
+                sessionRestorer: dependencies.sessionRestorer
             ),
             toastStore: ToastStore(),
             overlayStore: OverlayStore(),

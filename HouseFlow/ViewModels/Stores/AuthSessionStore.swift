@@ -16,15 +16,18 @@ final class AuthSessionStore: ObservableObject {
     private let keychain: any KeychainStoring
     private let authService: any AuthServicing
     private let userService: any UserServicing
+    private let sessionRestorer: (any SessionRestoring)?
 
     init(
         keychain: any KeychainStoring,
         authService: any AuthServicing,
-        userService: any UserServicing
+        userService: any UserServicing,
+        sessionRestorer: (any SessionRestoring)? = nil
     ) {
         self.keychain = keychain
         self.authService = authService
         self.userService = userService
+        self.sessionRestorer = sessionRestorer
         pendingEmailVerification = keychain.pendingEmailVerification
     }
 
@@ -91,6 +94,13 @@ final class AuthSessionStore: ObservableObject {
             throw NetworkError.serverError(invalidMessage)
         }
         return profile
+    }
+
+    func restoreAuthenticatedUser(invalidMessage: String) async throws -> IsAuthUserData {
+        if let sessionRestorer {
+            return try await sessionRestorer.restoreProfile(invalidMessage: invalidMessage)
+        }
+        return try await fetchAuthenticatedUser(invalidMessage: invalidMessage)
     }
 
     func updateProfile(_ request: UpdateProfileRequest) async throws -> IsAuthUserData {

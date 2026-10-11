@@ -84,7 +84,7 @@ final class AppSessionCoordinator: ObservableObject {
 
         do {
             router.navigate(to: .houseLoading(.loadingUser), respectingOnboarding: false)
-            let profile = try await authStore.fetchAuthenticatedUser(
+            let profile = try await authStore.restoreAuthenticatedUser(
                 invalidMessage: "Oturumunuz sona ermiş. Lütfen tekrar giriş yapın."
             )
             guard isCurrentAuthenticationFlow(flowID) else { return }

@@ -1,0 +1,7 @@
+.gradle/
+build/
+**/build/
+**/.build/
+**/.swiftpm/
+local.properties
+*.hprof

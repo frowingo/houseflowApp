@@ -122,15 +122,96 @@ final class AppSessionCoordinatorTests: XCTestCase {
         XCTAssertEqual(harness.router.route, .authentication)
     }
 
-    private func makeHarness(hasToken: Bool) -> Harness {
+    func testCoreRestoreUsesAuthenticatedEndpointAndKeepsHouseSelectionRoute() async throws {
+        let harness = makeHarness(hasToken: true, useCoreRestore: true)
+        let networkStub = try XCTUnwrap(harness.networkStub)
+        networkStub.responseData = coreRestorePayload(isVerified: true)
+        harness.authService.isAuthHandler = {
+            XCTFail("The legacy auth service should not handle startup restore")
+            throw TestError.unimplemented
+        }
+
+        await harness.coordinator.performAutoLogin()
+
+        XCTAssertTrue(harness.authStore.isAuthenticated)
+        XCTAssertEqual(harness.router.route, .houseSelection)
+        XCTAssertEqual(harness.authStore.currentUserId, "user-1")
+        let request = try XCTUnwrap(networkStub.requests.first)
+        XCTAssertEqual(networkStub.requests.count, 1)
+        XCTAssertEqual(request.url?.path, "/api/v1/auth/isAuth")
+        XCTAssertEqual(request.httpMethod, "GET")
+        XCTAssertEqual(request.value(forHTTPHeaderField: "Authorization"), "Bearer token")
+    }
+
+    func testCoreRestoreKeepsEmailVerificationRoute() async throws {
+        let harness = makeHarness(hasToken: true, useCoreRestore: true)
+        let networkStub = try XCTUnwrap(harness.networkStub)
+        networkStub.responseData = coreRestorePayload(isVerified: false)
+
+        await harness.coordinator.performAutoLogin()
+
+        XCTAssertFalse(harness.authStore.isAuthenticated)
+        XCTAssertEqual(harness.keychain.pendingEmailVerification, "user@example.com")
+        XCTAssertEqual(harness.router.route, .emailVerification(email: "user@example.com"))
+    }
+
+    func testCoreRestorePreservesServerErrorAndHouseErrorRoute() async throws {
+        let harness = makeHarness(hasToken: true, useCoreRestore: true)
+        let networkStub = try XCTUnwrap(harness.networkStub)
+        networkStub.statusCode = 401
+        networkStub.responseData = Data(#"{"message":"Session expired."}"#.utf8)
+
+        await harness.coordinator.performAutoLogin()
+
+        XCTAssertFalse(harness.authStore.isAuthenticated)
+        XCTAssertEqual(harness.router.route, .houseError)
+        XCTAssertEqual(harness.toastStore.message, "Session expired.")
+        XCTAssertEqual(harness.keychain.authToken, "token")
+    }
+
+    func testCoreRestoreInvalidProfileKeepsPreviousErrorMessage() async throws {
+        let harness = makeHarness(hasToken: true, useCoreRestore: true)
+        let networkStub = try XCTUnwrap(harness.networkStub)
+        networkStub.responseData = Data(#"{"success":false}"#.utf8)
+
+        await harness.coordinator.performAutoLogin()
+
+        XCTAssertEqual(harness.router.route, .houseError)
+        XCTAssertEqual(harness.toastStore.message, "Oturumunuz sona ermiş. Lütfen tekrar giriş yapın.")
+    }
+
+    func testCoreRestoreOfflineKeepsTokenForLaterRetry() async throws {
+        let harness = makeHarness(hasToken: true, useCoreRestore: true)
+        let networkStub = try XCTUnwrap(harness.networkStub)
+        networkStub.error = URLError(.notConnectedToInternet)
+
+        await harness.coordinator.performAutoLogin()
+
+        XCTAssertEqual(harness.router.route, .houseError)
+        XCTAssertFalse(harness.authStore.isAuthenticated)
+        XCTAssertEqual(harness.keychain.authToken, "token")
+    }
+
+    private func makeHarness(hasToken: Bool, useCoreRestore: Bool = false) -> Harness {
         let keychain = FakeKeychainStore()
         keychain.authToken = hasToken ? "token" : nil
         let authService = FakeAuthService()
         let userService = FakeUserService()
+        let networkStub = useCoreRestore ? NetworkRequestStub() : nil
+        let restorer = networkStub.map { stub in
+            SessionRestoreAdapter(useCase: RestoreSessionUseCase(
+                httpClient: NetworkService(
+                    baseURL: URL(string: "https://example.com/api/v1")!,
+                    requestExecutor: stub.execute
+                ),
+                secureStore: keychain
+            ))
+        }
         let authStore = AuthSessionStore(
             keychain: keychain,
             authService: authService,
-            userService: userService
+            userService: userService,
+            sessionRestorer: restorer
         )
         let defaults = makeDefaults()
         let houseService = FakeHouseService()
@@ -167,7 +248,9 @@ final class AppSessionCoordinatorTests: XCTestCase {
             houseService: houseService,
             houseStore: houseStore,
             router: router,
-            defaults: defaults
+            defaults: defaults,
+            toastStore: toastStore,
+            networkStub: networkStub
         )
     }
 
@@ -181,6 +264,12 @@ final class AppSessionCoordinatorTests: XCTestCase {
         }
         return defaults
     }
+
+    private func coreRestorePayload(isVerified: Bool) -> Data {
+        Data(
+            #"{"success":true,"data":{"birthDay":"1990-01-01","createdOn":"2026-01-01","email":"user@example.com","firstName":"Ada","houseList":[],"id":"user-1","imageUrl":"","isActive":true,"isVerifyEmail":\#(isVerified),"isVerifyPhone":false,"language":"en","lastLogin":"2026-01-01","lastName":"Lovelace","phoneNumber":"","updatedOn":"2026-01-01"}}"#.utf8
+        )
+    }
 }
 
 @MainActor
@@ -193,4 +282,6 @@ private struct Harness {
     let houseStore: HouseSessionStore
     let router: AppRouter
     let defaults: UserDefaults
+    let toastStore: ToastStore
+    let networkStub: NetworkRequestStub?
 }

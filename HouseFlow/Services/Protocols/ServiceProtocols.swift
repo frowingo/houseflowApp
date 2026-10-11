@@ -49,6 +49,11 @@ protocol NetworkServicing: AnyObject {
 /// Keeps existing iOS call sites compatible while exposing the Core storage port.
 protocol KeychainStoring: SecureSessionStore {}
 
+@MainActor
+protocol SessionRestoring: AnyObject {
+    func restoreProfile(invalidMessage: String) async throws -> IsAuthUserData
+}
+
 protocol AuthServicing: AnyObject {
     func signup(
         email: String,

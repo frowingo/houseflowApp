@@ -6,6 +6,7 @@ import HouseFlowCore
 struct AppDependencies {
     let keychain: any KeychainStoring
     let authService: any AuthServicing
+    let sessionRestorer: (any SessionRestoring)?
     let userService: any UserServicing
     let houseService: any HouseServicing
     let choreService: any ChoreServicing
@@ -23,6 +24,9 @@ struct AppDependencies {
         return AppDependencies(
             keychain: keychain,
             authService: AuthService(network: network, keychain: keychain),
+            sessionRestorer: SessionRestoreAdapter(
+                useCase: RestoreSessionUseCase(httpClient: network, secureStore: keychain)
+            ),
             userService: UserService(network: network, keychain: keychain),
             houseService: HouseService(network: network, keychain: keychain),
             choreService: ChoreService(network: network, keychain: keychain),

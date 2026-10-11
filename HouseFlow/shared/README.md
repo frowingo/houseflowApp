@@ -18,6 +18,7 @@
 - Chore request-response DTO'ları, `ChoreLevel`/`ChoreStatus` raw enum'ları ve saf `Chore` domain modeli Core'dadır.
 - Chore localization anahtarları, response-to-house adapter'ı ve `HouseFlowDateFormatter` içindeki parse/encode/display/due-label davranışı iOS uygulamasındadır. Core tarihleri wire `String` değeri olarak taşır ve kullanıcıya gösterilecek metin üretmez.
 - HTTP request/response ve hata zarfı sözleşmeleri ile secure session, preferences ve localization cache portları Core'dadır.
+- Açılışta token ile `auth/isAuth` profil doğrulaması `RestoreSessionUseCase` ile Core'dadır; rota ve görünür hata eşlemesi iOS'tadır.
 - `URLSession` yürütmesi, Keychain, UserDefaults ve disk cache implementasyonları iOS target'ındadır. `ObservableObject` state ve bütün UI davranışı da iOS'ta kalır.
 - Port kararları ve doğrulama kapıları `Documents/PHASE3_PORT_DECISIONS.md` içindedir.
 

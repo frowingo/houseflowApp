@@ -69,13 +69,13 @@ HouseFlow/
 ├── android/
 │   ├── settings.gradle.kts
 │   ├── build.gradle.kts
+│   ├── scripts/                        # Android toolchain, JNI ve paket kontrolleri
 │   └── app/src/main/kotlin/.../
 │       ├── ui/                           # Compose ekranları ve bileşenleri
 │       ├── viewmodel/                    # lifecycle-aware state holder'lar
 │       ├── navigation/                   # Navigation Compose graph
 │       ├── platform/                      # adapters, JNI facade, dependency graph
 │       └── MainActivity.kt
-├── scripts/                               # pin kontrolü, metadata/asset ve CI yardımcıları
 ├── docs/                                  # mimari kararları, port sözleşmeleri, taşıma kayıtları
 └── Documents/                             # ürün/tasarım ve bu plan dahil mevcut belgeler
 ```
@@ -213,7 +213,7 @@ Her ölçüm raporu cihaz/model/OS, app commit, toolchain, build variant, test s
 
 ## CI, toolchain pinleme ve repo otomasyonu
 
-- `scripts/` altında yalnız tekrar kullanılabilir küçük işler: pin tutarlılığı doğrulama, Swift Android package cross-compile, JNI facade generation check, fixture doğrulama ve ölçüm artifact toplama. Script'ler iş akışını saklamaz; okunur, başarısızlıkta non-zero çıkar.
+- Android'e özgü küçük doğrulama işleri `android/scripts/` altında tutulur: toolchain pin kontrolü, JNI binding ve native paket içeriği. Gelecekte platformlar arası bir yardımcı araç gerekirse ayrı konumlandırılır. Script'ler iş akışını saklamaz; okunur, başarısızlıkta non-zero çıkar.
 - `shared/Package.swift` sürüm kuralı net ve reproducible olur. Swift Android SDK'nın beklediği Swift toolchain ile **tam eşleşmesi** gerekir; NDK, JDK, Gradle wrapper, Android Gradle Plugin, Kotlin, Compose BOM ve Android min/target SDK sürümleri dosya/env kaynağında pinlenir. Güncel sürüm seçimi Faz 0'da resmi kaynak/CI uyumlulukla yapılır; bu plan sürüm numarası tayin etmez.
 - Android Gradle wrapper checksum'ı ve bağımlılık verification/lock mekanizması açılır. Swift Package resolve pin'i CI tarafından kontrol edilir. Xcode/iOS deployment target ve scheme de mevcut CI koşuluna sabitlenir.
 - CI sırası: format/static checks → Core host unit/contract → iOS simulator compile/test pipeline → Android Kotlin/Gradle unit → Swift Android cross-compile (tüm hedef ABI) → JNI instrumentation smoke → release AAB size/native report. Ağ/credential gerektiren backend integration testleri ayrı ve secrets-safe job olur.
@@ -426,7 +426,7 @@ F12 sonrası karar ────────────────────�
 
 #### Faz 3 — Portlar ve iOS adapter'ları
 
-- **Durum / owner / tarih / karar / kanıt:** `Implementation done; device gate pending` · Uygulama owner'ı: Codex; kalıcı proje owner'ı: TBD · 2026-10-10 · Karar: [Faz 3 port kararları](PHASE3_PORT_DECISIONS.md) · Kanıt: Core package testleri 32/32; generic iOS Simulator app build ve build-for-testing başarılı; adapter contract simülatör testleri 3 geçti, gerçek Keychain testi imzasız host nedeniyle 1 atlandı; mevcut NetworkService/AuthService/AppRouter regresyon testleri 15/15 geçti.
+- **Durum / owner / tarih / karar / kanıt:** `iOS simulator accepted; device/performance follow-up` · Uygulama owner'ı: Codex; kalıcı proje owner'ı: TBD · 2026-10-10 · Karar: [Faz 3 port kararları](PHASE3_PORT_DECISIONS.md) · Kanıt: Core package testleri 32/32; generic iOS Simulator app build ve build-for-testing başarılı; adapter contract simülatör testleri 3 geçti, imzasız host gerçek Keychain testini 1 kez atladı; mevcut NetworkService/AuthService/AppRouter regresyon testleri 15/15 geçti. Kullanıcı, uygulamanın manuel simülatör kontrollerinin geçtiğini ve sorun görünmediğini bildirdi.
 - **Amaç:** Core'un bağımlı olacağı minimum portları tanımlayıp mevcut iOS platform servislerini adapter arkasına almak.
 - **Önkoşullar:** F2'nin gerekli DTO grupları; F0 token, preference, localization ve HTTP davranışı envanteri.
 - **Kapsam içi:** HTTP, secure storage, preferences, localization, clock/logging için gerçekten kullanılan minimum sözleşmeler; iOS implementasyonu.
@@ -443,56 +443,56 @@ F12 sonrası karar ────────────────────�
 - **Küçük PR dilimleri:** (1) HTTP contract + URLSession adapter, (2) secure storage/preferences, (3) localization/cache, (4) composition root ve endpoint migration. Sözleşme değişirse önce ADR/fixture PR.
 - **Doğrulama:** HTTP hata zarfı/status/header/query/encoding, eski preference key'lerinin doğrudan okunması, eski localization JSON'u/fallback'i ve mevcut login/API error/router akışları test edildi. İmzasız simülatörde `Security` erişimi olmadığı için gerçek token load-save-delete testi atlandı; imzalı cihazda tekrar koşulmalı.
 - **Performans ölçümü:** URLSession round-trip, JSON decode, localization cache hit/miss; adapter katmanı latency/alloc baseline'ı anlamlı artırmamalı.
-- **Çıkış kriteri:** Kod sınırı ve iOS regresyonları sağlandı; token plaintext'e aktarılmıyor. Gerçek Keychain persist/reopen/delete ve runtime performans karşılaştırması beklediğinden Faz 4'e geçiş kapısı henüz tamamen kapanmadı.
+- **Çıkış kriteri:** Kod sınırı, iOS regresyonları ve kullanıcı tarafından bildirilen manuel simülatör kontrolleri sağlandı; token plaintext'e aktarılmıyor. İmzalı fiziksel cihaz Keychain testi ve sayısal runtime karşılaştırması release/performance takip maddesidir; kullanıcı Faz 4'e geçişi onayladı.
 - **Rollback noktası:** Port başına `AppDependencies` binding eski servise döner; henüz ortak feature state'e toplu geçiş yapılmaz.
 - **Tahmini efor:** 7–12 kişi-gün.
 - **Sonraki faza geçiş kapısı:** En az bir HTTP, storage ve localization contract iOS'ta uygulanıp kanıtlı; iOS login/restore ve bir API hata akışı aynı.
 
 #### Faz 4 — Tek uçtan uca iOS Core pilotu
 
-- **Durum / owner / tarih / karar / kanıt:** `Not started` · Owner: TBD · Tarih: — · ADR: ilk Core use case seçimi · Kanıt: iOS pilot PR + senaryo raporu.
+- **Durum / owner / tarih / karar / kanıt:** `Implementation done; manual/performance gate pending` · Uygulama owner'ı: Codex; kalıcı proje owner'ı: TBD · 2026-10-10 · Karar ve senaryo raporu: [iOS oturum geri yükleme pilotu](PHASE4_IOS_SESSION_PILOT.md) · Kanıt: Core package 40/40; generic iOS Simulator app/test build başarılı; son oturum coordinator simülatör koşusu 11/11, önceki birleşik coordinator/login/router koşusu 21/21 geçti.
 - **Amaç:** Bir gerçek iOS akışını View → ViewModel/use case → Core → adapter → backend boyunca ortak sınırdan yürütmek.
 - **Önkoşullar:** F3 portları ve iOS adapter'ları; pilot akış için API fixture ve UX baseline.
 - **Kapsam içi:** Önerilen auth session restore/login alt akışı veya küçük, az riskli house sorgusu; tek seam.
 - **Kapsam dışı:** Tüm ViewModel'ları taşıma, `ObservableObject`/SwiftUI'yı Core'a sokma, ekran davranışını değiştirme.
 - **Görevler:**
-  - [ ] Küçük ve ölçülebilir pilot seçimini (tercihen token restore + isAuth route) ADR'de açıkla.
-  - [ ] Core use case giriş/çıkış state'lerini değer tipleriyle tanımla.
-  - [ ] iOS ViewModel/Coordinator'u Core use case'i çağıran ince bağlayıcı yap; SwiftUI view ağacını değiştirme.
-  - [ ] İptal, tekrar çağrı, offline, 401 ve restore başarısızlığını fake portla test et.
-  - [ ] Üretim AppDependencies graph'ında tek pilot yolu aç; eski yol fallback/revert olanağı sürsün.
-  - [ ] Aynı girişlerde önceki başlangıç route'u ve hata metni anahtarı sonuçlarını karşılaştır.
+  - [x] Pilot olarak yalnız token restore + `auth/isAuth` profil doğrulaması seçildi ve karar belgelendi.
+  - [x] Core use case geçerli profil değerini, missing-token/invalid-profile durumlarını ve HTTP hata sonucunu açıkça tanımlar.
+  - [x] iOS `AuthSessionStore` ve coordinator Core use case'i ince adapter ile çağırır; SwiftUI view ağacı değişmedi.
+  - [x] İptal, tekrar çağrı, offline, 401, bozuk/geçersiz profil Core fake port testleriyle doğrulandı.
+  - [x] `AppDependencies.live` yalnız açılış restore yolunu Core'a bağlar; `sessionRestorer: nil` eski servise dönüş yoludur.
+  - [x] Başlangıç route'u ve 401/geçersiz profil hata metni iOS regresyon testleriyle karşılaştırıldı; gerçek backend/simülatör manuel kabulü bekliyor.
 - **Dokunulacak mevcut dosyalar/dizinler:** `ViewModels/AppViewModel.swift`, `ViewModels/AuthenticationViewModel.swift`, `ViewModels/Navigation/AppRouter.swift` veya seçilen dar feature, `Services/AppDependencies.swift`, ilgili `Views/**` yalnız binding gerektikçe.
 - **Yeni çıktılar:** `Core/UseCases/**`, pilot `Core/State/**` ve unit tests; `docs/migration/ios-pilot.md`.
 - **Küçük PR dilimleri:** Use case/state test; iOS ViewModel binding; dependency graph switch; davranış karşılaştırma raporu.
-- **Doğrulama:** Unit + adapter contract + iOS simulator/device senaryo; baseline route/ekran/voiceover label değil mevcut UI değerleri karşılaştırması. Fark olursa feature merge edilmez.
+- **Doğrulama:** Core 40/40; iOS coordinator 11/11 ve önceki coordinator/login/router 21/21; app ve test hedefi derlendi. Gerçek backend'le açılış/foreground, doğrulanmamış hesap, 401 ve offline manuel simülatör kabulü bekliyor.
 - **Performans ölçümü:** Restore/login akış latency, cold-start ve allocations karşılaştırılır; pilotun UI startup'ına ek gecikmesi raporlanır.
-- **Çıkış kriteri:** Bir tam akış Core sınırından geçiyor, aynı state ve görünür sonuç çıkıyor; kod sahipliği anlaşılır ve iOS'a özgü binding Core'dan ayrıdır.
+- **Çıkış kriteri:** Üretim graph'ında tek tam restore akışı Core sınırından geçiyor; testlerde aynı state/route/hata metni üretiliyor. Manuel gerçek backend kabulü ve karşılaştırmalı cihaz performansı henüz tamamlanmadı.
 - **Rollback noktası:** Tek composition binding/feature flag eski iOS use case'e döner; ortak DTO/contract fixture kalabilir.
 - **Tahmini efor:** 4–7 kişi-gün.
 - **Sonraki faza geçiş kapısı:** Pilot iki farklı auth/session senaryosunda doğrulandı; iOS davranışı aynı; F5 için Android Core yüzeyi/Swift type kısıtları yazılı.
 
 #### Faz 5 — Android Gradle shell ve Swift SDK/JNI roundtrip
 
-- **Durum / owner / tarih / karar / kanıt:** `Not started` · Owner: TBD · Tarih: — · ADR: minSdk/ABI/JNI · Kanıt: pinned shell, CI cross-compile ve device/emulator JNI raporu.
+- **Durum / owner / tarih / karar / kanıt:** `In progress` · Owner: Codex + ürün sahibi destek matrisi · Tarih: 2026-10-11 · Karar: dar ayrı Swift/JNI bridge spike, geçici minSdk 31/arm64-v8a+x86_64 · Kanıt ve açık kapılar: [`PHASE5_ANDROID_BRIDGE_SPIKE.md`](PHASE5_ANDROID_BRIDGE_SPIKE.md). İki ABI debug/release cross-compile, APK/AAB/AAR paketleri ve API 36.1 arm64-v8a emülatöründe JNI roundtrip geçti; clean CI, minimum API ve fiziksel cihaz kabulü henüz yok.
 - **Amaç:** Android host iskeletini ve en küçük Swift çağrısını üretim UI akışından bağımsız doğrulamak.
 - **Önkoşullar:** F4 Core API pilotu; Android destek matrisi taslak/onay; toolchain araştırması.
 - **Kapsam içi:** Gradle shell, NDK/Swift SDK/JDK pinleme, native library packaging, bir input/output JNI façade ve smoke.
 - **Kapsam dışı:** Auth/UI, tüm Core'u bridge etme, frame başına native çağrı, genel Swift/Kotlin binding generator yazma.
 - **Görevler:**
-  - [ ] Swift Android resmi SDK/toolchain eşleşmesi, NDK, JDK, Gradle wrapper/AGP/Kotlin ve SwiftJava gereksinimini araştırıp pin kararını al.
-  - [ ] `android/` minimal app + Gradle wrapper ve Kotlin package kur; gereksiz product screen ekleme.
-  - [ ] Bir Core saf fonksiyonunu seç; Swift SDK ile hedeflenen Android ABI'ler için cross-compile et.
-  - [ ] `swift-java` JNI generation kullanarak versioned DTO/primitive alanla `ping` veya deterministic test-vector çağrısı yap.
-  - [ ] Native load, null/invalid input, hata dönüşü, payload sınırı, Kotlin coroutine cancellation ve lifecycle close'u sınırla.
+  - [x] Swift Android resmi SDK/toolchain eşleşmesi, NDK, JDK, Gradle wrapper/AGP/Kotlin ve SwiftJava gereksinimini araştırıp geçici spike pin kararını al (cihaz destek matrisi onayı açık).
+  - [x] `android/` minimal app + Gradle wrapper ve Kotlin package kur; gereksiz product screen ekleme; debug/release build'i doğrula.
+  - [x] Bir Core saf fonksiyonunu seç; Swift SDK ile hedeflenen Android ABI'ler için cross-compile et.
+  - [x] `swift-java` JNI generation kullanarak versioned primitive alanla deterministic test-vector çağrısı yap.
+  - [x] API 36.1 arm64-v8a emülatöründe native load, null/invalid input ve payload sınırını doğrula. Bu senkron/stateless spike'da coroutine cancellation ve lifecycle close uygulanamaz; gelecekteki async/IO bridge için sahiplik sözleşmesi ayrıca tanımlanmalı.
   - [ ] Min API ve ABI matrisi üzerinde emulator/cihaz smoke çalıştır; debug/release paketlemeyi kıyasla.
-  - [ ] CI'da pin kontrolü, cross-compile ve wrapper/codegen drift kontrolü ekle.
+  - [x] CI'da pin kontrolü, cross-compile ve wrapper/codegen contract kontrolü ekle (workflow yazıldı; clean CI sonucu bekleniyor).
 - **Dokunulacak mevcut dosyalar/dizinler:** `shared/Package.swift` / Core public API (yalnız gerekli tip), CI/pin dosyaları; mevcut iOS ekranları değişmez.
-- **Yeni çıktılar:** `android/settings.gradle.kts`, root/app Gradle dosyaları, wrapper, `android/app/src/main/**`, `android/app/src/test/**`, JNI façade/generated binding policy, Swift SDK/NDK pin manifest, `scripts/check-android-toolchain.sh` benzeri doğrulama script'i, spike raporu.
+- **Yeni çıktılar:** `android/settings.gradle.kts`, root/app Gradle dosyaları, wrapper, `android/app/src/main/**`, `android/app/src/test/**`, JNI façade/generated binding policy, Swift SDK/NDK pin manifest, `android/scripts/check-android-toolchain.sh` benzeri doğrulama script'i, spike raporu.
 - **Küçük PR dilimleri:** (1) Gradle empty shell, (2) pinned Swift cross-compile CI, (3) JNI ping/value DTO, (4) API/ABI/device smoke ve size report.
 - **Doğrulama:** Cross-compile, .so load, roundtrip, release shrink/package ve desteklenen API/ABI; generated code tekrar üretimi aynı sonuçta.
 - **Performans ölçümü:** Startup'a native load etkisi, JNI çağrı latency/allocation, birleşik ve ABI split AAB teslim boyutu, native memory.
-- **Çıkış kriteri:** Clean CI'da pinli toolchain; desteklenen tüm hedef ABI'de load/call/cancel; p95/startup/AAB bütçeleri F0'da kabul edilmiş sınırda.
+- **Çıkış kriteri:** Clean CI'da pinli toolchain; desteklenen tüm hedef ABI'de load/call ve hata sınırı; senkron/stateless çağrı için cancellation/close gerekmemesi belgeli; p95/startup/AAB bütçeleri F0'da kabul edilmiş sınırda.
 - **Rollback noktası:** `android/` shell ve native dependency ayrı revert edilebilir; iOS app ve Core host testleri etkilenmez. JNI kapısı geçmezse sonraki Android entegrasyon işi durur, Kotlin uygulama kararı ayrıca ele alınır.
 - **Tahmini efor:** 5–10 kişi-gün (belirsizlik payı yüksek).
 - **Sonraki faza geçiş kapısı:** Ürün sahibi desteklenecek min API/ABI'yi kabul eder; CI ve gerçek runtime spike geçer; JNI error/cancel/lifecycle ownership belgeli.
@@ -661,7 +661,7 @@ F12 sonrası karar ────────────────────�
   - [ ] Token at rest, TLS, log redaction, JNI input bounds, native memory ownership, dependency/pin/license/security scan review tamamla.
   - [ ] Release/debug configuration, crash reporting privacy, signing, CI required checks, rollback artifact ve release runbook doğrula.
   - [ ] Release candidate akışları için golden UX/behavior screenshots/checklists karşılaştır; onaysız UI farkı varsa release'i blokla.
-- **Dokunulacak mevcut dosyalar/dizinler:** CI, pin manifests, `scripts/**`, iOS/Android platform adapters, only measured Core hot paths; `Documents/DESIGN.md`/product docs değişmez unless separately approved.
+- **Dokunulacak mevcut dosyalar/dizinler:** CI, pin manifests, `android/scripts/**`, iOS/Android platform adapters, only measured Core hot paths; `Documents/DESIGN.md`/product docs değişmez unless separately approved.
 - **Yeni çıktılar:** `docs/release/android-release-checklist.md`, perf/security report, ABI/AAB manifest, rollback/runbook ve release notes.
 - **Küçük PR dilimleri:** Tek ölçüm kategorisi veya güvenlik açığı başına PR; release wiring ve runbook ayrı.
 - **Doğrulama:** Release build test matrix, device smoke, security/privacy review, contract suite, accessibility audit, rollback rehearsal (non-production).

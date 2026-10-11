@@ -1,0 +1,106 @@
+plugins {
+    id 'com.android.library'
+}
+
+android {
+    namespace 'com.houseflow.androidbridge'
+    compileSdk 36
+    defaultConfig {
+        minSdk 31
+        consumerProguardFiles 'consumer-rules.pro'
+    }
+    compileOptions {
+        sourceCompatibility JavaVersion.VERSION_17
+        targetCompatibility JavaVersion.VERSION_17
+    }
+    sourceSets.main.java.srcDir '.build/plugins/outputs/swift-bridge/HouseFlowAndroidBridge/destination/JExtractSwiftPlugin/src/generated/java'
+    sourceSets.debug.jniLibs.srcDir layout.buildDirectory.dir('generated/jniLibs/debug')
+    sourceSets.release.jniLibs.srcDir layout.buildDirectory.dir('generated/jniLibs/release')
+}
+
+dependencies {
+    // Published locally from the matching swift-java checkout; no dynamic '+' version.
+    implementation 'org.swift.swiftkit:swiftkit-core:0.6.0'
+}
+
+def sdkBundle = providers.environmentVariable('SWIFT_ANDROID_SDK_BUNDLE').orNull
+def ndkHome = providers.environmentVariable('ANDROID_NDK_HOME').orNull
+def sdkId = 'swift-6.4.0-RELEASE_android'
+def apiLevel = 31
+def abis = [
+    'arm64-v8a': [triple: "aarch64-unknown-linux-android${apiLevel}", productArch: 'aarch64', swiftDir: 'swift-aarch64', ndkDir: 'aarch64-linux-android'],
+    'x86_64'   : [triple: "x86_64-unknown-linux-android${apiLevel}", productArch: 'x86_64', swiftDir: 'swift-x86_64', ndkDir: 'x86_64-linux-android']
+]
+def swiftRuntimeLibs = [
+    'swiftCore', 'swiftObservation', 'swift_Concurrency', 'swift_StringProcessing', 'swift_RegexParser',
+    'swift_Builtin_float', 'swift_math', 'swiftAndroid', 'dispatch',
+    'BlocksRuntime', 'swiftSwiftOnoneSupport', 'swiftDispatch', 'Foundation',
+    'FoundationEssentials', 'FoundationInternationalization', '_FoundationICU',
+    'swiftSynchronization'
+]
+
+def preflight = tasks.register('checkSwiftAndroidToolchain', Exec) {
+    workingDir rootProject.projectDir
+    commandLine 'sh', 'scripts/check-android-toolchain.sh'
+}
+
+['debug', 'release'].each { variant ->
+    def compileTasks = abis.collect { abi, info ->
+        tasks.register("compileSwift${variant.capitalize()}${abi.replace('-', '').replace('_', '')}", Exec) {
+            dependsOn preflight
+            workingDir projectDir
+            commandLine 'swift', 'build', '--configuration', variant, '--swift-sdk', sdkId, '--triple', info.triple
+            inputs.files 'Package.swift', 'Package.resolved', fileTree('Sources'), fileTree('../../shared/Sources')
+            outputs.dir ".build/out/Products/${variant.capitalize()}-android-${info.productArch}"
+        }
+    }
+
+    def copyNative = tasks.register("copySwiftAndroidLibraries${variant.capitalize()}", Copy) {
+        dependsOn compileTasks
+        into layout.buildDirectory.dir("generated/jniLibs/${variant}")
+        doFirst {
+            if (!sdkBundle || !ndkHome) {
+                throw new GradleException('Set SWIFT_ANDROID_SDK_BUNDLE and ANDROID_NDK_HOME before building Android')
+            }
+            abis.each { abi, info ->
+                def swiftProductDir = ".build/out/Products/${variant.capitalize()}-android-${info.productArch}"
+                def nativeBinary = file("${swiftProductDir}/libHouseFlowAndroidBridge.so")
+                if (!nativeBinary.isFile()) {
+                    throw new GradleException("Missing ${variant} Swift library for ${abi}: ${nativeBinary}")
+                }
+                def swiftJavaBinary = file("${swiftProductDir}/libSwiftJava.so")
+                if (!swiftJavaBinary.isFile()) {
+                    throw new GradleException("Missing ${variant} SwiftJava library for ${abi}: ${swiftJavaBinary}")
+                }
+                swiftRuntimeLibs.each { lib ->
+                    def runtimeBinary = file("${sdkBundle}/swift-android/swift-resources/usr/lib/${info.swiftDir}/android/lib${lib}.so")
+                    if (!runtimeBinary.isFile()) {
+                        throw new GradleException("Missing Swift runtime for ${abi}: ${runtimeBinary}")
+                    }
+                }
+            }
+    }
+    abis.each { abi, info ->
+            from(".build/out/Products/${variant.capitalize()}-android-${info.productArch}") {
+                include '*.so'
+                into abi
+            }
+            if (sdkBundle) {
+                from(swiftRuntimeLibs.collect { lib ->
+                    "${sdkBundle}/swift-android/swift-resources/usr/lib/${info.swiftDir}/android/lib${lib}.so"
+                }) { into abi }
+            }
+            if (ndkHome) {
+                from("${ndkHome}/toolchains/llvm/prebuilt") {
+                    include "*/sysroot/usr/lib/${info.ndkDir}/libc++_shared.so"
+                    eachFile { path = "${abi}/libc++_shared.so" }
+                    includeEmptyDirs = false
+                }
+            }
+        }
+    }
+
+    tasks.matching { it.name == "pre${variant.capitalize()}Build" }.configureEach {
+        dependsOn copyNative
+    }
+}
