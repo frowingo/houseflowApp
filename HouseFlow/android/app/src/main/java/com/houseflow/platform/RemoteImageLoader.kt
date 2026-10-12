@@ -1,63 +1,33 @@
-package com.houseflow.ui.dashboard
+package com.houseflow.platform
 
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
 import android.util.LruCache
 import java.io.ByteArrayOutputStream
 import java.io.InputStream
-import androidx.compose.foundation.background
-import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.material3.Text
-import androidx.compose.runtime.Composable
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
-import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.ui.Alignment
-import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.asImageBitmap
-import androidx.compose.foundation.Image
-import androidx.compose.ui.layout.ContentScale
-import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.unit.Dp
-import androidx.compose.ui.unit.sp
-import com.houseflow.platform.HouseMember
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import okhttp3.OkHttpClient
 import okhttp3.Request
 
-/** Same remote-image-or-initials behavior as iOS; decode only a small avatar bitmap. */
-@Composable
-internal fun MemberAvatar(member: HouseMember?, size: Dp) {
-    var bitmap by remember(member?.imageUrl) { mutableStateOf<Bitmap?>(null) }
-    LaunchedEffect(member?.imageUrl) {
-        bitmap = member?.imageUrl?.takeIf { it.startsWith("https://") || it.startsWith("http://") }
-            ?.let { AvatarImages.load(it) }
-    }
-    Box(Modifier.size(size).clip(CircleShape).background(Color(0xFF45579E)), contentAlignment = Alignment.Center) {
-        val current = bitmap
-        if (current != null) Image(current.asImageBitmap(), contentDescription = member?.name,
-            modifier = Modifier.size(size), contentScale = ContentScale.Crop)
-        else Text((member?.firstName?.take(1).orEmpty() + member?.lastName?.take(1).orEmpty()).ifBlank { "?" },
-            color = Color.White, fontWeight = FontWeight.SemiBold, fontSize = 14.sp)
-    }
-}
-
-internal object AvatarImages {
+/**
+ * Android side of iOS `CachedRemoteImage`: bounded IO download, small decoded bitmap and a
+ * shared memory cache. UI code asks for bitmaps; it never touches HTTP directly.
+ */
+internal object RemoteImageLoader {
     private val client = OkHttpClient()
     private val cache = object : LruCache<String, Bitmap>(8 * 1024 * 1024) {
         override fun sizeOf(key: String, value: Bitmap): Int = value.byteCount
     }
 
+    fun isLoadable(url: String?): Boolean =
+        url != null && (url.startsWith("https://") || url.startsWith("http://"))
+
+    fun cached(url: String): Bitmap? = synchronized(cache) { cache.get(url) }
+
     suspend fun load(url: String): Bitmap? = withContext(Dispatchers.IO) {
-        synchronized(cache) { cache.get(url) }?.let { return@withContext it }
+        cached(url)?.let { return@withContext it }
         val request = runCatching { Request.Builder().url(url).build() }.getOrNull() ?: return@withContext null
         try {
             client.newCall(request).execute().use { response ->

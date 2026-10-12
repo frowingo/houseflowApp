@@ -53,7 +53,7 @@ import com.houseflow.platform.HouseInfoMember
 import com.houseflow.platform.HouseMember
 import com.houseflow.platform.LocalizedText
 import com.houseflow.platform.ProfileChange
-import com.houseflow.ui.dashboard.MemberAvatar
+import com.houseflow.ui.components.UserAvatar
 import com.houseflow.ui.auth.OtpField
 import com.houseflow.viewmodel.HouseUiState
 import com.houseflow.viewmodel.ProfileUiState
@@ -92,8 +92,7 @@ internal fun EditProfileDialog(user: AuthProfile, state: ProfileUiState, strings
                     ?.let { "${it}T00:00:00Z" },
             ))
         }
-        TextButton(onClick = onDismiss, enabled = !state.busy,
-            modifier = Modifier.fillMaxWidth()) { Text(strings.profileValue("common_cancel")) }
+        ProfileSecondaryFooter(strings.profileValue("common_cancel"), !state.busy, onDismiss)
     }
     if (picker) {
         val selected = runCatching { LocalDate.parse(birthday) }.getOrNull()
@@ -135,9 +134,7 @@ internal fun AvatarDialog(user: AuthProfile, state: ProfileUiState, strings: Loc
         ProfileError(state.error)
         ProfileFooter(strings.profileValue(if (state.busy) "common_saving" else "common_save_changes"),
             selected.isNotBlank() && !state.busy) { onSave(ProfileChange(imageUrl = selected)) }
-        TextButton(onClick = onDismiss, enabled = !state.busy, modifier = Modifier.fillMaxWidth()) {
-            Text(strings.profileValue("common_cancel"))
-        }
+        ProfileSecondaryFooter(strings.profileValue("common_cancel"), !state.busy, onDismiss)
     }
 }
 
@@ -173,9 +170,7 @@ internal fun LanguageDialog(user: AuthProfile, state: ProfileUiState, strings: L
         ProfileFooter(strings.profileValue(if (state.busy) "common_saving" else "common_save_changes"),
             !state.busy && selected.isNotBlank() && !selected.equals(user.language, true) &&
                 state.languages.any { it.prefix.equals(selected, true) && it.isActive }) { onSave(selected) }
-        TextButton(onClick = onDismiss, enabled = !state.busy, modifier = Modifier.fillMaxWidth()) {
-            Text(strings.profileValue("common_cancel"))
-        }
+        ProfileSecondaryFooter(strings.profileValue("common_cancel"), !state.busy, onDismiss)
     }
 }
 
@@ -220,7 +215,7 @@ internal fun PhoneManagementDialog(user: AuthProfile, strings: LocalizedText, on
             }
             if (notice) Text(strings.profileValue("profile_phone_backend_pending_toast"), color = profileTeal, fontSize = 13.sp)
         }
-        ProfileFooter(strings.profileValue("common_close"), true, onDismiss)
+        ProfileSecondaryFooter(strings.profileValue("common_close"), true, onDismiss)
     }
 }
 
@@ -240,8 +235,7 @@ internal fun JoinHouseDialog(state: HouseUiState, strings: LocalizedText,
         ProfileError(state.profileError)
         ProfileFooter(strings.profileValue(if (state.profileActionBusy) "common_joining" else "profile_house_join_button"),
             code.matches(Regex("[A-Z0-9]{8}")) && !state.profileActionBusy) { onJoin(code) }
-        TextButton(onClick = onDismiss, enabled = !state.profileActionBusy,
-            modifier = Modifier.fillMaxWidth()) { Text(strings.profileValue("common_cancel")) }
+        ProfileSecondaryFooter(strings.profileValue("common_cancel"), !state.profileActionBusy, onDismiss)
     }
 }
 
@@ -320,7 +314,7 @@ internal fun HouseInfoDialog(
                 Text(strings.profileValue("house_info_members_title"), fontWeight = FontWeight.Bold, color = profileInk)
                 info.members.forEach { member ->
                     Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-                        MemberAvatar(HouseMember(member.userId, member.name, "", member.profileImage), 44.dp)
+                        UserAvatar(HouseMember(member.userId, member.name, "", member.profileImage), 44.dp)
                         Column(Modifier.weight(1f).padding(start = 10.dp)) {
                             Text(member.name, color = profileInk)
                             if (member.isOwner) Text(strings.profileValue("house_info_owner_badge"), fontSize = 11.sp)
@@ -377,8 +371,7 @@ internal fun HouseInfoDialog(
             else if (info.members.any { it.userId == state.userId && !it.isOwner })
                 ProfileFooter(strings.profileValue("house_info_leave_button"), !state.profileActionBusy) { leaveConfirmation = true }
         }
-        TextButton(onClick = onDismiss, enabled = !state.profileActionBusy,
-            modifier = Modifier.fillMaxWidth()) { Text(strings.profileValue("common_close")) }
+        ProfileSecondaryFooter(strings.profileValue("common_close"), !state.profileActionBusy, onDismiss)
     }
     if (leaveConfirmation) AlertDialog(onDismissRequest = { leaveConfirmation = false },
         title = { Text(strings.profileValue("house_info_leave_confirmation_title")) },

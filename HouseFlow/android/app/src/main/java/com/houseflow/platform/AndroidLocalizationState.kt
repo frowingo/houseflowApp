@@ -11,6 +11,13 @@ import kotlinx.coroutines.withContext
 
 internal data class LocalizedText(val prefix: String?, val values: Map<String, String>) {
     fun get(key: String): String = values[key] ?: key
+
+    /** iOS `localized(_:fallback:)`: copy for keys the remote catalog does not ship yet. */
+    fun get(key: String, fallback: String): String = values[key] ?: fallback
+
+    /** iOS `localized(_:replacements:)`: fills `{name}` placeholders. */
+    fun template(key: String, vararg replacements: Pair<String, String>, fallback: String? = null): String =
+        replacements.fold(values[key] ?: fallback ?: key) { text, (name, value) -> text.replace("{$name}", value) }
 }
 
 /** Cache-first state, then iOS's device/default/first-active language order. */

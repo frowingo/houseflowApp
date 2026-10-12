@@ -28,6 +28,8 @@ import com.houseflow.ui.house.HouseErrorScreen
 import com.houseflow.ui.house.HouseLoadingScreen
 import com.houseflow.ui.house.HouseSelectionScreen
 import com.houseflow.ui.house.JoinHouseScreen
+import com.houseflow.ui.main.MainTab
+import com.houseflow.ui.main.MainTabScreen
 import com.houseflow.ui.profile.ProfileScreen
 import com.houseflow.viewmodel.AuthRoute
 import com.houseflow.viewmodel.AuthViewModel
@@ -51,12 +53,12 @@ class MainActivity : ComponentActivity() {
             val houseState by houseModel.state.collectAsStateWithLifecycle()
             val profileState by model.profileState.collectAsStateWithLifecycle()
             val text by model.text.collectAsStateWithLifecycle()
-            var selectedTab by rememberSaveable { mutableStateOf("home") }
+            var selectedTab by rememberSaveable { mutableStateOf(MainTab.HOME) }
             LaunchedEffect(state.profile) {
                 state.profile?.let(houseModel::acceptProfile) ?: houseModel.resetSession()
             }
             LaunchedEffect(state.route) {
-                if (state.route !is AuthRoute.Next) selectedTab = "home"
+                if (state.route !is AuthRoute.Next) selectedTab = MainTab.HOME
             }
             LaunchedEffect(state.route) {
                 val isAuth = state.route is AuthRoute.SignIn || state.route is AuthRoute.ForgotPassword ||
@@ -80,7 +82,7 @@ class MainActivity : ComponentActivity() {
                         HouseRoute.SELECTION -> "houseSelection"
                         HouseRoute.CREATE -> "houseCreate"
                         HouseRoute.JOIN -> "houseJoin"
-                        HouseRoute.DASHBOARD -> if (selectedTab == "profile") "profile" else "dashboard"
+                        HouseRoute.DASHBOARD -> "main"
                         HouseRoute.ERROR -> "houseError"
                     }
                 }
@@ -133,24 +135,32 @@ class MainActivity : ComponentActivity() {
                     HouseErrorScreen(houseState, text, houseModel::retry, model::logout)
                     BackHandler { /* iOS house error requires Retry or Log out. */ }
                 }
-                composable("dashboard") {
-                    DashboardScreen(houseState, text, houseModel::switchHouse,
-                        houseModel::createAnnouncement, houseModel::createChore,
-                        houseModel::updateChoreStatus, houseModel::reviewChore,
-                        houseModel::clearMutationMessage, { selectedTab = "profile" })
-                    BackHandler { /* Root tab screen. */ }
-                }
-                composable("profile") {
-                    state.profile?.let { user ->
-                        ProfileScreen(user, houseState, profileState, text,
-                            { selectedTab = "home" }, model::logout, model::updateProfile,
-                            model::loadProfileImages, model::loadLanguages, model::saveLanguage,
-                            model::clearProfileError, houseModel::joinFromProfile,
-                            houseModel::loadInfo, houseModel::clearInfo, houseModel::createInvite,
-                            houseModel::updateHouseProfile, houseModel::removeMember,
-                            houseModel::leaveHouse, houseModel::clearProfileError)
-                    }
-                    BackHandler { selectedTab = "home" }
+                composable("main") {
+                    MainTabScreen(
+                        selectedTab = selectedTab,
+                        onSelectTab = { selectedTab = it },
+                        houses = houseState.houses,
+                        currentHouseId = houseState.details?.id,
+                        onSwitchHouse = houseModel::switchHouse,
+                        strings = text,
+                        profile = { onOverlayChange ->
+                            state.profile?.let { user ->
+                                ProfileScreen(user, houseState, profileState, text, model::logout, model::updateProfile,
+                                    model::loadProfileImages, model::loadLanguages, model::saveLanguage,
+                                    model::clearProfileError, houseModel::joinFromProfile,
+                                    houseModel::loadInfo, houseModel::clearInfo, houseModel::createInvite,
+                                    houseModel::updateHouseProfile, houseModel::removeMember,
+                                    houseModel::leaveHouse, houseModel::clearProfileError, onOverlayChange)
+                            }
+                        },
+                        dashboard = { onOverlayChange ->
+                            DashboardScreen(houseState, text, houseModel::createAnnouncement, houseModel::createChore,
+                                houseModel::updateChoreStatus, houseModel::reviewChore,
+                                houseModel::clearMutationMessage, onOverlayChange)
+                        },
+                    )
+                    // Profile returns to Home; Home is the root tab and keeps the session screen.
+                    BackHandler { if (selectedTab != MainTab.HOME) selectedTab = MainTab.HOME }
                 }
             }
         }

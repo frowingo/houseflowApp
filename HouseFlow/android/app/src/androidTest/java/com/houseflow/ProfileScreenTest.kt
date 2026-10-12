@@ -1,6 +1,9 @@
 package com.houseflow
 
+import androidx.compose.ui.test.assertCountEquals
 import androidx.compose.ui.test.junit4.createComposeRule
+import androidx.compose.ui.test.onAllNodesWithText
+import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import androidx.test.ext.junit.runners.AndroidJUnit4
@@ -8,6 +11,8 @@ import com.houseflow.platform.AuthDestination
 import com.houseflow.platform.AuthProfile
 import com.houseflow.platform.HouseSummary
 import com.houseflow.platform.LocalizedText
+import com.houseflow.ui.main.MainTab
+import com.houseflow.ui.main.MainTabScreen
 import com.houseflow.ui.profile.ProfileScreen
 import com.houseflow.viewmodel.HouseRoute
 import com.houseflow.viewmodel.HouseUiState
@@ -47,19 +52,30 @@ class ProfileScreenTest {
         houses = listOf(HouseSummary("h", "Ada's home", "")), userId = "u")
 
     @Test fun profileShowsExistingCardsAndOpensEdit() {
-        var homeCalls = 0
         compose.setContent { ProfileScreen(user, house, ProfileUiState(), strings,
-            onHome = { homeCalls++ }, onLogout = {}, onUpdateProfile = {}, onLoadImages = {},
+            onLogout = {}, onUpdateProfile = {}, onLoadImages = {},
             onLoadLanguages = {}, onSaveLanguage = {}, onClearProfileError = {}, onJoin = {},
             onOpenHouse = {}, onCloseHouse = {}, onInvite = {}, onUpdateHouse = { _, _, _, _ -> },
             onRemoveMember = { _, _ -> }, onLeave = {}, onClearHouseError = {}) }
         compose.onNodeWithText("Ada A").assertExists()
         compose.onNodeWithText("ada@example.com").assertExists()
         compose.onNodeWithText("Ada's home").assertExists()
-        compose.onNodeWithText("Edit").performClick()
-        compose.onNodeWithText("First name").assertExists()
+        // iOS shows the edit action as a pencil button labelled for accessibility.
+        compose.onNodeWithContentDescription("Edit").performClick()
+        // The card row and the open edit popup both show the field label.
+        compose.onAllNodesWithText("First name").assertCountEquals(2)
         compose.onNodeWithText("Cancel").performClick()
-        compose.onNodeWithText("Home").performClick()
-        compose.runOnIdle { assertEquals(1, homeCalls) }
+        compose.onAllNodesWithText("First name").assertCountEquals(1)
+    }
+
+    @Test fun tabBarSelectsTabsAndKeepsGamesInert() {
+        val selections = mutableListOf<MainTab>()
+        compose.setContent {
+            MainTabScreen(MainTab.HOME, { selections += it }, house.houses, "h", {}, strings,
+                profile = {}, dashboard = {})
+        }
+        compose.onNodeWithText("Profile").performClick()
+        compose.onNodeWithText("Games").performClick()
+        compose.runOnIdle { assertEquals(listOf(MainTab.PROFILE), selections) }
     }
 }
