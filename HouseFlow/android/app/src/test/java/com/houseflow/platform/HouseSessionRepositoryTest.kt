@@ -44,7 +44,7 @@ class HouseSessionRepositoryTest {
     }
 
     @Test fun infoInviteExitAndProfileUseExistingEndpoints() = runBlocking {
-        response = """{"success":true,"data":{"houseName":"Home"}}"""
+        response = """{"success":true,"data":{"houseName":"Home","houseProfileImage":"","houseType":1,"houseMemberCount":1,"houseMemberCountLimit":4,"houseMembers":[{"userId":"u","name":"Ada","profileImage":"","isOwner":true}]}}"""
         assertEquals("Home", JSONObject(repo.info("h").payload).getString("houseName"))
         repo.updateProfile("h", "New", 1, 4, "image")
         response = """{"success":true,"data":{"inviteCode":"AB12CD34","expiresInSeconds":3600}}"""

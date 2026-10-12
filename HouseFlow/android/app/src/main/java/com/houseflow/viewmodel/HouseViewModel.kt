@@ -34,6 +34,7 @@ internal data class HouseUiState(
     val details: HouseDetails? = null,
     val info: HouseInfo? = null,
     val invite: HouseInvite? = null,
+    val inviteBusy: Boolean = false,
     val userId: String = "",
     val firstName: String = "",
     val busy: Boolean = false,
@@ -42,6 +43,12 @@ internal data class HouseUiState(
     val mutationError: String? = null,
     val mutationSerial: Long = 0,
     val mutationMessageKey: String? = null,
+    val infoHouseId: String? = null,
+    val infoBusy: Boolean = false,
+    val profileActionBusy: Boolean = false,
+    val profileError: String? = null,
+    val profileActionSerial: Long = 0,
+    val profileActionKind: String? = null,
 )
 
 /** One owner for the active house. A generation gates every async completion. */
@@ -58,6 +65,7 @@ internal class HouseViewModel(
     private var profileKey: String? = null
     private var pendingHouse: HouseSummary? = null
     private var pendingRequestKey: String? = null
+    private var infoRequestSerial = 0L
 
     fun acceptProfile(profile: AuthProfile) {
         if (profileKey == profile.userId + ":" + profile.houses.joinToString { it.id }) return
@@ -202,30 +210,120 @@ internal class HouseViewModel(
         }
     }
 
-    fun loadInfo(houseId: String) {
-        if (state.value.houses.none { it.id == houseId }) return
+    fun joinFromProfile(code: String) {
+        if (state.value.profileActionBusy || state.value.busy || state.value.route != HouseRoute.DASHBOARD ||
+            !code.matches(Regex("[A-Za-z0-9]{8}"))) return
         val ticket = generation
+        mutableState.value = state.value.copy(profileActionBusy = true, profileError = null)
         viewModelScope.launch {
             try {
-                val info = repository.info(houseId)
-                if (ticket == generation && state.value.houses.any { it.id == houseId })
-                    mutableState.value = state.value.copy(info = info)
+                val joined = repository.join(code.uppercase())
+                if (ticket != generation) return@launch
+                mutableState.value = state.value.copy(
+                    houses = state.value.houses.filterNot { it.id == joined.id } + joined,
+                    profileActionBusy = false, profileActionSerial = state.value.profileActionSerial + 1,
+                    profileActionKind = "join",
+                )
             } catch (cancel: CancellationException) { throw cancel }
-            catch (error: Exception) { if (ticket == generation) mutableState.value = state.value.copy(error = error.message) }
+            catch (error: Exception) { if (ticket == generation) profileFail(error) }
         }
     }
 
-    fun createInvite(houseId: String) {
+    fun loadInfo(houseId: String) {
         if (state.value.houses.none { it.id == houseId }) return
         val ticket = generation
+        val request = ++infoRequestSerial
+        mutableState.value = state.value.copy(infoHouseId = houseId, info = null, invite = null,
+            infoBusy = true, inviteBusy = false, profileError = null)
+        viewModelScope.launch {
+            try {
+                val info = repository.info(houseId)
+                if (ticket == generation && request == infoRequestSerial && state.value.infoHouseId == houseId)
+                    mutableState.value = state.value.copy(info = info, infoBusy = false)
+            } catch (cancel: CancellationException) { throw cancel }
+            catch (error: Exception) { if (ticket == generation && request == infoRequestSerial) profileFail(error, infoBusy = false) }
+        }
+    }
+
+    fun clearInfo() {
+        infoRequestSerial++
+        mutableState.value = state.value.copy(info = null, infoHouseId = null, invite = null,
+            infoBusy = false, inviteBusy = false, profileError = null)
+    }
+
+    fun clearProfileError() { mutableState.value = state.value.copy(profileError = null) }
+
+    fun createInvite(houseId: String) {
+        if (state.value.houses.none { it.id == houseId } || state.value.infoHouseId != houseId ||
+            state.value.inviteBusy) return
+        val ticket = generation
+        mutableState.value = state.value.copy(inviteBusy = true, profileError = null)
         viewModelScope.launch {
             try {
                 val invite = repository.invite(houseId)
-                if (ticket == generation && state.value.houses.any { it.id == houseId })
-                    mutableState.value = state.value.copy(invite = invite)
+                if (ticket == generation && state.value.infoHouseId == houseId)
+                    mutableState.value = state.value.copy(invite = invite, inviteBusy = false)
             } catch (cancel: CancellationException) { throw cancel }
-            catch (error: Exception) { if (ticket == generation) mutableState.value = state.value.copy(error = error.message) }
+            catch (error: Exception) { if (ticket == generation && state.value.infoHouseId == houseId) {
+                mutableState.value = state.value.copy(inviteBusy = false)
+                profileFail(error)
+            } }
         }
+    }
+
+    fun updateHouseProfile(houseId: String, name: String, maxMemberCount: Int, imageUrl: String) {
+        val old = state.value.info ?: return
+        if (state.value.infoHouseId != houseId || old.ownerId != state.value.userId ||
+            state.value.profileActionBusy || name.isBlank() || maxMemberCount < maxOf(2, old.houseMemberCount)) return
+        val ticket = generation
+        mutableState.value = state.value.copy(profileActionBusy = true, profileError = null)
+        viewModelScope.launch {
+            try {
+                val updated = repository.updateProfile(houseId, name.trim(), old.houseType, maxMemberCount, imageUrl)
+                if (ticket != generation || state.value.infoHouseId != houseId) return@launch
+                mutableState.value = state.value.copy(info = updated,
+                    houses = state.value.houses.map { if (it.id == houseId) it.copy(name = updated.houseName,
+                        profileImage = updated.houseProfileImage) else it },
+                    details = state.value.details?.let {
+                        if (it.id == houseId) it.copy(name = updated.houseName) else it
+                    }, profileActionBusy = false,
+                    profileActionSerial = state.value.profileActionSerial + 1, profileActionKind = "update")
+            } catch (cancel: CancellationException) { throw cancel }
+            catch (error: Exception) { if (ticket == generation) profileFail(error) }
+        }
+    }
+
+    fun removeMember(houseId: String, userId: String) {
+        val info = state.value.info ?: return
+        if (state.value.infoHouseId != houseId || info.ownerId != state.value.userId ||
+            userId == state.value.userId || info.members.none { it.userId == userId } ||
+            state.value.profileActionBusy) return
+        val ticket = generation
+        mutableState.value = state.value.copy(profileActionBusy = true, profileError = null)
+        viewModelScope.launch {
+            try {
+                repository.exit(houseId, userId)
+                if (ticket != generation || state.value.infoHouseId != houseId) return@launch
+                val refreshed = try { repository.info(houseId) } catch (cancel: CancellationException) {
+                    throw cancel
+                } catch (_: Exception) {
+                    info.copy(members = info.members.filterNot { it.userId == userId },
+                        houseMemberCount = info.houseMemberCount - 1)
+                }
+                if (ticket != generation || state.value.infoHouseId != houseId) return@launch
+                mutableState.value = state.value.copy(info = refreshed,
+                    details = state.value.details?.let { details ->
+                        if (details.id == houseId) details.copy(members = details.members.filterNot { it.id == userId }) else details
+                    }, profileActionBusy = false, profileActionSerial = state.value.profileActionSerial + 1,
+                    profileActionKind = "remove")
+            } catch (cancel: CancellationException) { throw cancel }
+            catch (error: Exception) { if (ticket == generation) profileFail(error) }
+        }
+    }
+
+    private fun profileFail(error: Exception, infoBusy: Boolean = state.value.infoBusy) {
+        mutableState.value = state.value.copy(infoBusy = infoBusy, profileActionBusy = false,
+            profileError = (error as? HouseRequestException)?.serverMessage ?: "Request failed.")
     }
 
     fun clearMutationMessage() {
@@ -338,6 +436,7 @@ internal class HouseViewModel(
 
     private fun invalidate() {
         generation++
+        infoRequestSerial++
         work?.cancel(); work = null
         mutationWork?.cancel(); mutationWork = null
     }

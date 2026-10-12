@@ -30,7 +30,27 @@ internal data class HouseAnnouncement(
     val createdOn: String, val isActive: Boolean, val publisherId: String?, val publisherName: String?,
 )
 internal data class HouseInvite(val code: String, val expiresInSeconds: Int)
-internal data class HouseInfo(val payload: String)
+internal data class HouseInfoMember(val userId: String, val name: String, val profileImage: String, val isOwner: Boolean)
+internal data class HouseInfo(
+    val payload: String,
+    val houseName: String = "",
+    val houseProfileImage: String = "",
+    val houseType: Int = 0,
+    val houseMemberCount: Int = 0,
+    val houseMemberCountLimit: Int = 2,
+    val members: List<HouseInfoMember> = emptyList(),
+) {
+    val ownerId: String? get() = members.firstOrNull { it.isOwner }?.userId
+}
+
+private fun JSONObject.toHouseInfo() = HouseInfo(
+    payload = toString(), houseName = getString("houseName"),
+    houseProfileImage = optString("houseProfileImage"), houseType = getInt("houseType"),
+    houseMemberCount = getInt("houseMemberCount"), houseMemberCountLimit = getInt("houseMemberCountLimit"),
+    members = optJSONArray("houseMembers").objects {
+        HouseInfoMember(it.getString("userId"), it.getString("name"), it.optString("profileImage"), it.getBoolean("isOwner"))
+    },
+)
 
 internal class HouseRequestException(val serverMessage: String?) : IOException(serverMessage ?: "House request failed")
 
@@ -63,7 +83,7 @@ internal class HouseSessionRepository(
     }
 
     suspend fun info(houseId: String): HouseInfo = withContext(Dispatchers.IO) {
-        HouseInfo(call("info", "house/infos", "GET", queryHouse = houseId).toString())
+        call("info", "house/infos", "GET", queryHouse = houseId).toHouseInfo()
     }
 
     suspend fun invite(houseId: String): HouseInvite = withContext(Dispatchers.IO) {
@@ -77,9 +97,9 @@ internal class HouseSessionRepository(
 
     suspend fun updateProfile(houseId: String, name: String, type: Int, maxMemberCount: Int, profileImage: String): HouseInfo =
         withContext(Dispatchers.IO) {
-            HouseInfo(call("profile", "house/profile", "PUT", queryHouse = houseId,
+            call("profile", "house/profile", "PUT", queryHouse = houseId,
                 body = wire.body("profile", houseId = houseId, name = name, type = type,
-                    maxMemberCount = maxMemberCount, profileImage = profileImage)).toString())
+                    maxMemberCount = maxMemberCount, profileImage = profileImage)).toHouseInfo()
         }
 
     private suspend fun call(

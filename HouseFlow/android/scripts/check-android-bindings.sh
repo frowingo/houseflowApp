@@ -15,6 +15,9 @@ grep -Eq 'public static java\.lang\.String normalizeInviteCode\(java\.lang\.Stri
 grep -Eq 'public static java\.lang\.String loginRequestBody\(java\.lang\.String email, java\.lang\.String password\)' "$java_file"
 grep -Eq 'public static java\.lang\.String loginResponse\(int status, java\.lang\.String body\)' "$java_file"
 grep -Eq 'public static java\.lang\.String profileResponse\(int status, java\.lang\.String body\)' "$java_file"
+grep -Eq 'public static java\.lang\.String profileUpdateRequestBody\(' "$java_file"
+grep -Eq 'public static java\.lang\.String profileUpdateResponse\(int status, java\.lang\.String body\)' "$java_file"
+grep -Eq 'public static java\.lang\.String profileImagesResponse\(int status, java\.lang\.String body\)' "$java_file"
 grep -Eq 'public static java\.lang\.String signupRequestBody\(java\.lang\.String email, java\.lang\.String password, java\.lang\.String firstName, java\.lang\.String lastName\)' "$java_file"
 grep -Eq 'public static java\.lang\.String forgotPasswordRequestBody\(java\.lang\.String email\)' "$java_file"
 grep -Eq 'public static java\.lang\.String resetPasswordRequestBody\(java\.lang\.String email, java\.lang\.String code, java\.lang\.String newPassword\)' "$java_file"
@@ -28,9 +31,9 @@ grep -Eq 'public static java\.lang\.String dashboardResponse\(java\.lang\.String
 grep -Fq 'SwiftLibraries.loadLibraryWithFallbacks(LIB_NAME);' "$java_file"
 
 public_methods=$(grep -Ec '^[[:space:]]*public static .*\(' "$java_file")
-if [ "$public_methods" -ne 15 ]; then
-    echo "Expected exactly fifteen public JNI methods, found ${public_methods}" >&2
+if [ "$public_methods" -ne 18 ]; then
+    echo "Expected exactly eighteen public JNI methods, found ${public_methods}" >&2
     exit 1
 fi
 
-echo 'Generated JNI API matches the version-5 Kotlin boundary.'
+echo 'Generated JNI API matches the version-6 Kotlin boundary.'

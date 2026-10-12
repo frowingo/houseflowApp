@@ -130,13 +130,15 @@ private fun FlowField(label: String, value: String, onValue: (String) -> Unit, p
 }
 
 @Composable
-private fun OtpField(code: String, onCode: (String) -> Unit, label: String, digitsOnly: Boolean) {
+internal fun OtpField(code: String, onCode: (String) -> Unit, label: String,
+    digitsOnly: Boolean, characterCount: Int = 6) {
     var focused by remember { androidx.compose.runtime.mutableStateOf(false) }
     Box(Modifier.fillMaxWidth().height(58.dp), contentAlignment = Alignment.Center) {
-        Row(Modifier.fillMaxWidth().widthIn(max = 326.dp), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-            repeat(6) { index ->
+        Row(Modifier.fillMaxWidth().widthIn(max = if (characterCount == 8) 360.dp else 326.dp),
+            horizontalArrangement = Arrangement.spacedBy(if (characterCount == 8) 5.dp else 10.dp)) {
+            repeat(characterCount) { index ->
                 val character = code.getOrNull(index)?.toString().orEmpty()
-                val active = focused && index == code.length.coerceAtMost(5)
+                val active = focused && index == code.length.coerceAtMost(characterCount - 1)
                 Box(Modifier.weight(1f).height(58.dp).clip(RoundedCornerShape(12.dp))
                     .background(Color(0xFFF2F2F7))
                     .border(if (active) 2.dp else 1.dp,
@@ -148,7 +150,7 @@ private fun OtpField(code: String, onCode: (String) -> Unit, label: String, digi
         }
         BasicTextField(code, { typed ->
             onCode(typed.filter { if (digitsOnly) it.isDigit() else it.isLetterOrDigit() }
-                .take(6).let { if (digitsOnly) it else it.uppercase() })
+                .take(characterCount).let { if (digitsOnly) it else it.uppercase() })
         }, Modifier.fillMaxWidth().height(58.dp).onFocusChanged { focused = it.isFocused }
             .semantics { contentDescription = label }, singleLine = true,
             textStyle = TextStyle(color = Color.Transparent), cursorBrush = SolidColor(Color.Transparent),

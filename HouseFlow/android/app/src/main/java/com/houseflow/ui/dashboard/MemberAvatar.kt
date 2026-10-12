@@ -50,7 +50,7 @@ internal fun MemberAvatar(member: HouseMember?, size: Dp) {
     }
 }
 
-private object AvatarImages {
+internal object AvatarImages {
     private val client = OkHttpClient()
     private val cache = object : LruCache<String, Bitmap>(8 * 1024 * 1024) {
         override fun sizeOf(key: String, value: Bitmap): Int = value.byteCount
@@ -66,7 +66,7 @@ private object AvatarImages {
                 val bounds = BitmapFactory.Options().apply { inJustDecodeBounds = true }
                 BitmapFactory.decodeByteArray(bytes, 0, bytes.size, bounds)
                 var sample = 1
-                while (bounds.outWidth / sample > 128 || bounds.outHeight / sample > 128) sample *= 2
+                while (bounds.outWidth / sample > 256 || bounds.outHeight / sample > 256) sample *= 2
                 val image = BitmapFactory.decodeByteArray(bytes, 0, bytes.size,
                     BitmapFactory.Options().apply { inSampleSize = sample }) ?: return@withContext null
                 synchronized(cache) { cache.put(url, image) }

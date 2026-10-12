@@ -3,7 +3,7 @@ import XCTest
 
 final class InviteCodeBridgeTests: XCTestCase {
     func testVersionAndCoreRule() {
-        XCTAssertEqual(bridgeVersion(), 5)
+        XCTAssertEqual(bridgeVersion(), 6)
         XCTAssertEqual(normalizeInviteCode("ab-12 cd34xyz"), "AB12CD34")
         XCTAssertEqual(normalizeInviteCode(""), "")
         XCTAssertEqual(normalizeInviteCode("１２３４５６７８ 12345678"), "12345678")
@@ -65,5 +65,24 @@ final class InviteCodeBridgeTests: XCTestCase {
         ).utf8)) as? [String: Any])
         XCTAssertEqual(denied["ok"] as? Bool, false)
         XCTAssertEqual(denied["message"] as? String, "Denied")
+    }
+
+    func testProfileFacadeUsesOptionalFieldsAndRejectsMissingPayload() throws {
+        let body = try XCTUnwrap(JSONSerialization.jsonObject(with: Data(
+            profileUpdateRequestBody("", "", "Ada", "", "", "tr").utf8
+        )) as? [String: String])
+        XCTAssertEqual(body, ["firstName": "Ada", "language": "tr"])
+        let rejected = try XCTUnwrap(JSONSerialization.jsonObject(with: Data(
+            profileUpdateResponse(200, #"{"success":true,"data":null}"#).utf8
+        )) as? [String: Any])
+        XCTAssertEqual(rejected["ok"] as? Bool, false)
+        let serverError = try XCTUnwrap(JSONSerialization.jsonObject(with: Data(
+            profileUpdateResponse(200, #"{"success":false,"error":"Denied","data":null}"#).utf8
+        )) as? [String: Any])
+        XCTAssertEqual(serverError["message"] as? String, "Denied")
+        let images = try XCTUnwrap(JSONSerialization.jsonObject(with: Data(
+            profileImagesResponse(200, #"{"success":true,"data":[]}"#).utf8
+        )) as? [String: Any])
+        XCTAssertEqual(images["ok"] as? Bool, true)
     }
 }

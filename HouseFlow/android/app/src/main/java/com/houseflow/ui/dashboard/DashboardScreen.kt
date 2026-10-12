@@ -93,6 +93,7 @@ internal fun DashboardScreen(
     onAnnouncement: (String, String) -> Unit, onCreateChore: (ChoreInput) -> Unit,
     onStatus: (String, Int) -> Unit, onReview: (String, Boolean) -> Unit,
     onClearMessage: () -> Unit,
+    onProfile: () -> Unit = {},
 ) {
     val details = state.details ?: return
     var switcher by remember { mutableStateOf(false) }
@@ -140,7 +141,7 @@ internal fun DashboardScreen(
                 MembersCard(details.members, strings)
                 Spacer(Modifier.height(140.dp))
             }
-            if (popup == null) HomeBar(state, strings, { switcher = true })
+            if (popup == null) HomeBar(state, strings, { switcher = true }, onProfile)
         }
         Box(Modifier.align(Alignment.BottomEnd).padding(end = 24.dp, bottom = 108.dp)) {
             Button(onClick = {
@@ -319,11 +320,16 @@ private fun MembersCard(members: List<HouseMember>, strings: LocalizedText) {
 
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
-private fun HomeBar(state: HouseUiState, strings: LocalizedText, onShowSwitcher: () -> Unit) {
+private fun HomeBar(state: HouseUiState, strings: LocalizedText, onShowSwitcher: () -> Unit,
+    onProfile: () -> Unit) {
     Row(Modifier.fillMaxWidth().padding(horizontal = 24.dp, vertical = 12.dp)
         .clip(RoundedCornerShape(28.dp)).background(hero).padding(vertical = 12.dp),
         horizontalArrangement = Arrangement.SpaceEvenly, verticalAlignment = Alignment.CenterVertically) {
-        Icon(Icons.Filled.Person, strings.get("tab_profile"), Modifier.size(24.dp), tint = Color.White.copy(alpha = .55f))
+        Column(Modifier.clickable(onClick = onProfile), horizontalAlignment = Alignment.CenterHorizontally) {
+            Icon(Icons.Filled.Person, strings.get("tab_profile"), Modifier.size(24.dp),
+                tint = Color.White.copy(alpha = .7f))
+            Text(strings.get("tab_profile"), fontSize = 12.sp, color = Color.White.copy(alpha = .7f))
+        }
         Column(Modifier.combinedClickable(onClick = {}, onLongClick = { if (state.houses.size > 1) onShowSwitcher() })
             .semantics { contentDescription = strings.get("tab_home") }, horizontalAlignment = Alignment.CenterHorizontally) {
             Icon(Icons.Filled.Home, null, Modifier.size(26.dp), tint = Color.White)

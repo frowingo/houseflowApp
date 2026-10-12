@@ -55,6 +55,8 @@ internal class AndroidLocalizationState(
         if (!prefix.isNullOrBlank() && prefix != mutableText.value.prefix) select(prefix)
     }
 
+    suspend fun availableLanguages(): List<PlatformLanguage> = repository.fetchLanguages()
+
     companion object {
         fun chooseInitial(active: List<PlatformLanguage>, device: String): String? {
             val normalized = device.lowercase(Locale.ROOT).replace('_', '-')

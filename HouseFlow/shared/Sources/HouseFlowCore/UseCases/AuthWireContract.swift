@@ -71,6 +71,30 @@ public enum AuthWireContract {
         return result.success && result.data != nil
     }
 
+    public static func profileUpdateBody(
+        imageUrl: String? = nil, birthDay: String? = nil, firstName: String? = nil,
+        lastName: String? = nil, phoneNumber: String? = nil, language: String? = nil
+    ) throws -> Data {
+        try JSONEncoder().encode(UpdateProfileRequest(
+            imageUrl: imageUrl, birthDay: birthDay, firstName: firstName,
+            lastName: lastName, phoneNumber: phoneNumber, language: language
+        ))
+    }
+
+    public static func updatedProfile(from response: HTTPResponse, decoder: JSONDecoder = JSONDecoder()) throws -> UserResultModel {
+        try validateStatus(response, decoder: decoder)
+        let result = try decoder.decode(UpdateProfileResponse.self, from: response.body)
+        guard result.success, let profile = result.data else { throw ProfileWireError.rejected(result.error) }
+        return profile
+    }
+
+    public static func profileImages(from response: HTTPResponse, decoder: JSONDecoder = JSONDecoder()) throws -> [UserImageData] {
+        try validateStatus(response, decoder: decoder)
+        let result = try decoder.decode(GetImagesResponse.self, from: response.body)
+        guard result.success else { throw SessionRestoreError.invalidProfile }
+        return result.data
+    }
+
     public static func profileRequest(token: String) -> HTTPRequest {
         HTTPRequest(
             path: "auth/isAuth",
@@ -110,6 +134,10 @@ public enum AuthWireContract {
         if let token { headers["Authorization"] = "Bearer \(token)" }
         return HTTPRequest(path: path, method: method, headers: headers, body: try JSONEncoder().encode(body))
     }
+}
+
+public enum ProfileWireError: Error, Equatable {
+    case rejected(String?)
 }
 
 public enum AuthDestination: String, Equatable, Sendable {

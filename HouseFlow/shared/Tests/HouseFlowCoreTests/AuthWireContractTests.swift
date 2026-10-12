@@ -95,6 +95,29 @@ final class AuthWireContractTests: XCTestCase {
             statusCode: 200, headers: [:], body: Data(#"{"success":true,"data":null}"#.utf8))))
     }
 
+    func testProfileEditAndImageContractsUseExistingUserDtos() throws {
+        let encoded = try AuthWireContract.profileUpdateBody(firstName: "Ada", language: "tr")
+        let fields = try XCTUnwrap(JSONSerialization.jsonObject(with: encoded) as? [String: String])
+        XCTAssertEqual(fields, ["firstName": "Ada", "language": "tr"])
+
+        let user = try JSONSerialization.jsonObject(with: AuthUserFixtures.userProfileWithNullOptionals)
+        let accepted = try JSONSerialization.data(withJSONObject: ["success": true, "data": user])
+        let response = HTTPResponse(statusCode: 200, headers: [:], body: accepted)
+        XCTAssertEqual(try AuthWireContract.updatedProfile(from: response).firstName, "Grace")
+        XCTAssertThrowsError(try AuthWireContract.updatedProfile(from: HTTPResponse(
+            statusCode: 200, headers: [:], body: Data(#"{"success":false,"data":null}"#.utf8))))
+        XCTAssertThrowsError(try AuthWireContract.updatedProfile(from: HTTPResponse(
+            statusCode: 200, headers: [:], body: Data(#"{"success":false,"error":"Denied","data":null}"#.utf8)))) { error in
+            XCTAssertEqual(error as? ProfileWireError, .rejected("Denied"))
+        }
+
+        let images = try AuthWireContract.profileImages(from: HTTPResponse(
+            statusCode: 200, headers: [:], body: AuthUserFixtures.imagesResponse))
+        XCTAssertEqual(images.first?.fileURL, "https://example.com/avatar.png")
+        XCTAssertThrowsError(try AuthWireContract.profileImages(from: HTTPResponse(
+            statusCode: 200, headers: [:], body: Data(#"{"success":false,"data":[]}"#.utf8))))
+    }
+
     private func body(_ request: HTTPRequest) throws -> [String: Any] {
         try XCTUnwrap(JSONSerialization.jsonObject(with: XCTUnwrap(request.body)) as? [String: Any])
     }

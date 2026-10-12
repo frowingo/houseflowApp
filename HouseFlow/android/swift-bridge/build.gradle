@@ -6,7 +6,7 @@ android {
     namespace 'com.houseflow.androidbridge'
     compileSdk 36
     defaultConfig {
-        minSdk 31
+        minSdk 30
         consumerProguardFiles 'consumer-rules.pro'
     }
     compileOptions {
@@ -26,7 +26,8 @@ dependencies {
 def sdkBundle = providers.environmentVariable('SWIFT_ANDROID_SDK_BUNDLE').orNull
 def ndkHome = providers.environmentVariable('ANDROID_NDK_HOME').orNull
 def sdkId = 'swift-6.4.0-RELEASE_android'
-def apiLevel = 31
+// Keep the native target aligned with the app/library minSdk.
+def apiLevel = 30
 def abis = [
     'arm64-v8a': [triple: "aarch64-unknown-linux-android${apiLevel}", productArch: 'aarch64', swiftDir: 'swift-aarch64', ndkDir: 'aarch64-linux-android'],
     'x86_64'   : [triple: "x86_64-unknown-linux-android${apiLevel}", productArch: 'x86_64', swiftDir: 'swift-x86_64', ndkDir: 'x86_64-linux-android']
@@ -50,6 +51,7 @@ def preflight = tasks.register('checkSwiftAndroidToolchain', Exec) {
             dependsOn preflight
             workingDir projectDir
             commandLine 'swift', 'build', '--configuration', variant, '--swift-sdk', sdkId, '--triple', info.triple
+            inputs.property 'androidApiLevel', apiLevel
             inputs.files 'Package.swift', 'Package.resolved', fileTree('Sources'), fileTree('../../shared/Sources')
             outputs.dir ".build/out/Products/${variant.capitalize()}-android-${info.productArch}"
         }

@@ -18,6 +18,12 @@ internal data class AuthProfile(
     val firstName: String = "",
     val lastName: String = "",
     val houses: List<HouseSummary> = emptyList(),
+    val imageUrl: String = "",
+    val birthDay: String = "",
+    val createdOn: String = "",
+    val phoneNumber: String = "",
+    val isVerifyEmail: Boolean = false,
+    val isVerifyPhone: Boolean = false,
 )
 
 internal sealed interface AuthRestoreResult {
@@ -164,6 +170,8 @@ internal class AuthSessionRepository(
                     HouseSummary(house.getString("houseId"), house.getString("houseName"), house.optString("houseProfile"))
                 }
             } ?: emptyList(),
+            result.optString("imageUrl"), result.optString("birthDay"), result.optString("createdOn"),
+            result.optString("phoneNumber"), result.optBoolean("isVerifyEmail"), result.optBoolean("isVerifyPhone"),
         )
     }
 

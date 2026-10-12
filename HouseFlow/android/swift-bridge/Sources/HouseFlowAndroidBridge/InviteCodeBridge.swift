@@ -2,7 +2,7 @@ import Foundation
 import HouseFlowCore
 
 /// Narrow, versioned JNI boundary. HTTP execution and secure storage stay on Android.
-public func bridgeVersion() -> Int32 { 5 }
+public func bridgeVersion() -> Int32 { 6 }
 
 public func normalizeInviteCode(_ input: String) -> String {
     InviteCodeRules.normalized(input)
@@ -82,6 +82,12 @@ public func profileResponse(_ status: Int32, _ body: String) -> String {
             "firstName": profile.firstName,
             "lastName": profile.lastName,
             "language": profile.language ?? "",
+            "imageUrl": profile.imageUrl,
+            "birthDay": profile.birthDate ?? "",
+            "createdOn": profile.createdOn,
+            "phoneNumber": profile.phoneNumber,
+            "isVerifyEmail": profile.isVerifyEmail,
+            "isVerifyPhone": profile.isVerifyPhone,
             "houseList": profile.houseList.map { [
                 "houseId": $0.houseId,
                 "houseName": $0.houseName,
@@ -91,6 +97,42 @@ public func profileResponse(_ status: Int32, _ body: String) -> String {
     } catch {
         return failure(error)
     }
+}
+
+public func profileUpdateRequestBody(
+    _ imageUrl: String, _ birthDay: String, _ firstName: String,
+    _ lastName: String, _ phoneNumber: String, _ language: String
+) -> String {
+    let body = try? AuthWireContract.profileUpdateBody(
+        imageUrl: imageUrl.isEmpty ? nil : imageUrl,
+        birthDay: birthDay.isEmpty ? nil : birthDay,
+        firstName: firstName.isEmpty ? nil : firstName,
+        lastName: lastName.isEmpty ? nil : lastName,
+        phoneNumber: phoneNumber.isEmpty ? nil : phoneNumber,
+        language: language.isEmpty ? nil : language
+    )
+    return body.flatMap { String(data: $0, encoding: .utf8) } ?? "{}"
+}
+
+public func profileUpdateResponse(_ status: Int32, _ body: String) -> String {
+    do {
+        let profile = try AuthWireContract.updatedProfile(from: response(status, body))
+        return json(["ok": true, "firstName": profile.firstName, "lastName": profile.lastName,
+            "imageUrl": profile.imageUrl, "birthDay": profile.birthDate ?? "",
+            "phoneNumber": profile.phoneNumber, "language": profile.language ?? ""])
+    } catch {
+        if case ProfileWireError.rejected(let message) = error {
+            return json(["ok": false, "message": message ?? ""])
+        }
+        return failure(error)
+    }
+}
+
+public func profileImagesResponse(_ status: Int32, _ body: String) -> String {
+    do {
+        let images = try AuthWireContract.profileImages(from: response(status, body))
+        return json(["ok": true, "images": images.map { ["url": $0.fileURL, "publicId": $0.publicId] }])
+    } catch { return failure(error) }
 }
 
 /// One JNI call per house operation, never per dashboard item. The validated

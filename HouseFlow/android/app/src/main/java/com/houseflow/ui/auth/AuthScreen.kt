@@ -139,6 +139,11 @@ internal fun AuthScreen(
                     Modifier.fillMaxWidth().background(Color.Red.copy(alpha = .08f), RoundedCornerShape(12.dp)).padding(12.dp),
                     color = Color.Red, fontSize = 15.sp)
             }
+            if (state.notice != null) {
+                Text(state.notice,
+                    Modifier.fillMaxWidth().background(Color(0xFF34C759).copy(alpha = .10f), RoundedCornerShape(12.dp)).padding(12.dp),
+                    color = Color(0xFF237548), fontSize = 15.sp)
+            }
             val buttonBrush = if (state.canSubmit) hero else Brush.linearGradient(listOf(Color(0xFFD1D1D6), Color(0xFFD1D1D6)))
             Row(
                 Modifier.fillMaxWidth().height(54.dp).clip(RoundedCornerShape(20.dp)).background(buttonBrush)

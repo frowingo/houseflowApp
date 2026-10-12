@@ -6,6 +6,9 @@ import androidx.activity.compose.BackHandler
 import androidx.activity.compose.setContent
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.setValue
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.compose.NavHost
@@ -25,6 +28,7 @@ import com.houseflow.ui.house.HouseErrorScreen
 import com.houseflow.ui.house.HouseLoadingScreen
 import com.houseflow.ui.house.HouseSelectionScreen
 import com.houseflow.ui.house.JoinHouseScreen
+import com.houseflow.ui.profile.ProfileScreen
 import com.houseflow.viewmodel.AuthRoute
 import com.houseflow.viewmodel.AuthViewModel
 import com.houseflow.viewmodel.HouseRoute
@@ -45,9 +49,14 @@ class MainActivity : ComponentActivity() {
             authViewModel = model
             val state by model.state.collectAsStateWithLifecycle()
             val houseState by houseModel.state.collectAsStateWithLifecycle()
+            val profileState by model.profileState.collectAsStateWithLifecycle()
             val text by model.text.collectAsStateWithLifecycle()
+            var selectedTab by rememberSaveable { mutableStateOf("home") }
             LaunchedEffect(state.profile) {
                 state.profile?.let(houseModel::acceptProfile) ?: houseModel.resetSession()
+            }
+            LaunchedEffect(state.route) {
+                if (state.route !is AuthRoute.Next) selectedTab = "home"
             }
             LaunchedEffect(state.route) {
                 val isAuth = state.route is AuthRoute.SignIn || state.route is AuthRoute.ForgotPassword ||
@@ -71,7 +80,7 @@ class MainActivity : ComponentActivity() {
                         HouseRoute.SELECTION -> "houseSelection"
                         HouseRoute.CREATE -> "houseCreate"
                         HouseRoute.JOIN -> "houseJoin"
-                        HouseRoute.DASHBOARD -> "dashboard"
+                        HouseRoute.DASHBOARD -> if (selectedTab == "profile") "profile" else "dashboard"
                         HouseRoute.ERROR -> "houseError"
                     }
                 }
@@ -127,8 +136,21 @@ class MainActivity : ComponentActivity() {
                 composable("dashboard") {
                     DashboardScreen(houseState, text, houseModel::switchHouse,
                         houseModel::createAnnouncement, houseModel::createChore,
-                        houseModel::updateChoreStatus, houseModel::reviewChore, houseModel::clearMutationMessage)
+                        houseModel::updateChoreStatus, houseModel::reviewChore,
+                        houseModel::clearMutationMessage, { selectedTab = "profile" })
                     BackHandler { /* Root tab screen. */ }
+                }
+                composable("profile") {
+                    state.profile?.let { user ->
+                        ProfileScreen(user, houseState, profileState, text,
+                            { selectedTab = "home" }, model::logout, model::updateProfile,
+                            model::loadProfileImages, model::loadLanguages, model::saveLanguage,
+                            model::clearProfileError, houseModel::joinFromProfile,
+                            houseModel::loadInfo, houseModel::clearInfo, houseModel::createInvite,
+                            houseModel::updateHouseProfile, houseModel::removeMember,
+                            houseModel::leaveHouse, houseModel::clearProfileError)
+                    }
+                    BackHandler { selectedTab = "home" }
                 }
             }
         }

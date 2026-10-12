@@ -14,6 +14,10 @@ import com.houseflow.platform.AuthRequestException
 import com.houseflow.platform.AuthRestoreResult
 import com.houseflow.platform.AuthSessionRepository
 import com.houseflow.platform.LocalizedText
+import com.houseflow.platform.PlatformLanguage
+import com.houseflow.platform.ProfileChange
+import com.houseflow.platform.ProfileImage
+import com.houseflow.platform.ProfileRepository
 import java.io.IOException
 import java.time.LocalDate
 import java.time.ZoneId
@@ -57,21 +61,38 @@ internal data class AuthUiState(
     val birthday: LocalDate = LocalDate.now().minusYears(25),
     val busy: Boolean = false,
     val error: String? = null,
+    val notice: String? = null,
 ) {
     val canSubmit: Boolean get() = email.isNotEmpty() && password.isNotEmpty() &&
         (mode == AuthMode.SIGN_IN || (firstName.isNotEmpty() && lastName.isNotEmpty())) && !busy
 }
+
+internal data class ProfileUiState(
+    val images: List<ProfileImage> = emptyList(),
+    val languages: List<PlatformLanguage> = emptyList(),
+    val loadingImages: Boolean = false,
+    val loadingLanguages: Boolean = false,
+    val busy: Boolean = false,
+    val error: String? = null,
+    val savedSerial: Long = 0,
+)
 
 internal class AuthViewModel(
     private val session: AuthSessionRepository,
     private val localization: AndroidLocalizationState,
     private val preferences: AndroidPreferencesStore,
     private val now: () -> Long = System::currentTimeMillis,
+    private val profileRepository: ProfileRepository? = null,
 ) : ViewModel() {
     private val mutableState = MutableStateFlow(AuthUiState())
     val state: StateFlow<AuthUiState> = mutableState.asStateFlow()
     val text: StateFlow<LocalizedText> = localization.text
+    private val mutableProfileState = MutableStateFlow(ProfileUiState())
+    val profileState: StateFlow<ProfileUiState> = mutableProfileState.asStateFlow()
     private var sessionJob: Job? = null
+    private var profileJob: Job? = null
+    private var imageJob: Job? = null
+    private var languageJob: Job? = null
     private var backgroundAt: Long? = null
 
     init {
@@ -286,10 +307,14 @@ internal class AuthViewModel(
 
     fun logout() {
         sessionJob?.cancel()
+        profileJob?.cancel()
+        imageJob?.cancel()
+        languageJob?.cancel()
         sessionJob = viewModelScope.launch {
             mutableState.value = mutableState.value.copy(busy = true)
             try {
                 session.logout()
+                mutableProfileState.value = ProfileUiState()
                 mutableState.value = AuthUiState(route = signedOutRoute(preferences.hasSeenOnboarding()))
             } catch (cancel: CancellationException) {
                 throw cancel
@@ -299,6 +324,89 @@ internal class AuthViewModel(
                 )
             }
         }
+    }
+
+    fun loadProfileImages(category: String) {
+        val repository = profileRepository ?: return
+        imageJob?.cancel()
+        imageJob = viewModelScope.launch {
+            mutableProfileState.value = profileState.value.copy(images = emptyList(), loadingImages = true, error = null)
+            try {
+                val images = repository.images(category)
+                mutableProfileState.value = profileState.value.copy(images = images, loadingImages = false)
+            } catch (cancel: CancellationException) { throw cancel }
+            catch (error: Exception) { profileFail(error, loadingImages = false) }
+        }
+    }
+
+    fun loadLanguages() {
+        languageJob?.cancel()
+        languageJob = viewModelScope.launch {
+            mutableProfileState.value = profileState.value.copy(loadingLanguages = true, error = null)
+            try {
+                val languages = localization.availableLanguages()
+                mutableProfileState.value = profileState.value.copy(languages = languages, loadingLanguages = false)
+            } catch (cancel: CancellationException) { throw cancel }
+            catch (error: Exception) { profileFail(error, loadingLanguages = false) }
+        }
+    }
+
+    fun clearProfileError() { mutableProfileState.value = profileState.value.copy(error = null) }
+
+    fun updateProfile(change: ProfileChange) {
+        val current = state.value.profile ?: return
+        val repository = profileRepository ?: return
+        if (profileState.value.busy || current.userId.isBlank()) return
+        profileJob?.cancel()
+        profileJob = viewModelScope.launch {
+            mutableProfileState.value = profileState.value.copy(busy = true, error = null)
+            try {
+                val saved = repository.update(current.userId, change)
+                mutableState.value = state.value.copy(profile = current.copy(
+                    firstName = saved.firstName ?: current.firstName,
+                    lastName = saved.lastName ?: current.lastName,
+                    imageUrl = saved.imageUrl ?: current.imageUrl,
+                    birthDay = saved.birthDay ?: current.birthDay,
+                    phoneNumber = saved.phoneNumber ?: current.phoneNumber,
+                    language = saved.language ?: current.language,
+                ))
+                mutableProfileState.value = profileState.value.copy(busy = false,
+                    savedSerial = profileState.value.savedSerial + 1)
+            } catch (cancel: CancellationException) { throw cancel }
+            catch (error: Exception) { profileFail(error, busy = false) }
+        }
+    }
+
+    fun saveLanguage(prefix: String) {
+        val current = state.value.profile ?: return
+        val repository = profileRepository ?: return
+        if (profileState.value.busy || current.userId.isBlank() ||
+            profileState.value.languages.none { it.isActive && it.prefix.equals(prefix, true) }) return
+        profileJob?.cancel()
+        profileJob = viewModelScope.launch {
+            mutableProfileState.value = profileState.value.copy(busy = true, error = null)
+            try {
+                repository.update(current.userId, ProfileChange(language = prefix))
+                localization.select(prefix, forceRefresh = true)
+                session.logout()
+                imageJob?.cancel()
+                languageJob?.cancel()
+                mutableProfileState.value = ProfileUiState()
+                mutableState.value = AuthUiState(route = signedOutRoute(preferences.hasSeenOnboarding()),
+                    notice = localization.text.value.get("language_settings_relogin_message"))
+            } catch (cancel: CancellationException) { throw cancel }
+            catch (error: Exception) { profileFail(error, busy = false) }
+        }
+    }
+
+    private fun profileFail(error: Exception, busy: Boolean? = null,
+        loadingImages: Boolean? = null, loadingLanguages: Boolean? = null) {
+        mutableProfileState.value = profileState.value.copy(
+            busy = busy ?: profileState.value.busy,
+            loadingImages = loadingImages ?: profileState.value.loadingImages,
+            loadingLanguages = loadingLanguages ?: profileState.value.loadingLanguages,
+            error = (error as? AuthRequestException)?.serverMessage ?: "Request failed.",
+        )
     }
 
     fun onBackground() { backgroundAt = now() }
@@ -312,6 +420,7 @@ internal class AuthViewModel(
         mutableState.value = mutableState.value.copy(
             route = AuthRoute.Next(profile.destination, profile.email), password = "", busy = false, error = null,
             code = "", verificationSent = false, signupSuccess = false, profile = profile,
+            notice = null,
         )
     }
 
@@ -330,6 +439,7 @@ internal class AuthViewModel(
                 AuthSessionRepository.live(applicationContext, http),
                 AndroidLocalizationState.live(applicationContext, http),
                 AndroidPreferencesStore(applicationContext),
+                profileRepository = ProfileRepository.live(applicationContext, http),
             ) as T
         }
     }
