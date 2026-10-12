@@ -13,7 +13,7 @@ import org.junit.runner.RunWith
 @RunWith(AndroidJUnit4::class)
 class BridgeRoundtripTest {
     @Test fun authWireRunsThroughGeneratedJni() {
-        assertEquals(2, HouseFlowAndroidBridge.bridgeVersion())
+        assertEquals(5, HouseFlowAndroidBridge.bridgeVersion())
         val body = HouseFlowAndroidBridge.loginRequestBody("ada@example.com", "secret")
         assertEquals("ada@example.com", org.json.JSONObject(body).getString("email"))
         assertEquals("secret", org.json.JSONObject(body).getString("password"))
@@ -24,6 +24,27 @@ class BridgeRoundtripTest {
         assertEquals(true, result.getBoolean("ok"))
         assertEquals("dashboard", result.getString("destination"))
         assertEquals("en", result.getString("language"))
+        assertEquals("u", result.getString("userId"))
+        assertEquals("h", result.getJSONArray("houseList").getJSONObject(0).getString("houseId"))
+        val signup = org.json.JSONObject(HouseFlowAndroidBridge.signupRequestBody("ada@example.com", "secret", "Ada", "A"))
+        assertEquals("Ada", signup.getString("firstName"))
+        val verify = org.json.JSONObject(HouseFlowAndroidBridge.authActionResponse("verifyEmail", 200, """{"success":false}"""))
+        assertEquals(false, verify.getBoolean("ok"))
+        assertEquals("The verification code is invalid.", verify.getString("message"))
+        val birthday = org.json.JSONObject(HouseFlowAndroidBridge.birthdayRequestBody("2000-01-01T00:00:00Z"))
+        assertEquals("2000-01-01T00:00:00Z", birthday.getString("birthDay"))
+    }
+
+    @Test fun houseWireRunsThroughGeneratedJni() {
+        val create = org.json.JSONObject(HouseFlowAndroidBridge.houseRequestBody("create", "", "", "Home", "", 2, 5, ""))
+        assertEquals("Home", create.getString("name"))
+        val join = org.json.JSONObject(HouseFlowAndroidBridge.houseRequestBody("join", "", "", "", "ab-12 cd34", 0, 0, ""))
+        assertEquals("AB12CD34", join.getString("inviteCode"))
+        val house = """{"success":true,"data":{"id":"h","name":"Home","inviteCode":null,"maxMemberCount":4,"memberIds":[],"ownerId":"u","profileImage":"","type":1,"createdOn":"2026-01-01","updatedOn":"2026-01-02"}}"""
+        assertEquals("h", org.json.JSONObject(HouseFlowAndroidBridge.houseResponse("create", 200, house))
+            .getJSONObject("data").getString("id"))
+        val malformed = """{"success":true,"data":{"id":"h","name":"Home"}}"""
+        assertEquals(false, org.json.JSONObject(HouseFlowAndroidBridge.houseResponse("details", 200, malformed)).getBoolean("success"))
     }
 
     @Test fun coreRuleRunsThroughGeneratedJni() {

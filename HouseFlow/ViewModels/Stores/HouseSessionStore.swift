@@ -181,7 +181,10 @@ final class HouseSessionStore: ObservableObject {
     func loadPreferredHouseDetails(
         for profile: IsAuthUserData
     ) async throws -> (house: AuthHouseSummary, details: HouseDetailsResponse)? {
-        guard let preferredHouse = preferredHouse(in: profile.houseList) else { return nil }
+        guard let preferredHouse = HouseWireContract.preferredHouse(
+            in: profile.houseList,
+            chosenId: userDefaults.string(forKey: Self.chosenHouseKey)
+        ) else { return nil }
         let details = try await loadHouseDetails(houseId: preferredHouse.houseId)
         return (preferredHouse, details)
     }
@@ -196,14 +199,6 @@ final class HouseSessionStore: ObservableObject {
 
     func clearChosenHouseSelection() {
         userDefaults.removeObject(forKey: Self.chosenHouseKey)
-    }
-
-    private func preferredHouse(in houses: [AuthHouseSummary]) -> AuthHouseSummary? {
-        if let chosenHouseId = userDefaults.string(forKey: Self.chosenHouseKey),
-           let chosenHouse = houses.first(where: { $0.houseId == chosenHouseId }) {
-            return chosenHouse
-        }
-        return houses.first
     }
 
     private func applyHouseProfile(_ info: HouseInfoData, houseId: String) {

@@ -4,6 +4,13 @@ plugins {
     id("org.jetbrains.kotlin.plugin.compose")
 }
 
+// Keep the default universal debug APK for emulator/CI coverage. A physical
+// arm64 device can request a smaller installable APK with -PhouseflowAbi=arm64-v8a.
+val requestedAbi = providers.gradleProperty("houseflowAbi").orNull
+require(requestedAbi == null || requestedAbi in setOf("arm64-v8a", "x86_64")) {
+    "houseflowAbi must be arm64-v8a or x86_64"
+}
+
 android {
     namespace = "com.houseflow"
     compileSdk = 36
@@ -16,7 +23,7 @@ android {
         versionName = "0.1.0-spike"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         ndk {
-            abiFilters += setOf("arm64-v8a", "x86_64")
+            abiFilters += requestedAbi?.let { setOf(it) } ?: setOf("arm64-v8a", "x86_64")
         }
     }
 

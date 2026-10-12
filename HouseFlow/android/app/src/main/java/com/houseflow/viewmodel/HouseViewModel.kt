@@ -1,0 +1,358 @@
+package com.houseflow.viewmodel
+
+import android.content.Context
+import androidx.lifecycle.ViewModel
+import androidx.lifecycle.ViewModelProvider
+import androidx.lifecycle.viewModelScope
+import com.houseflow.platform.AndroidHttpAdapter
+import com.houseflow.platform.AndroidPreferencesStore
+import com.houseflow.platform.AuthProfile
+import com.houseflow.platform.ChoreInput
+import com.houseflow.platform.DashboardRepository
+import com.houseflow.platform.HouseAnnouncement
+import com.houseflow.platform.HouseChore
+import com.houseflow.platform.HouseDetails
+import com.houseflow.platform.HouseInfo
+import com.houseflow.platform.HouseInvite
+import com.houseflow.platform.HouseRequestException
+import com.houseflow.platform.HouseSessionRepository
+import com.houseflow.platform.HouseSummary
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.launch
+
+internal enum class HouseRoute { LOADING, SELECTION, CREATE, JOIN, DASHBOARD, ERROR }
+internal enum class HouseLoadingPhase { LOADING_HOUSE, CREATING, JOINING, LOADING_DETAILS }
+
+internal data class HouseUiState(
+    val route: HouseRoute = HouseRoute.LOADING,
+    val phase: HouseLoadingPhase = HouseLoadingPhase.LOADING_HOUSE,
+    val houses: List<HouseSummary> = emptyList(),
+    val details: HouseDetails? = null,
+    val info: HouseInfo? = null,
+    val invite: HouseInvite? = null,
+    val userId: String = "",
+    val firstName: String = "",
+    val busy: Boolean = false,
+    val error: String? = null,
+    val mutationBusy: Boolean = false,
+    val mutationError: String? = null,
+    val mutationSerial: Long = 0,
+    val mutationMessageKey: String? = null,
+)
+
+/** One owner for the active house. A generation gates every async completion. */
+internal class HouseViewModel(
+    private val repository: HouseSessionRepository,
+    private val preferences: AndroidPreferencesStore,
+    private val dashboard: DashboardRepository? = null,
+) : ViewModel() {
+    private val mutableState = MutableStateFlow(HouseUiState())
+    val state: StateFlow<HouseUiState> = mutableState.asStateFlow()
+    private var generation = 0L
+    private var work: Job? = null
+    private var mutationWork: Job? = null
+    private var profileKey: String? = null
+    private var pendingHouse: HouseSummary? = null
+    private var pendingRequestKey: String? = null
+
+    fun acceptProfile(profile: AuthProfile) {
+        if (profileKey == profile.userId + ":" + profile.houses.joinToString { it.id }) return
+        invalidate()
+        profileKey = profile.userId + ":" + profile.houses.joinToString { it.id }
+        val houses = profile.houses
+        mutableState.value = HouseUiState(houses = houses, userId = profile.userId, firstName = profile.firstName)
+        if (houses.isEmpty()) {
+            mutableState.value = state.value.copy(route = HouseRoute.SELECTION)
+            return
+        }
+        val ticket = generation
+        work = viewModelScope.launch {
+            try {
+                val chosen = preferences.chosenHouse()
+                val selected = houses.firstOrNull { it.id == chosen } ?: houses.first()
+                loadSelected(selected, ticket, HouseRoute.ERROR)
+            } catch (cancel: CancellationException) { throw cancel }
+            catch (error: Exception) { if (ticket == generation) fail(HouseRoute.ERROR, error) }
+        }
+    }
+
+    fun resetSession() {
+        invalidate()
+        profileKey = null
+        pendingHouse = null
+        pendingRequestKey = null
+        mutableState.value = HouseUiState()
+    }
+
+    fun showCreate() { if (!state.value.busy) mutableState.value = state.value.copy(route = HouseRoute.CREATE, error = null) }
+    fun showJoin() { if (!state.value.busy) mutableState.value = state.value.copy(route = HouseRoute.JOIN, error = null) }
+    fun backToSelection() {
+        if (!state.value.busy) {
+            pendingHouse = null
+            pendingRequestKey = null
+            mutableState.value = state.value.copy(route = HouseRoute.SELECTION, error = null)
+        }
+    }
+
+    fun create(name: String, type: Int, maxMemberCount: Int) {
+        if (state.value.busy || name.isBlank() || state.value.route != HouseRoute.CREATE) return
+        val ticket = begin(HouseLoadingPhase.CREATING)
+        work = viewModelScope.launch {
+            try {
+                val requestKey = "create:${name.trim()}:$type:$maxMemberCount"
+                val created = pendingHouse?.takeIf { pendingRequestKey == requestKey }
+                    ?: repository.create(name.trim(), type, maxMemberCount)
+                if (ticket != generation) return@launch
+                pendingHouse = created
+                pendingRequestKey = requestKey
+                mutableState.value = state.value.copy(phase = HouseLoadingPhase.LOADING_DETAILS)
+                loadSelected(created, ticket, HouseRoute.CREATE)
+            } catch (cancel: CancellationException) { throw cancel }
+            catch (error: Exception) { if (ticket == generation) fail(HouseRoute.CREATE, error) }
+        }
+    }
+
+    fun join(code: String) {
+        if (state.value.busy || state.value.route != HouseRoute.JOIN || code.length != 8) return
+        val ticket = begin(HouseLoadingPhase.JOINING)
+        work = viewModelScope.launch {
+            try {
+                val requestKey = "join:$code"
+                val joined = pendingHouse?.takeIf { pendingRequestKey == requestKey } ?: repository.join(code)
+                if (ticket != generation) return@launch
+                pendingHouse = joined
+                pendingRequestKey = requestKey
+                mutableState.value = state.value.copy(phase = HouseLoadingPhase.LOADING_DETAILS)
+                loadSelected(joined, ticket, HouseRoute.JOIN)
+            } catch (cancel: CancellationException) { throw cancel }
+            catch (error: Exception) { if (ticket == generation) fail(HouseRoute.JOIN, error) }
+        }
+    }
+
+    fun retry() {
+        val pending = pendingHouse
+        if (pending != null) {
+            val ticket = begin(HouseLoadingPhase.LOADING_DETAILS)
+            work = viewModelScope.launch {
+                try { loadSelected(pending, ticket, HouseRoute.ERROR) }
+                catch (cancel: CancellationException) { throw cancel }
+                catch (error: Exception) { if (ticket == generation) fail(HouseRoute.ERROR, error) }
+            }
+        } else {
+            val selected = state.value.houses.firstOrNull() ?: run {
+                mutableState.value = state.value.copy(route = HouseRoute.SELECTION, busy = false)
+                return
+            }
+            val ticket = begin(HouseLoadingPhase.LOADING_HOUSE)
+            work = viewModelScope.launch {
+                try {
+                    val chosen = preferences.chosenHouse()
+                    loadSelected(state.value.houses.firstOrNull { it.id == chosen } ?: selected, ticket, HouseRoute.ERROR)
+                } catch (cancel: CancellationException) { throw cancel }
+                catch (error: Exception) { if (ticket == generation) fail(HouseRoute.ERROR, error) }
+            }
+        }
+    }
+
+    fun switchHouse(houseId: String) {
+        val selected = state.value.houses.firstOrNull { it.id == houseId } ?: return
+        if (state.value.route != HouseRoute.DASHBOARD || state.value.details?.id == houseId) return
+        val previous = state.value.details
+        val ticket = begin(HouseLoadingPhase.LOADING_HOUSE)
+        work = viewModelScope.launch {
+            try { loadSelected(selected, ticket, HouseRoute.DASHBOARD) }
+            catch (cancel: CancellationException) { throw cancel }
+            catch (error: Exception) {
+                if (ticket == generation) {
+                    mutableState.value = state.value.copy(details = previous)
+                    fail(HouseRoute.DASHBOARD, error)
+                }
+            }
+        }
+    }
+
+    fun leaveHouse(houseId: String) {
+        val current = state.value
+        if (current.busy || current.houses.none { it.id == houseId } || current.userId.isBlank()) return
+        val ticket = begin(HouseLoadingPhase.LOADING_HOUSE)
+        work = viewModelScope.launch {
+            try {
+                repository.exit(houseId, current.userId)
+                if (ticket != generation) return@launch
+                val remaining = current.houses.filterNot { it.id == houseId }
+                mutableState.value = state.value.copy(houses = remaining, info = null, invite = null)
+                if (current.details?.id != houseId) {
+                    mutableState.value = state.value.copy(route = HouseRoute.DASHBOARD, busy = false)
+                    return@launch
+                }
+                mutableState.value = state.value.copy(details = null)
+                try { preferences.setChosenHouse(null) } catch (cancel: CancellationException) { throw cancel }
+                catch (_: Exception) { /* Removed house is absent from profile; restore falls back safely. */ }
+                if (remaining.isEmpty()) {
+                    mutableState.value = state.value.copy(route = HouseRoute.SELECTION, busy = false)
+                } else {
+                    loadSelected(remaining.first(), ticket, HouseRoute.ERROR)
+                }
+            } catch (cancel: CancellationException) { throw cancel }
+            catch (error: Exception) { if (ticket == generation) fail(HouseRoute.ERROR, error) }
+        }
+    }
+
+    fun loadInfo(houseId: String) {
+        if (state.value.houses.none { it.id == houseId }) return
+        val ticket = generation
+        viewModelScope.launch {
+            try {
+                val info = repository.info(houseId)
+                if (ticket == generation && state.value.houses.any { it.id == houseId })
+                    mutableState.value = state.value.copy(info = info)
+            } catch (cancel: CancellationException) { throw cancel }
+            catch (error: Exception) { if (ticket == generation) mutableState.value = state.value.copy(error = error.message) }
+        }
+    }
+
+    fun createInvite(houseId: String) {
+        if (state.value.houses.none { it.id == houseId }) return
+        val ticket = generation
+        viewModelScope.launch {
+            try {
+                val invite = repository.invite(houseId)
+                if (ticket == generation && state.value.houses.any { it.id == houseId })
+                    mutableState.value = state.value.copy(invite = invite)
+            } catch (cancel: CancellationException) { throw cancel }
+            catch (error: Exception) { if (ticket == generation) mutableState.value = state.value.copy(error = error.message) }
+        }
+    }
+
+    fun clearMutationMessage() {
+        mutableState.value = state.value.copy(mutationError = null, mutationMessageKey = null)
+    }
+
+    fun createAnnouncement(title: String, message: String) {
+        val current = activeDetails() ?: return
+        if (title.isBlank() || message.isBlank()) return
+        mutate(current.id, "announcement_created_toast") {
+            val result = requireNotNull(dashboard).announce(current.id, title.trim(), message.trim())
+            require(result.houseId == null || result.houseId == current.id)
+            current.copy(announcements = current.announcements.filterNot { it.id == result.id } + result)
+        }
+    }
+
+    fun createChore(input: ChoreInput) {
+        val current = activeDetails() ?: return
+        if (input.houseId != current.id || input.title.isBlank() || current.members.none { it.id == input.assignedTo }) return
+        mutate(current.id, "chore_created_toast") {
+            current.merge(requireNotNull(dashboard).createChore(input))
+        }
+    }
+
+    fun updateChore(choreId: String, input: ChoreInput) {
+        val current = activeDetails() ?: return
+        if (input.houseId != current.id || current.chores.none { it.id == choreId }) return
+        mutate(current.id, "chore_status_updated_toast") {
+            current.merge(requireNotNull(dashboard).updateChore(choreId, input))
+        }
+    }
+
+    fun updateChoreStatus(choreId: String, status: Int) {
+        val current = activeDetails() ?: return
+        val chore = current.chores.firstOrNull { it.id == choreId } ?: return
+        if (chore.assignedTo != state.value.userId || status != chore.status + 1 || status !in 1..2) return
+        mutate(current.id, "chore_status_updated_toast") {
+            val updated = requireNotNull(dashboard).updateStatus(current.id, choreId, status)
+            require(updated.any { it.id == choreId })
+            updated.fold(current) { details, item -> details.merge(item) }
+        }
+    }
+
+    fun reviewChore(choreId: String, approved: Boolean) {
+        val current = activeDetails() ?: return
+        val chore = current.chores.firstOrNull { it.id == choreId } ?: return
+        val userId = state.value.userId
+        if (userId.isBlank() || chore.status != 2 || chore.assignedTo == userId ||
+            chore.reviewVotes.any { it.reviewRound == chore.reviewRound && it.reviewerId == userId }) return
+        mutate(current.id, if (approved) "chore_approved_toast" else "chore_sent_back_toast") {
+            current.merge(requireNotNull(dashboard).review(choreId, approved))
+        }
+    }
+
+    private fun activeDetails(): HouseDetails? = state.value.takeIf {
+        it.route == HouseRoute.DASHBOARD && !it.busy && !it.mutationBusy
+    }?.details
+
+    private fun mutate(houseId: String, messageKey: String, operation: suspend () -> HouseDetails) {
+        if (dashboard == null) return
+        val ticket = generation
+        mutableState.value = state.value.copy(mutationBusy = true, mutationError = null, mutationMessageKey = null)
+        mutationWork = viewModelScope.launch {
+            try {
+                val updated = operation()
+                if (ticket == generation && state.value.details?.id == houseId) {
+                    mutableState.value = state.value.copy(details = updated, mutationBusy = false,
+                        mutationSerial = state.value.mutationSerial + 1, mutationMessageKey = messageKey)
+                }
+            } catch (cancel: CancellationException) { throw cancel }
+            catch (error: Exception) {
+                if (ticket == generation && state.value.details?.id == houseId) {
+                    mutableState.value = state.value.copy(mutationBusy = false,
+                        mutationError = (error as? HouseRequestException)?.serverMessage ?: "Request failed.")
+                }
+            }
+        }
+    }
+
+    private fun HouseDetails.merge(chore: HouseChore): HouseDetails {
+        require(chore.houseId == id)
+        return copy(chores = if (chores.any { it.id == chore.id })
+            chores.map { if (it.id == chore.id) chore else it } else chores + chore)
+    }
+
+    private suspend fun loadSelected(selected: HouseSummary, ticket: Long, failureRoute: HouseRoute) {
+        try {
+            val details = repository.details(selected.id)
+            if (ticket != generation) return
+            preferences.setChosenHouse(details.id)
+            if (ticket != generation) return
+            pendingHouse = null
+            pendingRequestKey = null
+            mutableState.value = state.value.copy(
+                route = HouseRoute.DASHBOARD, busy = false, details = details, info = null, invite = null,
+                houses = (state.value.houses.filterNot { it.id == selected.id } + selected).let { list ->
+                    if (state.value.houses.any { it.id == selected.id }) state.value.houses else list
+                }, error = null,
+            )
+        } catch (cancel: CancellationException) { throw cancel }
+        catch (error: Exception) { if (ticket == generation) fail(failureRoute, error) }
+    }
+
+    private fun begin(phase: HouseLoadingPhase): Long {
+        invalidate()
+        mutableState.value = state.value.copy(route = HouseRoute.LOADING, phase = phase, busy = true,
+            error = null, mutationBusy = false, mutationError = null, mutationMessageKey = null)
+        return generation
+    }
+
+    private fun invalidate() {
+        generation++
+        work?.cancel(); work = null
+        mutationWork?.cancel(); mutationWork = null
+    }
+    private fun fail(route: HouseRoute, error: Exception) {
+        mutableState.value = state.value.copy(route = route, busy = false,
+            error = (error as? HouseRequestException)?.serverMessage ?: "Request failed.")
+    }
+
+    class Factory(context: Context) : ViewModelProvider.Factory {
+        private val applicationContext = context.applicationContext
+        @Suppress("UNCHECKED_CAST")
+        override fun <T : ViewModel> create(modelClass: Class<T>): T {
+            val http = AndroidHttpAdapter.live()
+            return HouseViewModel(HouseSessionRepository.live(applicationContext, http),
+                AndroidPreferencesStore(applicationContext), DashboardRepository.live(applicationContext, http)) as T
+        }
+    }
+}

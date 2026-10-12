@@ -29,6 +29,7 @@ import androidx.compose.material.icons.automirrored.filled.ArrowForward
 import androidx.compose.material.icons.filled.Email
 import androidx.compose.material.icons.filled.Home
 import androidx.compose.material.icons.filled.Lock
+import androidx.compose.material.icons.filled.Person
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
@@ -60,6 +61,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.houseflow.platform.LocalizedText
 import com.houseflow.viewmodel.AuthUiState
+import com.houseflow.viewmodel.AuthMode
 
 private val orange = Color(0xFFFFA500)
 private val primary = Color(0xFF007AFF)
@@ -68,13 +70,17 @@ private val secondary = Color(0xFF8E8E93)
 private val ink = Color(0xFF1C1C1E)
 private val hero = Brush.linearGradient(listOf(orange, Color(0xFFFFC060)))
 
-/** Dimensions and hierarchy follow iOS AuthView. Only sign-in is active in F7. */
+/** Dimensions and hierarchy follow iOS AuthView. */
 @Composable
 internal fun AuthScreen(
     state: AuthUiState,
     strings: LocalizedText,
     onEmail: (String) -> Unit,
     onPassword: (String) -> Unit,
+    onFirstName: (String) -> Unit,
+    onLastName: (String) -> Unit,
+    onMode: (AuthMode) -> Unit,
+    onForgot: () -> Unit,
     onSubmit: () -> Unit,
 ) {
     val focus = LocalFocusManager.current
@@ -101,23 +107,32 @@ internal fun AuthScreen(
             verticalArrangement = Arrangement.spacedBy(24.dp),
         ) {
             Row(Modifier.fillMaxWidth().clip(RoundedCornerShape(16.dp)).background(gray6).padding(4.dp)) {
-                Box(
-                    Modifier.weight(1f).height(36.dp).shadow(6.dp, RoundedCornerShape(12.dp))
-                        .background(Color.White, RoundedCornerShape(12.dp)), contentAlignment = Alignment.Center,
-                ) { Text(strings.get("auth_sign_in_tab"), fontSize = 15.sp, fontWeight = FontWeight.SemiBold, color = primary) }
-                Box(Modifier.weight(1f).height(36.dp), contentAlignment = Alignment.Center) {
-                    Text(strings.get("auth_sign_up_tab"), fontSize = 15.sp, fontWeight = FontWeight.SemiBold, color = secondary)
-                }
+                AuthTab(strings.get("auth_sign_in_tab"), state.mode == AuthMode.SIGN_IN, Modifier.weight(1f)) { onMode(AuthMode.SIGN_IN) }
+                AuthTab(strings.get("auth_sign_up_tab"), state.mode == AuthMode.SIGN_UP, Modifier.weight(1f)) { onMode(AuthMode.SIGN_UP) }
             }
             Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
+                if (state.mode == AuthMode.SIGN_UP) {
+                    Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                        Box(Modifier.weight(1f)) {
+                            AuthField(strings.get("auth_first_name_label"), strings.get("auth_first_name_placeholder"),
+                                state.firstName, onFirstName, Icons.Filled.Person, false, KeyboardType.Text, ImeAction.Next)
+                        }
+                        Box(Modifier.weight(1f)) {
+                            AuthField(strings.get("auth_last_name_label"), strings.get("auth_last_name_placeholder"),
+                                state.lastName, onLastName, Icons.Filled.Person, false, KeyboardType.Text, ImeAction.Next)
+                        }
+                    }
+                }
                 AuthField(strings.get("auth_email_label"), strings.get("auth_email_placeholder"), state.email,
                     onEmail, Icons.Filled.Email, false, KeyboardType.Email, ImeAction.Next)
                 AuthField(strings.get("auth_password_label"), strings.get("auth_password_placeholder"), state.password,
                     onPassword, Icons.Filled.Lock, true, KeyboardType.Password, ImeAction.Done) {
                     focus.clearFocus(); onSubmit()
                 }
-                Text(strings.get("auth_forgot_password_button"), Modifier.fillMaxWidth(), color = primary,
-                    fontSize = 14.sp, fontWeight = FontWeight.Medium, textAlign = TextAlign.End)
+                if (state.mode == AuthMode.SIGN_IN) {
+                    Text(strings.get("auth_forgot_password_button"), Modifier.fillMaxWidth().clickable(onClick = onForgot), color = primary,
+                        fontSize = 14.sp, fontWeight = FontWeight.Medium, textAlign = TextAlign.End)
+                }
             }
             if (state.error != null) {
                 Text(strings.values[state.error] ?: state.error,
@@ -128,14 +143,15 @@ internal fun AuthScreen(
             Row(
                 Modifier.fillMaxWidth().height(54.dp).clip(RoundedCornerShape(20.dp)).background(buttonBrush)
                     .clickable(enabled = state.canSubmit) { focus.clearFocus(); onSubmit() }
-                    .semantics { contentDescription = strings.get("auth_sign_in_button") },
+                    .semantics { contentDescription = strings.get(if (state.mode == AuthMode.SIGN_UP) "auth_create_account_button" else "auth_sign_in_button") },
                 horizontalArrangement = Arrangement.Center, verticalAlignment = Alignment.CenterVertically,
             ) {
                 if (state.busy) CircularProgressIndicator(Modifier.size(22.dp), color = Color.White, strokeWidth = 2.dp)
                 else {
                     Icon(Icons.AutoMirrored.Filled.ArrowForward, null, Modifier.size(18.dp), tint = Color.White)
                     Spacer(Modifier.width(8.dp))
-                    Text(strings.get("auth_sign_in_button"), color = Color.White, fontWeight = FontWeight.Bold, fontSize = 17.sp)
+                    Text(strings.get(if (state.mode == AuthMode.SIGN_UP) "auth_create_account_button" else "auth_sign_in_button"),
+                        color = Color.White, fontWeight = FontWeight.Bold, fontSize = 17.sp)
                 }
             }
             Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
@@ -149,6 +165,16 @@ internal fun AuthScreen(
                 SocialButton(strings.get("auth_snapchat_button"), SocialKind.Snapchat, Color.Yellow, Color.Black, Modifier.weight(1f))
             }
         }
+    }
+}
+
+@Composable
+private fun AuthTab(label: String, selected: Boolean, modifier: Modifier, onClick: () -> Unit) {
+    Box(modifier.height(36.dp).clip(RoundedCornerShape(12.dp))
+        .then(if (selected) Modifier.shadow(6.dp, RoundedCornerShape(12.dp)).background(Color.White) else Modifier)
+        .clickable(onClick = onClick), contentAlignment = Alignment.Center) {
+        Text(label, fontSize = 15.sp, fontWeight = FontWeight.SemiBold,
+            color = if (selected) primary else secondary)
     }
 }
 

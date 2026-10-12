@@ -11,18 +11,28 @@ class AuthSessionRepositoryTest {
     private val requests = mutableListOf<PlatformHttpRequest>()
     private var loginResponse = PlatformHttpResponse(200, emptyMap(), "token".toByteArray())
     private var profileResponse = PlatformHttpResponse(200, emptyMap(), "profile".toByteArray())
+    private var profileDestination = "dashboard"
     private val wire = object : AuthWire {
         override fun loginBody(email: String, password: String) = """{"email":"$email","password":"$password"}"""
         override fun loginResult(status: Int, body: String) = if (status == 200) """{"ok":true,"token":"abc"}"""
             else """{"ok":false,"message":"Invalid credentials"}"""
         override fun profileResult(status: Int, body: String) = if (status == 200)
-            """{"ok":true,"destination":"dashboard","email":"ada@example.com","firstName":"Ada","lastName":"A","language":"tr"}"""
+            """{"ok":true,"destination":"$profileDestination","email":"ada@example.com","firstName":"Ada","lastName":"A","language":"tr","userId":"u"}"""
             else """{"ok":false,"message":"Unauthorised"}"""
+        override fun signupBody(email: String, password: String, firstName: String, lastName: String) =
+            """{"email":"$email","password":"$password","firstName":"$firstName","lastName":"$lastName"}"""
+        override fun forgotBody(email: String) = """{"email":"$email"}"""
+        override fun resetBody(email: String, code: String, newPassword: String) =
+            """{"email":"$email","code":"$code","newPassword":"$newPassword"}"""
+        override fun verifyBody(code: String) = """{"code":"$code"}"""
+        override fun birthdayBody(birthDay: String) = """{"birthDay":"$birthDay"}"""
+        override fun actionResult(action: String, status: Int, body: String) =
+            if (status == 200) """{"ok":true}""" else """{"ok":false,"message":"Rejected"}"""
     }
     private val repository = AuthSessionRepository(
         send = { request ->
             requests += request
-            if (request.path == "auth/login") loginResponse else profileResponse
+            if (request.path == "auth/login" || request.path == "auth/signup") loginResponse else profileResponse
         },
         read = { fields[it]?.let(SessionReadResult::Value) ?: SessionReadResult.Missing },
         write = { field, value -> if (value == null) fields.remove(field) else fields[field] = value },
@@ -73,5 +83,46 @@ class AuthSessionRepositoryTest {
         val error = runCatching { repository.login("ada@example.com", "password") }.exceptionOrNull()
         assertEquals("Unauthorised", (error as AuthProfileException).serverMessage)
         assertEquals("abc", fields[SessionField.AUTH_TOKEN])
+    }
+
+    @Test fun unverifiedLoginPersistsPendingForProcessRestart() = runBlocking {
+        profileDestination = "emailVerification"
+        val profile = repository.login("ada@example.com", "secret")
+        assertEquals(AuthDestination.EMAIL_VERIFICATION, profile.destination)
+        assertEquals(AuthRestoreResult.PendingEmailVerification("ada@example.com"), repository.restore())
+    }
+
+    @Test fun signupPersistsPendingVerificationAndRestoreSkipsNetwork() = runBlocking {
+        repository.signup("ada@example.com", "secret", "Ada", "A")
+        assertEquals("abc", fields[SessionField.AUTH_TOKEN])
+        assertEquals("ada@example.com", fields[SessionField.PENDING_EMAIL_VERIFICATION])
+        assertEquals(AuthRestoreResult.PendingEmailVerification("ada@example.com"), repository.restore())
+        assertEquals(listOf("auth/signup"), requests.map { it.path })
+    }
+
+    @Test fun verificationKeepsPendingOnFailureAndClearsAfterProfile() = runBlocking {
+        repository.signup("ada@example.com", "secret", "Ada", "A")
+        profileResponse = PlatformHttpResponse(400, emptyMap(), byteArrayOf())
+        val failure = runCatching { repository.verifyEmail("badbad") }.exceptionOrNull()
+        assertTrue(failure is AuthRequestException)
+        assertEquals("ada@example.com", fields[SessionField.PENDING_EMAIL_VERIFICATION])
+        profileResponse = PlatformHttpResponse(200, emptyMap(), byteArrayOf())
+        repository.verifyEmail("ABC123")
+        assertNull(fields[SessionField.PENDING_EMAIL_VERIFICATION])
+        assertEquals("POST", requests.last { it.path == "auth/validate-email" }.method)
+    }
+
+    @Test fun forgotResetAndBirthdayUseIosEndpointsAndQuery() = runBlocking {
+        fields[SessionField.AUTH_TOKEN] = "abc"
+        repository.forgotPassword("ada@example.com")
+        repository.resetPassword("ada@example.com", "123456", "new-password")
+        repository.sendVerificationCode()
+        repository.updateBirthday("2000-01-01T00:00:00Z")
+        assertEquals(listOf("auth/forget", "auth/reset", "auth/validate-email", "auth/isAuth", "user/profile/u", "auth/isAuth"),
+            requests.map { it.path })
+        val birthday = requests.first { it.path == "user/profile/u" }
+        assertEquals("PUT", birthday.method)
+        assertEquals("u", birthday.queryItems.single().value)
+        assertEquals("Bearer abc", birthday.headers["Authorization"])
     }
 }

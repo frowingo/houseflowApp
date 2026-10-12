@@ -70,7 +70,9 @@ internal fun AuthStatusScreen(route: AuthRoute, strings: LocalizedText, retry: (
                 Spacer(Modifier.height(24.dp))
                 CircularProgressIndicator()
             }
+            AuthRoute.Onboarding -> Unit
             AuthRoute.SignIn -> Unit
+            AuthRoute.ForgotPassword -> Unit
         }
     }
 }
