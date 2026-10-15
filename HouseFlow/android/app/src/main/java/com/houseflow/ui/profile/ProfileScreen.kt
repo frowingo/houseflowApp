@@ -1,21 +1,16 @@
 package com.houseflow.ui.profile
 
-import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.material3.Icon
-import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
@@ -25,26 +20,12 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
-import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.Shape
-import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.style.TextAlign
-import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
 import com.houseflow.platform.AuthProfile
 import com.houseflow.platform.LocalizedText
 import com.houseflow.platform.ProfileChange
-import com.houseflow.ui.components.HouseFlowPopup
-import com.houseflow.ui.components.PopupError
-import com.houseflow.ui.components.PopupHeader
-import com.houseflow.ui.components.PopupHeaderTitle
-import com.houseflow.ui.components.PopupPrimaryButton
-import com.houseflow.ui.components.PopupSecondaryButton
-import com.houseflow.ui.components.RemoteImage
 import com.houseflow.ui.components.mainScreenBackground
 import com.houseflow.ui.dashboard.displayApiDate
 import com.houseflow.ui.main.TabBarClearance
@@ -55,14 +36,6 @@ import com.houseflow.ui.theme.entrance
 import com.houseflow.ui.theme.rememberEntrance
 import com.houseflow.viewmodel.HouseUiState
 import com.houseflow.viewmodel.ProfileUiState
-
-// Profile popups predate the shared theme; keep their names but resolve to the iOS tokens.
-internal val profilePage = HouseFlowColors.secondaryBackground
-internal val profileInk = HouseFlowColors.textPrimary
-internal val profileMuted = HouseFlowColors.textSecondary
-internal val profileOrange = HouseFlowColors.accentOrange
-internal val profilePurple = ProfileTints.house
-internal val profileTeal = ProfileTints.personalTeal
 
 /** iOS ProfileView fallbacks for keys absent from the supplied 415-key EN snapshot. */
 internal fun LocalizedText.profileValue(key: String): String = values[key] ?: PROFILE_FALLBACKS[key] ?: key
@@ -263,65 +236,12 @@ internal fun ProfileScreen(
         ProfilePopup.Edit -> EditProfileDialog(user, profile, strings, ::close, onUpdateProfile)
         ProfilePopup.Avatar -> AvatarDialog(user, profile, strings, ::close, onUpdateProfile)
         ProfilePopup.Language -> LanguageDialog(user, profile, strings, ::close, onSaveLanguage)
-        ProfilePopup.About -> ProfileDialog(strings.profileValue("profile_about_label"), false, ::close) {
-            Text(strings.profileValue("profile_about_quote"), color = profileOrange, textAlign = TextAlign.Center,
-                fontSize = 19.sp, fontWeight = FontWeight.Bold, modifier = Modifier.fillMaxWidth().padding(24.dp))
-            Text(strings.profileValue("profile_about_made_with_love"), color = profileMuted,
-                modifier = Modifier.fillMaxWidth().padding(bottom = 16.dp), textAlign = TextAlign.Center)
-            ProfileFooter(strings.profileValue("profile_about_close_button"), true, ::close)
-        }
+        ProfilePopup.About -> AboutDialog(strings, ::close)
         ProfilePopup.Phone -> PhoneManagementDialog(user, strings, ::close)
         ProfilePopup.Logout -> LogoutConfirmationPopup(strings, onConfirm = { close(); onLogout() }, onCancel = ::close)
         ProfilePopup.Join -> JoinHouseDialog(house, strings, ::close, onJoin)
         is ProfilePopup.House -> HouseInfoDialog(shown.id, house, profile, strings, ::close,
             onOpenHouse, onInvite, onLoadImages, onUpdateHouse, onRemoveMember, onLeave)
         null -> Unit
-    }
-}
-
-/** Shared profile popup shell (the iOS profile popups all use the brand header card). */
-@Composable
-internal fun ProfileDialog(title: String, busy: Boolean, onDismiss: () -> Unit, content: @Composable () -> Unit) {
-    HouseFlowPopup(
-        onDismiss = onDismiss,
-        dismissEnabled = !busy,
-        maxBodyHeight = 640.dp,
-        header = {
-            PopupHeader(onClose = onDismiss, closeEnabled = !busy, closeDescription = title, height = 60.dp) {
-                PopupHeaderTitle(title)
-            }
-        },
-        bodyPadding = 0.dp,
-        bodySpacing = 0.dp,
-        scrollableBody = false,
-    ) { content() }
-}
-
-/** Primary popup action (orange gradient). */
-@Composable
-internal fun ProfileFooter(label: String, enabled: Boolean, onClick: () -> Unit) {
-    PopupPrimaryButton(label, enabled, onClick,
-        Modifier.fillMaxWidth().padding(horizontal = Spacing.xl, vertical = Spacing.md))
-}
-
-/** Neutral popup action (Cancel / Close). */
-@Composable
-internal fun ProfileSecondaryFooter(label: String, enabled: Boolean, onClick: () -> Unit) {
-    PopupSecondaryButton(label, enabled, onClick,
-        Modifier.fillMaxWidth().padding(start = Spacing.xl, end = Spacing.xl, bottom = Spacing.lg))
-}
-
-@Composable
-internal fun ProfileError(message: String?) {
-    Box(Modifier.fillMaxWidth().padding(horizontal = Spacing.xl)) { PopupError(message) }
-}
-
-@Composable
-internal fun ProfileRemoteImage(url: String, size: Dp, shape: Shape, isHouse: Boolean = false) {
-    RemoteImage(url, Modifier.size(size).clip(shape)) {
-        Box(Modifier.fillMaxSize().background(profilePurple.copy(alpha = .11f)), contentAlignment = Alignment.Center) {
-            Icon(if (isHouse) HouseFlowIcons.houseFill else HouseFlowIcons.personFill, null,
-                tint = profilePurple, modifier = Modifier.size(size / 2))
-        }
     }
 }

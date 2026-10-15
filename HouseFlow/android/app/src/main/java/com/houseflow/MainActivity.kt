@@ -1,14 +1,21 @@
 package com.houseflow
 
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.setValue
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.BackHandler
 import androidx.activity.compose.setContent
+import androidx.compose.foundation.layout.Box
+import androidx.core.view.WindowCompat
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.imePadding
+import androidx.compose.ui.Modifier
+import com.houseflow.ui.components.dismissKeyboardOnTap
+import com.houseflow.viewmodel.HouseLoadingPhase
 import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.saveable.rememberSaveable
-import androidx.compose.runtime.setValue
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.compose.NavHost
@@ -17,7 +24,6 @@ import androidx.navigation.compose.rememberNavController
 import com.houseflow.platform.AppLifecycle
 import com.houseflow.platform.AuthDestination
 import com.houseflow.ui.auth.AuthScreen
-import com.houseflow.ui.auth.AuthStatusScreen
 import com.houseflow.ui.auth.BirthdaySetupScreen
 import com.houseflow.ui.auth.EmailVerificationScreen
 import com.houseflow.ui.auth.ForgotPasswordScreen
@@ -41,6 +47,10 @@ class MainActivity : ComponentActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        // Compose owns every inset (status/nav bars and the keyboard) on all API levels, matching
+        // the edge-to-edge behavior Android 15+ enforces. Screens pad themselves; the IME is
+        // handled once at the root below.
+        WindowCompat.setDecorFitsSystemWindows(window, false)
         window.statusBarColor = android.graphics.Color.WHITE
         window.navigationBarColor = android.graphics.Color.WHITE
         @Suppress("DEPRECATION")
@@ -86,12 +96,16 @@ class MainActivity : ComponentActivity() {
                         HouseRoute.ERROR -> "houseError"
                     }
                 }
-                else -> "status"
+                AuthRoute.Restoring -> "houseLoading"
+                is AuthRoute.RestoreError -> "status"
             }
             LaunchedEffect(target) {
                 nav.navigate(target) { popUpTo(nav.graph.id) { inclusive = true }; launchSingleTop = true }
             }
-            NavHost(navController = nav, startDestination = "status") {
+            // Root keyboard policy: content shrinks above the IME (focused fields scroll into view)
+            // and taps on empty space dismiss it, like iOS keyboard avoidance + dismissKeyboardOnTap.
+            Box(Modifier.fillMaxSize().imePadding().dismissKeyboardOnTap()) {
+            NavHost(navController = nav, startDestination = "houseLoading") {
                 composable("onboarding") {
                     OnboardingScreen(text, state.busy, model::completeOnboarding)
                 }
@@ -112,11 +126,14 @@ class MainActivity : ComponentActivity() {
                     BirthdaySetupScreen(state, text, model::setBirthday, model::saveBirthday)
                 }
                 composable("status") {
-                    AuthStatusScreen(state.route, text, model::restore, model::logout)
-                    BackHandler(state.route is AuthRoute.Next) { /* Keep authenticated route stable. */ }
+                    HouseErrorScreen(text, model::restore, model::logout)
+                    BackHandler { /* iOS restore error requires Retry or Log out. */ }
                 }
                 composable("houseLoading") {
-                    HouseLoadingScreen(houseState, text)
+                    // One loading surface for session restore and house work, like iOS HouseLoadingView:
+                    // only the phase copy/color changes, so there is no second loader on launch.
+                    val phase = if (state.route is AuthRoute.Next) houseState.phase else HouseLoadingPhase.CHECKING_AUTH
+                    HouseLoadingScreen(phase, text)
                     BackHandler { /* Match iOS loading: await the active operation. */ }
                 }
                 composable("houseSelection") {
@@ -132,7 +149,7 @@ class MainActivity : ComponentActivity() {
                     BackHandler { houseModel.backToSelection() }
                 }
                 composable("houseError") {
-                    HouseErrorScreen(houseState, text, houseModel::retry, model::logout)
+                    HouseErrorScreen(text, houseModel::retry, model::logout)
                     BackHandler { /* iOS house error requires Retry or Log out. */ }
                 }
                 composable("main") {
@@ -162,6 +179,7 @@ class MainActivity : ComponentActivity() {
                     // Profile returns to Home; Home is the root tab and keeps the session screen.
                     BackHandler { if (selectedTab != MainTab.HOME) selectedTab = MainTab.HOME }
                 }
+            }
             }
         }
     }

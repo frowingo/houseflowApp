@@ -25,7 +25,8 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 
 internal enum class HouseRoute { LOADING, SELECTION, CREATE, JOIN, DASHBOARD, ERROR }
-internal enum class HouseLoadingPhase { LOADING_HOUSE, CREATING, JOINING, LOADING_DETAILS }
+/** iOS `HouseLoadingPhase`; CHECKING_AUTH covers the session restore before a house is known. */
+internal enum class HouseLoadingPhase { CHECKING_AUTH, LOADING_HOUSE, CREATING, JOINING, LOADING_DETAILS }
 
 internal data class HouseUiState(
     val route: HouseRoute = HouseRoute.LOADING,

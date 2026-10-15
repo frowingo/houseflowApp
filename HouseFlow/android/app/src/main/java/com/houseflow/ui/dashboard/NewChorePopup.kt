@@ -1,5 +1,7 @@
 package com.houseflow.ui.dashboard
 
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.setValue
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.expandVertically
@@ -25,23 +27,14 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
-import androidx.compose.material3.DatePicker
-import androidx.compose.material3.DatePickerDefaults
-import androidx.compose.material3.DatePickerDialog
-import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
-import androidx.compose.material3.SelectableDates
 import androidx.compose.material3.Switch
 import androidx.compose.material3.SwitchDefaults
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
-import androidx.compose.material3.rememberDatePickerState
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
-import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -60,6 +53,7 @@ import com.houseflow.platform.ChoreInput
 import com.houseflow.platform.HouseDetails
 import com.houseflow.platform.HouseMember
 import com.houseflow.platform.LocalizedText
+import com.houseflow.ui.components.CompactDatePicker
 import com.houseflow.ui.components.HouseFlowPopup
 import com.houseflow.ui.components.PopupError
 import com.houseflow.ui.components.PopupFooter
@@ -76,12 +70,9 @@ import com.houseflow.ui.theme.HouseFlowType
 import com.houseflow.ui.theme.Motion
 import com.houseflow.ui.theme.Radius
 import com.houseflow.ui.theme.Spacing
-import java.time.Instant
 import java.time.LocalDate
 import java.time.ZoneId
-import java.time.ZoneOffset
 import java.time.format.DateTimeFormatter
-import java.time.format.FormatStyle
 
 private val accentOrange = HouseFlowColors.accentOrange
 
@@ -237,48 +228,14 @@ private fun LevelOption(level: ChoreLevelUi, selected: Boolean, strings: Localiz
     }
 }
 
-/** Compact iOS date picker: a gray pill inside the filled field; tapping opens the calendar. */
-@OptIn(ExperimentalMaterial3Api::class)
+/** Compact iOS date picker in the filled field; the calendar opens as a floating card. */
 @Composable
 private fun DueDateField(date: LocalDate, strings: LocalizedText, onChange: (LocalDate) -> Unit) {
-    var picking by remember { mutableStateOf(false) }
+    val today = LocalDate.now()
     Box(Modifier.fillMaxWidth().clip(RoundedCornerShape(Radius.md)).background(HouseFlowColors.secondaryBackground)
         .padding(horizontal = Spacing.md, vertical = Spacing.sm)) {
-        Text(date.format(DateTimeFormatter.ofLocalizedDate(FormatStyle.MEDIUM)),
-            Modifier.clip(RoundedCornerShape(Radius.sm)).background(Color(0x1F767680))
-                .clickable(role = Role.Button) { picking = true }
-                .padding(horizontal = 11.dp, vertical = 6.dp),
-            style = HouseFlowType.body, color = if (picking) accentOrange else HouseFlowColors.textPrimary)
-    }
-    if (picking) {
-        val today = LocalDate.now()
-        val state = rememberDatePickerState(
-            initialSelectedDateMillis = date.atStartOfDay(ZoneOffset.UTC).toInstant().toEpochMilli(),
-            selectableDates = object : SelectableDates {
-                override fun isSelectableDate(utcTimeMillis: Long) =
-                    !Instant.ofEpochMilli(utcTimeMillis).atZone(ZoneOffset.UTC).toLocalDate().isBefore(today)
-                override fun isSelectableYear(year: Int) = year >= today.year
-            },
-        )
-        val colors = DatePickerDefaults.colors(
-            selectedDayContainerColor = accentOrange,
-            todayDateBorderColor = accentOrange,
-            todayContentColor = accentOrange,
-            selectedYearContainerColor = accentOrange,
-        )
-        DatePickerDialog(
-            onDismissRequest = { picking = false },
-            confirmButton = {
-                TextButton(onClick = {
-                    state.selectedDateMillis?.let { onChange(Instant.ofEpochMilli(it).atZone(ZoneOffset.UTC).toLocalDate()) }
-                    picking = false
-                }) { Text(strings.get("common_continue"), color = accentOrange) }
-            },
-            dismissButton = {
-                TextButton(onClick = { picking = false }) { Text(strings.get("common_cancel"), color = accentOrange) }
-            },
-            colors = colors,
-        ) { DatePicker(state, colors = colors) }
+        CompactDatePicker(date, onChange, today..today.plusYears(5), accentOrange,
+            description = strings.get("new_chore_due_date_label"))
     }
 }
 

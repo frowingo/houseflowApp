@@ -62,10 +62,10 @@ class ProfileScreenTest {
         compose.onNodeWithText("Ada's home").assertExists()
         // iOS shows the edit action as a pencil button labelled for accessibility.
         compose.onNodeWithContentDescription("Edit").performClick()
-        // The card row and the open edit popup both show the field label.
-        compose.onAllNodesWithText("First name").assertCountEquals(2)
+        // The card row and the open edit popup's first-name field both show the value.
+        compose.onAllNodesWithText("Ada").assertCountEquals(2)
         compose.onNodeWithText("Cancel").performClick()
-        compose.onAllNodesWithText("First name").assertCountEquals(1)
+        compose.onAllNodesWithText("Ada").assertCountEquals(1)
     }
 
     @Test fun tabBarSelectsTabsAndKeepsGamesInert() {

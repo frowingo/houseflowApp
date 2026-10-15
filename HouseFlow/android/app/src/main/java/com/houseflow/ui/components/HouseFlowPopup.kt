@@ -1,5 +1,6 @@
 package com.houseflow.ui.components
 
+import androidx.compose.runtime.getValue
 import androidx.compose.animation.core.Animatable
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -10,7 +11,6 @@ import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
-import androidx.compose.runtime.getValue
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.style.TextAlign
@@ -102,7 +102,12 @@ internal fun HouseFlowPopup(
     ) {
         // The backdrop below is drawn by the popup itself, so the window dim must stay off.
         val window = (LocalView.current.parent as? DialogWindowProvider)?.window
-        SideEffect { window?.setDimAmount(0f) }
+        SideEffect {
+            window?.setDimAmount(0f)
+            // Popup windows follow the same keyboard policy as the activity root.
+            @Suppress("DEPRECATION")
+            window?.setSoftInputMode(android.view.WindowManager.LayoutParams.SOFT_INPUT_ADJUST_RESIZE)
+        }
         val appear = remember { Animatable(0f) }
         LaunchedEffect(Unit) { appear.animateTo(1f, Motion.standard()) }
         val shape = RoundedCornerShape(cornerRadius)
@@ -127,8 +132,8 @@ internal fun HouseFlowPopup(
                     .clip(shape)
                     .mainScreenBackground()
                     .border(1.dp, borderColor, shape)
-                    // Taps inside the card never reach the dismissing backdrop.
-                    .clickable(remember { MutableInteractionSource() }, indication = null) {},
+                    // Taps on empty card space hide the keyboard and never reach the dismissing backdrop.
+                    .dismissKeyboardOnTap(),
             ) {
                 header?.invoke()
                 Column(
@@ -172,8 +177,9 @@ internal fun PopupHeader(
         }
         Row(Modifier.fillMaxWidth().padding(horizontal = Spacing.xl),
             verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(spacing)) {
-            content()
-            Spacer(Modifier.weight(1f))
+            // Leading content owns all space up to the close button, so long subtitles ellipsize at the edge.
+            Row(Modifier.weight(1f), verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(spacing), content = content)
             PopupCloseButton(onClose, closeEnabled, closeDescription, closeSize, closeBackgroundAlpha)
         }
     }

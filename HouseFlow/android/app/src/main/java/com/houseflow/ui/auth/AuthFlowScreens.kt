@@ -1,5 +1,7 @@
 package com.houseflow.ui.auth
 
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.setValue
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -8,13 +10,11 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.navigationBarsPadding
-import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
@@ -26,24 +26,17 @@ import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
-import androidx.compose.material.icons.filled.DateRange
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Email
 import androidx.compose.material.icons.filled.Lock
 import androidx.compose.material3.CircularProgressIndicator
-import androidx.compose.material3.DatePicker
-import androidx.compose.material3.DatePickerDefaults
-import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
-import androidx.compose.material3.rememberDatePickerState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -66,12 +59,6 @@ import androidx.compose.ui.window.Dialog
 import com.houseflow.platform.LocalizedText
 import com.houseflow.viewmodel.AuthUiState
 import com.houseflow.viewmodel.ForgotPhase
-import java.time.Instant
-import java.time.LocalDate
-import java.time.ZoneOffset
-import java.time.format.DateTimeFormatter
-import java.time.format.FormatStyle
-import java.util.Locale
 import kotlinx.coroutines.delay
 
 private val orange = Color(0xFFFFA500)
@@ -253,65 +240,5 @@ internal fun ForgotPasswordScreen(state: AuthUiState, strings: LocalizedText, on
         }
         if (state.forgotPhase == ForgotPhase.COMPLETE) Text(strings.get("forgot_password_success_toast"), color = Color(0xFF34C759))
         ErrorText(state.error, strings)
-    }
-}
-
-@OptIn(ExperimentalMaterial3Api::class)
-@Composable
-internal fun BirthdaySetupScreen(state: AuthUiState, strings: LocalizedText, onDate: (LocalDate) -> Unit, onSave: () -> Unit) {
-    val today = remember { LocalDate.now() }
-    val earliest = remember(today) { today.minusYears(120) }
-    val picker = rememberDatePickerState(
-        initialSelectedDateMillis = state.birthday.atStartOfDay(ZoneOffset.UTC).toInstant().toEpochMilli(),
-        yearRange = earliest.year..today.year,
-        selectableDates = object : androidx.compose.material3.SelectableDates {
-            override fun isSelectableDate(utcTimeMillis: Long): Boolean {
-                val date = Instant.ofEpochMilli(utcTimeMillis).atZone(ZoneOffset.UTC).toLocalDate()
-                return !date.isBefore(earliest) && !date.isAfter(today)
-            }
-        },
-    )
-    LaunchedEffect(picker.selectedDateMillis) {
-        picker.selectedDateMillis?.let { onDate(Instant.ofEpochMilli(it).atZone(ZoneOffset.UTC).toLocalDate()) }
-    }
-    Column(Modifier.fillMaxSize().background(Color(0xFFF2F2F7)).verticalScroll(rememberScrollState()).navigationBarsPadding()) {
-        Box(Modifier.fillMaxWidth().background(Brush.linearGradient(listOf(accentOrange, Color(0xFFFFA338))))
-            .statusBarsPadding().height(280.dp), contentAlignment = Alignment.Center) {
-            Box(Modifier.align(Alignment.TopStart).padding(start = 45.dp, top = 46.dp).size(12.dp)
-                .background(Color.White.copy(alpha = .32f), CircleShape))
-            Box(Modifier.align(Alignment.TopEnd).padding(end = 55.dp, top = 36.dp).size(7.dp)
-                .background(Color.White.copy(alpha = .42f), CircleShape))
-            Box(Modifier.align(Alignment.BottomEnd).padding(end = 28.dp, bottom = 80.dp).size(16.dp)
-                .background(Color.White.copy(alpha = .18f), CircleShape))
-            Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(16.dp)) {
-                Box(Modifier.size(112.dp).background(Color.White.copy(alpha = .15f), CircleShape), contentAlignment = Alignment.Center) {
-                    Box(Modifier.size(88.dp).background(Color.White.copy(alpha = .20f), CircleShape), contentAlignment = Alignment.Center) {
-                        Icon(Icons.Filled.DateRange, null, Modifier.size(42.dp), tint = Color.White)
-                    }
-                }
-                Text(strings.get("birthday_setup_title"), Modifier.padding(horizontal = 20.dp),
-                    fontSize = 27.sp, fontWeight = FontWeight.Bold, color = Color.White, textAlign = TextAlign.Center)
-                Text(strings.get("birthday_setup_subtitle"), Modifier.padding(horizontal = 40.dp),
-                    fontSize = 15.sp, color = Color.White.copy(alpha = .82f), textAlign = TextAlign.Center)
-            }
-        }
-        Column(Modifier.fillMaxWidth().offset(y = (-28).dp).padding(horizontal = 20.dp)
-            .shadow(10.dp, RoundedCornerShape(28.dp)).background(Color.White, RoundedCornerShape(28.dp))
-            .padding(20.dp), horizontalAlignment = Alignment.CenterHorizontally,
-            verticalArrangement = Arrangement.spacedBy(20.dp)) {
-            Text(strings.get("birthday_setup_date_label"), fontSize = 17.sp,
-                fontWeight = FontWeight.Bold, color = ink, textAlign = TextAlign.Center)
-            val locale = remember(strings.prefix) { Locale.forLanguageTag(strings.prefix ?: Locale.getDefault().toLanguageTag()) }
-            Text(state.birthday.format(DateTimeFormatter.ofLocalizedDate(FormatStyle.LONG).withLocale(locale)),
-                fontSize = 14.sp, fontWeight = FontWeight.SemiBold, color = accentOrange, textAlign = TextAlign.Center)
-            DatePicker(state = picker, modifier = Modifier.fillMaxWidth(), title = null, headline = null,
-                showModeToggle = false, colors = DatePickerDefaults.colors(
-                    selectedDayContainerColor = accentOrange, todayDateBorderColor = accentOrange, todayContentColor = accentOrange))
-            Text(strings.get("birthday_setup_privacy_note"), Modifier.fillMaxWidth()
-                .background(accentOrange.copy(alpha = .08f), RoundedCornerShape(12.dp)).padding(12.dp),
-                color = muted, fontSize = 12.sp)
-            ErrorText(state.error, strings)
-            FlowButton(strings.get("birthday_setup_continue_button"), state.busy, !state.busy, onSave)
-        }
     }
 }

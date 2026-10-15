@@ -53,7 +53,32 @@ import androidx.compose.material.icons.rounded.TextFields
 import androidx.compose.material.icons.rounded.Verified
 import androidx.compose.material.icons.rounded.WatchLater
 import androidx.compose.material.icons.rounded.Warning
+import androidx.compose.material.icons.rounded.ChevronLeft
+import androidx.compose.material.icons.rounded.ChevronRight
+import androidx.compose.material.icons.rounded.School
+import androidx.compose.material.icons.rounded.Apartment
+import androidx.compose.material.icons.rounded.Group
+import androidx.compose.material.icons.rounded.Tune
+import androidx.compose.material.icons.rounded.Collections
+import androidx.compose.material.icons.rounded.PersonRemove
+import androidx.compose.material.icons.rounded.PersonAddAlt
+import androidx.compose.material.icons.rounded.Key
+import androidx.compose.material.icons.rounded.ContentCopy
+import androidx.compose.material.icons.rounded.IosShare
+import androidx.compose.material.icons.rounded.Star
+import androidx.compose.material.icons.rounded.Flag
+import androidx.compose.material.icons.rounded.GppBad
+import androidx.compose.material.icons.rounded.GppGood
+import androidx.compose.material.icons.rounded.FormatQuote
+import androidx.compose.material.icons.rounded.Favorite
+import androidx.compose.material.icons.automirrored.rounded.ArrowBack
+import androidx.compose.material.icons.rounded.Remove
+import androidx.compose.material.icons.rounded.Shield
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.graphics.vector.path
+import androidx.compose.ui.unit.dp
 
 /**
  * One place that maps the SF Symbols used by the SwiftUI views to their closest Material
@@ -71,6 +96,7 @@ internal object HouseFlowIcons {
     val listClipboardFill: ImageVector = Icons.AutoMirrored.Rounded.Assignment
     val person3Fill: ImageVector = Icons.Rounded.Groups
     val plus: ImageVector = Icons.Rounded.Add
+    val minus: ImageVector = Icons.Rounded.Remove
     val xmark: ImageVector = Icons.Rounded.Close
     val checkmark: ImageVector = Icons.Rounded.Check
     val checkmarkCircleFill: ImageVector = Icons.Rounded.CheckCircle
@@ -112,4 +138,45 @@ internal object HouseFlowIcons {
     val person2BadgePlus: ImageVector = Icons.Rounded.GroupAdd
     val birthdayCakeFill: ImageVector = Icons.Rounded.Cake
     val exclamationmarkTriangleFill: ImageVector = Icons.Rounded.Warning
+    val chevronLeft: ImageVector = Icons.Rounded.ChevronLeft
+    val arrowLeft: ImageVector = Icons.AutoMirrored.Rounded.ArrowBack
+    val flag: ImageVector = Icons.Rounded.Flag
+    val checkmarkShieldFill: ImageVector = Icons.Rounded.GppGood
+    val exclamationmarkShieldFill: ImageVector = Icons.Rounded.GppBad
+    /** SF `quote.closing`; `quote.opening` is the same glyph rotated 180°. */
+    val quoteClosing: ImageVector = Icons.Rounded.FormatQuote
+    val heartFill: ImageVector = Icons.Rounded.Favorite
+
+    val chevronRightSmall: ImageVector = Icons.Rounded.ChevronRight
+    val graduationcapFill: ImageVector = Icons.Rounded.School
+    val building2Fill: ImageVector = Icons.Rounded.Apartment
+    val person2Fill: ImageVector = Icons.Rounded.Group
+    val sliderHorizontal3: ImageVector = Icons.Rounded.Tune
+    val photoOnRectangle: ImageVector = Icons.Rounded.Collections
+    val personFillXmark: ImageVector = Icons.Rounded.PersonRemove
+    val personBadgePlus: ImageVector = Icons.Rounded.PersonAddAlt
+    val keyFill: ImageVector = Icons.Rounded.Key
+    val docOnDoc: ImageVector = Icons.Rounded.ContentCopy
+    val squareAndArrowUp: ImageVector = Icons.Rounded.IosShare
+    val starFill: ImageVector = Icons.Rounded.Star
+    val lockShield: ImageVector = Icons.Rounded.Shield
+
+    /** SF `crown.fill`; Material has no crown, so the silhouette is drawn here. */
+    val crownFill: ImageVector by lazy {
+        ImageVector.Builder("crownFill", 24.dp, 24.dp, 24f, 24f).path(fill = SolidColor(Color.Black)) {
+            moveTo(3f, 7f)
+            lineTo(7.5f, 10.5f)
+            lineTo(12f, 4f)
+            lineTo(16.5f, 10.5f)
+            lineTo(21f, 7f)
+            lineTo(19f, 17f)
+            lineTo(5f, 17f)
+            close()
+            moveTo(5f, 18.5f)
+            lineTo(19f, 18.5f)
+            lineTo(19f, 20.5f)
+            lineTo(5f, 20.5f)
+            close()
+        }.build()
+    }
 }
