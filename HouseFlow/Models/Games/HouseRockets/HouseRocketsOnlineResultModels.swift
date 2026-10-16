@@ -1,4 +1,5 @@
 import Foundation
+import HouseFlowCore
 
 struct HouseRocketsResultPlayerIdentity: Equatable, Sendable {
     let displayName: String

@@ -1,4 +1,5 @@
 import Foundation
+import HouseFlowCore
 
 // Dedicated v2 wire DTOs. Nullable game fields must exist, even when their value is null.
 enum HouseRocketsWirePhase: String, Decodable, Sendable {
@@ -26,18 +27,6 @@ extension KeyedDecodingContainer {
         }
         return try decodeIfPresent(type, forKey: key)
     }
-}
-
-struct HouseRocketsRuntimeSettingsDTO: Decodable, Equatable, Sendable {
-    let physicsRateHz: Int
-    let schedulingRateHz: Int
-    let snapshotRateHz: Int
-    let maximumInputRateHz: Int
-    let maximumSteerMessagesPerSecond: Int
-    let controlHeartbeatMilliseconds: Int64
-    let controlTimeoutMilliseconds: Int64
-    let reconnectGraceMilliseconds: Int64
-    let maximumMatchMilliseconds: Int64
 }
 
 struct HouseRocketsWelcomeDTO: Decodable, Equatable, Sendable {

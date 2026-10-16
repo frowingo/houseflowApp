@@ -1,4 +1,5 @@
 import SpriteKit
+import HouseFlowCore
 import UIKit
 
 /// Renders session snapshots. It never advances physics or decides eliminations.

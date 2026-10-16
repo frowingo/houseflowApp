@@ -1,5 +1,6 @@
 import Foundation
 import XCTest
+import HouseFlowCore
 @testable import HouseFlow
 
 @MainActor
@@ -343,6 +344,7 @@ private final class ResultSessions: GameSessionServicing {
     init(terminal: Bool = false, initial: GameSessionDTO? = nil) throws {
         self.initial = try initial ?? XCTUnwrap(ResultFixture.lobby(gamePhase: nil, sessionState: terminal ? "finished" : "lobby").session)
     }
+    func gameCatalog(houseID: String) async throws -> GameCatalog { GameCatalog(houseId: houseID, entries: []) }
     func ensureHouseRocketsSession(houseID: String) async throws -> GameSessionDTO { ensureCalls += 1; return initial }
     func discoverHouseRocketsSession(houseID: String) async throws -> GameSessionDTO { initial }
     func houseRocketsResult(sessionID: String) async throws -> HouseRocketsResultDTO { try ResultFixture.result() }

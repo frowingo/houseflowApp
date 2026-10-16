@@ -1,4 +1,5 @@
 import SwiftUI
+import HouseFlowCore
 
 /// Presentation only; lifecycle commands and deadlines belong to the lobby service.
 struct HouseRocketsOnlineLobbyView: View {
@@ -202,6 +203,7 @@ struct HouseRocketsOnlineLobbyView: View {
             case 503: return "house_rockets_online_busy"
             default: return "house_rockets_online_connection_failed_detail"
             }
+        case .connection(.protocolFailure(.gameUnavailable)): return "house_rockets_online_game_unavailable"
         case .connection(.protocolFailure(.unsupportedProtocol)), .connection(.protocolFailure(.unsupportedCourse)):
             return "house_rockets_online_update_required"
         case .connection: return "house_rockets_online_connection_failed_detail"

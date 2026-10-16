@@ -1,5 +1,6 @@
 import Foundation
 import XCTest
+import HouseFlowCore
 @testable import HouseFlow
 
 @MainActor

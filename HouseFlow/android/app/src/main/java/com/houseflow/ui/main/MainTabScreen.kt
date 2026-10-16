@@ -92,11 +92,11 @@ import kotlin.math.max
 import kotlin.math.min
 import kotlinx.coroutines.launch
 
-/** `AppTab`. Games stays visible but inert until the F9+ game hub exists on Android. */
+/** `AppTab`. */
 internal enum class MainTab(val icon: ImageVector, val labelKey: String, val fallback: String, val isAvailable: Boolean) {
     PROFILE(HouseFlowIcons.personFill, "tab_profile", "Profile", true),
     HOME(HouseFlowIcons.houseFill, "tab_home", "Home", true),
-    GAMES(HouseFlowIcons.gameControllerFill, "tab_games", "Games", false),
+    GAMES(HouseFlowIcons.gameControllerFill, "tab_games", "Games", true),
 }
 
 /**
@@ -113,6 +113,7 @@ internal fun MainTabScreen(
     strings: LocalizedText,
     profile: @Composable (onOverlayChange: (Boolean) -> Unit) -> Unit,
     dashboard: @Composable (onOverlayChange: (Boolean) -> Unit) -> Unit,
+    games: @Composable (onOverlayChange: (Boolean) -> Unit) -> Unit,
 ) {
     HouseFlowTheme {
         var overlayPresented by remember(selectedTab) { mutableStateOf(false) }
@@ -120,7 +121,8 @@ internal fun MainTabScreen(
         Box(Modifier.fillMaxSize()) {
             when (selectedTab) {
                 MainTab.PROFILE -> profile(onOverlayChange)
-                MainTab.HOME, MainTab.GAMES -> dashboard(onOverlayChange)
+                MainTab.HOME -> dashboard(onOverlayChange)
+                MainTab.GAMES -> games(onOverlayChange)
             }
             AnimatedVisibility(
                 visible = !overlayPresented,

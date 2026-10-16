@@ -105,6 +105,7 @@ struct HouseRocketsView: View {
             }
             model.pause()
         }
+        .task(id: model.context.houseID) { await model.refreshCatalog() }
         .onChange(of: model.onlineFrame?.sessionID) { _, id in
             if id != nil { prepareOnlineFlightLandscape() }
         }
@@ -337,6 +338,7 @@ struct HouseRocketsView: View {
         case .signInRequired: return "house_rockets_online_sign_in"
         case .houseRequired: return "house_rockets_online_house_required"
         case .serviceUnavailable: return "house_rockets_online_unavailable_detail"
+        case .gameUnavailable: return "house_rockets_online_game_unavailable"
         }
     }
 

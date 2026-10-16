@@ -1,11 +1,18 @@
 package com.houseflow.ui.theme
 
 import androidx.compose.animation.core.Animatable
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.spring
+import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.State
 import androidx.compose.runtime.remember
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.interaction.collectIsPressedAsState
+import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.composed
 import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.draw.drawWithContent
 import androidx.compose.ui.graphics.Brush
@@ -21,6 +28,7 @@ import androidx.compose.ui.graphics.Shape
 import androidx.compose.ui.graphics.drawscope.drawIntoCanvas
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.toArgb
+import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import kotlinx.coroutines.delay
@@ -71,4 +79,24 @@ internal fun Modifier.entrance(progress: State<Float>, offsetY: Dp): Modifier = 
     val value = progress.value
     alpha = value.coerceIn(0f, 1f)
     translationY = (1f - value) * offsetY.toPx()
+}
+
+/**
+ * SwiftUI `ScaleButtonStyle`: a borderless tap target that springs to 97 % while pressed.
+ * [role] keeps the accessibility semantics of a SwiftUI `Button`.
+ */
+internal fun Modifier.scaleButton(
+    enabled: Boolean = true,
+    role: Role = Role.Button,
+    onClick: () -> Unit,
+): Modifier = composed {
+    val interaction = remember { MutableInteractionSource() }
+    val pressed by interaction.collectIsPressedAsState()
+    val scale by animateFloatAsState(
+        if (pressed) .97f else 1f,
+        spring(dampingRatio = .7f, stiffness = 440f),
+        label = "scaleButton",
+    )
+    graphicsLayer { scaleX = scale; scaleY = scale }
+        .clickable(interaction, indication = null, enabled = enabled, role = role, onClick = onClick)
 }

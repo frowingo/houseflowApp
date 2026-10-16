@@ -1,4 +1,5 @@
 import Foundation
+import HouseFlowCore
 
 /// The scene samples every render frame; SwiftUI receives bounded HUD updates.
 struct HouseRocketsPresentationCadence {

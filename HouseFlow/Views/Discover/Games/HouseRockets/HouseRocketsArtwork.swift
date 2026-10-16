@@ -1,4 +1,5 @@
 import SwiftUI
+import HouseFlowCore
 import UIKit
 
 /// Shared palette for SpriteKit, the lobby and the Games cover.

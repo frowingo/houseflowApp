@@ -1,5 +1,6 @@
 import Foundation
 import XCTest
+import HouseFlowCore
 @testable import HouseFlow
 
 @MainActor
@@ -508,6 +509,7 @@ private final class ReconnectSessions: GameSessionServicing {
         guard case .session(let session) = try GameRealtimeCodec.decode(ReconnectFixture.session(houseID: houseID, playerID: playerID)).payload else { throw CancellationError() }
         initial = session
     }
+    func gameCatalog(houseID: String) async throws -> GameCatalog { GameCatalog(houseId: houseID, entries: []) }
     func ensureHouseRocketsSession(houseID: String) async throws -> GameSessionDTO { ensures += 1; return try await ensureHandler?() ?? initial }
     func discoverHouseRocketsSession(houseID: String) async throws -> GameSessionDTO { initial }
     func houseRocketsResult(sessionID: String) async throws -> HouseRocketsResultDTO { throw ReconnectFixture.http(404) }

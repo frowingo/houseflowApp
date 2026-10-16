@@ -923,7 +923,7 @@
     },
     "result": {
       "method": "GET",
-      "path": "/api/v1/game/7c51a2f7-3c83-4e76-8f97-2dc3cf3191a0/result",
+      "path": "/api/v1/game/sessions/7c51a2f7-3c83-4e76-8f97-2dc3cf3191a0/result",
       "response": {
         "success": true,
         "data": {

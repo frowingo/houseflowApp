@@ -1,10 +1,21 @@
 import Foundation
 
-/// Remote plaintext can override these bundled game strings.
-enum HouseRocketsLocalization {
-    static func value(for key: String, language: String?) -> String? {
+/// Bundled House Rockets copy shared by iOS and Android. Remote plaintext
+/// overrides these values; Turkish is the default for every non-English language.
+public enum HouseRocketsLocalization {
+    public static func value(for key: String, language: String?) -> String? {
         guard let copy = values[key] else { return nil }
-        return language?.lowercased().hasPrefix("en") == true ? copy.en : copy.tr
+        return isEnglish(language) ? copy.en : copy.tr
+    }
+
+    /// The whole table in one language, for clients that cache it once per screen.
+    public static func table(language: String?) -> [String: String] {
+        let english = isEnglish(language)
+        return values.mapValues { english ? $0.en : $0.tr }
+    }
+
+    private static func isEnglish(_ language: String?) -> Bool {
+        language?.lowercased().hasPrefix("en") == true
     }
 
     private static let values: [String: (tr: String, en: String)] = [
@@ -22,6 +33,7 @@ enum HouseRocketsLocalization {
         "house_rockets_offline": ("Bu cihazda, internetsiz oynanır", "Play offline on this device"),
         "house_rockets_online_unavailable": ("Çevrim içi oyun kullanılamıyor", "Online play unavailable"),
         "house_rockets_online_unavailable_detail": ("Bu sürümde çevrim içi oyun bağlantısı henüz hazır değil. Modu değiştirerek botlarla oynayabilirsin.", "Online play is not connected in this version yet. Change mode to play with bots."),
+        "house_rockets_online_game_unavailable": ("Ev arkadaşlarınla uçuş bu evde şu anda açık değil. Modu değiştirerek botlarla oynayabilirsin.", "Flying with housemates isn’t open for this house right now. Change mode to play with bots."),
         "house_rockets_online_sign_in": ("Ev arkadaşlarınla oynamak için oturum açman gerekiyor.", "Sign in to play with your housemates."),
         "house_rockets_online_house_required": ("Ev arkadaşlarınla oynamak için önce bir ev seçmen gerekiyor.", "Select a house to play with your housemates."),
         "house_rockets_member": ("Ev üyesi", "House member"),

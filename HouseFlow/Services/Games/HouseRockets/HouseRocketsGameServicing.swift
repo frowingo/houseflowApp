@@ -1,4 +1,5 @@
 import Foundation
+import HouseFlowCore
 
 /// Local bot session boundary. Online join/ready operations will have their own
 /// contract; bot configuration and local pause are not online start parameters.

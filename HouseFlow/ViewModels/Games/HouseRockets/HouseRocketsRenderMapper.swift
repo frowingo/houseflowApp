@@ -1,35 +1,10 @@
 import Foundation
+import HouseFlowCore
 
 /// The presentation boundary maps DTOs; it does not decide eliminations or outcomes.
 enum HouseRocketsRenderMapper {
     static func local(_ snapshot: HouseRocketsSnapshot) -> HouseRocketsRenderFrame {
-        let angle = HouseRocketsCourse.angle(at: snapshot.elapsedTime)
-        return HouseRocketsRenderFrame(sessionID: snapshot.matchID.uuidString, courseVersion: 1,
-            phase: phase(snapshot.phase),
-            elapsedTime: snapshot.elapsedTime, cameraX: snapshot.cameraX, courseAngle: angle,
-            players: snapshot.players.map { player in
-                HouseRocketsRenderPlayer(id: player.id.uuidString, name: .localizationKey(player.nameKey),
-                    role: player.role, color: player.color, isAlive: player.isAlive,
-                    worldX: player.worldX, worldY: player.worldY,
-                    courseHeading: atan2(sin(player.heading - angle), cos(player.heading - angle)),
-                    speedEffect: player.speedEffect, effectRemaining: player.effectRemaining)
-            },
-            gates: snapshot.gates.map {
-                HouseRocketsRenderGate(id: $0.id.uuidString, worldX: $0.worldX, sections: $0.sections)
-            },
-            speedFields: snapshot.speedFields.map {
-                HouseRocketsRenderField(id: $0.id.uuidString, worldX: $0.worldX,
-                    effect: $0.effect, phase: $0.phase, period: $0.period)
-            })
-    }
-
-    private static func phase(_ value: HouseRocketsPhase) -> HouseRocketsRenderPhase {
-        switch value {
-        case .countdown: return .countdown
-        case .playing: return .playing
-        case .paused: return .paused
-        case .ended: return .ended
-        }
+        .local(snapshot)
     }
 
     private static func phase(_ value: HouseRocketsWirePhase) -> HouseRocketsRenderPhase {

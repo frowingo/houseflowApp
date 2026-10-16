@@ -1,40 +1,46 @@
 import Foundation
 
 /// Device-independent world units. The renderer never decides movement or eliminations.
-struct HouseRocketsSimulation {
-    static let viewportWidth = 1_200.0
-    static let trackHeight = 360.0
-    static let speed = 300.0
-    static let rocketRadius = 10.0
-    static let leaderAnchorX = 420.0
-    static let spawnX = 250.0
+public struct HouseRocketsSimulation: Sendable {
+    public static let viewportWidth = 1_200.0
+    public static let trackHeight = 360.0
+    public static let speed = 300.0
+    public static let rocketRadius = 10.0
+    public static let leaderAnchorX = 420.0
+    public static let spawnX = 250.0
 
-    struct Body {
-        let id: UUID
-        var x: Double
-        var y: Double
-        var heading: Double = 0
-        var isAlive = true
-        var speedEffect: HouseRocketsSpeedEffect?
-        var effectRemaining = 0.0
-        var touchedFields: Set<UUID> = []
-        var currentSpeed: Double { HouseRocketsSimulation.speed * (speedEffect?.multiplier ?? 1) }
+    public struct Body: Sendable {
+        public let id: UUID
+        public var x: Double
+        public var y: Double
+        public var heading: Double = 0
+        public var isAlive = true
+        public var speedEffect: HouseRocketsSpeedEffect?
+        public var effectRemaining = 0.0
+        public var touchedFields: Set<UUID> = []
+        public var currentSpeed: Double { HouseRocketsSimulation.speed * (speedEffect?.multiplier ?? 1) }
+
+        public init(id: UUID, x: Double, y: Double) {
+            self.id = id
+            self.x = x
+            self.y = y
+        }
     }
 
-    private(set) var bodies: [Body]
-    private(set) var gates: [HouseRocketsGateState] = []
-    private(set) var speedFields: [HouseRocketsSpeedField] = []
-    private(set) var cameraX = 0.0
-    private(set) var elapsedTime = 0.0
+    public private(set) var bodies: [Body]
+    public private(set) var gates: [HouseRocketsGateState] = []
+    public private(set) var speedFields: [HouseRocketsSpeedField] = []
+    public private(set) var cameraX = 0.0
+    public private(set) var elapsedTime = 0.0
     private var nextGateIndex = 0
-    var courseAngle: Double { HouseRocketsCourse.angle(at: elapsedTime) }
+    public var courseAngle: Double { HouseRocketsCourse.angle(at: elapsedTime) }
 
-    func screenHeading(for body: Body) -> Double {
+    public func screenHeading(for body: Body) -> Double {
         let heading = body.heading + courseAngle
         return atan2(sin(heading), cos(heading))
     }
 
-    init(playerIDs: [UUID]) {
+    public init(playerIDs: [UUID]) {
         bodies = playerIDs.enumerated().map { index, id in
             Body(id: id, x: Self.spawnX,
                  y: 105 + Double(index) * 150 / Double(max(1, playerIDs.count - 1)))
@@ -42,7 +48,7 @@ struct HouseRocketsSimulation {
         extendCourse()
     }
 
-    mutating func steer(playerID: UUID, heading: Double) {
+    public mutating func steer(playerID: UUID, heading: Double) {
         guard heading.isFinite,
               let index = bodies.firstIndex(where: { $0.id == playerID && $0.isAlive }) else { return }
         let localHeading = heading - courseAngle
@@ -50,7 +56,7 @@ struct HouseRocketsSimulation {
     }
 
     /// Fixed substeps prevent tunneling and keep contacts independent of rendering FPS.
-    mutating func advance(by delta: TimeInterval) {
+    public mutating func advance(by delta: TimeInterval) {
         guard delta.isFinite, delta > 0 else { return }
         var remaining = min(delta, 0.25)
         while remaining > 0.000_001, bodies.filter(\.isAlive).count > 1 {
@@ -80,12 +86,12 @@ struct HouseRocketsSimulation {
         for index in bodies.indices { bodies[index].touchedFields.formIntersection(activeFields) }
     }
 
-    static func isBehindCamera(centerX: Double, cameraX: Double) -> Bool {
+    public static func isBehindCamera(centerX: Double, cameraX: Double) -> Bool {
         centerX + rocketRadius < cameraX
     }
 
     /// Simple route following: approach the next opening, then clear its far face.
-    func botHeading(playerID: UUID, laneOffset: Double) -> Double? {
+    public func botHeading(playerID: UUID, laneOffset: Double) -> Double? {
         guard let body = bodies.first(where: { $0.id == playerID && $0.isAlive }) else { return nil }
         guard let gate = gates.first(where: { $0.maxX + 30 > body.x }) else { return courseAngle }
         // Aim ahead along the actual sloping opening, not just its entrance center.
@@ -136,3 +142,4 @@ struct HouseRocketsSimulation {
         bodies[index].y = point.y
     }
 }
+

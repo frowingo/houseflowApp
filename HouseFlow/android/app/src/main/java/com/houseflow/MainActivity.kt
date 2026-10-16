@@ -30,6 +30,8 @@ import com.houseflow.ui.auth.ForgotPasswordScreen
 import com.houseflow.ui.onboarding.OnboardingScreen
 import com.houseflow.ui.house.CreateHouseScreen
 import com.houseflow.ui.dashboard.DashboardScreen
+import com.houseflow.ui.games.GamesHubScreen
+import com.houseflow.ui.games.rockets.HouseRocketsScreen
 import com.houseflow.ui.house.HouseErrorScreen
 import com.houseflow.ui.house.HouseLoadingScreen
 import com.houseflow.ui.house.HouseSelectionScreen
@@ -64,11 +66,15 @@ class MainActivity : ComponentActivity() {
             val profileState by model.profileState.collectAsStateWithLifecycle()
             val text by model.text.collectAsStateWithLifecycle()
             var selectedTab by rememberSaveable { mutableStateOf(MainTab.HOME) }
+            var showsHouseRockets by rememberSaveable { mutableStateOf(false) }
             LaunchedEffect(state.profile) {
                 state.profile?.let(houseModel::acceptProfile) ?: houseModel.resetSession()
             }
             LaunchedEffect(state.route) {
-                if (state.route !is AuthRoute.Next) selectedTab = MainTab.HOME
+                if (state.route !is AuthRoute.Next) {
+                    selectedTab = MainTab.HOME
+                    showsHouseRockets = false
+                }
             }
             LaunchedEffect(state.route) {
                 val isAuth = state.route is AuthRoute.SignIn || state.route is AuthRoute.ForgotPassword ||
@@ -175,9 +181,23 @@ class MainActivity : ComponentActivity() {
                                 houseModel::updateChoreStatus, houseModel::reviewChore,
                                 houseModel::clearMutationMessage, onOverlayChange)
                         },
+                        games = { onOverlayChange ->
+                            // The game is a full-screen destination of the Games tab, so the
+                            // floating tab bar steps aside while it is open.
+                            LaunchedEffect(showsHouseRockets) { onOverlayChange(showsHouseRockets) }
+                            if (showsHouseRockets) {
+                                HouseRocketsScreen(text, houseState.details?.id, state.profile?.userId,
+                                    onExit = { showsHouseRockets = false })
+                            } else {
+                                GamesHubScreen(text, onOpenHouseRockets = { showsHouseRockets = true })
+                            }
+                        },
                     )
                     // Profile returns to Home; Home is the root tab and keeps the session screen.
-                    BackHandler { if (selectedTab != MainTab.HOME) selectedTab = MainTab.HOME }
+                    // An open game owns Back (pause/exit), so the tab fallback yields to it.
+                    BackHandler(enabled = !(selectedTab == MainTab.GAMES && showsHouseRockets)) {
+                        if (selectedTab != MainTab.HOME) selectedTab = MainTab.HOME
+                    }
                 }
             }
             }

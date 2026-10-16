@@ -1,4 +1,5 @@
 import Foundation
+import HouseFlowCore
 
 /// HTTP and realtime share this session DTO. These are not game render models.
 struct GameSessionDTO: Decodable, Equatable, Sendable {
@@ -8,7 +9,7 @@ struct GameSessionDTO: Decodable, Equatable, Sendable {
     let protocolVersion: Int
     let mode: String
     let state: GameSessionState
-    let rules: GameSessionRulesDTO
+    let rules: GameRulesDTO
     let players: [GameSessionPlayerDTO]
     let createdBy: String
     let createdAt: Date
@@ -23,13 +24,6 @@ struct GameSessionDTO: Decodable, Equatable, Sendable {
 
 enum GameSessionState: String, Decodable, Sendable {
     case lobby, readyWindow, countdown, running, finished, cancelled
-}
-
-struct GameSessionRulesDTO: Decodable, Equatable, Sendable {
-    let minimumPlayers: Int
-    let maximumPlayers: Int
-    let readyWindowMilliseconds: Int64
-    let countdownMilliseconds: Int64
 }
 
 struct GameSessionPlayerDTO: Decodable, Equatable, Sendable {
@@ -48,8 +42,4 @@ struct GameHTTPEnvelope<Value: Decodable>: Decodable {
     let success: Bool
     let data: Value?
     let error: String?
-}
-
-struct EnsureGameSessionRequest: Encodable {
-    let houseId: String
 }

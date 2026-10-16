@@ -1,4 +1,5 @@
 import Foundation
+import HouseFlowCore
 
 /// Lobby/application state, separate from both local physics and SpriteKit render state.
 struct HouseRocketsOnlineLobbyState: Equatable, Sendable {

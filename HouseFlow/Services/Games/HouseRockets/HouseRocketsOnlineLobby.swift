@@ -1,4 +1,5 @@
 import Foundation
+import HouseFlowCore
 
 /// Owns lobby commands, authoritative sync, reconnect and application heartbeat. No UI or local physics.
 @MainActor
@@ -331,16 +332,15 @@ final class HouseRocketsOnlineLobby {
         switch message.payload {
         case .welcome(let welcome):
             guard !hasWelcome else { return }
-            let interval = Double(welcome.settings.controlHeartbeatMilliseconds) / 1_000
-            let timeout = Double(welcome.settings.controlTimeoutMilliseconds) / 1_000
-            guard interval >= 0.25, timeout > interval, timeout <= 60 else {
+            // Settings are frozen per session and may change without a deploy.
+            guard welcome.settings.isUsable else {
                 fail(.connection(.protocolFailure(.invalidResponse)))
                 return
             }
             hasWelcome = true
             state.runtimeSettings = welcome.settings
-            heartbeatInterval = interval
-            heartbeatTimeout = timeout
+            heartbeatInterval = welcome.settings.heartbeatInterval
+            heartbeatTimeout = welcome.settings.heartbeatTimeout
             lastPongAt = received.receivedUptime
             nextPingAt = received.receivedUptime
         case .session(let incoming):
@@ -658,7 +658,7 @@ final class HouseRocketsOnlineLobby {
         let now = clock.uptime()
         if reconnectDeadline == nil {
             let grace = state.game == nil ? reconnectPolicy.initialBudget
-                : Double(state.runtimeSettings?.reconnectGraceMilliseconds ?? 10_000) / 1_000
+                : (state.runtimeSettings ?? .releaseDefaults).reconnectGrace
             reconnectDeadline = now + max(0.5, min(20, grace))
         }
         let nextAttempt = state.reconnectAttempt + 1

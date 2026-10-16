@@ -1,4 +1,5 @@
 import Foundation
+import HouseFlowCore
 import XCTest
 @testable import HouseFlow
 

@@ -14,6 +14,8 @@ enum GameRealtimeError: Error, Equatable, Sendable {
     case notConnected
     case messageTooLarge
     case slowConsumer
+    /// HTTP 409 `game.error.unavailable`: switched off or not opened for this house.
+    case gameUnavailable
 }
 
 struct GameRealtimeRejection: Decodable, Equatable, Sendable {

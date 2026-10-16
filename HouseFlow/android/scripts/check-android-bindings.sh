@@ -28,12 +28,23 @@ grep -Eq 'public static java\.lang\.String houseResponse\(java\.lang\.String act
 grep -Eq 'public static java\.lang\.String houseRequestBody\(' "$java_file"
 grep -Eq 'public static java\.lang\.String dashboardRequestBody\(' "$java_file"
 grep -Eq 'public static java\.lang\.String dashboardResponse\(java\.lang\.String action, int status, java\.lang\.String body\)' "$java_file"
+grep -Eq 'public static int houseRocketsBotCreate\(\)' "$java_file"
+grep -Eq 'public static boolean houseRocketsBotDestroy\(int handle\)' "$java_file"
+grep -Eq 'public static java\.lang\.String houseRocketsBotViewport\(int handle, double width, double height, double hudWidth, double hudHeight\)' "$java_file"
+grep -Eq 'public static java\.lang\.String houseRocketsBotStart\(int handle, int botCount\)' "$java_file"
+grep -Eq 'public static java\.lang\.String houseRocketsBotCountdown\(int handle\)' "$java_file"
+grep -Eq 'public static java\.lang\.String houseRocketsBotStep\(int handle, double delta, boolean hasSteer, double heading, int sequence\)' "$java_file"
+grep -Eq 'public static java\.lang\.String houseRocketsBotPause\(int handle\)' "$java_file"
+grep -Eq 'public static java\.lang\.String houseRocketsBotResume\(int handle\)' "$java_file"
+grep -Eq 'public static java\.lang\.String houseRocketsBotRestart\(int handle\)' "$java_file"
+grep -Eq 'public static java\.lang\.String houseRocketsCopy\(java\.lang\.String language\)' "$java_file"
+grep -Eq 'public static java\.lang\.String houseRocketsConstants\(\)' "$java_file"
 grep -Fq 'SwiftLibraries.loadLibraryWithFallbacks(LIB_NAME);' "$java_file"
 
 public_methods=$(grep -Ec '^[[:space:]]*public static .*\(' "$java_file")
-if [ "$public_methods" -ne 18 ]; then
-    echo "Expected exactly eighteen public JNI methods, found ${public_methods}" >&2
+if [ "$public_methods" -ne 29 ]; then
+    echo "Expected exactly twenty-nine public JNI methods, found ${public_methods}" >&2
     exit 1
 fi
 
-echo 'Generated JNI API matches the version-6 Kotlin boundary.'
+echo 'Generated JNI API matches the version-7 Kotlin boundary.'

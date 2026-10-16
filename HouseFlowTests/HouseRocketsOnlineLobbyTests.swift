@@ -1,5 +1,6 @@
 import Foundation
 import XCTest
+import HouseFlowCore
 @testable import HouseFlow
 
 @MainActor
@@ -87,7 +88,7 @@ final class HouseRocketsOnlineLobbyTests: XCTestCase {
         }
         let request = try service.realtimeRequest(sessionID: LobbyFixture.sessionID)
         XCTAssertEqual(request.url?.scheme, "wss")
-        XCTAssertEqual(request.url?.path, "/api/v1/game/\(LobbyFixture.sessionID)/realtime")
+        XCTAssertEqual(request.url?.path, "/api/v1/game/sessions/\(LobbyFixture.sessionID)/realtime")
         XCTAssertEqual(request.url?.query, "protocolVersion=2")
         XCTAssertEqual(request.value(forHTTPHeaderField: "Authorization"), "Bearer fixture-token")
         keychain.authToken = "rotated-token"
@@ -444,6 +445,7 @@ private final class LobbySessions: GameSessionServicing {
     let initial: GameSessionDTO
     var ensureHandler: (() async throws -> GameSessionDTO)?
     init() throws { initial = try LobbyFixture.sessionDTO() }
+    func gameCatalog(houseID: String) async throws -> GameCatalog { GameCatalog(houseId: houseID, entries: []) }
     func ensureHouseRocketsSession(houseID: String) async throws -> GameSessionDTO { try await ensureHandler?() ?? initial }
     func discoverHouseRocketsSession(houseID: String) async throws -> GameSessionDTO { initial }
     func houseRocketsResult(sessionID: String) async throws -> HouseRocketsResultDTO { throw LobbyFixtureError.failed }

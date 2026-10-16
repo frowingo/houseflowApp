@@ -1,14 +1,13 @@
 import Foundation
-import CoreGraphics
 
 /// Shared geometry for collision, bot routing and rendering; no approximate hitboxes.
-enum HouseRocketsCourse {
-    static let firstGateX = 900.0
-    static let spacing = 640.0
-    static let transitionInterval = 25.0
-    static let transitionDuration = 3.0
+public enum HouseRocketsCourse {
+    public static let firstGateX = 900.0
+    public static let spacing = 640.0
+    public static let transitionInterval = 25.0
+    public static let transitionDuration = 3.0
 
-    static func turnProgress(at time: TimeInterval) -> Double {
+    public static func turnProgress(at time: TimeInterval) -> Double {
         guard time >= transitionInterval else { return 0 }
         let cycleTime = time.truncatingRemainder(dividingBy: transitionInterval * 2)
         let turningVertical = cycleTime >= transitionInterval
@@ -19,7 +18,7 @@ enum HouseRocketsCourse {
     }
 
     /// Show the destination direction for three seconds before and during each turn.
-    static func transitionTargetIsVertical(at time: TimeInterval) -> Bool? {
+    public static func transitionTargetIsVertical(at time: TimeInterval) -> Bool? {
         let phase = time.truncatingRemainder(dividingBy: transitionInterval)
         let verticalSegment = time.truncatingRemainder(dividingBy: transitionInterval * 2)
             >= transitionInterval
@@ -28,15 +27,15 @@ enum HouseRocketsCourse {
         return nil
     }
 
-    static func isTransitioning(at time: TimeInterval) -> Bool {
+    public static func isTransitioning(at time: TimeInterval) -> Bool {
         time >= transitionInterval && time.truncatingRemainder(dividingBy: transitionInterval) < transitionDuration
     }
 
-    static func angle(at time: TimeInterval) -> Double {
+    public static func angle(at time: TimeInterval) -> Double {
         turnProgress(at: time) * .pi / 2
     }
 
-    static func gate(index: Int) -> HouseRocketsGateState {
+    public static func gate(index: Int) -> HouseRocketsGateState {
         let x = firstGateX + Double(index) * spacing
         let profile: [(Double, Double, Double)]
         if index == 0 {
@@ -62,7 +61,7 @@ enum HouseRocketsCourse {
         })
     }
 
-    static func speedField(index: Int) -> HouseRocketsSpeedField {
+    public static func speedField(index: Int) -> HouseRocketsSpeedField {
         HouseRocketsSpeedField(
             id: UUID(), worldX: firstGateX + Double(index) * spacing + spacing / 2,
             effect: index.isMultiple(of: 2) ? .boost : .slow,
@@ -74,15 +73,15 @@ enum HouseRocketsCourse {
 /// Rotate course coordinates (X = forward, Y = across) into the landscape screen.
 /// Keep the rear boundary and leader anchor unchanged during the turn: resizing the
 /// visible distance ahead must never eliminate a ship or move the camera by itself.
-struct HouseRocketsProjection {
-    static let cameraZoom = 1.16
-    let angle: Double
-    let isTurning: Bool
-    let scale: Double
-    let visibleLength: Double
-    let origin: HouseRocketsPoint
+public struct HouseRocketsProjection: Sendable {
+    public static let cameraZoom = 1.16
+    public let angle: Double
+    public let isTurning: Bool
+    public let scale: Double
+    public let visibleLength: Double
+    public let origin: HouseRocketsPoint
 
-    init(elapsedTime: TimeInterval, cameraX: Double, width: Double, height: Double,
+    public init(elapsedTime: TimeInterval, cameraX: Double, width: Double, height: Double,
          courseAngle: Double? = nil) {
         let progress = courseAngle.map { min(1, max(0, $0 / (.pi / 2))) }
             ?? HouseRocketsCourse.turnProgress(at: elapsedTime)
@@ -114,29 +113,51 @@ struct HouseRocketsProjection {
                        y: height / 2 - (centerX * s + across / 2 * c) * scale)
     }
 
-    func point(x: Double, y: Double) -> HouseRocketsPoint {
+    public func point(x: Double, y: Double) -> HouseRocketsPoint {
         .init(x: origin.x + (x * cos(angle) - y * sin(angle)) * scale,
               y: origin.y + (x * sin(angle) + y * cos(angle)) * scale)
     }
 
     /// Hide information while turning; stable vertical panels sit at the top of each side.
-    func informationRegions(width: Double, height: Double) -> [CGRect] {
+    public func informationRegions(width: Double, height: Double) -> [HouseRocketsRect] {
         guard !isTurning else { return [] }
         let inset = 8.0
         if angle > .pi / 4 {
             let sideWidth = (width - HouseRocketsSimulation.trackHeight * scale) / 2
             let panelWidth = max(0, min(240, sideWidth - 2 * inset - 6))
-            return [CGRect(x: inset, y: inset, width: panelWidth, height: 120),
-                    CGRect(x: width - inset - panelWidth, y: inset, width: panelWidth, height: 120)]
+            return [HouseRocketsRect(x: inset, y: inset, width: panelWidth, height: 120),
+                    HouseRocketsRect(x: width - inset - panelWidth, y: inset, width: panelWidth, height: 120)]
         }
         let panelWidth = min(440, width - 2 * inset)
-        return [CGRect(x: (width - panelWidth) / 2, y: inset, width: panelWidth, height: 44),
-                CGRect(x: (width - panelWidth) / 2, y: height - inset - 44, width: panelWidth, height: 44)]
+        return [HouseRocketsRect(x: (width - panelWidth) / 2, y: inset, width: panelWidth, height: 44),
+                HouseRocketsRect(x: (width - panelWidth) / 2, y: height - inset - 44, width: panelWidth, height: 44)]
     }
 
 }
 
-protocol HouseRocketsGateGeometry {
+/// Platform-neutral rectangle in screen points (y grows downward).
+public struct HouseRocketsRect: Equatable, Sendable {
+    public var x: Double
+    public var y: Double
+    public var width: Double
+    public var height: Double
+
+    public init(x: Double, y: Double, width: Double, height: Double) {
+        self.x = x
+        self.y = y
+        self.width = width
+        self.height = height
+    }
+
+    public var minX: Double { x }
+    public var minY: Double { y }
+    public var maxX: Double { x + width }
+    public var maxY: Double { y + height }
+    public var midX: Double { x + width / 2 }
+    public var midY: Double { y + height / 2 }
+}
+
+public protocol HouseRocketsGateGeometry {
     var worldX: Double { get }
     var sections: [HouseRocketsPassageSection] { get }
 }
@@ -145,7 +166,7 @@ extension HouseRocketsGateState: HouseRocketsGateGeometry {}
 
 extension HouseRocketsGateGeometry {
     /// Each segment forms two convex trapezoids, including triangular/sloping faces.
-    var solidPolygons: [[HouseRocketsPoint]] {
+    public var solidPolygons: [[HouseRocketsPoint]] {
         zip(sections, sections.dropFirst()).flatMap { left, right -> [[HouseRocketsPoint]] in
             let a = worldX + left.offsetX
             let b = worldX + right.offsetX
@@ -159,7 +180,7 @@ extension HouseRocketsGateGeometry {
         }
     }
 
-    func passage(at x: Double) -> (center: Double, height: Double) {
+    public func passage(at x: Double) -> (center: Double, height: Double) {
         guard let first = sections.first, let last = sections.last else { return (180, 360) }
         let localX = max(first.offsetX, min(last.offsetX, x - worldX))
         for (left, right) in zip(sections, sections.dropFirst()) where localX <= right.offsetX {
@@ -174,8 +195,8 @@ extension HouseRocketsGateGeometry {
 
 /// Circle vs convex polygon projection. Corrects penetration along the real face normal,
 /// leaving tangential motion available for sliding, including on sloped surfaces.
-enum HouseRocketsContact {
-    static func resolve(_ point: HouseRocketsPoint, radius: Double,
+public enum HouseRocketsContact {
+    public static func resolve(_ point: HouseRocketsPoint, radius: Double,
                         polygon: [HouseRocketsPoint]) -> HouseRocketsPoint {
         var inside = true
         var closest = point
@@ -208,3 +229,4 @@ enum HouseRocketsContact {
         return .init(x: closest.x + outward.x * radius, y: closest.y + outward.y * radius)
     }
 }
+

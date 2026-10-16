@@ -1,4 +1,5 @@
 import Foundation
+import HouseFlowCore
 
 /// Presentation budgets, not wire rules or gameplay authority.
 struct HouseRocketsFlightConfiguration {

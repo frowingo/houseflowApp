@@ -1,4 +1,5 @@
 import Foundation
+import HouseFlowCore
 
 /// Owns display timing, bounded prediction and input scheduling; contains no SpriteKit/UI code.
 @MainActor
@@ -292,7 +293,7 @@ final class HouseRocketsOnlineFlight {
             return
         }
         guard canSteer(at: now), sendTask == nil, now >= backoffUntil, let binding else { return }
-        let rate = min(20, max(1, min(configuration.inputRateHz, Double(state.runtimeSettings?.maximumInputRateHz ?? 20))))
+        let rate = (state.runtimeSettings ?? .releaseDefaults).steerRate(preferredHz: configuration.inputRateHz)
         guard now - lastSentAt >= 1 / rate else { return }
         var heading = intent?.heading
         let changed = heading.map { value in lastSentHeading.map { abs(HouseRocketsFlightMath.normalize(value - $0)) >= 0.01 } ?? true } ?? false

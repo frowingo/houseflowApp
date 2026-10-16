@@ -1,5 +1,6 @@
 import Combine
 import Foundation
+import HouseFlowCore
 import UIKit
 
 @MainActor
@@ -10,6 +11,7 @@ final class HouseRocketsViewModel: ObservableObject {
     @Published private(set) var onlineState = HouseRocketsOnlineLobbyState()
     @Published private(set) var onlinePresentation: HouseRocketsOnlinePresentation?
     @Published private(set) var onlineResultState = HouseRocketsOnlineResultState()
+    @Published private(set) var catalogAvailability = HouseRocketsCatalogAvailability.unknown
     var onlineFrame: HouseRocketsRenderFrame? { onlinePresentation?.frame }
     @Published var botCount = 3
 
@@ -36,7 +38,18 @@ final class HouseRocketsViewModel: ObservableObject {
     var onlineBlocker: HouseRocketsOnlineBlocker? {
         guard let playerID = context.localPlayerID, !playerID.isEmpty else { return .signInRequired }
         guard let houseID = context.houseID, !houseID.isEmpty else { return .houseRequired }
-        return sessionFactory.makeOnlineSession == nil ? .serviceUnavailable : nil
+        guard sessionFactory.makeOnlineSession != nil else { return .serviceUnavailable }
+        return catalogAvailability == .unavailable ? .gameUnavailable : nil
+    }
+
+    /// Reads the server catalog for the current house. A failed read keeps the
+    /// last answer: the session request is still guarded by the server.
+    func refreshCatalog() async {
+        guard let houseID = context.houseID, !houseID.isEmpty,
+              let loadCatalog = sessionFactory.loadCatalog else { return }
+        guard let catalog = try? await loadCatalog(houseID), context.houseID == houseID else { return }
+        catalogAvailability = catalog.houseRockets.map { .available(maximumPlayers: $0.rules.maximumPlayers) }
+            ?? .unavailable
     }
 
     var requiresAuthentication: Bool {
@@ -79,6 +92,7 @@ final class HouseRocketsViewModel: ObservableObject {
     func updateContext(_ newContext: HouseRocketsLaunchContext) {
         guard newContext != context else { return }
         returnToModeSelection()
+        if newContext.houseID != context.houseID { catalogAvailability = .unknown }
         context = newContext
     }
 

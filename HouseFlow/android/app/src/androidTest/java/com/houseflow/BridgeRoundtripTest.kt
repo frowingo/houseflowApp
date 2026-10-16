@@ -13,7 +13,7 @@ import org.junit.runner.RunWith
 @RunWith(AndroidJUnit4::class)
 class BridgeRoundtripTest {
     @Test fun authWireRunsThroughGeneratedJni() {
-        assertEquals(6, HouseFlowAndroidBridge.bridgeVersion())
+        assertEquals(7, HouseFlowAndroidBridge.bridgeVersion())
         val body = HouseFlowAndroidBridge.loginRequestBody("ada@example.com", "secret")
         assertEquals("ada@example.com", org.json.JSONObject(body).getString("email"))
         assertEquals("secret", org.json.JSONObject(body).getString("password"))
