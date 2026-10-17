@@ -1,16 +1,14 @@
 import Foundation
-import HouseFlowCore
 
-/// Owns display timing, bounded prediction and input scheduling; contains no SpriteKit/UI code.
-@MainActor
-final class HouseRocketsOnlineFlight {
-    typealias Send = (GameRealtimeClientMessage, HouseRocketsControlGrantDTO) async throws -> Void
+/// Display timing, bounded prediction and input scheduling (`HouseRocketsOnlineFlight`
+/// on iOS) without tasks. Sends complete when the lobby has handed them to the host.
+final class HouseRocketsOnlineFlightMachine {
+    typealias Send = (GameRealtimeClientMessage, HouseRocketsControlGrantDTO) -> Bool
     var onEliminations: (([HouseRocketsOnlineElimination]) -> Void)?
     var onControlLost: (() -> Void)?
     private let localPlayerID: String
-    private let clock: GameRealtimeClock
     private let configuration: HouseRocketsFlightConfiguration
-    private let acceptanceRecorder: HouseRocketsAcceptanceRecorder?
+    private let makeID: () -> String
     private let send: Send
     private let resync: () -> Void
     private var state = HouseRocketsOnlineLobbyState()
@@ -30,48 +28,22 @@ final class HouseRocketsOnlineFlight {
     private var correction = HouseRocketsPoint(x: 0, y: 0)
     private var correctionAt: TimeInterval = 0
     private var notices: [HouseRocketsOnlineElimination] = []
-    private var timerTask: Task<Void, Never>?
-    private var sendTask: Task<Void, Never>?
-    private var sendingAt: TimeInterval?
-    private var sendingID: String?
-    private var generation = UUID()
     private var isClosed = false
     private var reduceMotion = false
     private var suppressHistoricalEliminations = false
 
-    init(localPlayerID: String, clock: GameRealtimeClock? = nil,
-         configuration: HouseRocketsFlightConfiguration? = nil,
-         acceptanceRecorder: HouseRocketsAcceptanceRecorder? = nil,
-         send: @escaping Send, resync: @escaping () -> Void) {
+    init(localPlayerID: String, configuration: HouseRocketsFlightConfiguration,
+         makeID: @escaping () -> String, send: @escaping Send, resync: @escaping () -> Void) {
         self.localPlayerID = localPlayerID
-        self.clock = clock ?? .live
-        self.configuration = configuration ?? .init()
-        self.acceptanceRecorder = acceptanceRecorder
+        self.configuration = configuration
+        self.makeID = makeID
         self.send = send
         self.resync = resync
-    }
-
-    deinit { timerTask?.cancel(); sendTask?.cancel() }
-
-    func start() {
-        guard !isClosed, timerTask == nil else { return }
-        let clock = self.clock
-        timerTask = Task { [weak self] in
-            do {
-                while !Task.isCancelled {
-                    try await clock.sleep(0.025)
-                    guard let self, !self.isClosed else { return }
-                    self.tick(at: clock.uptime())
-                }
-            } catch { /* Cancellation ends the single input scheduler. */ }
-        }
     }
 
     func disconnect() {
         guard !isClosed else { return }
         isClosed = true
-        timerTask?.cancel(); timerTask = nil
-        sendTask?.cancel(); sendTask = nil
         frames.removeAll()
         notices.removeAll()
         clearControl()
@@ -84,10 +56,9 @@ final class HouseRocketsOnlineFlight {
         if enabled { correction = .init(x: 0, y: 0) }
     }
 
-    /// Called synchronously before the lobby's bounded UI stream can replace older state.
-    func consume(_ incoming: HouseRocketsOnlineLobbyState) throws {
+    /// Called synchronously for every lobby publication.
+    func consume(_ incoming: HouseRocketsOnlineLobbyState, now: TimeInterval) throws {
         guard !isClosed else { return }
-        let now = clock.uptime()
         let oldPrediction = predictedLocal(at: now)
         let previous = frames.last
         let changedConnection = state.connectionGeneration != incoming.connectionGeneration
@@ -114,7 +85,7 @@ final class HouseRocketsOnlineFlight {
                 guard snapshot.tick >= previous.snapshot.tick,
                       snapshot.elapsedSeconds >= previous.snapshot.elapsedSeconds else { throw GameRealtimeError.invalidResponse }
             }
-            let frame = try HouseRocketsRenderMapper.online(snapshot, localPlayerID: localPlayerID)
+            let frame = try HouseRocketsRenderFrame.online(snapshot, localPlayerID: localPlayerID)
             resetTimeline = previous?.snapshot.sessionId != snapshot.sessionId
                 || previous?.snapshot.runtimeEpoch != snapshot.runtimeEpoch
                 || previous?.snapshot.phase != snapshot.phase
@@ -158,11 +129,6 @@ final class HouseRocketsOnlineFlight {
         if let player = incoming.game?.players.first(where: { $0.playerId == localPlayerID }), binding != nil {
             guard player.lastProcessedInputSequence >= lastACK else { throw GameRealtimeError.invalidResponse }
             if player.lastProcessedInputSequence > lastACK { retransmits = 0 }
-            if let acceptanceRecorder {
-                for input in inputs where input.sequence <= player.lastProcessedInputSequence {
-                    acceptanceRecorder.record(.inputAck, seconds: now - input.sentUptime)
-                }
-            }
             lastACK = player.lastProcessedInputSequence
             sequence = max(sequence, lastACK)
             inputs.removeAll { $0.sequence <= lastACK }
@@ -176,8 +142,7 @@ final class HouseRocketsOnlineFlight {
         }
     }
 
-    func steer(screenHeading: Double) {
-        let now = clock.uptime()
+    func steer(screenHeading: Double, now: TimeInterval) {
         guard screenHeading.isFinite, canSteer(at: now), let newest = frames.last else { return }
         let estimatedTime = newest.frame.elapsedTime + min(configuration.maximumExtrapolation,
                                                           max(0, now - newest.receivedUptime))
@@ -191,15 +156,15 @@ final class HouseRocketsOnlineFlight {
 
     func endSteering() { lastTouchHeading = nil }
 
-    func adjustHeading(by amount: Double) {
+    func adjustHeading(by amount: Double, now: TimeInterval) {
         guard let newest = frames.last,
               let player = newest.frame.players.first(where: { $0.id == localPlayerID }) else { return }
-        let now = clock.uptime()
         let elapsed = newest.frame.elapsedTime + min(configuration.maximumExtrapolation, max(0, now - newest.receivedUptime))
-        steer(screenHeading: (intent?.heading ?? player.courseHeading) + HouseRocketsFlightMath.angle(newest.frame, at: elapsed) + amount)
+        steer(screenHeading: (intent?.heading ?? player.courseHeading)
+              + HouseRocketsFlightMath.angle(newest.frame, at: elapsed) + amount, now: now)
     }
 
-    func reject(messageID: String?, rejection: GameRealtimeRejection) {
+    func reject(messageID: String?, rejection: GameRealtimeRejection, now: TimeInterval) {
         guard let messageID, inputs.contains(where: { $0.messageID == messageID }) else { return }
         // Never replay a rejected sequence or let an obsolete rejection revoke a new binding.
         clearControl()
@@ -207,11 +172,9 @@ final class HouseRocketsOnlineFlight {
             onControlLost?()
             return
         }
-        if rejection.code == "realtime.error.rate_limited" { backoffUntil = clock.uptime() + 0.5 }
-        requestResync(at: clock.uptime())
+        if rejection.code == "realtime.error.rate_limited" { backoffUntil = now + 0.5 }
+        requestResync(at: now)
     }
-
-    func presentation() -> HouseRocketsOnlinePresentation? { render(at: clock.uptime()) }
 
     func render(at now: TimeInterval) -> HouseRocketsOnlinePresentation? {
         guard !isClosed, let newest = frames.last else { return nil }
@@ -266,7 +229,8 @@ final class HouseRocketsOnlineFlight {
         }
         notices.removeAll { now - $0.receivedUptime > 1.8 }
         return .init(frame: frame, canSteer: canSteer(at: now),
-            isSyncing: state.connection != .connected || frame.phase == .recovering || (frame.phase == .playing && (!state.isSynced || age > configuration.maximumExtrapolation)),
+            isSyncing: state.connection != .connected || frame.phase == .recovering
+                || (frame.phase == .playing && (!state.isSynced || age > configuration.maximumExtrapolation)),
             eliminations: notices)
     }
 
@@ -274,15 +238,6 @@ final class HouseRocketsOnlineFlight {
         guard !isClosed, let newest = frames.last, newest.frame.phase == .playing,
               state.connection == .connected, state.isForeground, state.isSynced,
               !state.controlTransferred, !state.isTerminal else { return }
-        if let sendingAt, now - sendingAt >= 1 {
-            // A blocked native write closes through its cancellation handler; no writes pile up.
-            sendTask?.cancel(); sendTask = nil
-            self.sendingAt = nil
-            sendingID = nil
-            clearControl()
-            requestResync(at: now)
-            return
-        }
         if now - newest.receivedUptime > configuration.interpolationDelay + configuration.maximumExtrapolation {
             clearControl()
             requestResync(at: now)
@@ -292,11 +247,13 @@ final class HouseRocketsOnlineFlight {
             requestResync(at: now)
             return
         }
-        guard canSteer(at: now), sendTask == nil, now >= backoffUntil, let binding else { return }
+        guard canSteer(at: now), now >= backoffUntil, let binding else { return }
         let rate = (state.runtimeSettings ?? .releaseDefaults).steerRate(preferredHz: configuration.inputRateHz)
         guard now - lastSentAt >= 1 / rate else { return }
         var heading = intent?.heading
-        let changed = heading.map { value in lastSentHeading.map { abs(HouseRocketsFlightMath.normalize(value - $0)) >= 0.01 } ?? true } ?? false
+        let changed = heading.map { value in
+            lastSentHeading.map { abs(HouseRocketsFlightMath.normalize(value - $0)) >= 0.01 } ?? true
+        } ?? false
         if !changed {
             guard let latest = inputs.last, now - latest.sentUptime >= configuration.retransmitInterval else { return }
             guard retransmits < configuration.maximumRetransmits else {
@@ -309,7 +266,7 @@ final class HouseRocketsOnlineFlight {
             clearControl(); requestResync(at: now); return
         }
         sequence += 1
-        let message = GameRealtimeClientMessage(messageId: UUID().uuidString,
+        let message = GameRealtimeClientMessage(messageId: makeID(),
             action: .steer(controlGeneration: binding.controlGeneration, inputSequence: sequence, courseHeading: heading))
         let time = newest.frame.elapsedTime + min(configuration.maximumExtrapolation, max(0, now - newest.receivedUptime))
         inputs.append(.init(messageID: message.messageId, sequence: sequence, heading: heading,
@@ -317,23 +274,10 @@ final class HouseRocketsOnlineFlight {
         lastSentHeading = heading
         lastSentAt = now
         intent = nil
-        sendingAt = now
-        sendingID = message.messageId
-        let expected = generation
-        sendTask = Task { [weak self, send] in
-            defer {
-                if let self, self.sendingID == message.messageId {
-                    self.sendTask = nil
-                    self.sendingAt = nil
-                    self.sendingID = nil
-                }
-            }
-            do { try await send(message, binding) }
-            catch {
-                guard !Task.isCancelled, let self, self.generation == expected, !self.isClosed else { return }
-                self.clearControl()
-                self.requestResync(at: self.clock.uptime())
-            }
+        if !send(message, binding) {
+            guard !isClosed else { return }
+            clearControl()
+            requestResync(at: now)
         }
     }
 
@@ -357,9 +301,6 @@ final class HouseRocketsOnlineFlight {
     }
 
     private func clearControl() {
-        generation = UUID()
-        sendTask?.cancel(); sendTask = nil
-        sendingAt = nil; sendingID = nil
         binding = nil
         inputs.removeAll()
         intent = nil

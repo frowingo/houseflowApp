@@ -22,6 +22,9 @@ import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
 import com.houseflow.platform.AppLifecycle
+import com.houseflow.platform.AppVisibility
+import com.houseflow.viewmodel.AppEventsRequest
+import com.houseflow.viewmodel.AppEventsViewModel
 import com.houseflow.platform.AuthDestination
 import com.houseflow.ui.auth.AuthScreen
 import com.houseflow.ui.auth.BirthdaySetupScreen
@@ -69,6 +72,25 @@ class MainActivity : ComponentActivity() {
             var showsHouseRockets by rememberSaveable { mutableStateOf(false) }
             LaunchedEffect(state.profile) {
                 state.profile?.let(houseModel::acceptProfile) ?: houseModel.resetSession()
+            }
+            // `/api/v1/events`: one socket while visible and signed in; signals trigger HTTP refreshes.
+            val eventsModel: AppEventsViewModel = viewModel(factory = AppEventsViewModel.Factory(applicationContext))
+            val visibility by AppLifecycle.bridge.visibility.collectAsStateWithLifecycle()
+            val signedIn = state.profile != null && state.route is AuthRoute.Next
+            LaunchedEffect(visibility, signedIn) {
+                eventsModel.update(foreground = visibility == AppVisibility.ACTIVE, authenticated = signedIn)
+            }
+            LaunchedEffect(houseState.details?.id) { eventsModel.setSelectedHouse(houseState.details?.id) }
+            LaunchedEffect(eventsModel) {
+                eventsModel.requests.collect { request ->
+                    when (request) {
+                        is AppEventsRequest.Refresh -> {
+                            if (request.profile) model.refreshProfile()
+                            request.houseId?.let(houseModel::refreshDetails)
+                        }
+                        AppEventsRequest.SignOut -> model.logout()
+                    }
+                }
             }
             LaunchedEffect(state.route) {
                 if (state.route !is AuthRoute.Next) {
@@ -187,7 +209,14 @@ class MainActivity : ComponentActivity() {
                             LaunchedEffect(showsHouseRockets) { onOverlayChange(showsHouseRockets) }
                             if (showsHouseRockets) {
                                 HouseRocketsScreen(text, houseState.details?.id, state.profile?.userId,
-                                    onExit = { showsHouseRockets = false })
+                                    onExit = { showsHouseRockets = false },
+                                    houseOwnerId = houseState.details?.ownerId?.ifBlank { null },
+                                    memberNames = houseState.details?.members.orEmpty()
+                                        .associate { it.id to it.name }.filterValues(String::isNotBlank),
+                                    onRequireSignIn = {
+                                        showsHouseRockets = false
+                                        model.logout()
+                                    })
                             } else {
                                 GamesHubScreen(text, onOpenHouseRockets = { showsHouseRockets = true })
                             }

@@ -4,7 +4,8 @@ import com.houseflow.androidbridge.HouseFlowAndroidBridge
 import org.json.JSONArray
 import org.json.JSONObject
 
-internal enum class RocketsPhase { COUNTDOWN, PLAYING, PAUSED, ENDED }
+/** Render phases; the online ones (recovering, finalizing, cancelled) come from the server. */
+internal enum class RocketsPhase { COUNTDOWN, PLAYING, PAUSED, RECOVERING, FINALIZING, ENDED, CANCELLED }
 
 internal enum class RocketsRole { HUMAN, BOT, REMOTE }
 
@@ -15,6 +16,7 @@ internal enum class RocketsColor { MINT, CORAL, BLUE, GOLD, VIOLET, ORANGE, PINK
 
 internal data class RocketsPlayer(
     val id: String,
+    /** Localization key for local players; empty online. */
     val nameKey: String,
     val role: RocketsRole,
     val color: RocketsColor,
@@ -26,6 +28,8 @@ internal data class RocketsPlayer(
     /** Screen heading, as the joystick and accessibility read it. */
     val heading: Double,
     val effect: RocketsEffect?,
+    /** Server display name for online players; empty locally. */
+    val name: String = "",
 )
 
 /** Gate solids in course units relative to `x`; each polygon is flat x,y pairs. */
@@ -159,9 +163,9 @@ internal class RocketsFrameParser {
         )
     }
 
-    private fun frame(root: JSONObject): RocketsFrame {
+    fun frame(root: JSONObject): RocketsFrame {
         root.optJSONArray("gates")?.let { array ->
-            gates = array.objects { gate ->
+            gates = array.objectList { gate ->
                 RocketsGate(
                     gate.getString("id"), gate.getDouble("x"), gate.getDouble("width"),
                     gate.getJSONArray("polygons").let { polygons ->
@@ -182,7 +186,7 @@ internal class RocketsFrameParser {
             winnerId = root.optNullableString("winnerId"),
             lastEliminatedId = root.optNullableString("lastEliminatedId"),
             turnTargetIsVertical = root.optNullableString("direction")?.let { it == "vertical" },
-            players = root.getJSONArray("players").objects { player ->
+            players = root.getJSONArray("players").objectList { player ->
                 RocketsPlayer(
                     id = player.getString("id"),
                     nameKey = player.getString("nameKey"),
@@ -194,10 +198,11 @@ internal class RocketsFrameParser {
                     courseHeading = player.getDouble("courseHeading"),
                     heading = player.getDouble("heading"),
                     effect = player.optNullableString("effect")?.let(::effect),
+                    name = player.optString("name"),
                 )
             },
             gates = gates,
-            fields = root.getJSONArray("fields").objects { field ->
+            fields = root.getJSONArray("fields").objectList { field ->
                 RocketsField(field.getString("id"), field.getDouble("x"), field.getDouble("y"),
                     effect(field.getString("effect")))
             },
@@ -219,9 +224,9 @@ internal class RocketsFrameParser {
     private fun effect(value: String) = RocketsEffect.valueOf(value.uppercase())
 }
 
-private fun JSONObject.optNullableString(key: String): String? = if (isNull(key)) null else optString(key)
+internal fun JSONObject.optNullableString(key: String): String? = if (isNull(key)) null else optString(key)
 
-private fun <T> JSONArray.objects(transform: (JSONObject) -> T): List<T> =
+private fun <T> JSONArray.objectList(transform: (JSONObject) -> T): List<T> =
     List(length()) { transform(getJSONObject(it)) }
 
 private fun JSONArray.doubles(): DoubleArray = DoubleArray(length()) { getDouble(it) }

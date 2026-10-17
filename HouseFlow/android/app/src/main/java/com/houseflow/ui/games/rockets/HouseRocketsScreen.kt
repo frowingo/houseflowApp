@@ -20,6 +20,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.withFrameNanos
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalContext
@@ -36,7 +37,10 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.houseflow.platform.HouseRocketsNative
 import com.houseflow.platform.LocalizedText
+import com.houseflow.platform.RocketsFrame
 import com.houseflow.viewmodel.HouseRocketsViewModel
+import com.houseflow.viewmodel.HouseRocketsViewModelFactory
+import com.houseflow.viewmodel.RocketsMode
 import com.houseflow.viewmodel.RocketsHaptic
 import kotlinx.coroutines.delay
 
@@ -49,9 +53,10 @@ internal class RocketsCopy(private val strings: LocalizedText, private val bundl
 }
 
 /**
- * `HouseRocketsView`: the portrait lobby, then a landscape flight. Orientation, app
- * visibility and immersive bars are platform concerns, so they live here; the match
- * itself is scheduled by [HouseRocketsViewModel] and simulated in HouseFlowCore.
+ * `HouseRocketsView`: the portrait lobby, then a landscape flight — against local bots or
+ * online with housemates. Orientation, app visibility and immersive bars are platform
+ * concerns, so they live here; bot matches are scheduled by [HouseRocketsViewModel] and
+ * online matches are decided by HouseFlowCore's online engine.
  */
 @Composable
 internal fun HouseRocketsScreen(
@@ -59,16 +64,31 @@ internal fun HouseRocketsScreen(
     houseId: String?,
     userId: String?,
     onExit: () -> Unit,
+    houseOwnerId: String? = null,
+    memberNames: Map<String, String> = emptyMap(),
+    onRequireSignIn: () -> Unit = {},
     bundledCopy: (String?) -> Map<String, String> = HouseRocketsNative::copy,
-    model: HouseRocketsViewModel = viewModel { HouseRocketsViewModel() },
+    model: HouseRocketsViewModel = viewModel(factory = HouseRocketsViewModelFactory(LocalContext.current)),
 ) {
     val state by model.state.collectAsStateWithLifecycle()
     val frameState = model.frame.collectAsStateWithLifecycle()
+    val online by model.onlineSession.collectAsStateWithLifecycle()
+    val session = online
+    val onlineLobby = session?.lobby?.collectAsStateWithLifecycle()?.value
+    val onlineResult = session?.result?.collectAsStateWithLifecycle()?.value
+    val onlineFlight = session?.flight?.collectAsStateWithLifecycle()?.value
+    val noFrame = remember { mutableStateOf<RocketsFrame?>(null) }
+    val onlineFrameState = session?.frame?.collectAsStateWithLifecycle() ?: noFrame
+    val hasOnlineFrame = onlineFrameState.value != null
+    val showsResult = onlineResult?.isVisible == true
     val hasMatch = frameState.value != null
+    val inFlight = hasMatch || (hasOnlineFrame && !showsResult)
+    val isHousemates = state.selectedMode == RocketsMode.HOUSEMATES
     val copy = remember(strings) { RocketsCopy(strings, bundledCopy(strings.prefix)) }
     val activity = LocalContext.current.findActivity()
     val view = LocalView.current
     val density = LocalDensity.current
+    val reduceMotion = rememberReduceMotion()
 
     var isLandscapeLayout by remember { mutableStateOf(false) }
     var isWaitingForLandscape by rememberSaveable { mutableStateOf(false) }
@@ -77,6 +97,7 @@ internal fun HouseRocketsScreen(
     var isForeground by remember { mutableStateOf(true) }
     var canvasSize by remember { mutableStateOf(IntSize.Zero) }
     var hudSize by remember { mutableStateOf(IntSize.Zero) }
+    var confirmsCancel by remember { mutableStateOf(false) }
 
     fun returnToPortrait() {
         activity?.requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_PORTRAIT
@@ -85,7 +106,7 @@ internal fun HouseRocketsScreen(
     fun finishLandscapePreparation() {
         isWaitingForLandscape = false
         orientationRequest = 0
-        model.startMatch()
+        if (isHousemates) model.setOnlineReady(true) else model.startMatch()
     }
 
     fun requestLandscape() {
@@ -97,27 +118,55 @@ internal fun HouseRocketsScreen(
         if (isLandscapeLayout) finishLandscapePreparation()
     }
 
-    fun changeMode() {
+    fun onlineReady() {
+        val lobby = onlineLobby ?: return
+        if (lobby.localReady) model.setOnlineReady(false)
+        else if (lobby.canChangeReady) requestLandscape()
+    }
+
+    fun resetOrientationState() {
         isWaitingForLandscape = false
         orientationRequest = 0
         orientationFailed = false
-        model.returnToModeSelection()
-        returnToPortrait()
+    }
+
+    fun changeMode() {
+        resetOrientationState()
+        if (isHousemates) {
+            model.leaveOnline { returnToPortrait() }
+        } else {
+            model.returnToModeSelection()
+            returnToPortrait()
+        }
     }
 
     fun exitGame() {
-        model.stop()
-        returnToPortrait()
-        onExit()
+        if (isHousemates) {
+            if (onlineLobby?.isLeaving == true) return
+            model.leaveOnline {
+                returnToPortrait()
+                onExit()
+            }
+        } else {
+            model.stop()
+            returnToPortrait()
+            onExit()
+        }
     }
 
-    LaunchedEffect(houseId, userId) {
-        if (state.houseId != houseId || state.userId != userId) {
-            isWaitingForLandscape = false
-            orientationRequest = 0
-            orientationFailed = false
+    fun rematchOnline() {
+        resetOrientationState()
+        confirmsCancel = false
+        model.setLandscape(false)
+        model.rematchOnline()
+        returnToPortrait()
+    }
+
+    LaunchedEffect(houseId, userId, houseOwnerId) {
+        if (state.houseId != houseId || state.userId != userId || state.houseOwnerId != houseOwnerId) {
+            resetOrientationState()
             if (state.houseId != null || state.userId != null) returnToPortrait()
-            model.updateContext(houseId, userId)
+            model.updateContext(houseId, userId, houseOwnerId)
         }
     }
 
@@ -130,6 +179,7 @@ internal fun HouseRocketsScreen(
             isWaitingForLandscape = false
             orientationRequest = 0
             orientationFailed = true
+            model.setLandscape(false)
             returnToPortrait()
         }
     }
@@ -141,17 +191,50 @@ internal fun HouseRocketsScreen(
                 hudSize.width.toDp().value, hudSize.height.toDp().value)
         }
         isLandscapeLayout = canvasSize.width > canvasSize.height
+        model.setLandscape(isLandscapeLayout)
         if (isLandscapeLayout && isWaitingForLandscape && !hasMatch && state.selectedMode != null &&
             isForeground && !orientationFailed) finishLandscapePreparation()
     }
+
+    // The online flight runs landscape; returning to the app re-requests it.
+    LaunchedEffect(onlineFrameState.value?.matchId, isForeground) {
+        if (isHousemates && hasOnlineFrame && !showsResult && isForeground && !orientationFailed &&
+            onlineLobby?.isLeaving != true && !isLandscapeLayout) requestLandscape()
+    }
+
+    // A failed rotation cannot join a live flight: leave like iOS does.
+    LaunchedEffect(orientationFailed, onlineLobby?.sessionState) {
+        if (orientationFailed && onlineLobby?.isSessionLive == true) model.leaveOnline { returnToPortrait() }
+    }
+
+    LaunchedEffect(onlineLobby?.requiresAuthentication, onlineResult?.detailKey) {
+        if (onlineLobby?.requiresAuthentication == true ||
+            (onlineResult?.isFailed == true && onlineResult.detailKey == "house_rockets_online_sign_in")) {
+            model.stop()
+            returnToPortrait()
+            onRequireSignIn()
+        }
+    }
+
+    // One sample of the interpolated online flight per display frame.
+    LaunchedEffect(session, onlineLobby?.hasGame == true, isForeground) {
+        if (session == null || onlineLobby?.hasGame != true || !isForeground) return@LaunchedEffect
+        while (true) withFrameNanos { model.onOnlineFrame() }
+    }
+
+    LaunchedEffect(reduceMotion, session) { model.setReduceMotion(reduceMotion) }
 
     val lifecycle = LocalLifecycleOwner.current.lifecycle
     DisposableEffect(lifecycle) {
         val observer = LifecycleEventObserver { _, event ->
             when (event) {
-                Lifecycle.Event.ON_START -> isForeground = true
+                Lifecycle.Event.ON_START -> {
+                    isForeground = true
+                    model.setForeground(true)
+                }
                 Lifecycle.Event.ON_STOP -> {
                     isForeground = false
+                    model.setForeground(false)
                     if (isWaitingForLandscape) {
                         isWaitingForLandscape = false
                         orientationRequest = 0
@@ -167,11 +250,11 @@ internal fun HouseRocketsScreen(
     }
 
     // The flight is immersive; the lobby keeps the status bar like the iOS navigation stack.
-    DisposableEffect(hasMatch, activity) {
+    DisposableEffect(inFlight, activity) {
         val window = activity?.window
         if (window != null) {
             val controller = WindowCompat.getInsetsController(window, view)
-            if (hasMatch) {
+            if (inFlight) {
                 controller.systemBarsBehavior = WindowInsetsControllerCompat.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE
                 controller.hide(WindowInsetsCompat.Type.systemBars())
             } else {
@@ -198,28 +281,51 @@ internal fun HouseRocketsScreen(
     }
 
     BackHandler {
-        if (state.selectedMode != null && !hasMatch) changeMode() else exitGame()
+        if (state.selectedMode != null && !inFlight && !showsResult && !isHousemates) changeMode() else exitGame()
     }
 
     Box(Modifier.fillMaxSize().onSizeChanged { canvasSize = it }) {
         // Measures the safe area the HUD lays out in (iOS's information-layer GeometryReader).
         Box(Modifier.fillMaxSize().windowInsetsPadding(WindowInsets.safeDrawing).onSizeChanged { hudSize = it })
-        if (!hasMatch) {
-            HouseRocketsPreparationBackdrop()
-            HouseRocketsLobby(
-                state = state, copy = copy, isWaitingForLandscape = isWaitingForLandscape,
-                orientationFailed = orientationFailed,
-                onBack = ::exitGame, onSelectMode = model::selectMode, onChangeMode = ::changeMode,
-                onBotCount = model::setBotCount, onStart = ::requestLandscape,
-            )
-        } else {
-            Box(Modifier.fillMaxSize().background(HouseRocketsTheme.background))
-            HouseRocketsGameLayer(
-                frameState = frameState, copy = copy, isForeground = isForeground,
-                onSteer = model::steer, onEndSteering = model::endSteering, onAdjust = model::adjustHeading,
-                onFrame = model::onFrame, onPause = model::pause, onResume = model::resume,
-                onRestart = model::restart, onExit = ::exitGame,
-            )
+        when {
+            hasMatch -> {
+                Box(Modifier.fillMaxSize().background(HouseRocketsTheme.background))
+                HouseRocketsGameLayer(
+                    frameState = frameState, copy = copy, isForeground = isForeground,
+                    onSteer = model::steer, onEndSteering = model::endSteering, onAdjust = model::adjustHeading,
+                    onFrame = model::onFrame, onPause = model::pause, onResume = model::resume,
+                    onRestart = model::restart, onExit = ::exitGame,
+                )
+            }
+            showsResult && onlineResult != null -> {
+                Box(Modifier.fillMaxSize().background(HouseRocketsTheme.background))
+                HouseRocketsOnlineResultScreen(onlineResult, copy, memberNames, model::retryOnlineResult,
+                    ::rematchOnline, ::exitGame)
+            }
+            hasOnlineFrame && onlineLobby != null -> {
+                Box(Modifier.fillMaxSize().background(HouseRocketsTheme.background))
+                HouseRocketsCourseCanvas(onlineFrameState, reduceMotion)
+                HouseRocketsOnlineFlightOverlay(
+                    frameState = onlineFrameState, flight = onlineFlight, lobby = onlineLobby, copy = copy,
+                    isForeground = isForeground, onSteer = model::steer, onEndSteering = model::endSteering,
+                    onAdjust = model::adjustHeading, onRetry = model::retryOnline,
+                    onReclaim = model::reclaimOnlineControl, onCancel = { confirmsCancel = true }, onExit = ::exitGame,
+                )
+            }
+            else -> {
+                HouseRocketsPreparationBackdrop()
+                HouseRocketsLobby(
+                    state = state, copy = copy, isWaitingForLandscape = isWaitingForLandscape,
+                    orientationFailed = orientationFailed,
+                    onBack = ::exitGame, onSelectMode = model::selectMode, onChangeMode = ::changeMode,
+                    onBotCount = model::setBotCount, onStart = ::requestLandscape,
+                    online = onlineLobby, memberNames = memberNames, onOnlineReady = ::onlineReady,
+                    onOnlineRetry = model::retryOnline, onOnlineCancel = { confirmsCancel = true },
+                )
+            }
+        }
+        if (confirmsCancel) {
+            CancelFlightDialog(copy, onConfirm = model::cancelOnlineMatch, onDismiss = { confirmsCancel = false })
         }
     }
 }

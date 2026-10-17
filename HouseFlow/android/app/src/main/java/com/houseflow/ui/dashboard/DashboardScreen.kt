@@ -189,7 +189,7 @@ private fun DashboardHeader(
     onAnnouncement: () -> Unit,
 ) {
     BrandHeroCard(
-        modifier.padding(start = Spacing.xl, end = Spacing.xl, top = Spacing.xs, bottom = Spacing.sm)
+        modifier.padding(start = Spacing.xl, end = Spacing.xl, top = Spacing.xl, bottom = Spacing.sm)
             .fillMaxWidth().height(112.dp),
     ) {
         Row(Modifier.fillMaxSize().padding(Spacing.xl), verticalAlignment = Alignment.CenterVertically) {

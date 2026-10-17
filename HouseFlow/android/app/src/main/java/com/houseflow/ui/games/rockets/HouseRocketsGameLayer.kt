@@ -106,6 +106,38 @@ private data class HudPlayer(val nameKey: String, val role: RocketsRole, val col
 
 private fun RocketsPlayer.hud() = HudPlayer(nameKey, role, color, isAlive)
 
+/** Android's "Remove animations" setting, iOS's Reduce Motion. */
+@Composable
+internal fun rememberReduceMotion(): Boolean {
+    val context = LocalContext.current
+    return remember {
+        Settings.Global.getFloat(context.contentResolver, Settings.Global.ANIMATOR_DURATION_SCALE, 1f) == 0f
+    }
+}
+
+/** The SpriteKit scene: draws [frameState] in SpriteKit's y-up space, reading it only while drawing. */
+@Composable
+internal fun HouseRocketsCourseCanvas(frameState: State<RocketsFrame?>, reduceMotion: Boolean) {
+    val renderer = remember { HouseRocketsCourseRenderer() }
+    Box(
+        Modifier.fillMaxSize().drawBehind {
+            val frame = frameState.value ?: return@drawBehind
+            drawIntoCanvas { canvas ->
+                val native = canvas.nativeCanvas
+                val width = size.width / density
+                val height = size.height / density
+                native.save()
+                native.scale(density, density)
+                // SpriteKit's scene space: origin bottom-left, y up.
+                native.translate(0f, height)
+                native.scale(1f, -1f)
+                renderer.draw(native, frame, width, height, reduceMotion)
+                native.restore()
+            }
+        },
+    )
+}
+
 /** `HouseRocketsView.gameLayer`: the SpriteKit course plus its SwiftUI overlays. */
 @Composable
 internal fun HouseRocketsGameLayer(
@@ -121,11 +153,7 @@ internal fun HouseRocketsGameLayer(
     onRestart: () -> Unit,
     onExit: () -> Unit,
 ) {
-    val context = LocalContext.current
-    val reduceMotion = remember {
-        Settings.Global.getFloat(context.contentResolver, Settings.Global.ANIMATOR_DURATION_SCALE, 1f) == 0f
-    }
-    val renderer = remember { HouseRocketsCourseRenderer() }
+    val reduceMotion = rememberReduceMotion()
     val hud by remember {
         derivedStateOf {
             frameState.value?.let { frame ->
@@ -161,23 +189,7 @@ internal fun HouseRocketsGameLayer(
         eliminationNotice = null
     }
 
-    Box(
-        Modifier.fillMaxSize().drawBehind {
-            val frame = frameState.value ?: return@drawBehind
-            drawIntoCanvas { canvas ->
-                val native = canvas.nativeCanvas
-                val width = size.width / density
-                val height = size.height / density
-                native.save()
-                native.scale(density, density)
-                // SpriteKit's scene space: origin bottom-left, y up.
-                native.translate(0f, height)
-                native.scale(1f, -1f)
-                renderer.draw(native, frame, width, height, reduceMotion)
-                native.restore()
-            }
-        },
-    )
+    HouseRocketsCourseCanvas(frameState, reduceMotion)
     Box(Modifier.fillMaxSize().windowInsetsPadding(WindowInsets.safeDrawing)) {
         if (isPlaying && model.humanAlive && isForeground) {
             FloatingJoystick(humanHeading, copy("house_rockets_joystick"), copy("house_rockets_joystick_hint"),
@@ -299,7 +311,7 @@ private fun PauseButton(copy: RocketsCopy, onPause: () -> Unit, modifier: Modifi
 }
 
 @Composable
-private fun HudLabel(
+internal fun HudLabel(
     icon: ImageVector,
     text: String,
     modifier: Modifier = Modifier,
@@ -362,8 +374,8 @@ private fun StateOverlay(
             }
             Row(horizontalArrangement = Arrangement.spacedBy(Spacing.md)) {
                 CapsuleButton(exit, HouseRocketsTheme.ink, Color.White.copy(alpha = .14f),
-                    Modifier.weight(1f), onExit)
-                CapsuleButton(primary, HouseRocketsTheme.background, HouseRocketsTheme.accent, Modifier.weight(1f), onPrimary)
+                    Modifier.weight(1f), onClick = onExit)
+                CapsuleButton(primary, HouseRocketsTheme.background, HouseRocketsTheme.accent, Modifier.weight(1f), onClick = onPrimary)
             }
         }
     }
@@ -371,17 +383,21 @@ private fun StateOverlay(
 
 /** iOS 26 `.bordered` / `.borderedProminent` buttons: full capsules, 48 pt tall here. */
 @Composable
-private fun CapsuleButton(
+internal fun CapsuleButton(
     text: String,
     content: Color,
     fill: Color,
     modifier: Modifier,
+    enabled: Boolean = true,
+    minHeight: androidx.compose.ui.unit.Dp = 48.dp,
     onClick: () -> Unit,
 ) {
     Box(
-        modifier.heightIn(min = 48.dp).fillMaxWidth()
+        modifier.heightIn(min = minHeight).fillMaxWidth()
+            .alpha(if (enabled) 1f else .45f)
             .clip(CircleShape).background(fill)
-            .clickable(role = Role.Button, onClick = onClick),
+            .clickable(enabled = enabled, role = Role.Button, onClick = onClick)
+            .padding(horizontal = Spacing.lg),
         contentAlignment = Alignment.Center,
     ) {
         Text(text, style = HouseFlowType.body, color = content, maxLines = 1)
@@ -394,7 +410,7 @@ private fun CapsuleButton(
  * keeps its heading. Accessibility actions turn by 15°.
  */
 @Composable
-private fun FloatingJoystick(
+internal fun FloatingJoystick(
     heading: Double,
     label: String,
     hint: String,

@@ -80,7 +80,7 @@ final class GameReleaseOneContractTests: XCTestCase {
         var loads = 0
         let factory = HouseRocketsSessionFactory(
             makeBotSession: { DemoHouseRocketsSession() },
-            makeOnlineSession: { preconditionFailure("Gate checks must not construct a session") },
+            makeOnlineHost: { _, _ in preconditionFailure("Gate checks must not construct a session") },
             loadCatalog: { _ in loads += 1; return catalog }
         )
         let model = HouseRocketsViewModel(sessionFactory: factory,

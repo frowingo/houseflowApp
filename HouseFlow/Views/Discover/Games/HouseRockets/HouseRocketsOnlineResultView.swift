@@ -1,4 +1,5 @@
 import SwiftUI
+import HouseFlowCore
 
 /// Displays persisted ranks as supplied, including ties and unranked cancellations.
 struct HouseRocketsOnlineResultView: View {
@@ -104,41 +105,17 @@ struct HouseRocketsOnlineResultView: View {
     }
 
     private var orderedPlayers: [HouseRocketsPlayerResultDTO] {
-        (state.result?.players ?? []).enumerated().sorted {
-            let lhs = $0.element.rank ?? Int.max, rhs = $1.element.rank ?? Int.max
-            return lhs == rhs ? $0.offset < $1.offset : lhs < rhs
-        }.map(\.element)
+        HouseRocketsOnlineCopyKeys.orderedResultPlayers(state.result)
     }
 
     private var title: String {
-        if state.phase == .waiting { return copy("house_rockets_online_finalizing") }
-        if state.phase == .failed { return copy("house_rockets_result_unavailable") }
-        guard let result = state.result, result.status == .completed else { return copy("house_rockets_result_cancelled") }
-        guard let winner = result.winnerId else { return copy("house_rockets_draw") }
-        return winner == localPlayerID ? copy("house_rockets_won") : copy("house_rockets_lost", replacements: ["name": name(winner)])
+        switch HouseRocketsOnlineCopyKeys.resultTitle(state, localPlayerID: localPlayerID) {
+        case .key(let key): return copy(key)
+        case .lost(let winner): return copy("house_rockets_lost", replacements: ["name": name(winner)])
+        }
     }
 
-    private var detailKey: String {
-        if state.phase == .waiting { return "house_rockets_result_waiting_detail" }
-        if state.phase == .failed {
-            switch state.failure {
-            case .http(401, _): return "house_rockets_online_sign_in"
-            case .http(403, _): return "house_rockets_online_forbidden"
-            case .invalidPayload, .protocolFailure: return "house_rockets_online_update_required"
-            default: return "house_rockets_result_unavailable_detail"
-            }
-        }
-        if state.phase == .cancelledWithoutRecord { return "house_rockets_result_cancelled_before_start" }
-        if state.result?.status == .completed {
-            return state.result?.winnerId == nil ? "house_rockets_draw_detail" : "house_rockets_result_detail"
-        }
-        switch state.endReason {
-        case .sessionExpired: return "house_rockets_result_expired"
-        case .cancelledByUser: return "house_rockets_result_cancelled_by_user"
-        case .insufficientPlayers: return "house_rockets_result_insufficient_players"
-        default: return "house_rockets_result_technical_cancel"
-        }
-    }
+    private var detailKey: String { HouseRocketsOnlineCopyKeys.resultDetail(state) }
 
     private var allowsRetry: Bool { state.canRetry(at: max(ProcessInfo.processInfo.systemUptime, state.retryNotBefore)) }
     private func name(_ id: String) -> String {

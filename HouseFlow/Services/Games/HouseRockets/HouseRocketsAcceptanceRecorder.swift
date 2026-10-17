@@ -1,4 +1,5 @@
 import Foundation
+import HouseFlowCore
 import OSLog
 
 /// Opt-in, aggregate measurements only. It cannot change gameplay or release gates.

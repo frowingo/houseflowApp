@@ -38,8 +38,10 @@ struct HouseRocketsView: View {
                 if let snapshot = model.snapshot {
                     SpriteView(scene: model.scene, isPaused: scenePhase != .active,
                                preferredFramesPerSecond: model.preferredFramesPerSecond)
-                        .ignoresSafeArea(edges: HouseRocketsCourse.angle(at: snapshot.elapsedTime) > .pi / 4
-                                         ? .vertical : .horizontal)
+                        // Edge to edge like Android's canvas. Switching the ignored edges with the
+                        // course angle left the first horizontal leg inset by the home indicator
+                        // until a turn forced a relayout.
+                        .ignoresSafeArea()
                         .allowsHitTesting(false)
                     gameLayer(snapshot: snapshot)
                 } else if model.onlineResultState.isVisible {
@@ -49,7 +51,7 @@ struct HouseRocketsView: View {
                 } else if let frame = model.onlineFrame {
                     SpriteView(scene: model.scene, isPaused: scenePhase != .active,
                                preferredFramesPerSecond: model.preferredFramesPerSecond)
-                        .ignoresSafeArea(edges: frame.courseAngle > .pi / 4 ? .vertical : .horizontal)
+                        .ignoresSafeArea()
                         .allowsHitTesting(false)
                     if model.onlinePresentation?.canSteer == true, scenePhase == .active {
                         HouseRocketsFloatingJoystick(

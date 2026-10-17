@@ -170,34 +170,44 @@ private func botFrame(
 /// The Android render contract. Coordinates are course units; the projection
 /// maps them to the viewport (in dp, y down) exactly as SpriteKit does on iOS.
 enum HouseRocketsFrameJSON {
+    /// A local bot frame: the shared render keys plus the match's own bookkeeping.
     static func object(snapshot: HouseRocketsSnapshot, frame: HouseRocketsRenderFrame,
                        viewport: BotMatchRegistry.Viewport, includeGates: Bool) -> [String: Any] {
-        var object: [String: Any] = [
+        var object = render(frame: frame, viewport: viewport, includeGates: includeGates)
+        object.merge([
             "matchId": snapshot.matchID.uuidString,
             "revision": snapshot.revision,
             "phase": snapshot.phase.rawValue,
             "countdown": snapshot.countdown ?? NSNull(),
-            "elapsed": snapshot.elapsedTime,
-            "cameraX": snapshot.cameraX,
-            "courseAngle": frame.courseAngle,
             "aliveCount": snapshot.aliveCount,
             "winnerId": snapshot.winnerID?.uuidString ?? NSNull(),
             "lastEliminatedId": snapshot.lastEliminatedID?.uuidString ?? NSNull(),
-            "direction": HouseRocketsCourse.transitionTargetIsVertical(at: snapshot.elapsedTime)
+            "players": zip(snapshot.players, frame.players).map { player, rendered in
+                var object = playerObject(rendered, courseAngle: frame.courseAngle)
+                object["nameKey"] = player.nameKey
+                object["heading"] = player.heading
+                return object
+            },
+        ]) { _, new in new }
+        return object
+    }
+
+    /// Keys every frame carries, local or online.
+    static func render(frame: HouseRocketsRenderFrame, viewport: BotMatchRegistry.Viewport,
+                       includeGates: Bool) -> [String: Any] {
+        var object: [String: Any] = [
+            "matchId": frame.sessionID,
+            "phase": frame.phase.rawValue,
+            "countdown": NSNull(),
+            "elapsed": frame.elapsedTime,
+            "cameraX": frame.cameraX,
+            "courseAngle": frame.courseAngle,
+            "aliveCount": frame.players.filter(\.isAlive).count,
+            "winnerId": NSNull(),
+            "lastEliminatedId": NSNull(),
+            "direction": HouseRocketsCourse.transitionTargetIsVertical(at: frame.elapsedTime)
                 .map { $0 ? "vertical" : "horizontal" } ?? NSNull(),
-            "players": zip(snapshot.players, frame.players).map { player, rendered in [
-                "id": rendered.id,
-                "nameKey": player.nameKey,
-                "role": player.role.rawValue,
-                "color": player.color.rawValue,
-                "alive": player.isAlive,
-                "x": rendered.worldX,
-                "y": rendered.worldY,
-                "courseHeading": rendered.courseHeading,
-                "heading": player.heading,
-                "effect": player.speedEffect?.rawValue ?? NSNull(),
-                "effectRemaining": player.effectRemaining,
-            ] as [String: Any] },
+            "players": frame.players.map { playerObject($0, courseAngle: frame.courseAngle) },
             "fields": frame.speedFields.map { [
                 "id": $0.id, "x": $0.worldX, "y": $0.worldY(at: frame.elapsedTime), "effect": $0.effect.rawValue,
             ] as [String: Any] },
@@ -232,13 +242,36 @@ enum HouseRocketsFrameJSON {
         }
         return object
     }
+
+    private static func playerObject(_ player: HouseRocketsRenderPlayer, courseAngle: Double) -> [String: Any] {
+        let name: (key: String, display: String)
+        switch player.name {
+        case .localizationKey(let key): name = (key, "")
+        case .displayName(let value): name = ("", value)
+        }
+        let heading = player.courseHeading + courseAngle
+        return [
+            "id": player.id,
+            "nameKey": name.key,
+            "name": name.display,
+            "role": player.role.rawValue,
+            "color": player.color.rawValue,
+            "alive": player.isAlive,
+            "x": player.worldX,
+            "y": player.worldY,
+            "courseHeading": player.courseHeading,
+            "heading": atan2(sin(heading), cos(heading)),
+            "effect": player.speedEffect?.rawValue ?? NSNull(),
+            "effectRemaining": player.effectRemaining,
+        ]
+    }
 }
 
-private func isUsable(_ width: Double, _ height: Double) -> Bool {
+func isUsable(_ width: Double, _ height: Double) -> Bool {
     width > 0 && height > 0 && width.isFinite && height.isFinite
 }
 
-private func bridgeJSON(_ object: Any) -> String {
+func bridgeJSON(_ object: Any) -> String {
     guard let data = try? JSONSerialization.data(withJSONObject: object, options: [.sortedKeys]),
           let string = String(data: data, encoding: .utf8) else { return "{\"ok\":false}" }
     return string

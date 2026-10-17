@@ -145,9 +145,13 @@ class HouseRocketsViewModelTest {
         model.stop()
     }
 
-    @Test fun onlineModeShowsTheServiceBlockerUntilAndroidHasRealtime() {
+    @Test fun onlineBlockersFollowContextSupportAndTheServerCatalog() {
         assertEquals(RocketsOnlineBlocker.SIGN_IN_REQUIRED, HouseRocketsUiState().onlineBlocker)
         assertEquals(RocketsOnlineBlocker.HOUSE_REQUIRED, HouseRocketsUiState(userId = "u").onlineBlocker)
         assertEquals(RocketsOnlineBlocker.SERVICE_UNAVAILABLE, HouseRocketsUiState(userId = "u", houseId = "h").onlineBlocker)
+        val supported = HouseRocketsUiState(userId = "u", houseId = "h", onlineSupported = true)
+        assertNull("An unknown catalog never blocks", supported.onlineBlocker)
+        assertNull(supported.copy(catalogAvailable = true).onlineBlocker)
+        assertEquals(RocketsOnlineBlocker.GAME_UNAVAILABLE, supported.copy(catalogAvailable = false).onlineBlocker)
     }
 }

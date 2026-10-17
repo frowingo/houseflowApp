@@ -187,6 +187,50 @@ final class AppSessionCoordinator: ObservableObject {
         router.showUnauthenticatedEntry()
     }
 
+    /// A forced HTTP refresh requested by the `/api/v1/events` channel. It bypasses the
+    /// house details cache and never applies a response for a house that is no longer
+    /// selected. A user removed from the selected house loses that selection.
+    func refreshForAppEvent(profile refreshProfile: Bool, houseID: String?) async {
+        guard authStore.isAuthenticated else { return }
+        if refreshProfile {
+            let flowID = authenticationFlowID
+            guard let profile = try? await authStore.fetchAuthenticatedUser(),
+                  authStore.isAuthenticated, isCurrentAuthenticationFlow(flowID) else { return }
+            authStore.applyAuthenticatedUser(profile)
+            if let selected = houseStore.currentHouseDetails?.id,
+               !profile.houseList.contains(where: { $0.houseId == selected }) {
+                await leaveRemovedHouse(profile: profile, flowID: flowID)
+                return
+            }
+        }
+        guard let houseID, houseStore.currentHouseDetails?.id == houseID,
+              let details = try? await houseStore.loadHouseDetails(houseId: houseID, forceRefresh: true),
+              authStore.isAuthenticated, houseStore.currentHouseDetails?.id == houseID else { return }
+        houseStore.applyHouseDetails(details)
+    }
+
+    private func leaveRemovedHouse(profile: IsAuthUserData, flowID: UUID) async {
+        houseStore.resetHouseSession()
+        houseStore.clearChosenHouseSelection()
+        guard !profile.houseList.isEmpty else {
+            router.navigate(to: .houseSelection)
+            return
+        }
+        router.navigationDirection = .forward
+        router.navigate(to: .houseLoading(.loadingHouse), respectingOnboarding: false)
+        do {
+            guard let result = try await houseStore.loadPreferredHouseDetails(for: profile),
+                  isCurrentAuthenticationFlow(flowID), authStore.isAuthenticated else {
+                router.navigate(to: .houseSelection)
+                return
+            }
+            houseStore.applySelectedHouseDetails(result.details, houseNameOverride: result.house.houseName)
+            router.navigate(to: .dashboard)
+        } catch {
+            handleAuthenticationError(error, flowID: flowID)
+        }
+    }
+
     func invalidateAuthenticationFlows() {
         authenticationFlowID = UUID()
     }

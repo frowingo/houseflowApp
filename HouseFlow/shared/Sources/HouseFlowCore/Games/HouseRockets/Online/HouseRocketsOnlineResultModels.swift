@@ -1,26 +1,31 @@
 import Foundation
-import HouseFlowCore
 
-struct HouseRocketsResultPlayerIdentity: Equatable, Sendable {
-    let displayName: String
-    let color: HouseRocketsColor
+
+public struct HouseRocketsResultPlayerIdentity: Equatable, Sendable {
+    public let displayName: String
+    public let color: HouseRocketsColor
+
+    public init(displayName: String, color: HouseRocketsColor) {
+        self.displayName = displayName
+        self.color = color
+    }
 }
 
 /// Persistence state, independent of the flight frame and socket lifetime.
-struct HouseRocketsOnlineResultState: Equatable, Sendable {
-    enum Phase: Equatable, Sendable { case idle, waiting, available, cancelledWithoutRecord, failed }
-    var phase: Phase = .idle
-    var sessionID: String?
-    var result: HouseRocketsResultDTO?
-    var identities: [String: HouseRocketsResultPlayerIdentity] = [:]
-    var endReason: HouseRocketsEndReason?
-    var failure: GameRealtimeSessionFailure?
-    var retryNotBefore: TimeInterval = 0
-    var terminalConfirmed = false
+public struct HouseRocketsOnlineResultState: Equatable, Sendable {
+    public enum Phase: Equatable, Sendable { case idle, waiting, available, cancelledWithoutRecord, failed }
+    public var phase: Phase = .idle
+    public var sessionID: String?
+    public var result: HouseRocketsResultDTO?
+    public var identities: [String: HouseRocketsResultPlayerIdentity] = [:]
+    public var endReason: HouseRocketsEndReason?
+    public var failure: GameRealtimeSessionFailure?
+    public var retryNotBefore: TimeInterval = 0
+    public var terminalConfirmed = false
 
-    var isVisible: Bool { phase != .idle }
-    var canRematch: Bool { terminalConfirmed && (phase == .available || phase == .cancelledWithoutRecord) }
-    func canRetry(at uptime: TimeInterval) -> Bool {
+    public var isVisible: Bool { phase != .idle }
+    public var canRematch: Bool { terminalConfirmed && (phase == .available || phase == .cancelledWithoutRecord) }
+    public func canRetry(at uptime: TimeInterval) -> Bool {
         guard phase == .failed, uptime >= retryNotBefore else { return false }
         switch failure {
         case .http(let status, _): return ![401, 403].contains(status)
@@ -28,11 +33,13 @@ struct HouseRocketsOnlineResultState: Equatable, Sendable {
         default: return true
         }
     }
+
+    public init() {}
 }
 
 extension HouseRocketsResultDTO {
     /// A final snapshot's winner or distances never substitute for this contract.
-    func validate(sessionID: String, houseID: String) throws {
+    public func validate(sessionID: String, houseID: String) throws {
         try GameRealtimeCodec.validateCompatibility(protocolVersion: protocolVersion,
             courseVersion: courseVersion, gameKey: gameKey)
         guard sessionId == sessionID, houseId == houseID else { throw GameRealtimeError.unexpectedSession }
@@ -65,3 +72,4 @@ extension HouseRocketsResultDTO {
         }
     }
 }
+

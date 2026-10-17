@@ -1,26 +1,26 @@
 import Foundation
-import HouseFlowCore
+
 
 // Dedicated v2 wire DTOs. Nullable game fields must exist, even when their value is null.
-enum HouseRocketsWirePhase: String, Decodable, Sendable {
+public enum HouseRocketsWirePhase: String, Decodable, Sendable {
     case countdown, playing, recovering, finalizing, ended, cancelled
 }
 
-enum HouseRocketsEliminationReason: String, Decodable, Sendable {
+public enum HouseRocketsEliminationReason: String, Decodable, Sendable {
     case behindCamera, forfeit, connectionExpired, membershipRevoked
 }
 
-enum HouseRocketsResultStatus: String, Decodable, Sendable {
+public enum HouseRocketsResultStatus: String, Decodable, Sendable {
     case completed, cancelled
 }
 
-enum HouseRocketsEndReason: String, Decodable, Sendable {
+public enum HouseRocketsEndReason: String, Decodable, Sendable {
     case lastSurvivor, simultaneousElimination, insufficientPlayers, cancelledByUser
     case sessionExpired, recoveryFailed, coordinationUnavailable, runtimeOverloaded
 }
 
 extension KeyedDecodingContainer {
-    func decodeRequiredNullable<Value: Decodable>(_ type: Value.Type, forKey key: Key) throws -> Value? {
+    public func decodeRequiredNullable<Value: Decodable>(_ type: Value.Type, forKey key: Key) throws -> Value? {
         guard contains(key) else {
             throw DecodingError.keyNotFound(key, .init(codingPath: codingPath,
                 debugDescription: "Nullable field must be present: \(key.stringValue)"))
@@ -29,44 +29,60 @@ extension KeyedDecodingContainer {
     }
 }
 
-struct HouseRocketsWelcomeDTO: Decodable, Equatable, Sendable {
-    let sessionId: String
-    let gameKey: String
-    let connectionId: String
-    let protocolVersion: Int
-    let courseVersion: Int
-    let settings: HouseRocketsRuntimeSettingsDTO
+public struct HouseRocketsWelcomeDTO: Decodable, Equatable, Sendable {
+    public let sessionId: String
+    public let gameKey: String
+    public let connectionId: String
+    public let protocolVersion: Int
+    public let courseVersion: Int
+    public let settings: HouseRocketsRuntimeSettingsDTO
+
+    public init(sessionId: String, gameKey: String, connectionId: String, protocolVersion: Int, courseVersion: Int, settings: HouseRocketsRuntimeSettingsDTO) {
+        self.sessionId = sessionId
+        self.gameKey = gameKey
+        self.connectionId = connectionId
+        self.protocolVersion = protocolVersion
+        self.courseVersion = courseVersion
+        self.settings = settings
+    }
 }
 
-struct HouseRocketsControlGrantDTO: Decodable, Equatable, Sendable {
-    let sessionId: String
-    let playerId: String
-    let runtimeEpoch: Int64
-    let controlGeneration: String
+public struct HouseRocketsControlGrantDTO: Decodable, Equatable, Sendable {
+    public let sessionId: String
+    public let playerId: String
+    public let runtimeEpoch: Int64
+    public let controlGeneration: String
+
+    public init(sessionId: String, playerId: String, runtimeEpoch: Int64, controlGeneration: String) {
+        self.sessionId = sessionId
+        self.playerId = playerId
+        self.runtimeEpoch = runtimeEpoch
+        self.controlGeneration = controlGeneration
+    }
 }
 
-struct HouseRocketsPlayerDTO: Decodable, Equatable, Sendable {
-    let playerId: String
-    let displayName: String
-    let color: HouseRocketsColor
-    let worldX: Double
-    let worldY: Double
-    let courseHeading: Double
-    let isAlive: Bool
-    let connected: Bool
-    let distance: Double
-    let speedEffect: HouseRocketsSpeedEffect?
-    let effectRemainingSeconds: Double
-    let eliminatedAtTick: Int64?
-    let eliminationReason: HouseRocketsEliminationReason?
-    let lastProcessedInputSequence: Int64
-    let controlGeneration: String?
+public struct HouseRocketsPlayerDTO: Decodable, Equatable, Sendable {
+    public let playerId: String
+    public let displayName: String
+    public let color: HouseRocketsColor
+    public let worldX: Double
+    public let worldY: Double
+    public let courseHeading: Double
+    public let isAlive: Bool
+    public let connected: Bool
+    public let distance: Double
+    public let speedEffect: HouseRocketsSpeedEffect?
+    public let effectRemainingSeconds: Double
+    public let eliminatedAtTick: Int64?
+    public let eliminationReason: HouseRocketsEliminationReason?
+    public let lastProcessedInputSequence: Int64
+    public let controlGeneration: String?
 
     private enum CodingKeys: String, CodingKey {
         case playerId, displayName, color, worldX, worldY, courseHeading, isAlive, connected, distance, speedEffect, effectRemainingSeconds, eliminatedAtTick, eliminationReason, lastProcessedInputSequence, controlGeneration
     }
 
-    init(from decoder: Decoder) throws {
+    public init(from decoder: Decoder) throws {
         let values = try decoder.container(keyedBy: CodingKeys.self)
         playerId = try values.decode(String.self, forKey: .playerId)
         displayName = try values.decode(String.self, forKey: .displayName)
@@ -86,48 +102,68 @@ struct HouseRocketsPlayerDTO: Decodable, Equatable, Sendable {
     }
 }
 
-struct HouseRocketsPassageDTO: Decodable, Equatable, Sendable {
-    let offsetX: Double
-    let lowerY: Double
-    let upperY: Double
+public struct HouseRocketsPassageDTO: Decodable, Equatable, Sendable {
+    public let offsetX: Double
+    public let lowerY: Double
+    public let upperY: Double
+
+    public init(offsetX: Double, lowerY: Double, upperY: Double) {
+        self.offsetX = offsetX
+        self.lowerY = lowerY
+        self.upperY = upperY
+    }
 }
 
-struct HouseRocketsGateDTO: Decodable, Equatable, Sendable {
-    let id: String
-    let worldX: Double
-    let sections: [HouseRocketsPassageDTO]
+public struct HouseRocketsGateDTO: Decodable, Equatable, Sendable {
+    public let id: String
+    public let worldX: Double
+    public let sections: [HouseRocketsPassageDTO]
+
+    public init(id: String, worldX: Double, sections: [HouseRocketsPassageDTO]) {
+        self.id = id
+        self.worldX = worldX
+        self.sections = sections
+    }
 }
 
-struct HouseRocketsSpeedFieldDTO: Decodable, Equatable, Sendable {
-    let id: String
-    let worldX: Double
-    let effect: HouseRocketsSpeedEffect
-    let phase: Double
-    let periodSeconds: Double
+public struct HouseRocketsSpeedFieldDTO: Decodable, Equatable, Sendable {
+    public let id: String
+    public let worldX: Double
+    public let effect: HouseRocketsSpeedEffect
+    public let phase: Double
+    public let periodSeconds: Double
+
+    public init(id: String, worldX: Double, effect: HouseRocketsSpeedEffect, phase: Double, periodSeconds: Double) {
+        self.id = id
+        self.worldX = worldX
+        self.effect = effect
+        self.phase = phase
+        self.periodSeconds = periodSeconds
+    }
 }
 
-struct HouseRocketsSnapshotDTO: Decodable, Equatable, Sendable {
-    let sessionId: String
-    let gameKey: String
-    let runtimeEpoch: Int64
-    let stateSequence: Int64
-    let tick: Int64
-    let elapsedSeconds: Double
-    let phase: HouseRocketsWirePhase
-    let courseVersion: Int
-    let cameraX: Double
-    let courseAngle: Double
-    let players: [HouseRocketsPlayerDTO]
-    let gates: [HouseRocketsGateDTO]
-    let speedFields: [HouseRocketsSpeedFieldDTO]
-    let countdownEndsAt: Date?
-    let winnerId: String?
+public struct HouseRocketsSnapshotDTO: Decodable, Equatable, Sendable {
+    public let sessionId: String
+    public let gameKey: String
+    public let runtimeEpoch: Int64
+    public let stateSequence: Int64
+    public let tick: Int64
+    public let elapsedSeconds: Double
+    public let phase: HouseRocketsWirePhase
+    public let courseVersion: Int
+    public let cameraX: Double
+    public let courseAngle: Double
+    public let players: [HouseRocketsPlayerDTO]
+    public let gates: [HouseRocketsGateDTO]
+    public let speedFields: [HouseRocketsSpeedFieldDTO]
+    public let countdownEndsAt: Date?
+    public let winnerId: String?
 
     private enum CodingKeys: String, CodingKey {
         case sessionId, gameKey, runtimeEpoch, stateSequence, tick, elapsedSeconds, phase, courseVersion, cameraX, courseAngle, players, gates, speedFields, countdownEndsAt, winnerId
     }
 
-    init(from decoder: Decoder) throws {
+    public init(from decoder: Decoder) throws {
         let values = try decoder.container(keyedBy: CodingKeys.self)
         sessionId = try values.decode(String.self, forKey: .sessionId)
         gameKey = try values.decode(String.self, forKey: .gameKey)
@@ -147,18 +183,18 @@ struct HouseRocketsSnapshotDTO: Decodable, Equatable, Sendable {
     }
 }
 
-struct HouseRocketsPlayerResultDTO: Decodable, Equatable, Sendable {
-    let playerId: String
-    let rank: Int?
-    let eliminatedAtTick: Int64?
-    let eliminationReason: HouseRocketsEliminationReason?
-    let distance: Double
+public struct HouseRocketsPlayerResultDTO: Decodable, Equatable, Sendable {
+    public let playerId: String
+    public let rank: Int?
+    public let eliminatedAtTick: Int64?
+    public let eliminationReason: HouseRocketsEliminationReason?
+    public let distance: Double
 
     private enum CodingKeys: String, CodingKey {
         case playerId, rank, eliminatedAtTick, eliminationReason, distance
     }
 
-    init(from decoder: Decoder) throws {
+    public init(from decoder: Decoder) throws {
         let values = try decoder.container(keyedBy: CodingKeys.self)
         playerId = try values.decode(String.self, forKey: .playerId)
         rank = try values.decodeRequiredNullable(Int.self, forKey: .rank)
@@ -168,25 +204,25 @@ struct HouseRocketsPlayerResultDTO: Decodable, Equatable, Sendable {
     }
 }
 
-struct HouseRocketsResultDTO: Decodable, Equatable, Sendable {
-    let sessionId: String
-    let houseId: String
-    let gameKey: String
-    let protocolVersion: Int
-    let courseVersion: Int
-    let status: HouseRocketsResultStatus
-    let endReason: HouseRocketsEndReason
-    let winnerId: String?
-    let startedAt: Date?
-    let endedAt: Date
-    let durationSeconds: Double
-    let players: [HouseRocketsPlayerResultDTO]
+public struct HouseRocketsResultDTO: Decodable, Equatable, Sendable {
+    public let sessionId: String
+    public let houseId: String
+    public let gameKey: String
+    public let protocolVersion: Int
+    public let courseVersion: Int
+    public let status: HouseRocketsResultStatus
+    public let endReason: HouseRocketsEndReason
+    public let winnerId: String?
+    public let startedAt: Date?
+    public let endedAt: Date
+    public let durationSeconds: Double
+    public let players: [HouseRocketsPlayerResultDTO]
 
     private enum CodingKeys: String, CodingKey {
         case sessionId, houseId, gameKey, protocolVersion, courseVersion, status, endReason, winnerId, startedAt, endedAt, durationSeconds, players
     }
 
-    init(from decoder: Decoder) throws {
+    public init(from decoder: Decoder) throws {
         let values = try decoder.container(keyedBy: CodingKeys.self)
         sessionId = try values.decode(String.self, forKey: .sessionId)
         houseId = try values.decode(String.self, forKey: .houseId)
@@ -202,4 +238,5 @@ struct HouseRocketsResultDTO: Decodable, Equatable, Sendable {
         players = try values.decode([HouseRocketsPlayerResultDTO].self, forKey: .players)
     }
 }
+
 

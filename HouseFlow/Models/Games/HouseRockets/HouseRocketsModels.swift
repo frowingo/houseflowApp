@@ -7,13 +7,6 @@ enum HouseRocketsMode: String, CaseIterable, Identifiable, Sendable {
     var id: String { rawValue }
 }
 
-/// Captured at screen entry; local play does not require either identifier.
-struct HouseRocketsLaunchContext: Equatable, Sendable {
-    let houseID: String?
-    let localPlayerID: String?
-    var houseOwnerID: String? = nil
-}
-
 enum HouseRocketsOnlineBlocker: Equatable {
     case signInRequired
     case houseRequired

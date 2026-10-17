@@ -90,7 +90,9 @@ internal class AndroidHttpAdapter private constructor(
     }
 
     companion object {
-        fun live(baseUrl: String = "https://houseflowapi.fly.dev/api/v1/"): AndroidHttpAdapter {
+        const val LIVE_BASE_URL = "https://houseflowapi.fly.dev/api/v1/"
+
+        fun live(baseUrl: String = LIVE_BASE_URL): AndroidHttpAdapter {
             val parsed = baseUrl.toHttpUrl()
             require(parsed.isHttps) { "Production HTTP endpoint must use HTTPS" }
             val client = OkHttpClient.Builder()
@@ -103,4 +105,14 @@ internal class AndroidHttpAdapter private constructor(
         internal fun forTesting(baseUrl: HttpUrl, callFactory: Call.Factory): AndroidHttpAdapter =
             AndroidHttpAdapter(baseUrl, callFactory)
     }
+}
+
+/** `Retry-After` as seconds from now: delta-seconds or an HTTP-date, like iOS. */
+internal fun retryAfterSeconds(value: String?, nowMillis: Long = System.currentTimeMillis()): Double? {
+    val text = value?.trim()?.takeIf(String::isNotEmpty) ?: return null
+    text.toDoubleOrNull()?.let { return if (it.isFinite() && it >= 0) it else null }
+    val format = java.text.SimpleDateFormat("EEE, dd MMM yyyy HH:mm:ss zzz", java.util.Locale.US)
+        .apply { timeZone = java.util.TimeZone.getTimeZone("GMT") }
+    val date = runCatching { format.parse(text) }.getOrNull() ?: return null
+    return maxOf(0.0, (date.time - nowMillis) / 1000.0)
 }

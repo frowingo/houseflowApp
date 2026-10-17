@@ -69,9 +69,18 @@ internal class HouseViewModel(
     private var infoRequestSerial = 0L
 
     fun acceptProfile(profile: AuthProfile) {
-        if (profileKey == profile.userId + ":" + profile.houses.joinToString { it.id }) return
+        val key = profile.userId + ":" + profile.firstName + ":" + profile.houses.joinToString { it.id + "/" + it.name }
+        if (profileKey == key) return
+        val current = state.value
+        // A refreshed profile that still contains the open house only updates the list.
+        if (profileKey != null && current.userId == profile.userId && current.route == HouseRoute.DASHBOARD &&
+            profile.houses.any { it.id == current.details?.id }) {
+            profileKey = key
+            mutableState.value = current.copy(houses = profile.houses, firstName = profile.firstName)
+            return
+        }
         invalidate()
-        profileKey = profile.userId + ":" + profile.houses.joinToString { it.id }
+        profileKey = key
         val houses = profile.houses
         mutableState.value = HouseUiState(houses = houses, userId = profile.userId, firstName = profile.firstName)
         if (houses.isEmpty()) {
@@ -86,6 +95,22 @@ internal class HouseViewModel(
                 loadSelected(selected, ticket, HouseRoute.ERROR)
             } catch (cancel: CancellationException) { throw cancel }
             catch (error: Exception) { if (ticket == generation) fail(HouseRoute.ERROR, error) }
+        }
+    }
+
+    /**
+     * Forced `house/details` refresh for the events channel. Dropped when another house
+     * was selected meanwhile, so a late response never overwrites the new selection.
+     */
+    fun refreshDetails(houseId: String) {
+        val current = state.value
+        if (current.route != HouseRoute.DASHBOARD || current.details?.id != houseId || current.busy) return
+        val ticket = generation
+        viewModelScope.launch {
+            val details = try { repository.details(houseId) } catch (cancel: CancellationException) { throw cancel }
+                catch (_: Exception) { return@launch }
+            if (ticket != generation || state.value.details?.id != houseId) return@launch
+            mutableState.value = state.value.copy(details = details)
         }
     }
 

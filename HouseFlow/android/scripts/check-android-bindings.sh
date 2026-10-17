@@ -39,12 +39,22 @@ grep -Eq 'public static java\.lang\.String houseRocketsBotResume\(int handle\)' 
 grep -Eq 'public static java\.lang\.String houseRocketsBotRestart\(int handle\)' "$java_file"
 grep -Eq 'public static java\.lang\.String houseRocketsCopy\(java\.lang\.String language\)' "$java_file"
 grep -Eq 'public static java\.lang\.String houseRocketsConstants\(\)' "$java_file"
+grep -Eq 'public static int houseRocketsOnlineCreate\(java\.lang\.String houseId, java\.lang\.String playerId, java\.lang\.String houseOwnerId, java\.lang\.String excludingSessionId\)' "$java_file"
+grep -Eq 'public static boolean houseRocketsOnlineDestroy\(int handle\)' "$java_file"
+grep -Eq 'public static java\.lang\.String houseRocketsOnlineEvent\(int handle, java\.lang\.String eventJSON\)' "$java_file"
+grep -Eq 'public static java\.lang\.String houseRocketsOnlineReceive\(int handle, java\.lang\.String text, int connection, double now\)' "$java_file"
+grep -Eq 'public static boolean houseRocketsOnlineViewport\(int handle, double width, double height, double hudWidth, double hudHeight\)' "$java_file"
+grep -Eq 'public static java\.lang\.String houseRocketsOnlineFrame\(int handle, double now\)' "$java_file"
+grep -Eq 'public static java\.lang\.String gameCatalogResponse\(java\.lang\.String houseId, int status, java\.lang\.String body\)' "$java_file"
+grep -Eq 'public static int appEventsCreate\(\)' "$java_file"
+grep -Eq 'public static boolean appEventsDestroy\(int handle\)' "$java_file"
+grep -Eq 'public static java\.lang\.String appEventsEvent\(int handle, java\.lang\.String eventJSON\)' "$java_file"
 grep -Fq 'SwiftLibraries.loadLibraryWithFallbacks(LIB_NAME);' "$java_file"
 
 public_methods=$(grep -Ec '^[[:space:]]*public static .*\(' "$java_file")
-if [ "$public_methods" -ne 29 ]; then
-    echo "Expected exactly twenty-nine public JNI methods, found ${public_methods}" >&2
+if [ "$public_methods" -ne 39 ]; then
+    echo "Expected exactly thirty-nine public JNI methods, found ${public_methods}" >&2
     exit 1
 fi
 
-echo 'Generated JNI API matches the version-7 Kotlin boundary.'
+echo 'Generated JNI API matches the version-9 Kotlin boundary.'

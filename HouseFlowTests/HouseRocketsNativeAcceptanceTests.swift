@@ -2,6 +2,7 @@
 import XCTest
 import UIKit
 import SwiftUI
+import HouseFlowCore
 import SpriteKit
 @testable import HouseFlow
 
@@ -106,7 +107,7 @@ final class HouseRocketsNativeAcceptanceTests: XCTestCase {
         defer { app.cleanup() }
         var onlineConstructions = 0
         let factory = HouseRocketsSessionFactory(makeBotSession: { DemoHouseRocketsSession() },
-            makeOnlineSession: { onlineConstructions += 1; preconditionFailure("Offline bot mode must not construct online services") })
+            makeOnlineHost: { _, _ in onlineConstructions += 1; preconditionFailure("Offline bot mode must not construct online services") })
         let model = HouseRocketsViewModel(sessionFactory: factory, context: .init(houseID: nil, localPlayerID: nil))
         model.selectMode(.localBots)
         await model.startMatch()

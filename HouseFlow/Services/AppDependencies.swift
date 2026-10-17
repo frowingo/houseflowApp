@@ -14,6 +14,8 @@ struct AppDependencies {
     let userDefaults: any PreferencesStore
     let localizationCache: any LocalizationCacheStore
     let houseRocketsSessionFactory: HouseRocketsSessionFactory
+    /// The `/api/v1/events` refresh channel; nil in tests that do not need it.
+    var appEvents: AppEventsService? = nil
 
     static func live(gameBaseURL: URL? = nil) -> AppDependencies {
         let keychain = KeychainService()
@@ -33,7 +35,8 @@ struct AppDependencies {
             localizationService: LocalizationService(network: network),
             userDefaults: UserDefaults.standard,
             localizationCache: LocalizationDiskCache(),
-            houseRocketsSessionFactory: .live(network: gameNetwork, keychain: keychain, baseURL: gameURL)
+            houseRocketsSessionFactory: .live(network: gameNetwork, keychain: keychain, baseURL: gameURL),
+            appEvents: AppEventsService(baseURL: AppEnvironment.current.baseURL, keychain: keychain)
         )
     }
 }

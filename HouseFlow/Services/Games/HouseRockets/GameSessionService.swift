@@ -38,7 +38,8 @@ struct GameEndpointBuilder {
         var request = URLRequest(url: endpoint)
         request.httpMethod = route.method
         request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
-        request.setValue("application/json", forHTTPHeaderField: "Accept")
+        // The WebSocket upgrade carries only the token, like Android's OkHttp request.
+        if !route.isRealtime { request.setValue("application/json", forHTTPHeaderField: "Accept") }
         if let body {
             request.httpBody = body
             request.setValue("application/json", forHTTPHeaderField: "Content-Type")

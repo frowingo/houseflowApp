@@ -1,4 +1,5 @@
 import SwiftUI
+import HouseFlowCore
 
 /// Connection/control feedback over the retained course; no lifecycle decisions.
 struct HouseRocketsOnlineConnectionView: View {
@@ -49,22 +50,9 @@ struct HouseRocketsOnlineConnectionView: View {
         .frame(maxWidth: .infinity).padding(AppDesign.Spacing.lg)
     }
 
-    private var titleKey: String {
-        if state.connection == .failed { return "house_rockets_flight_connection_failed" }
-        if state.controlTransferred { return "house_rockets_control_transferred" }
-        return state.connection == .reconnecting ? "house_rockets_reconnecting" : "house_rockets_recovering"
-    }
+    private var titleKey: String { HouseRocketsOnlineCopyKeys.connectionTitle(state) }
 
-    private var detailKey: String {
-        if state.connection == .failed {
-            if case .connection(.http(403, _)) = state.issue { return "house_rockets_online_forbidden" }
-            if state.requiresAuthentication { return "house_rockets_online_sign_in" }
-            if case .connection(.protocolFailure) = state.issue { return "house_rockets_online_update_required" }
-            return "house_rockets_flight_connection_failed_detail"
-        }
-        if state.controlTransferred { return "house_rockets_control_transferred_detail" }
-        return state.connection == .reconnecting ? "house_rockets_reconnecting_detail" : "house_rockets_recovering_detail"
-    }
+    private var detailKey: String { HouseRocketsOnlineCopyKeys.connectionDetail(state) }
 
     private func copy(_ key: String, replacements: [String: String] = [:]) -> String {
         appViewModel.localized(key, replacements: replacements)

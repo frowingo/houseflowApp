@@ -1,4 +1,5 @@
 import Foundation
+import HouseFlowCore
 
 /// Single receive consumer; decoding, lobbies and application heartbeat live above transport.
 @MainActor

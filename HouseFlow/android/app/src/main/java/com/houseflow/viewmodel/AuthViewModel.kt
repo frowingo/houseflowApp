@@ -305,6 +305,27 @@ internal class AuthViewModel(
         }
     }
 
+    /**
+     * Silent `auth/isAuth` refresh for the events channel: only the profile (and its
+     * house list) changes; the current route stays. A lost session signs out.
+     */
+    fun refreshProfile() {
+        val signedIn = mutableState.value.profile ?: return
+        if (mutableState.value.route !is AuthRoute.Next) return
+        viewModelScope.launch {
+            val result = try { session.restore() } catch (cancel: CancellationException) { throw cancel }
+                catch (_: Exception) { return@launch }
+            val current = mutableState.value
+            if (current.profile?.userId != signedIn.userId || current.route !is AuthRoute.Next) return@launch
+            when (result) {
+                is AuthRestoreResult.SignedIn ->
+                    if (result.profile.userId == signedIn.userId) mutableState.value = current.copy(profile = result.profile)
+                AuthRestoreResult.SignedOut -> logout()
+                else -> Unit
+            }
+        }
+    }
+
     fun logout() {
         sessionJob?.cancel()
         profileJob?.cancel()

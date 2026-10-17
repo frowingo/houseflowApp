@@ -18,7 +18,7 @@ struct HouseRocketsOnlineLobbyView: View {
     var body: some View {
         VStack(alignment: .leading, spacing: AppDesign.Spacing.lg) {
             HStack(spacing: AppDesign.Spacing.sm) {
-                if !state.isTerminal && state.connection != .failed && (state.connection == .connecting || state.connection == .idle || !state.isSynced || state.pendingCommand != nil || state.isLeaving) {
+                if HouseRocketsOnlineCopyKeys.lobbyShowsProgress(state) {
                     ProgressView().tint(HouseRocketsPreparationTheme.accent)
                 }
                 Label(copy(statusKey), systemImage: state.connection == .failed ? "wifi.exclamationmark" : "person.2")
@@ -144,70 +144,19 @@ struct HouseRocketsOnlineLobbyView: View {
     }
 
     private func playerStatusKey(_ state: GameSessionPlayerState) -> String {
-        switch state {
-        case .ready: return "house_rockets_ready"
-        case .playing: return "house_rockets_online_flying"
-        case .finished, .left: return "house_rockets_online_ended"
-        case .waiting: return "house_rockets_waiting"
-        }
+        HouseRocketsOnlineCopyKeys.playerStatus(state)
     }
 
-    private var statusKey: String {
-        if state.isLeaving { return "house_rockets_leaving" }
-        if state.isTerminal { return "house_rockets_online_ended" }
-        if state.connection == .reconnecting { return "house_rockets_reconnecting" }
-        if state.connection == .syncing { return "house_rockets_online_syncing_lobby" }
-        if state.connection == .failed { return "house_rockets_online_connection_failed" }
-        if state.connection == .connected, !state.isSynced { return "house_rockets_online_syncing_lobby" }
-        if state.connection != .connected { return "house_rockets_online_connecting" }
-        if state.pendingCommand?.message.action == .join { return "house_rockets_online_joining" }
-        if state.pendingCommand != nil { return "house_rockets_online_confirming" }
-        if state.session?.state == .countdown { return "house_rockets_online_launching" }
-        if state.session?.state == .running { return "house_rockets_online_flying" }
-        return "house_rockets_online_lobby"
-    }
+    private var statusKey: String { HouseRocketsOnlineCopyKeys.lobbyStatus(state) }
 
-    private var detailKey: String {
-        if state.isTerminal { return "house_rockets_online_ended_detail" }
-        if state.connection == .reconnecting { return "house_rockets_reconnecting_detail" }
-        if state.connection == .syncing { return "house_rockets_online_syncing_lobby" }
-        if state.connection == .failed { return "house_rockets_online_connection_failed_detail" }
-        if state.connection == .connected, !state.isSynced { return "house_rockets_online_syncing_lobby" }
-        if state.connection != .connected { return "house_rockets_online_connecting_detail" }
-        if state.session?.state == .running { return "house_rockets_online_syncing_flight" }
-        if state.session?.state == .countdown { return "house_rockets_online_launching_detail" }
-        return "house_rockets_online_lobby_detail"
-    }
+    private var detailKey: String { HouseRocketsOnlineCopyKeys.lobbyDetail(state) }
 
     private var canRetry: Bool {
         state.canReconnect(at: .infinity)
     }
 
     private func issueKey(_ issue: HouseRocketsOnlineLobbyIssue) -> String {
-        switch issue {
-        case .timeout, .commandTimeout: return "house_rockets_online_timeout"
-        case .rejected(let error):
-            switch error.code {
-            case "game.error.session_full": return "house_rockets_online_full"
-            case "game.error.join_closed", "game.error.ready_closed": return "house_rockets_online_ready_closed"
-            case "realtime.error.rate_limited": return "house_rockets_online_rate_limited"
-            default: return "house_rockets_online_command_rejected"
-            }
-        case .connection(.http(let status, _)):
-            switch status {
-            case 401: return "house_rockets_online_sign_in"
-            case 403: return "house_rockets_online_forbidden"
-            case 404: return "house_rockets_online_room_unavailable"
-            case 409: return "house_rockets_online_ready_closed"
-            case 429: return "house_rockets_online_rate_limited"
-            case 503: return "house_rockets_online_busy"
-            default: return "house_rockets_online_connection_failed_detail"
-            }
-        case .connection(.protocolFailure(.gameUnavailable)): return "house_rockets_online_game_unavailable"
-        case .connection(.protocolFailure(.unsupportedProtocol)), .connection(.protocolFailure(.unsupportedCourse)):
-            return "house_rockets_online_update_required"
-        case .connection: return "house_rockets_online_connection_failed_detail"
-        }
+        HouseRocketsOnlineCopyKeys.issue(issue)
     }
 
     private func copy(_ key: String, replacements: [String: String] = [:]) -> String {
@@ -319,7 +268,7 @@ struct HouseRocketsOnlineFlightOverlay: View {
                     .accessibilityAddTraits(.updatesFrequently)
                 }
             }
-            if state.connection != .connected || !state.isSynced || frame.phase == .recovering || state.controlTransferred {
+            if HouseRocketsOnlineCopyKeys.showsConnectionPanel(state, presentation) {
                 HouseRocketsOnlineConnectionView(state: state, onRetry: onRetry, onReclaimControl: onReclaimControl)
                     .frame(maxWidth: min(430, geometry.size.width - 48), maxHeight: geometry.size.height - 96)
                     .position(x: geometry.size.width / 2, y: geometry.size.height / 2)
@@ -327,23 +276,7 @@ struct HouseRocketsOnlineFlightOverlay: View {
         }
     }
 
-    private var statusKey: String {
-        if state.isTerminal { return "house_rockets_online_ended" }
-        if state.controlTransferred { return "house_rockets_control_transferred" }
-        if state.connection == .reconnecting { return "house_rockets_reconnecting" }
-        if presentation.isSyncing { return "house_rockets_online_syncing_flight" }
-        if frame.phase == .playing, frame.players.first(where: { $0.role == .human })?.isAlive == false {
-            return "house_rockets_spectating_short"
-        }
-        if frame.phase == .playing, !presentation.canSteer { return "house_rockets_online_waiting_control" }
-        switch frame.phase {
-        case .countdown: return "house_rockets_online_launching"
-        case .recovering: return "house_rockets_online_syncing_flight"
-        case .finalizing: return "house_rockets_online_finalizing"
-        case .ended, .cancelled: return "house_rockets_online_ended"
-        case .playing, .paused: return "house_rockets_online_flying"
-        }
-    }
+    private var statusKey: String { HouseRocketsOnlineCopyKeys.flightStatus(state, presentation) }
 
     private func copy(_ key: String) -> String { appViewModel.localized(key, fallback: key) }
 }

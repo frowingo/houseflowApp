@@ -31,6 +31,11 @@
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedRootGroup section */
+		A10000000000000000000002 /* HouseFlowTests */ = {
+			isa = PBXFileSystemSynchronizedRootGroup;
+			path = HouseFlowTests;
+			sourceTree = "<group>";
+		};
 		A30000000000000000000005 /* Models */ = {
 			isa = PBXFileSystemSynchronizedRootGroup;
 			path = Models;
@@ -49,11 +54,6 @@
 		A30000000000000000000008 /* ViewModels */ = {
 			isa = PBXFileSystemSynchronizedRootGroup;
 			path = ViewModels;
-			sourceTree = "<group>";
-		};
-		A10000000000000000000002 /* HouseFlowTests */ = {
-			isa = PBXFileSystemSynchronizedRootGroup;
-			path = HouseFlowTests;
 			sourceTree = "<group>";
 		};
 /* End PBXFileSystemSynchronizedRootGroup section */

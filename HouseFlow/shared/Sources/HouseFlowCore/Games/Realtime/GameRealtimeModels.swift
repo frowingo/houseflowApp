@@ -1,6 +1,6 @@
 import Foundation
 
-enum GameRealtimeError: Error, Equatable, Sendable {
+public enum GameRealtimeError: Error, Equatable, Sendable {
     case accessRevoked
     case unsupportedProtocol(Int)
     case unsupportedCourse(Int)
@@ -18,53 +18,70 @@ enum GameRealtimeError: Error, Equatable, Sendable {
     case gameUnavailable
 }
 
-struct GameRealtimeRejection: Decodable, Equatable, Sendable {
-    let code: String
-    let args: [String]
-    let retryable: Bool
+public struct GameRealtimeRejection: Decodable, Equatable, Sendable {
+    public let code: String
+    public let args: [String]
+    public let retryable: Bool
+
+    public init(code: String, args: [String], retryable: Bool) {
+        self.code = code
+        self.args = args
+        self.retryable = retryable
+    }
 }
 
-struct GameRealtimePong: Decodable, Equatable, Sendable {
-    let pingId: String
-    let serverTime: Date
+public struct GameRealtimePong: Decodable, Equatable, Sendable {
+    public let pingId: String
+    public let serverTime: Date
+
+    public init(pingId: String, serverTime: Date) {
+        self.pingId = pingId
+        self.serverTime = serverTime
+    }
 }
 
-struct GameRealtimeEmptyPayload: Codable, Equatable, Sendable {
-    init() {}
+public struct GameRealtimeEmptyPayload: Codable, Equatable, Sendable {
+    public init() {}
 
-    init(from decoder: Decoder) throws {
+    public init(from decoder: Decoder) throws {
         let values = try decoder.singleValueContainer().decode([String: String].self)
         guard values.isEmpty else { throw GameRealtimeError.invalidResponse }
     }
 
-    func encode(to encoder: Encoder) throws {
+    public func encode(to encoder: Encoder) throws {
         var values = encoder.singleValueContainer()
         try values.encode([String: String]())
     }
 }
 
 /// Intent only. The codec writes the explicit protocol envelope and payload.
-enum GameRealtimeClientAction: Equatable, Sendable {
+public enum GameRealtimeClientAction: Equatable, Sendable {
     case join, leave, cancel, resync
     case setReady(Bool)
     case steer(controlGeneration: String, inputSequence: Int64, courseHeading: Double)
     case ping(id: String)
 }
 
-struct GameRealtimeClientMessage: Encodable, Equatable, Sendable {
-    let messageId: String
-    let action: GameRealtimeClientAction
+public struct GameRealtimeClientMessage: Encodable, Equatable, Sendable {
+    public let messageId: String
+    public let action: GameRealtimeClientAction
 
     private enum CodingKeys: String, CodingKey { case protocolVersion, messageId, type, payload }
     private struct Ready: Encodable { let ready: Bool }
     private struct Steer: Encodable {
-        let controlGeneration: String
-        let inputSequence: Int64
-        let heading: Double
+        public let controlGeneration: String
+        public let inputSequence: Int64
+        public let heading: Double
+
+        public init(controlGeneration: String, inputSequence: Int64, heading: Double) {
+            self.controlGeneration = controlGeneration
+            self.inputSequence = inputSequence
+            self.heading = heading
+        }
     }
     private struct Ping: Encodable { let pingId: String }
 
-    func encode(to encoder: Encoder) throws {
+    public func encode(to encoder: Encoder) throws {
         try GameRealtimeCodec.validateIdentifier(messageId)
         var values = encoder.container(keyedBy: CodingKeys.self)
         try values.encode(2, forKey: .protocolVersion)
@@ -95,9 +112,14 @@ struct GameRealtimeClientMessage: Encodable, Equatable, Sendable {
             try values.encode(Ping(pingId: id), forKey: .payload)
         }
     }
+
+    public init(messageId: String, action: GameRealtimeClientAction) {
+        self.messageId = messageId
+        self.action = action
+    }
 }
 
-enum GameRealtimeServerPayload: Equatable, Sendable {
+public enum GameRealtimeServerPayload: Equatable, Sendable {
     case welcome(HouseRocketsWelcomeDTO)
     case pong(GameRealtimePong)
     case accepted
@@ -108,17 +130,17 @@ enum GameRealtimeServerPayload: Equatable, Sendable {
     case rejected(GameRealtimeRejection)
 }
 
-struct GameRealtimeServerMessage: Decodable, Equatable, Sendable {
-    let messageId: String?
-    let sequence: Int64?
-    let sentAt: Date
-    let payload: GameRealtimeServerPayload
+public struct GameRealtimeServerMessage: Decodable, Equatable, Sendable {
+    public let messageId: String?
+    public let sequence: Int64?
+    public let sentAt: Date
+    public let payload: GameRealtimeServerPayload
 
     private enum CodingKeys: String, CodingKey {
         case protocolVersion, messageId, sequence, sentAt, type, payload, error
     }
 
-    init(from decoder: Decoder) throws {
+    public init(from decoder: Decoder) throws {
         let values = try decoder.container(keyedBy: CodingKeys.self)
         let version = try values.decode(Int.self, forKey: .protocolVersion)
         guard version == 2 else { throw GameRealtimeError.unsupportedProtocol(version) }
@@ -164,9 +186,17 @@ struct GameRealtimeServerMessage: Decodable, Equatable, Sendable {
 }
 
 /// Received timestamps share an injectable clock with later heartbeat/interpolation work.
-struct GameRealtimeReceivedMessage: Equatable, Sendable {
-    let message: GameRealtimeServerMessage
-    let receivedAt: Date
-    let receivedUptime: TimeInterval
-    let generation: UUID
+public struct GameRealtimeReceivedMessage: Equatable, Sendable {
+    public let message: GameRealtimeServerMessage
+    public let receivedAt: Date
+    public let receivedUptime: TimeInterval
+    public let generation: UUID
+
+    public init(message: GameRealtimeServerMessage, receivedAt: Date, receivedUptime: TimeInterval, generation: UUID) {
+        self.message = message
+        self.receivedAt = receivedAt
+        self.receivedUptime = receivedUptime
+        self.generation = generation
+    }
 }
+

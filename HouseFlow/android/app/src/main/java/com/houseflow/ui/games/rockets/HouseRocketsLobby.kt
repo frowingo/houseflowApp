@@ -55,6 +55,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.houseflow.platform.OnlineLobbyUi
 import com.houseflow.platform.RocketsColor
 import com.houseflow.ui.theme.HouseFlowColors
 import com.houseflow.ui.theme.HouseFlowType
@@ -83,6 +84,11 @@ internal fun HouseRocketsLobby(
     onChangeMode: () -> Unit,
     onBotCount: (Int) -> Unit,
     onStart: () -> Unit,
+    online: OnlineLobbyUi? = null,
+    memberNames: Map<String, String> = emptyMap(),
+    onOnlineReady: () -> Unit = {},
+    onOnlineRetry: () -> Unit = {},
+    onOnlineCancel: () -> Unit = {},
 ) {
     Column(Modifier.fillMaxSize().statusBarsPadding().navigationBarsPadding()) {
         // The inline navigation bar of the Games stack: an empty title and a back chevron.
@@ -107,11 +113,18 @@ internal fun HouseRocketsLobby(
                 LobbyHeader(copy, state.selectedMode)
                 val mode = state.selectedMode
                 if (mode != null) {
-                    SelectedModeHeader(mode, copy, enabled = !isWaitingForLandscape, onChangeMode)
+                    SelectedModeHeader(mode, copy, enabled = !isWaitingForLandscape && online?.isLeaving != true, onChangeMode)
                     if (mode == RocketsMode.LOCAL_BOTS) {
                         BotLobby(state.botCount, copy, enabled = !isWaitingForLandscape, onBotCount)
                     } else {
-                        OnlineBlocker(state.onlineBlocker, copy)
+                        val blocker = state.onlineBlocker
+                        if (blocker != null) {
+                            OnlineBlocker(blocker, copy)
+                        } else {
+                            HouseRocketsOnlineLobbyCard(online ?: OnlineLobbyUi(), copy, memberNames,
+                                isWaitingForLandscape, orientationFailed, onOnlineReady, onOnlineRetry,
+                                onOnlineCancel, onBack)
+                        }
                     }
                 } else {
                     Column(verticalArrangement = Arrangement.spacedBy(Spacing.md)) {
@@ -267,6 +280,7 @@ private fun OnlineBlocker(blocker: RocketsOnlineBlocker, copy: RocketsCopy) {
                 RocketsOnlineBlocker.SIGN_IN_REQUIRED -> "house_rockets_online_sign_in"
                 RocketsOnlineBlocker.HOUSE_REQUIRED -> "house_rockets_online_house_required"
                 RocketsOnlineBlocker.SERVICE_UNAVAILABLE -> "house_rockets_online_unavailable_detail"
+                RocketsOnlineBlocker.GAME_UNAVAILABLE -> "house_rockets_online_game_unavailable"
             }),
             style = HouseFlowType.subheadline, color = HouseRocketsPreparationTheme.muted,
         )

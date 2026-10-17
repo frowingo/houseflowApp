@@ -19,6 +19,7 @@ class AppViewModel: ObservableObject {
     private let dashboardCoordinator: DashboardCoordinator
     private let profileCoordinator: ProfileCoordinator
     private var storeCancellables = Set<AnyCancellable>()
+    private let appEvents: AppEventsService?
 
     var signupSuccessMessage: String? { sessionCoordinator.signupSuccessMessage }
 
@@ -114,7 +115,8 @@ class AppViewModel: ObservableObject {
                 cache: dependencies.localizationCache
             ),
             userDefaults: dependencies.userDefaults,
-            houseRocketsSessionFactory: dependencies.houseRocketsSessionFactory
+            houseRocketsSessionFactory: dependencies.houseRocketsSessionFactory,
+            appEvents: dependencies.appEvents
         )
     }
 
@@ -128,8 +130,10 @@ class AppViewModel: ObservableObject {
         choreStore: ChoreStore,
         localizationStore: LocalizationStore,
         userDefaults: any PreferencesStore,
-        houseRocketsSessionFactory: HouseRocketsSessionFactory? = nil
+        houseRocketsSessionFactory: HouseRocketsSessionFactory? = nil,
+        appEvents: AppEventsService? = nil
     ) {
+        self.appEvents = appEvents
         self.authStore = authStore
         self.toastStore = toastStore
         self.overlayStore = overlayStore
@@ -193,6 +197,25 @@ class AppViewModel: ObservableObject {
         )
 
         bindStoreChanges()
+        bindAppEvents()
+    }
+
+    /// Keeps the events socket tied to sign-in, the selected house and app visibility.
+    private func bindAppEvents() {
+        guard let appEvents else { return }
+        appEvents.onRefresh = { [weak self] profile, houseID in
+            await self?.sessionCoordinator.refreshForAppEvent(profile: profile, houseID: houseID)
+        }
+        appEvents.onSignedOut = { [weak self] in self?.logout() }
+        authStore.$isAuthenticated
+            .removeDuplicates()
+            .sink { appEvents.setAuthenticated($0) }
+            .store(in: &storeCancellables)
+        houseStore.$currentHouseDetails
+            .map { $0?.id }
+            .removeDuplicates()
+            .sink { appEvents.setSelectedHouse($0) }
+            .store(in: &storeCancellables)
     }
 
     private func bindStoreChanges() {
@@ -266,6 +289,7 @@ class AppViewModel: ObservableObject {
 
     /// Call when the app moves to the background.
     func handleBackground() {
+        appEvents?.setForeground(false)
         sessionCoordinator.handleBackground()
     }
 
@@ -273,6 +297,7 @@ class AppViewModel: ObservableObject {
     /// Only triggers the auth/data refresh if the app was backgrounded long enough.
     /// Cold-start auth is handled separately by `performAutoLogin()` via `.task`.
     func handleForeground() async {
+        appEvents?.setForeground(true)
         await sessionCoordinator.handleForeground()
     }
 
