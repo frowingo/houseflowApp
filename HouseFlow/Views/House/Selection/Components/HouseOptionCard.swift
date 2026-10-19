@@ -1,80 +1,86 @@
 import SwiftUI
 
 /// Card component for house selection options (Create/Join)
-/// Design: Large icon, title, subtitle with shadow effects
+/// Design: brand icon disc on the left, title and subtitle, chevron on the right.
 struct HouseOptionCard: View {
+    enum Kind {
+        case create
+        case join
+    }
+
     let title: String
     let subtitle: String
-    let iconName: String
-    let backgroundColor: Color
-    
+    let kind: Kind
+
     var body: some View {
-        VStack(spacing: AppDesign.Spacing.xxl) {
+        HStack(spacing: AppDesign.Spacing.lg) {
             iconSection
             contentSection
+            Spacer(minLength: 0)
+            Image(systemName: "chevron.right")
+                .font(.system(size: 16, weight: .semibold))
+                .foregroundColor(HouseJourneyTheme.accentOrangeInk)
         }
-        .padding(AppDesign.Spacing.xxl)
+        .padding(AppDesign.Spacing.xl)
         .frame(maxWidth: .infinity)
-        .frame(height: 220)
         .background(HouseJourneyTheme.surface)
-        .cornerRadius(AppDesign.CornerRadius.xxl)
+        .clipShape(RoundedRectangle(cornerRadius: AppDesign.CornerRadius.xxl, style: .continuous))
         .overlay(
-            RoundedRectangle(cornerRadius: AppDesign.CornerRadius.xxl)
-                .stroke(backgroundColor.opacity(0.18), lineWidth: 1)
+            RoundedRectangle(cornerRadius: AppDesign.CornerRadius.xxl, style: .continuous)
+                .stroke(FausBrand.orange.opacity(0.18), lineWidth: 1)
         )
-        .overlay(alignment: .topTrailing) {
-            Circle()
-                .fill(HouseJourneyTheme.accentOrange)
-                .frame(width: 8, height: 8)
-                .padding(18)
-        }
-        .shadow(
-            color: backgroundColor.opacity(0.13),
-            radius: 18,
-            x: 0,
-            y: 8
-        )
+        .shadow(color: FausBrand.deepBerry.opacity(0.08), radius: 18, x: 0, y: 8)
     }
-    
+
     // MARK: - Subviews
-    
+
+    @ViewBuilder
     private var iconSection: some View {
-        Image(systemName: iconName)
-            .font(.system(size: AppDesign.Size.iconExtraLarge, weight: .medium))
-            .foregroundColor(.white)
-            .frame(width: 100, height: 100)
-            .background(
-                LinearGradient(
-                    colors: [backgroundColor, backgroundColor.opacity(0.72)],
-                    startPoint: .topLeading,
-                    endPoint: .bottomTrailing
+        switch kind {
+        case .create:
+            Circle()
+                .fill(FausBrand.iconGradient)
+                .frame(width: 64, height: 64)
+                .overlay(FausHouseIcon(size: 34, fill: .color(.white)))
+                .shadow(color: FausBrand.deepBerry.opacity(0.25), radius: 6, x: 0, y: 6)
+                .overlay(alignment: .bottomTrailing) {
+                    Image(systemName: "plus")
+                        .font(.system(size: 11, weight: .bold))
+                        .foregroundColor(FausBrand.orange)
+                        .frame(width: 22, height: 22)
+                        .background(
+                            Circle()
+                                .fill(Color.white)
+                                .shadow(color: Color.black.opacity(0.12), radius: 2, x: 0, y: 2)
+                        )
+                        .offset(x: 2, y: 2)
+                }
+                .accessibilityHidden(true)
+        case .join:
+            Circle()
+                .fill(FausBrand.deepBerry.opacity(0.09))
+                .overlay(Circle().stroke(FausBrand.deepBerry.opacity(0.16), lineWidth: 1.5))
+                .frame(width: 64, height: 64)
+                .overlay(
+                    Image(systemName: "person.2.fill")
+                        .font(.system(size: 24, weight: .semibold))
+                        .fausGradientForeground()
                 )
-            )
-            .clipShape(Circle())
-            .overlay(
-                Circle()
-                    .stroke(Color.white.opacity(0.30), lineWidth: 1)
-                    .padding(6)
-            )
-            .shadow(
-                color: backgroundColor.opacity(0.3),
-                radius: 10,
-                x: 0,
-                y: 5
-            )
+                .accessibilityHidden(true)
+        }
     }
-    
+
     private var contentSection: some View {
-        VStack(spacing: AppDesign.Spacing.sm) {
+        VStack(alignment: .leading, spacing: AppDesign.Spacing.xs) {
             Text(title)
-                .font(AppDesign.Typography.title3)
+                .font(AppDesign.Typography.headline)
                 .foregroundColor(AppDesign.Colors.text)
-                .multilineTextAlignment(.center)
-            
+                .multilineTextAlignment(.leading)
+
             Text(subtitle)
                 .font(AppDesign.Typography.subheadline)
                 .foregroundColor(AppDesign.Colors.textSecondary)
-                .multilineTextAlignment(.center)
+                .multilineTextAlignment(.leading)
                 .lineLimit(3)
         }
     }
@@ -82,23 +88,19 @@ struct HouseOptionCard: View {
 
 // MARK: - Previews
 
-#Preview("Create House Option") {
-    HouseOptionCard(
-        title: "Create New House",
-        subtitle: "Start fresh with your roommates",
-        iconName: "plus.circle.fill",
-        backgroundColor: .blue
-    )
-    .padding()
-}
-
-#Preview("Join House Option") {
-    HouseOptionCard(
-        title: "Join Existing House",
-        subtitle: "Enter an invite code to join",
-        iconName: "person.2.circle.fill",
-        backgroundColor: .green
-    )
+#Preview("Options") {
+    VStack(spacing: 20) {
+        HouseOptionCard(
+            title: "Create New House",
+            subtitle: "Start fresh with your roommates",
+            kind: .create
+        )
+        HouseOptionCard(
+            title: "Join Existing House",
+            subtitle: "Enter an invite code to join",
+            kind: .join
+        )
+    }
     .padding()
 }
 
@@ -107,36 +109,14 @@ struct HouseOptionCard: View {
         HouseOptionCard(
             title: "Create New House",
             subtitle: "Start fresh with your roommates",
-            iconName: "plus.circle.fill",
-            backgroundColor: .blue
+            kind: .create
         )
-        
         HouseOptionCard(
             title: "Join Existing House",
             subtitle: "Enter an invite code to join",
-            iconName: "person.2.circle.fill",
-            backgroundColor: .green
+            kind: .join
         )
     }
     .padding()
     .preferredColorScheme(.dark)
-}
-
-#Preview("Custom Colors") {
-    VStack(spacing: 20) {
-        HouseOptionCard(
-            title: "Premium House",
-            subtitle: "Access exclusive features",
-            iconName: "star.circle.fill",
-            backgroundColor: .purple
-        )
-        
-        HouseOptionCard(
-            title: "Enterprise House",
-            subtitle: "For large organizations",
-            iconName: "building.2.circle.fill",
-            backgroundColor: .orange
-        )
-    }
-    .padding()
 }

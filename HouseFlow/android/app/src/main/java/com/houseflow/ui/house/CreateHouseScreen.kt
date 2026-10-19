@@ -69,6 +69,11 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.houseflow.platform.LocalizedText
+import com.houseflow.ui.components.FausButtonGradient
+import com.houseflow.ui.components.FausGradientIcon
+import com.houseflow.ui.components.FausHouseIcon
+import com.houseflow.ui.components.FausIconGradient
+import androidx.compose.ui.graphics.lerp
 import com.houseflow.ui.components.HouseFlowPopup
 import com.houseflow.ui.components.PlaceholderColor
 import com.houseflow.ui.components.mainScreenBackground
@@ -122,6 +127,7 @@ internal fun CreateHouseScreen(
                 color = HouseFlowColors.textPrimary, textAlign = TextAlign.Center)
             Text(strings.get("create_house_subtitle"), Modifier.padding(horizontal = Spacing.xxl),
                 style = HouseFlowType.subheadline, color = HouseFlowColors.textSecondary, textAlign = TextAlign.Center)
+            Box(Modifier.padding(top = Spacing.xs).size(34.dp, 4.dp).background(FausIconGradient, CircleShape))
         }
         Column(
             Modifier.weight(1f).fillMaxWidth().verticalScroll(rememberScrollState()).padding(horizontal = Spacing.xxl),
@@ -150,8 +156,8 @@ internal fun CreateHouseScreen(
             state.error?.let { Text(it, style = HouseFlowType.subheadline, color = HouseFlowColors.errorRed) }
             Spacer(Modifier.height(Spacing.xxxl))
         }
-        HouseJourneyButton(strings.get("create_house_submit_button"), valid, HouseJourneyBrushes.primaryButton,
-            Modifier.padding(start = Spacing.xxl, end = Spacing.xxl, bottom = 50.dp)) { showSummary = true }
+        HouseJourneyButton(strings.get("create_house_submit_button"), valid, FausButtonGradient,
+            Modifier.padding(start = Spacing.xxl, end = Spacing.xxl, bottom = 50.dp), glow = HouseFlowColors.deepBerry) { showSummary = true }
     }
 
     if (showSummary) {
@@ -168,7 +174,7 @@ private fun HouseNameField(value: String, onChange: (String) -> Unit, strings: L
     val focus = LocalFocusManager.current
     val empty = value.isEmpty()
     val shape = RoundedCornerShape(Radius.md)
-    val border by animateColorAsState(if (empty) HouseFlowColors.indigo.copy(alpha = .10f) else HouseFlowColors.accentOrange,
+    val border by animateColorAsState(if (empty) HouseFlowColors.brandOrange.copy(alpha = .18f) else HouseFlowColors.brandOrange,
         Motion.quick(), label = "nameBorder")
     val label = strings.get("create_house_name_label")
     BasicTextField(
@@ -180,7 +186,7 @@ private fun HouseNameField(value: String, onChange: (String) -> Unit, strings: L
             .semantics { contentDescription = label },
         textStyle = HouseFlowType.body.copy(color = HouseFlowColors.textPrimary),
         singleLine = true,
-        cursorBrush = SolidColor(HouseFlowColors.primary),
+        cursorBrush = SolidColor(HouseFlowColors.brandOrange),
         keyboardOptions = KeyboardOptions(capitalization = KeyboardCapitalization.Words, imeAction = ImeAction.Done),
         keyboardActions = androidx.compose.foundation.text.KeyboardActions(onDone = { focus.clearFocus() }),
         decorationBox = { inner ->
@@ -205,15 +211,16 @@ private fun HouseTypeCard(type: HouseTypeUi, selected: Boolean, strings: Localiz
         modifier.height(90.dp)
             .graphicsLayer { scaleX = scale; scaleY = scale }
             .clip(shape)
-            .background(if (selected) type.tint.copy(alpha = .15f) else HouseFlowColors.surface)
-            .border(if (selected) 2.dp else 1.dp, if (selected) HouseFlowColors.accentOrange else type.tint.copy(alpha = .12f), shape)
+            .background(if (selected) HouseFlowColors.brandOrange.copy(alpha = .08f) else HouseFlowColors.surface)
+            .border(if (selected) 2.dp else 1.dp, if (selected) HouseFlowColors.brandOrange else Color(0xFFE5E5EA), shape)
             .clickable(role = Role.RadioButton, onClick = onClick)
             .semantics { this.selected = selected }
             .padding(horizontal = Spacing.xs),
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.spacedBy(Spacing.md, Alignment.CenterVertically),
     ) {
-        Icon(type.icon, null, Modifier.size(24.dp), tint = type.tint)
+        // Shared house uses the custom glyph so it reads the same on iOS and Android.
+        if (type == HouseTypeUi.SHARED) FausHouseIcon(28.dp) else FausGradientIcon(type.icon, 24.dp)
         Text(strings.get(type.key), style = HouseFlowType.caption, textAlign = TextAlign.Center, maxLines = 2,
             color = if (selected) HouseFlowColors.textPrimary else HouseFlowColors.textSecondary)
     }
@@ -265,7 +272,7 @@ private fun MemberCountPicker(count: Int, strings: LocalizedText, onChange: (Int
                         val x = left + slot * (index + .5f)
                         drawRoundRect(HouseFlowColors.systemGray3, Offset(x - 1.5.dp.toPx(), stackTop),
                             Size(3.dp.toPx(), 16.dp.toPx()), CornerRadius(1.5.dp.toPx()))
-                        drawCircle(if (currentCount >= MIN_MEMBERS + index) HouseFlowColors.indigo else HouseFlowColors.systemGray4,
+                        drawCircle(if (currentCount >= MIN_MEMBERS + index) memberStopColor(index, stops) else HouseFlowColors.systemGray4,
                             5.dp.toPx(), Offset(x, stackTop + 21.dp.toPx()))
                     }
                 }
@@ -281,6 +288,13 @@ private fun MemberCountPicker(count: Int, strings: LocalizedText, onChange: (Int
     }
 }
 
+/** Filled stops walk from light orange towards berry as the count grows. */
+private fun memberStopColor(index: Int, stops: Int): Color {
+    val progress = index / (stops - 1).coerceAtLeast(1).toFloat()
+    return if (progress < .5f) lerp(HouseFlowColors.brandLight, HouseFlowColors.brandOrange, progress * 2)
+    else lerp(HouseFlowColors.brandOrange, Color(0xFF8A2440), (progress - .5f) * 2)
+}
+
 private val BubbleTail = GenericShape { size, _ ->
     moveTo(size.width / 2, size.height)
     lineTo(0f, 0f)
@@ -293,14 +307,13 @@ private fun MemberBubble(count: Int, modifier: Modifier) {
     Column(modifier, horizontalAlignment = Alignment.CenterHorizontally) {
         Box(
             Modifier.size(44.dp)
-                .softShadow(HouseFlowColors.indigo.copy(alpha = .26f), 10.dp, y = 4.dp, shape = CircleShape)
-                .background(HouseFlowColors.indigo, CircleShape)
-                .border(1.5.dp, HouseFlowColors.accentOrange.copy(alpha = .75f), CircleShape),
+                .softShadow(HouseFlowColors.deepBerry.copy(alpha = .28f), 10.dp, y = 4.dp, shape = CircleShape)
+                .background(FausIconGradient, CircleShape),
             contentAlignment = Alignment.Center,
         ) {
             Text(count.toString(), color = Color.White, fontSize = 18.sp, fontWeight = FontWeight.Bold)
         }
-        Box(Modifier.offset(y = (-1).dp).size(14.dp, 10.dp).background(HouseFlowColors.indigo, BubbleTail))
+        Box(Modifier.offset(y = (-1).dp).size(14.dp, 10.dp).background(Color(0xFFB5473A), BubbleTail))
     }
 }
 

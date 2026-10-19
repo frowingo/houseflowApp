@@ -54,6 +54,10 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.houseflow.platform.InviteCodeBridge
 import com.houseflow.platform.LocalizedText
+import com.houseflow.ui.auth.OtpField
+import com.houseflow.ui.components.FausButtonGradient
+import com.houseflow.ui.components.FausHouseIcon
+import com.houseflow.ui.components.FausIconGradient
 import com.houseflow.ui.components.PlaceholderColor
 import com.houseflow.ui.components.mainScreenBackground
 import com.houseflow.ui.theme.HouseFlowColors
@@ -85,7 +89,7 @@ internal fun JoinHouseScreen(state: HouseUiState, strings: LocalizedText, onBack
                 Row(Modifier.fillMaxWidth().padding(horizontal = Spacing.xl)) {
                     Box(
                         Modifier.size(40.dp).clip(CircleShape).background(HouseFlowColors.surface)
-                            .border(1.dp, HouseFlowColors.indigo.copy(alpha = .10f), CircleShape)
+                            .border(1.dp, HouseFlowColors.brandOrange.copy(alpha = .20f), CircleShape)
                             .clickable(role = Role.Button, onClick = onBack)
                             .semantics { contentDescription = strings.get("common_back", "Back") },
                         contentAlignment = Alignment.Center,
@@ -105,100 +109,57 @@ internal fun JoinHouseScreen(state: HouseUiState, strings: LocalizedText, onBack
                 Column(verticalArrangement = Arrangement.spacedBy(Spacing.lg)) {
                     Text(strings.get("invite_code_label"), Modifier.fillMaxWidth(), style = HouseFlowType.headline,
                         color = HouseFlowColors.textPrimary)
-                    InviteCodeField(code, { code = InviteCodeBridge.normalize(it) }, strings, isError = state.error != null, submit)
+                    OtpField(code, { code = InviteCodeBridge.normalize(it) }, strings.get("invite_code_label"), false, INVITE_CODE_LENGTH)
                 }
                 HelpBox(strings)
                 state.error?.let { Text(it, style = HouseFlowType.subheadline, color = HouseFlowColors.errorRed) }
             }
         }
-        HouseJourneyButton(strings.get("join_house_submit_button"), valid, HouseJourneyBrushes.joinButton,
+        HouseJourneyButton(strings.get("join_house_submit_button"), valid, FausButtonGradient,
             Modifier.padding(start = Spacing.xl, end = Spacing.xl, bottom = Spacing.xxl, top = Spacing.lg),
-            height = 56.dp, glow = HouseFlowColors.teal, onClick = submit)
+            height = 56.dp, glow = HouseFlowColors.deepBerry, onClick = submit)
     }
 }
 
 @Composable
 private fun JoinArt() {
     Box {
-        Box(Modifier.size(102.dp).background(HouseFlowColors.teal.copy(alpha = .10f), CircleShape), contentAlignment = Alignment.Center) {
-            Box(Modifier.size(78.dp).background(HouseFlowColors.indigo.copy(alpha = .08f), CircleShape))
-            // SF `house.and.flag`: a house with a small flag beside it.
-            Box(Modifier.size(52.dp)) {
-                Icon(HouseFlowIcons.houseFill, null, Modifier.align(Alignment.BottomStart).size(42.dp), tint = HouseFlowColors.indigo)
-                Icon(HouseFlowIcons.flag, null, Modifier.align(Alignment.TopEnd).size(20.dp), tint = HouseFlowColors.indigo)
-            }
+        Box(
+            Modifier.size(96.dp).background(HouseFlowColors.background, CircleShape)
+                .border(1.5.dp, HouseFlowColors.brandOrange.copy(alpha = .55f), CircleShape),
+            contentAlignment = Alignment.Center,
+        ) {
+            FausHouseIcon(48.dp)
         }
-        Box(Modifier.align(Alignment.TopEnd).offset((-2).dp, 8.dp).size(10.dp).background(HouseFlowColors.accentOrange, CircleShape))
+        // Key badge: the invite code.
+        Box(
+            Modifier.align(Alignment.BottomEnd).offset(2.dp, (-2).dp).size(30.dp)
+                .softShadow(HouseFlowColors.deepBerry.copy(alpha = .3f), 4.dp, y = 3.dp, shape = CircleShape)
+                .background(FausIconGradient, CircleShape),
+            contentAlignment = Alignment.Center,
+        ) {
+            Icon(HouseFlowIcons.keyFill, null, Modifier.size(15.dp), tint = Color.White)
+        }
     }
-}
-
-/** `InviteCodeTextField`: monospaced, centered, upper-case code with focus/error border. */
-@Composable
-private fun InviteCodeField(value: String, onChange: (String) -> Unit, strings: LocalizedText, isError: Boolean, onSubmit: () -> Unit) {
-    val interaction = remember { MutableInteractionSource() }
-    val focused by interaction.collectIsFocusedAsState()
-    val requester = remember { FocusRequester() }
-    // iOS focuses the field shortly after the screen appears.
-    LaunchedEffect(Unit) { delay(500); runCatching { requester.requestFocus() } }
-    val border by animateColorAsState(
-        when {
-            isError -> HouseFlowColors.error
-            focused -> HouseFlowColors.accentOrange
-            else -> HouseFlowColors.indigo.copy(alpha = .12f)
-        }, Motion.quick(), label = "inviteBorder",
-    )
-    val shape = RoundedCornerShape(Radius.md)
-    val label = strings.get("invite_code_label")
-    BasicTextField(
-        value = value,
-        onValueChange = onChange,
-        modifier = Modifier.fillMaxWidth().focusRequester(requester)
-            .softShadow(if (focused) HouseFlowColors.accentOrange.copy(alpha = .12f) else Color.Black.copy(alpha = .035f),
-                if (focused) 10.dp else 5.dp, y = 3.dp, shape = shape)
-            .semantics { contentDescription = label },
-        textStyle = HouseFlowType.body.copy(fontFamily = FontFamily.Monospace, fontWeight = FontWeight.SemiBold,
-            color = HouseFlowColors.textPrimary, textAlign = TextAlign.Center),
-        singleLine = true,
-        interactionSource = interaction,
-        cursorBrush = SolidColor(HouseFlowColors.primary),
-        keyboardOptions = KeyboardOptions(capitalization = KeyboardCapitalization.Characters, autoCorrectEnabled = false,
-            keyboardType = KeyboardType.Ascii, imeAction = ImeAction.Go),
-        keyboardActions = KeyboardActions(onGo = { onSubmit() }),
-        decorationBox = { inner ->
-            Box(
-                Modifier.fillMaxWidth().clip(shape).background(HouseFlowColors.surface)
-                    .border(if (focused || isError) 2.dp else 1.dp, border, shape)
-                    .padding(Spacing.lg),
-                contentAlignment = Alignment.Center,
-            ) {
-                if (value.isEmpty()) {
-                    Text(strings.get("join_house_invite_placeholder"), style = HouseFlowType.body, color = PlaceholderColor,
-                        textAlign = TextAlign.Center)
-                }
-                inner()
-            }
-        },
-    )
 }
 
 @Composable
 private fun HelpBox(strings: LocalizedText) {
     val shape = RoundedCornerShape(Radius.md)
     Column(
-        Modifier.fillMaxWidth().clip(shape).background(HouseFlowColors.teal.copy(alpha = .075f))
-            .border(1.dp, HouseFlowColors.teal.copy(alpha = .16f), shape).padding(Spacing.lg),
+        Modifier.fillMaxWidth().clip(shape).background(HouseFlowColors.deepBerry.copy(alpha = .05f))
+            .border(1.dp, HouseFlowColors.deepBerry.copy(alpha = .12f), shape).padding(Spacing.lg),
         verticalArrangement = Arrangement.spacedBy(Spacing.md),
     ) {
         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(Spacing.sm)) {
-            Icon(HouseFlowIcons.infoCircleFill, null, Modifier.size(18.dp), tint = HouseFlowColors.indigo)
+            Icon(HouseFlowIcons.infoCircleFill, null, Modifier.size(18.dp), tint = HouseFlowColors.accentOrangeInk)
             Text(strings.get("join_house_help_title"), style = HouseFlowType.subheadline, color = HouseFlowColors.textPrimary)
         }
         Column(verticalArrangement = Arrangement.spacedBy(Spacing.sm)) {
             (1..3).forEach { step ->
                 Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(Spacing.md)) {
                     Box(
-                        Modifier.size(20.dp).background(HouseFlowColors.indigo, CircleShape)
-                            .border(1.dp, HouseFlowColors.accentOrange.copy(alpha = .55f), CircleShape),
+                        Modifier.size(20.dp).background(FausIconGradient, CircleShape),
                         contentAlignment = Alignment.Center,
                     ) {
                         Text(step.toString(), style = HouseFlowType.caption, color = Color.White)

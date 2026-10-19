@@ -32,7 +32,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.semantics.Role
@@ -42,7 +42,11 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.houseflow.platform.LocalizedText
+import com.houseflow.ui.components.FausBadge
+import com.houseflow.ui.components.FausButtonGradient
+import com.houseflow.ui.components.FausGradientIcon
 import com.houseflow.ui.components.GraphicalCalendar
+import com.houseflow.ui.components.fausHeroBackground
 import com.houseflow.ui.theme.HouseFlowColors
 import com.houseflow.ui.theme.HouseFlowIcons
 import com.houseflow.ui.theme.Radius
@@ -55,9 +59,10 @@ import java.time.format.FormatStyle
 import java.util.Locale
 
 private val accentOrange = HouseFlowColors.accentOrange
-private val heroGradient = Brush.linearGradient(listOf(accentOrange, Color(0xFFFFA338)))
+private val accentInk = HouseFlowColors.accentOrangeInk
+private val confettiPeach = Color(0xFFFFD3A8)
 
-/** `BirthdaySetupView`: orange hero with confetti, graphical calendar card and Save and continue. */
+/** `BirthdaySetupView`: orange → berry hero with confetti, graphical calendar card and Save and continue. */
 @Composable
 internal fun BirthdaySetupScreen(state: AuthUiState, strings: LocalizedText, onDate: (LocalDate) -> Unit, onSave: () -> Unit) {
     val today = remember { LocalDate.now() }
@@ -70,19 +75,19 @@ internal fun BirthdaySetupScreen(state: AuthUiState, strings: LocalizedText, onD
         BirthdayHero(strings)
         Column(
             Modifier.fillMaxWidth().offset(y = (-28).dp).padding(horizontal = Spacing.xl)
-                .softShadow(Color.Black.copy(alpha = .10f), 22.dp, y = 10.dp, shape = RoundedCornerShape(Radius.xxl))
+                .softShadow(HouseFlowColors.deepBerry.copy(alpha = .12f), 22.dp, y = 10.dp, shape = RoundedCornerShape(Radius.xxl))
                 .clip(RoundedCornerShape(Radius.xxl)).background(HouseFlowColors.background).padding(Spacing.xl),
             verticalArrangement = Arrangement.spacedBy(Spacing.xl),
         ) {
             Column(Modifier.fillMaxWidth(), horizontalAlignment = Alignment.CenterHorizontally,
                 verticalArrangement = Arrangement.spacedBy(Spacing.xs)) {
                 Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(Spacing.sm)) {
-                    Icon(HouseFlowIcons.calendar, null, Modifier.size(20.dp), tint = accentOrange)
+                    FausGradientIcon(HouseFlowIcons.calendar, 20.dp)
                     Text(strings.get("birthday_setup_date_label", "Date of birth"), fontSize = 17.sp,
                         fontWeight = FontWeight.Bold, color = HouseFlowColors.textPrimary)
                 }
                 Text(state.birthday.format(DateTimeFormatter.ofLocalizedDate(FormatStyle.LONG).withLocale(locale)),
-                    fontSize = 14.sp, fontWeight = FontWeight.SemiBold, color = accentOrange)
+                    fontSize = 14.sp, fontWeight = FontWeight.SemiBold, color = accentInk)
             }
             GraphicalCalendar(state.birthday, onDate, range, accentOrange, Modifier.fillMaxWidth(), locale)
             Row(
@@ -90,7 +95,7 @@ internal fun BirthdaySetupScreen(state: AuthUiState, strings: LocalizedText, onD
                     .padding(Spacing.md),
                 horizontalArrangement = Arrangement.spacedBy(Spacing.sm),
             ) {
-                Icon(HouseFlowIcons.lockShield, null, Modifier.size(18.dp), tint = accentOrange)
+                Icon(HouseFlowIcons.lockShield, null, Modifier.size(18.dp), tint = accentInk)
                 Text(strings.get("birthday_setup_privacy_note", "Your birthday is saved securely as part of your profile."),
                     Modifier.weight(1f), fontSize = 12.sp, fontWeight = FontWeight.Medium, color = HouseFlowColors.textSecondary)
             }
@@ -113,23 +118,19 @@ internal fun BirthdaySetupScreen(state: AuthUiState, strings: LocalizedText, onD
 
 @Composable
 private fun BirthdayHero(strings: LocalizedText) {
-    BoxWithConstraints(Modifier.fillMaxWidth().background(heroGradient).statusBarsPadding().heightIn(min = 280.dp)) {
+    BoxWithConstraints(Modifier.fillMaxWidth().fausHeroBackground().statusBarsPadding().heightIn(min = 280.dp)) {
         val width = maxWidth
         Confetti(width * .13f, 58.dp, 12.dp, .32f)
-        Confetti(width * .82f, 50.dp, 7.dp, .42f)
+        Confetti(width * .82f, 50.dp, 7.dp, .7f, confettiPeach)
         Confetti(width * .91f, 154.dp, 16.dp, .18f)
         Sparkle(HouseFlowIcons.sparkles, width * .18f, 178.dp, 22.dp, .34f)
-        Sparkle(HouseFlowIcons.starFill, width * .78f, 210.dp, 14.dp, .30f)
+        Sparkle(HouseFlowIcons.starFill, width * .78f, 210.dp, 14.dp, .55f, confettiPeach)
         Column(
             Modifier.fillMaxWidth().padding(top = Spacing.xl, bottom = 58.dp),
             horizontalAlignment = Alignment.CenterHorizontally,
             verticalArrangement = Arrangement.spacedBy(Spacing.lg),
         ) {
-            Box(contentAlignment = Alignment.Center) {
-                Box(Modifier.size(112.dp).background(Color.White.copy(alpha = .15f), CircleShape))
-                Box(Modifier.size(88.dp).background(Color.White.copy(alpha = .20f), CircleShape))
-                Icon(HouseFlowIcons.birthdayCakeFill, null, Modifier.size(50.dp), tint = Color.White)
-            }
+            FausBadge(80.dp) { FausGradientIcon(HouseFlowIcons.birthdayCakeFill, 40.dp) }
             Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(Spacing.sm)) {
                 Text(strings.get("birthday_setup_title", "When is your birthday?"), Modifier.padding(horizontal = Spacing.xl),
                     fontSize = 27.sp, fontWeight = FontWeight.Bold, color = Color.White, textAlign = TextAlign.Center)
@@ -142,13 +143,13 @@ private fun BirthdayHero(strings: LocalizedText) {
 }
 
 @Composable
-private fun Confetti(x: Dp, y: Dp, size: Dp, alpha: Float) {
-    Box(Modifier.offset(x - size / 2, y - size / 2).size(size).background(Color.White.copy(alpha = alpha), CircleShape))
+private fun Confetti(x: Dp, y: Dp, size: Dp, alpha: Float, color: Color = Color.White) {
+    Box(Modifier.offset(x - size / 2, y - size / 2).size(size).background(color.copy(alpha = alpha), CircleShape))
 }
 
 @Composable
-private fun Sparkle(icon: ImageVector, x: Dp, y: Dp, size: Dp, alpha: Float) {
-    Icon(icon, null, Modifier.offset(x - size / 2, y - size / 2).size(size), tint = Color.White.copy(alpha = alpha))
+private fun Sparkle(icon: ImageVector, x: Dp, y: Dp, size: Dp, alpha: Float, color: Color = Color.White) {
+    Icon(icon, null, Modifier.offset(x - size / 2, y - size / 2).size(size), tint = color.copy(alpha = alpha))
 }
 
 @Composable
@@ -156,8 +157,8 @@ private fun SaveButton(strings: LocalizedText, busy: Boolean, onSave: () -> Unit
     val shape = RoundedCornerShape(Radius.xl)
     Box(
         Modifier.fillMaxWidth().height(54.dp)
-            .softShadow(if (busy) Color.Transparent else accentOrange.copy(alpha = .35f), 12.dp, y = 6.dp, shape = shape)
-            .clip(shape).background(if (busy) HouseFlowColors.systemGray4 else accentOrange)
+            .softShadow(if (busy) Color.Transparent else HouseFlowColors.deepBerry.copy(alpha = .28f), 12.dp, y = 6.dp, shape = shape)
+            .clip(shape).background(if (busy) SolidColor(HouseFlowColors.systemGray4) else FausButtonGradient)
             .clickable(enabled = !busy, role = Role.Button, onClick = onSave),
         contentAlignment = Alignment.Center,
     ) {

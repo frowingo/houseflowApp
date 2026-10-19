@@ -11,6 +11,14 @@ import androidx.core.view.WindowCompat
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.imePadding
 import androidx.compose.ui.Modifier
+import com.houseflow.ui.components.FausSplash
+import com.houseflow.ui.components.LocalFausSplashActive
+import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.animation.EnterTransition
+import androidx.compose.animation.ExitTransition
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.core.tween
 import com.houseflow.ui.components.dismissKeyboardOnTap
 import com.houseflow.viewmodel.HouseLoadingPhase
 import androidx.compose.runtime.LaunchedEffect
@@ -52,6 +60,9 @@ class MainActivity : ComponentActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        // The theme paints the launch window brand orange; the app itself sits on white.
+        window.setBackgroundDrawableResource(android.R.color.white)
+        val coldStart = savedInstanceState == null
         // Compose owns every inset (status/nav bars and the keyboard) on all API levels, matching
         // the edge-to-edge behavior Android 15+ enforces. Screens pad themselves; the IME is
         // handled once at the root below.
@@ -70,6 +81,10 @@ class MainActivity : ComponentActivity() {
             val text by model.text.collectAsStateWithLifecycle()
             var selectedTab by rememberSaveable { mutableStateOf(MainTab.HOME) }
             var showsHouseRockets by rememberSaveable { mutableStateOf(false) }
+            // Brand intro on every cold start (not on configuration changes).
+            var showsSplash by rememberSaveable { mutableStateOf(coldStart) }
+            // Until the splash starts opening, the app underneath is hidden and holds its animations.
+            var splashCovering by rememberSaveable { mutableStateOf(coldStart) }
             LaunchedEffect(state.profile) {
                 state.profile?.let(houseModel::acceptProfile) ?: houseModel.resetSession()
             }
@@ -98,13 +113,17 @@ class MainActivity : ComponentActivity() {
                     showsHouseRockets = false
                 }
             }
-            LaunchedEffect(state.route) {
+            LaunchedEffect(state.route, showsSplash) {
                 val isAuth = state.route is AuthRoute.SignIn || state.route is AuthRoute.ForgotPassword ||
                     (state.route is AuthRoute.Next && (state.route as AuthRoute.Next).destination == AuthDestination.EMAIL_VERIFICATION)
-                window.statusBarColor = if (isAuth) android.graphics.Color.rgb(255, 165, 0) else android.graphics.Color.WHITE
+                window.statusBarColor = when {
+                    showsSplash -> android.graphics.Color.TRANSPARENT
+                    isAuth -> android.graphics.Color.rgb(255, 145, 56)
+                    else -> android.graphics.Color.WHITE
+                }
                 @Suppress("DEPRECATION")
                 window.decorView.systemUiVisibility = android.view.View.SYSTEM_UI_FLAG_LIGHT_NAVIGATION_BAR or
-                    (if (isAuth) 0 else android.view.View.SYSTEM_UI_FLAG_LIGHT_STATUS_BAR)
+                    (if (isAuth || showsSplash) 0 else android.view.View.SYSTEM_UI_FLAG_LIGHT_STATUS_BAR)
             }
             val nav = rememberNavController()
             val currentRoute = state.route
@@ -133,7 +152,13 @@ class MainActivity : ComponentActivity() {
             // Root keyboard policy: content shrinks above the IME (focused fields scroll into view)
             // and taps on empty space dismiss it, like iOS keyboard avoidance + dismissKeyboardOnTap.
             Box(Modifier.fillMaxSize().imePadding().dismissKeyboardOnTap()) {
-            NavHost(navController = nav, startDestination = "houseLoading") {
+            CompositionLocalProvider(LocalFausSplashActive provides splashCovering) {
+            NavHost(
+                navController = nav, startDestination = "houseLoading",
+                // Route changes behind the splash land instantly; nobody can see the fade.
+                enterTransition = { if (splashCovering) EnterTransition.None else fadeIn(tween(700)) },
+                exitTransition = { if (splashCovering) ExitTransition.None else fadeOut(tween(700)) },
+            ) {
                 composable("onboarding") {
                     OnboardingScreen(text, state.busy, model::completeOnboarding)
                 }
@@ -229,6 +254,8 @@ class MainActivity : ComponentActivity() {
                     }
                 }
             }
+            }
+            if (showsSplash) FausSplash(onReveal = { splashCovering = false }) { showsSplash = false }
             }
         }
     }

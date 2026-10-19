@@ -30,14 +30,6 @@ struct HouseTypeCard: View {
             }
         }
 
-        var tint: Color {
-            switch self {
-            case .studentHouse: return HouseJourneyTheme.purple
-            case .sharedHouse: return HouseJourneyTheme.teal
-            case .dormRoom: return HouseJourneyTheme.blue
-            }
-        }
-
         /// API integer value: StudentHouse=1, SharedHouse=2, DormRoom=3
         var apiValue: Int {
             switch self {
@@ -66,10 +58,16 @@ struct HouseTypeCard: View {
     
     // MARK: - Subviews
     
+    @ViewBuilder
     private var iconSection: some View {
-        Image(systemName: type.iconName)
-            .font(.system(size: AppDesign.Size.iconMedium, weight: .medium))
-            .foregroundColor(type.tint)
+        if type == .sharedHouse {
+            // Custom glyph so the shared house reads the same on iOS and Android.
+            FausHouseIcon(size: AppDesign.Size.iconMedium + 4)
+        } else {
+            Image(systemName: type.iconName)
+                .font(.system(size: AppDesign.Size.iconMedium, weight: .medium))
+                .fausGradientForeground()
+        }
     }
     
     private var labelSection: some View {
@@ -82,15 +80,15 @@ struct HouseTypeCard: View {
     
     private var backgroundColor: some View {
         RoundedRectangle(cornerRadius: AppDesign.CornerRadius.lg)
-            .fill(isSelected ? type.tint.opacity(0.15) : HouseJourneyTheme.surface)
+            .fill(isSelected ? FausBrand.orange.opacity(0.08) : HouseJourneyTheme.surface)
     }
     
     private var borderOverlay: some View {
         RoundedRectangle(cornerRadius: AppDesign.CornerRadius.lg)
             .strokeBorder(
                 isSelected
-                    ? HouseJourneyTheme.accentOrange
-                    : type.tint.opacity(0.12),
+                    ? FausBrand.orange
+                    : Color(.systemGray5),
                 lineWidth: isSelected ? 2 : 1
             )
     }

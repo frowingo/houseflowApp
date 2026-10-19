@@ -19,18 +19,29 @@ struct HouseFlowApp: App {
     @UIApplicationDelegateAdaptor(HouseFlowAppDelegate.self) private var appDelegate
     @StateObject private var appViewModel = AppViewModel()
     @Environment(\.scenePhase) private var scenePhase
+    @State private var showsSplash = true
+    /// Until the splash starts opening, the app underneath is fully hidden and holds its animations.
+    @State private var splashCovering = true
 
     var body: some Scene {
         WindowGroup {
-            RootView()
-                .environmentObject(appViewModel)
-                .environmentObject(appViewModel.router)
-                .preferredColorScheme(.light)
-                .task {
-                    appViewModel.prepareLocalization()
-                    // Cold start: attempt silent auto-login
-                    await appViewModel.performAutoLogin()
+            ZStack {
+                RootView()
+                    .environmentObject(appViewModel)
+                    .environmentObject(appViewModel.router)
+                    .environment(\.fausSplashActive, splashCovering)
+                    .task {
+                        appViewModel.prepareLocalization()
+                        // Cold start: attempt silent auto-login while the splash plays.
+                        await appViewModel.performAutoLogin()
+                    }
+
+                if showsSplash {
+                    FausSplashView(onReveal: { splashCovering = false }) { showsSplash = false }
+                        .zIndex(1)
                 }
+            }
+            .preferredColorScheme(.light)
         }
         .onChange(of: scenePhase) { _, newPhase in
             if newPhase == .background {

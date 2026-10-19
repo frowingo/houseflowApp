@@ -1,7 +1,5 @@
 package com.houseflow
 
-import androidx.compose.ui.test.assertIsNotEnabled
-import androidx.compose.ui.test.assertIsEnabled
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithText
@@ -21,13 +19,11 @@ import org.junit.runner.RunWith
 class OnboardingScreenTest {
     @get:Rule val compose = createComposeRule()
 
-    @Test fun finalPageUnlocksExistingGetStartedAction() {
+    @Test fun continuePagesForwardAndFinalPageCompletes() {
         var completions = 0
         compose.setContent {
             OnboardingScreen(
                 LocalizedText("en", mapOf(
-                    "app_name" to "HouseFlow",
-                    "onboarding_app_subtitle" to "Shared home",
                     "onboarding_page_1_title" to "First",
                     "onboarding_page_1_subtitle" to "First description",
                     "onboarding_page_2_title" to "Second",
@@ -40,15 +36,19 @@ class OnboardingScreenTest {
         }
 
         compose.onNodeWithText("First").assertExists()
-        compose.onNodeWithContentDescription("Get Started").assertIsNotEnabled()
-        compose.onNodeWithTag("onboarding_pager").performTouchInput { swipeLeft() }
+        compose.onNodeWithContentDescription("Get Started").assertDoesNotExist()
+        compose.onNodeWithContentDescription("Continue").performClick()
         compose.waitForIdle()
         compose.onNodeWithText("Second").assertExists()
-        compose.onNodeWithContentDescription("Get Started").assertIsNotEnabled()
         compose.onNodeWithTag("onboarding_pager").performTouchInput { swipeLeft() }
         compose.waitForIdle()
+        // Games page falls back to built-in copy until the backend ships its keys.
+        compose.onNodeWithText("Play together").assertExists()
+        compose.onNodeWithContentDescription("Continue").performClick()
+        compose.waitForIdle()
         compose.onNodeWithText("Third").assertExists()
-        compose.onNodeWithContentDescription("Get Started").assertIsEnabled().performClick()
+        compose.runOnIdle { assertEquals(0, completions) }
+        compose.onNodeWithContentDescription("Get Started").performClick()
         compose.runOnIdle { assertEquals(1, completions) }
     }
 }

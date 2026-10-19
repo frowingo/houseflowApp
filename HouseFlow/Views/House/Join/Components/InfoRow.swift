@@ -21,12 +21,8 @@ struct InfoRow: View {
             .font(AppDesign.Typography.caption)
             .foregroundColor(.white)
             .frame(width: 20, height: 20)
-            .background(HouseJourneyTheme.indigo)
+            .background(FausBrand.iconGradient)
             .clipShape(Circle())
-            .overlay(
-                Circle()
-                    .stroke(HouseJourneyTheme.accentOrange.opacity(0.55), lineWidth: 1)
-            )
     }
     
     private var descriptionText: some View {

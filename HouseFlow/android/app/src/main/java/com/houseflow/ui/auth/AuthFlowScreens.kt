@@ -15,6 +15,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.navigationBarsPadding
+import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
@@ -42,7 +43,6 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.focus.onFocusChanged
-import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.semantics.contentDescription
@@ -57,32 +57,32 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
 import com.houseflow.platform.LocalizedText
+import com.houseflow.ui.components.FausBadge
+import com.houseflow.ui.components.FausButtonGradient
+import com.houseflow.ui.components.FausGradientIcon
+import com.houseflow.ui.components.FausSpinner
+import com.houseflow.ui.components.fausHeroBackground
+import com.houseflow.ui.theme.HouseFlowColors
 import com.houseflow.viewmodel.AuthUiState
 import com.houseflow.viewmodel.ForgotPhase
 import kotlinx.coroutines.delay
 
-private val orange = Color(0xFFFFA500)
-private val accentOrange = Color(0xFFFF7A26)
+private val accentOrange = HouseFlowColors.brandOrange
 private val ink = Color(0xFF1C1C1E)
 private val muted = Color(0xFF8E8E93)
 private val field = Color(0xFFE5E5EA)
-private val hero = Brush.linearGradient(listOf(orange, Color(0xFFFFC060)))
 
 @Composable
 private fun FlowScaffold(title: String, subtitle: String, icon: androidx.compose.ui.graphics.vector.ImageVector,
     onBack: (() -> Unit)?, content: @Composable () -> Unit) {
     Column(Modifier.fillMaxSize().background(Color.White)) {
-        Box(Modifier.fillMaxWidth().background(hero).statusBarsPadding().padding(top = 24.dp, bottom = 60.dp)) {
+        Box(Modifier.fillMaxWidth().fausHeroBackground().statusBarsPadding().padding(top = 32.dp, bottom = 64.dp)) {
             Column(Modifier.fillMaxWidth(), horizontalAlignment = Alignment.CenterHorizontally,
                 verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                Box(Modifier.size(88.dp).background(Color.White.copy(alpha = .10f), CircleShape), contentAlignment = Alignment.Center) {
-                    Box(Modifier.size(70.dp).background(Color.White.copy(alpha = .18f), CircleShape), contentAlignment = Alignment.Center) {
-                        Icon(icon, null, Modifier.size(28.dp), tint = Color.White)
-                    }
-                }
+                FausBadge(72.dp) { FausGradientIcon(icon, 32.dp) }
                 Text(title, fontSize = 24.sp, fontWeight = FontWeight.Bold, color = Color.White, textAlign = TextAlign.Center)
                 Text(subtitle, Modifier.padding(horizontal = 32.dp), fontSize = 14.sp,
-                    color = Color.White.copy(alpha = .76f), textAlign = TextAlign.Center)
+                    color = Color.White.copy(alpha = .8f), textAlign = TextAlign.Center)
             }
             if (onBack != null) {
                 Box(Modifier.padding(start = 24.dp).size(48.dp).clip(CircleShape)
@@ -91,7 +91,7 @@ private fun FlowScaffold(title: String, subtitle: String, icon: androidx.compose
                 }
             }
         }
-        Column(Modifier.fillMaxSize().clip(RoundedCornerShape(topStart = 32.dp, topEnd = 32.dp))
+        Column(Modifier.fillMaxSize().offset(y = (-32).dp).clip(RoundedCornerShape(topStart = 32.dp, topEnd = 32.dp))
             .background(Color.White).verticalScroll(rememberScrollState()).navigationBarsPadding()
             .padding(horizontal = 24.dp, vertical = 32.dp), verticalArrangement = Arrangement.spacedBy(24.dp)) {
             content()
@@ -103,13 +103,17 @@ private fun FlowScaffold(title: String, subtitle: String, icon: androidx.compose
 private fun FlowField(label: String, value: String, onValue: (String) -> Unit, placeholder: String,
     readOnly: Boolean = false, password: Boolean = false, keyboard: KeyboardType = KeyboardType.Text,
     showLabel: Boolean = true) {
+    var focused by remember { androidx.compose.runtime.mutableStateOf(false) }
     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
         if (showLabel) Text(label, fontSize = 15.sp, fontWeight = FontWeight.SemiBold, color = ink)
         BasicTextField(value, onValue, Modifier.fillMaxWidth().semantics { contentDescription = label }
+            .onFocusChanged { focused = it.isFocused }
             .clip(RoundedCornerShape(12.dp))
-            .background(field.copy(alpha = if (readOnly) .6f else 1f)).padding(16.dp),
+            .background(field.copy(alpha = if (readOnly) .6f else 1f))
+            .border(2.dp, if (focused && !readOnly) accentOrange else Color.Transparent, RoundedCornerShape(12.dp))
+            .padding(16.dp),
             readOnly = readOnly, singleLine = true, textStyle = TextStyle(fontSize = 16.sp, color = ink),
-            cursorBrush = SolidColor(Color(0xFF007AFF)),
+            cursorBrush = SolidColor(accentOrange),
             visualTransformation = if (password) PasswordVisualTransformation() else androidx.compose.ui.text.input.VisualTransformation.None,
             keyboardOptions = KeyboardOptions(keyboardType = keyboard, autoCorrectEnabled = false),
             decorationBox = { inner -> Box { if (value.isEmpty()) Text(placeholder, color = muted, fontSize = 16.sp); inner() } })
@@ -127,9 +131,9 @@ internal fun OtpField(code: String, onCode: (String) -> Unit, label: String,
                 val character = code.getOrNull(index)?.toString().orEmpty()
                 val active = focused && index == code.length.coerceAtMost(characterCount - 1)
                 Box(Modifier.weight(1f).height(58.dp).clip(RoundedCornerShape(12.dp))
-                    .background(Color(0xFFF2F2F7))
+                    .background(if (character.isNotEmpty()) accentOrange.copy(alpha = .06f) else Color(0xFFF2F2F7))
                     .border(if (active) 2.dp else 1.dp,
-                        if (active) Color(0xFF007AFF) else if (character.isNotEmpty()) Color(0x66007AFF) else Color(0xFFD1D1D6),
+                        if (active) accentOrange else if (character.isNotEmpty()) accentOrange.copy(alpha = .45f) else Color(0xFFD1D1D6),
                         RoundedCornerShape(12.dp)), contentAlignment = Alignment.Center) {
                     Text(character, fontSize = 22.sp, fontWeight = FontWeight.Bold, color = ink)
                 }
@@ -149,8 +153,11 @@ internal fun OtpField(code: String, onCode: (String) -> Unit, label: String,
 
 @Composable
 private fun FlowButton(label: String, busy: Boolean, enabled: Boolean, onClick: () -> Unit) {
-    Box(Modifier.fillMaxWidth().height(54.dp).clip(RoundedCornerShape(18.dp))
-        .background(if (enabled) hero else Brush.linearGradient(listOf(Color(0xFFD1D1D6), Color(0xFFD1D1D6))))
+    Box(Modifier.fillMaxWidth().height(54.dp)
+        .then(if (enabled) Modifier.shadow(10.dp, RoundedCornerShape(18.dp),
+            ambientColor = HouseFlowColors.deepBerry, spotColor = HouseFlowColors.deepBerry) else Modifier)
+        .clip(RoundedCornerShape(18.dp))
+        .background(if (enabled) FausButtonGradient else SolidColor(Color(0xFFD1D1D6)))
         .clickable(enabled = enabled, onClick = onClick), contentAlignment = Alignment.Center) {
         if (busy) CircularProgressIndicator(Modifier.size(22.dp), color = Color.White, strokeWidth = 2.dp)
         else Text(label, color = Color.White, fontSize = 17.sp, fontWeight = FontWeight.Bold)
@@ -222,7 +229,7 @@ internal fun ForgotPasswordScreen(state: AuthUiState, strings: LocalizedText, on
         if (state.forgotPhase != ForgotPhase.IDLE || state.busy) {
             Box(Modifier.fillMaxWidth().height(80.dp), contentAlignment = Alignment.Center) {
                 when {
-                    state.busy && state.forgotPhase == ForgotPhase.IDLE -> CircularProgressIndicator(color = orange)
+                    state.busy && state.forgotPhase == ForgotPhase.IDLE -> FausSpinner(56.dp)
                     state.forgotPhase == ForgotPhase.FAILED -> Icon(Icons.Filled.Close, null, Modifier.size(44.dp), tint = Color.Red)
                     else -> Icon(Icons.Filled.CheckCircle, null, Modifier.size(44.dp), tint = Color(0xFF34C759))
                 }

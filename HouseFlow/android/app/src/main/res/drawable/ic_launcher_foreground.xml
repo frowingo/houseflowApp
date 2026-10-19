@@ -1,0 +1,29 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- FausCrew roof-F glyph, scaled to stay inside the adaptive icon safe zone.
+     Source: Design/AppIcon/FausCrew-AppIcon-Light.svg -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="1024"
+    android:viewportHeight="1024">
+    <group
+        android:pivotX="512"
+        android:pivotY="512"
+        android:scaleX="0.8"
+        android:scaleY="0.8">
+        <path
+            android:pathData="M692,398L512,246L332,398V778"
+            android:strokeColor="#FFFFFFFF"
+            android:strokeWidth="76"
+            android:strokeLineCap="round"
+            android:strokeLineJoin="round" />
+        <path
+            android:pathData="M332,578H512"
+            android:strokeColor="#FFFFFFFF"
+            android:strokeWidth="76"
+            android:strokeLineCap="round" />
+        <path
+            android:fillColor="#FFFFFFFF"
+            android:pathData="M578,578a44,44 0,1 0,88 0a44,44 0,1 0,-88 0z" />
+    </group>
+</vector>

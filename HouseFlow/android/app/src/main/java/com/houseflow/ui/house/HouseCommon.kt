@@ -44,7 +44,7 @@ internal fun HouseBackButton(description: String, onClick: () -> Unit) {
     Row(Modifier.fillMaxWidth().padding(horizontal = Spacing.xxl)) {
         Box(
             Modifier.size(40.dp).clip(CircleShape).background(HouseFlowColors.surface)
-                .border(1.dp, HouseFlowColors.indigo.copy(alpha = .10f), CircleShape)
+                .border(1.dp, HouseFlowColors.brandOrange.copy(alpha = .20f), CircleShape)
                 .clickable(role = Role.Button, onClick = onClick)
                 .semantics { contentDescription = description },
             contentAlignment = Alignment.Center,

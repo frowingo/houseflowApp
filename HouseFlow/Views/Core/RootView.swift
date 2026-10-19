@@ -3,13 +3,15 @@ import SwiftUI
 struct RootView: View {
     @EnvironmentObject private var appViewModel: AppViewModel
     @EnvironmentObject private var router: AppRouter
+    @Environment(\.fausSplashActive) private var splashActive
     
     var body: some View {
         NavigationStack {
             currentView
                 .id(router.route.id)
                 .transition(currentTransition)
-                .animation(.easeOut(duration: 0.4), value: router.route.id)
+                // Route changes behind the splash land instantly; nobody can see the slide.
+                .animation(splashActive ? nil : .easeOut(duration: 0.4), value: router.route.id)
         }
         .overlay(alignment: .top) {
             if let message = appViewModel.toastMessage {

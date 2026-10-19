@@ -3,57 +3,28 @@ import SwiftUI
 struct HouseLoadingView: View {
     @EnvironmentObject private var appViewModel: AppViewModel
     @EnvironmentObject private var router: AppRouter
+    @Environment(\.fausSplashActive) private var splashActive
 
-    @State private var pulseScale: CGFloat = 1.0
-    @State private var ringOpacity: Double = 0.08
-    @State private var dotsPhase: Int = 0
-    @State private var dotAnimating: Bool = false
-    @State private var dotsTimer: Timer?
-
-    private let dotInterval: TimeInterval = 0.45
+    @State private var markProgress: CGFloat = 0
+    @State private var dotPop: CGFloat = 0
+    @State private var dotBreath: CGFloat = 1.0
 
     var body: some View {
         ZStack {
-            loadingBackground
+            MainScreenBackground()
 
-            VStack(spacing: AppDesign.Spacing.xxxl) {
+            VStack(spacing: AppDesign.Spacing.xl) {
                 Spacer()
 
-                // Animated icon
-                ZStack {
-                    // Outer pulsing ring
-                    Circle()
-                        .fill(phaseColor.opacity(ringOpacity))
-                        .frame(width: 170, height: 170)
-                        .scaleEffect(pulseScale)
-
-                    // Mid ring
-                    Circle()
-                        .fill(HouseJourneyTheme.teal.opacity(0.085))
-                        .frame(width: 120, height: 120)
-
-                    // Inner ring
-                    Circle()
-                        .fill(HouseJourneyTheme.surface)
-                        .frame(width: 88, height: 88)
-                        .overlay(
-                            Circle()
-                                .stroke(phaseColor.opacity(0.18), lineWidth: 1)
-                        )
-
-                    Image(systemName: "house.fill")
-                        .font(.system(size: 40, weight: .medium))
-                        .foregroundColor(phaseColor)
-
-                    Circle()
-                        .fill(HouseJourneyTheme.accentOrange)
-                        .frame(width: 10, height: 10)
-                        .offset(x: 36, y: -36)
-                }
-                .frame(width: 170, height: 170)
+                // Brand mark: the roof-F draws itself, then the crew dot pops in
+                FausFramedMark(
+                    size: 190,
+                    progress: markProgress,
+                    dotScale: dotPop * dotBreath
+                )
 
                 // Phase text
-                VStack(spacing: AppDesign.Spacing.md) {
+                VStack(spacing: AppDesign.Spacing.sm) {
                     Text(appViewModel.localized(phase.titleKey))
                         .font(AppDesign.Typography.title2)
                         .foregroundColor(AppDesign.Colors.text)
@@ -69,18 +40,8 @@ struct HouseLoadingView: View {
                         .id("phase-subtitle-\(phase.subtitleKey)")
                         .transition(.opacity)
 
-                    // Bouncing dots indicator
-                    HStack(spacing: AppDesign.Spacing.sm) {
-                        ForEach(0..<3, id: \.self) { i in
-                            Circle()
-                                .fill(dotsPhase == i ? HouseJourneyTheme.accentOrange : phaseColor)
-                                .frame(width: 8, height: 8)
-                                .opacity(dotsPhase == i ? 1.0 : 0.3)
-                                .scaleEffect(dotsPhase == i ? 1.35 : 1.0)
-                                .animation(AppDesign.Animation.quick, value: dotsPhase)
-                        }
-                    }
-                    .padding(.top, AppDesign.Spacing.sm)
+                    FausSpinner(size: 46)
+                        .padding(.top, AppDesign.Spacing.lg)
                 }
                 .animation(AppDesign.Animation.standard, value: phase.titleKey)
 
@@ -88,41 +49,11 @@ struct HouseLoadingView: View {
             }
         }
         .onAppear {
-            startPulseAnimation()
-            startDotsAnimation()
+            // Behind the splash the intro would play unseen; start it when the splash reveals us.
+            if !splashActive { startMarkAnimation() }
         }
-        .onDisappear {
-            stopDotsAnimation()
-        }
-    }
-
-    private var loadingBackground: some View {
-        ZStack {
-            MainScreenBackground()
-
-            RadialGradient(
-                colors: [phaseColor.opacity(0.07), Color.clear],
-                center: .center,
-                startRadius: 30,
-                endRadius: 360
-            )
-        }
-        .ignoresSafeArea()
-        .animation(AppDesign.Animation.standard, value: phase.titleKey)
-    }
-
-    private var phaseColor: Color {
-        switch phase {
-        case .creating:
-            return HouseJourneyTheme.purple
-        case .joining:
-            return HouseJourneyTheme.teal
-        case .loadingDetails, .loadingHouse:
-            return HouseJourneyTheme.blue
-        case .checkingAuth:
-            return HouseJourneyTheme.indigo
-        case .loadingUser:
-            return HouseJourneyTheme.teal
+        .onChange(of: splashActive) { _, active in
+            if !active { startMarkAnimation() }
         }
     }
 
@@ -132,25 +63,16 @@ struct HouseLoadingView: View {
 
     // MARK: - Animations
 
-    private func startPulseAnimation() {
-        withAnimation(
-            .easeInOut(duration: 1.3).repeatForever(autoreverses: true)
-        ) {
-            pulseScale = 1.18
-            ringOpacity = 0.04
+    private func startMarkAnimation() {
+        withAnimation(.easeInOut(duration: 1.0)) {
+            markProgress = 1
         }
-    }
-
-    private func startDotsAnimation() {
-        stopDotsAnimation()
-        dotsTimer = Timer.scheduledTimer(withTimeInterval: dotInterval, repeats: true) { _ in
-            dotsPhase = (dotsPhase + 1) % 3
+        withAnimation(.spring(response: 0.42, dampingFraction: 0.5).delay(0.95)) {
+            dotPop = 1
         }
-    }
-
-    private func stopDotsAnimation() {
-        dotsTimer?.invalidate()
-        dotsTimer = nil
+        withAnimation(.easeInOut(duration: 1.1).repeatForever(autoreverses: true).delay(1.6)) {
+            dotBreath = 1.18
+        }
     }
 }
 

@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Brand orange shown by the system launch window; FausSplash picks up from it. -->
+    <color name="launch_background">#FFFF7A26</color>
+</resources>

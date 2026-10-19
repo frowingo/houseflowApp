@@ -13,23 +13,21 @@ struct HouseErrorView: View {
                 Spacer()
 
                 // Icon
-                ZStack {
-                    Circle()
-                        .fill(HouseJourneyTheme.errorRed.opacity(0.08))
-                        .frame(width: 120, height: 120)
-                        .overlay(
-                            Circle()
-                                .stroke(HouseJourneyTheme.accentOrange.opacity(0.18), lineWidth: 1)
-                        )
-
-                    Circle()
-                        .fill(HouseJourneyTheme.errorRed.opacity(0.06))
-                        .frame(width: 88, height: 88)
+                ZStack(alignment: .bottomTrailing) {
+                    FausFramedMark(size: 150)
 
                     Image(systemName: "exclamationmark.triangle.fill")
-                        .font(.system(size: 48, weight: .medium))
+                        .font(.system(size: 20, weight: .semibold))
                         .foregroundColor(HouseJourneyTheme.errorRed)
+                        .frame(width: 42, height: 42)
+                        .background(
+                            Circle()
+                                .fill(Color(.systemBackground))
+                                .shadow(color: HouseJourneyTheme.errorRed.opacity(0.25), radius: 8, x: 0, y: 4)
+                        )
+                        .offset(x: -6, y: -6)
                 }
+                .accessibilityHidden(true)
 
                 // Message
                 VStack(spacing: AppDesign.Spacing.md) {
@@ -55,14 +53,10 @@ struct HouseErrorView: View {
                             .foregroundColor(.white)
                             .frame(maxWidth: .infinity)
                             .frame(height: AppDesign.Size.buttonHeight)
-                            .background(HouseJourneyTheme.primaryButtonGradient)
+                            .background(FausBrand.buttonGradient)
                             .cornerRadius(AppDesign.CornerRadius.lg)
-                            .overlay(
-                                RoundedRectangle(cornerRadius: AppDesign.CornerRadius.lg)
-                                    .stroke(HouseJourneyTheme.accentOrange.opacity(0.30), lineWidth: 1)
-                            )
                             .shadow(
-                                color: HouseJourneyTheme.indigo.opacity(0.20),
+                                color: FausBrand.deepBerry.opacity(0.28),
                                 radius: 10,
                                 x: 0,
                                 y: 5

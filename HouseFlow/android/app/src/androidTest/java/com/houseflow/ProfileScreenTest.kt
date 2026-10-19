@@ -68,14 +68,14 @@ class ProfileScreenTest {
         compose.onAllNodesWithText("Ada").assertCountEquals(1)
     }
 
-    @Test fun tabBarSelectsTabsAndKeepsGamesInert() {
+    @Test fun tabBarSelectsTabsIncludingGames() {
         val selections = mutableListOf<MainTab>()
         compose.setContent {
             MainTabScreen(MainTab.HOME, { selections += it }, house.houses, "h", {}, strings,
-                profile = {}, dashboard = {})
+                profile = {}, dashboard = {}, games = {})
         }
         compose.onNodeWithText("Profile").performClick()
         compose.onNodeWithText("Games").performClick()
-        compose.runOnIdle { assertEquals(listOf(MainTab.PROFILE), selections) }
+        compose.runOnIdle { assertEquals(listOf(MainTab.PROFILE, MainTab.GAMES), selections) }
     }
 }

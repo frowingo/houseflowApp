@@ -21,24 +21,47 @@ struct HouseSelectionView: View {
     
     // MARK: - Header Section
     
+    /// Brand header card: orange → berry with the white F badge.
     private var headerSection: some View {
-        VStack(spacing: AppDesign.Spacing.sm) {
-            Text(appViewModel.localized("house_selection_title"))
-                .font(.system(size: 34, weight: .bold, design: .rounded))
-                .foregroundStyle(AppDesign.Colors.textPrimary)
-            
-            Text(appViewModel.localized("house_selection_subtitle"))
-                .font(AppDesign.Typography.subheadline)
-                .foregroundColor(AppDesign.Colors.textSecondary)
-                .multilineTextAlignment(.center)
+        HStack(spacing: AppDesign.Spacing.lg) {
+            ZStack {
+                Circle()
+                    .fill(Color.white.opacity(0.16))
+                    .frame(width: 70, height: 70)
+                Circle()
+                    .fill(Color.white)
+                    .frame(width: 58, height: 58)
+                    .shadow(color: FausBrand.deepBerry.opacity(0.3), radius: 8, x: 0, y: 6)
+                Rectangle()
+                    .fill(FausBrand.markGradient)
+                    .frame(width: 58, height: 58)
+                    .mask(FausMark(size: 58))
+            }
+            .accessibilityHidden(true)
+
+            VStack(alignment: .leading, spacing: AppDesign.Spacing.xs) {
+                Text(appViewModel.localized("house_selection_title"))
+                    .font(.system(size: 24, weight: .bold, design: .rounded))
+                    .foregroundStyle(.white)
+                    .lineLimit(2)
+                    .minimumScaleFactor(0.8)
+
+                Text(appViewModel.localized("house_selection_subtitle"))
+                    .font(AppDesign.Typography.subheadline)
+                    .foregroundColor(.white.opacity(0.82))
+                    .multilineTextAlignment(.leading)
+            }
+
+            Spacer(minLength: 0)
         }
+        .padding(.horizontal, AppDesign.Spacing.xl)
+        .padding(.vertical, AppDesign.Spacing.xxl)
+        .frame(maxWidth: .infinity)
+        .background(FausHeroBackground())
+        .clipShape(RoundedRectangle(cornerRadius: AppDesign.CornerRadius.xxl, style: .continuous))
+        .shadow(color: FausBrand.deepBerry.opacity(0.28), radius: 18, x: 0, y: 8)
+        .padding(.horizontal, AppDesign.Spacing.xxl)
         .padding(.top, 60)
-        .padding(.bottom, AppDesign.Spacing.xxxl)
-        .overlay(alignment: .bottom) {
-            Capsule()
-                .fill(HouseJourneyTheme.accentOrange)
-                .frame(width: 34, height: 4)
-        }
     }
     
     // MARK: - Options Section
@@ -60,8 +83,7 @@ struct HouseSelectionView: View {
             HouseOptionCard(
                 title: appViewModel.localized("house_selection_create_title"),
                 subtitle: appViewModel.localized("house_selection_create_subtitle"),
-                iconName: "plus.circle.fill",
-                backgroundColor: HouseJourneyTheme.indigo
+                kind: .create
             )
         }
         .buttonStyle(CardButtonStyle())
@@ -76,8 +98,7 @@ struct HouseSelectionView: View {
             HouseOptionCard(
                 title: appViewModel.localized("house_selection_join_title"),
                 subtitle: appViewModel.localized("house_selection_join_subtitle"),
-                iconName: "person.2.circle.fill",
-                backgroundColor: HouseJourneyTheme.teal
+                kind: .join
             )
         }
         .buttonStyle(CardButtonStyle())

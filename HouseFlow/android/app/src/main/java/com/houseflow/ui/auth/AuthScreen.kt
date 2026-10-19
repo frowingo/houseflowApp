@@ -1,5 +1,6 @@
 package com.houseflow.ui.auth
 
+import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -27,7 +28,6 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowForward
 import androidx.compose.material.icons.filled.Email
-import androidx.compose.material.icons.filled.Home
 import androidx.compose.material.icons.filled.Lock
 import androidx.compose.material.icons.filled.Person
 import androidx.compose.material3.CircularProgressIndicator
@@ -43,32 +43,38 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.focus.onFocusChanged
-import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.TextStyle
+import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.houseflow.platform.LocalizedText
+import com.houseflow.ui.components.FausButtonGradient
+import com.houseflow.ui.components.FausBadge
+import com.houseflow.ui.components.fausHeroBackground
+import com.houseflow.ui.components.drawFausMark
+import com.houseflow.ui.components.fausMarkBrush
+import com.houseflow.ui.theme.HouseFlowColors
 import com.houseflow.viewmodel.AuthUiState
 import com.houseflow.viewmodel.AuthMode
 
-private val orange = Color(0xFFFFA500)
-private val primary = Color(0xFF007AFF)
+private val accent = HouseFlowColors.brandOrange
 private val gray6 = Color(0xFFF2F2F7)
 private val secondary = Color(0xFF8E8E93)
 private val ink = Color(0xFF1C1C1E)
-private val hero = Brush.linearGradient(listOf(orange, Color(0xFFFFC060)))
 
 /** Dimensions and hierarchy follow iOS AuthView. */
 @Composable
@@ -86,18 +92,24 @@ internal fun AuthScreen(
     val focus = LocalFocusManager.current
     Column(Modifier.fillMaxSize().background(Color.White)) {
         Column(
-            Modifier.fillMaxWidth().background(hero).statusBarsPadding().padding(top = 32.dp, bottom = 72.dp),
+            Modifier.fillMaxWidth().fausHeroBackground()
+                .statusBarsPadding().padding(top = 32.dp, bottom = 72.dp),
             horizontalAlignment = Alignment.CenterHorizontally,
             verticalArrangement = Arrangement.spacedBy(16.dp),
         ) {
-            Box(Modifier.size(104.dp), contentAlignment = Alignment.Center) {
-                Box(Modifier.size(104.dp).background(Color.White.copy(alpha = .10f), CircleShape))
-                Box(Modifier.size(84.dp).background(Color.White.copy(alpha = .18f), CircleShape))
-                Icon(Icons.Filled.Home, null, Modifier.size(36.dp), tint = Color.White)
+            FausBadge(88.dp) {
+                Canvas(Modifier.size(88.dp)) { drawFausMark(fausMarkBrush(size.minDimension / 1024f)) }
             }
+            // Brand wordmark and motto stay fixed across languages.
             Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                Text(strings.get("app_name"), fontSize = 30.sp, fontWeight = FontWeight.Bold, color = Color.White)
-                Text(strings.get("auth_tagline"), fontSize = 15.sp, color = Color.White.copy(alpha = .72f))
+                Text(
+                    buildAnnotatedString {
+                        withStyle(SpanStyle(fontWeight = FontWeight.ExtraBold)) { append("Faus") }
+                        withStyle(SpanStyle(fontWeight = FontWeight.Normal, color = Color.White.copy(alpha = .88f))) { append("Crew") }
+                    },
+                    fontSize = 30.sp, color = Color.White,
+                )
+                Text("Make living together fun", fontSize = 15.sp, color = Color.White.copy(alpha = .8f))
             }
         }
         Column(
@@ -130,7 +142,7 @@ internal fun AuthScreen(
                     focus.clearFocus(); onSubmit()
                 }
                 if (state.mode == AuthMode.SIGN_IN) {
-                    Text(strings.get("auth_forgot_password_button"), Modifier.fillMaxWidth().clickable(onClick = onForgot), color = primary,
+                    Text(strings.get("auth_forgot_password_button"), Modifier.fillMaxWidth().clickable(onClick = onForgot), color = HouseFlowColors.accentOrangeInk,
                         fontSize = 14.sp, fontWeight = FontWeight.Medium, textAlign = TextAlign.End)
                 }
             }
@@ -144,9 +156,12 @@ internal fun AuthScreen(
                     Modifier.fillMaxWidth().background(Color(0xFF34C759).copy(alpha = .10f), RoundedCornerShape(12.dp)).padding(12.dp),
                     color = Color(0xFF237548), fontSize = 15.sp)
             }
-            val buttonBrush = if (state.canSubmit) hero else Brush.linearGradient(listOf(Color(0xFFD1D1D6), Color(0xFFD1D1D6)))
+            val buttonBrush = if (state.canSubmit) FausButtonGradient else SolidColor(Color(0xFFD1D1D6))
             Row(
-                Modifier.fillMaxWidth().height(54.dp).clip(RoundedCornerShape(20.dp)).background(buttonBrush)
+                Modifier.fillMaxWidth().height(54.dp)
+                    .then(if (state.canSubmit) Modifier.shadow(10.dp, RoundedCornerShape(20.dp),
+                        ambientColor = HouseFlowColors.deepBerry, spotColor = HouseFlowColors.deepBerry) else Modifier)
+                    .clip(RoundedCornerShape(20.dp)).background(buttonBrush)
                     .clickable(enabled = state.canSubmit) { focus.clearFocus(); onSubmit() }
                     .semantics { contentDescription = strings.get(if (state.mode == AuthMode.SIGN_UP) "auth_create_account_button" else "auth_sign_in_button") },
                 horizontalArrangement = Arrangement.Center, verticalAlignment = Alignment.CenterVertically,
@@ -179,7 +194,7 @@ private fun AuthTab(label: String, selected: Boolean, modifier: Modifier, onClic
         .then(if (selected) Modifier.shadow(6.dp, RoundedCornerShape(12.dp)).background(Color.White) else Modifier)
         .clickable(onClick = onClick), contentAlignment = Alignment.Center) {
         Text(label, fontSize = 15.sp, fontWeight = FontWeight.SemiBold,
-            color = if (selected) primary else secondary)
+            color = if (selected) accent else secondary)
     }
 }
 
@@ -191,14 +206,14 @@ private fun AuthField(label: String, placeholder: String, value: String, onValue
         Text(label, color = ink, fontSize = 15.sp)
         Row(
             Modifier.fillMaxWidth().clip(RoundedCornerShape(12.dp)).background(gray6)
-                .border(2.dp, if (focused) primary else Color.Transparent, RoundedCornerShape(12.dp))
+                .border(2.dp, if (focused) accent else Color.Transparent, RoundedCornerShape(12.dp))
                 .padding(horizontal = 16.dp, vertical = 16.dp),
             verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp),
         ) {
-            Icon(icon, null, Modifier.size(20.dp), tint = if (focused) primary else secondary)
+            Icon(icon, null, Modifier.size(20.dp), tint = if (focused) accent else secondary)
             BasicTextField(value, onValue,
                 Modifier.weight(1f).onFocusChanged { focused = it.isFocused }.semantics { contentDescription = label },
-                singleLine = true, textStyle = TextStyle(fontSize = 16.sp, color = ink), cursorBrush = SolidColor(primary),
+                singleLine = true, textStyle = TextStyle(fontSize = 16.sp, color = ink), cursorBrush = SolidColor(accent),
                 visualTransformation = if (secure) PasswordVisualTransformation() else VisualTransformation.None,
                 keyboardOptions = KeyboardOptions(keyboardType = keyboard, imeAction = ime, autoCorrectEnabled = false),
                 keyboardActions = KeyboardActions(onDone = { onDone() }),

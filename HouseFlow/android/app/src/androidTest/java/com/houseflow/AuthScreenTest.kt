@@ -44,7 +44,7 @@ class AuthScreenTest {
                 { state = state.copy(mode = it, email = "", password = "", firstName = "", lastName = "") },
                 {}, { submissions++ })
         }
-        compose.onNodeWithText("Your home, in sync").assertExists()
+        compose.onNodeWithText("Make living together fun").assertExists()
         compose.onNodeWithText("Sign Up").assertExists()
         compose.onNodeWithContentDescription("Sign In").assertIsNotEnabled()
         compose.onNodeWithContentDescription("Email Address").performTextInput("ada@example.com")

@@ -10,6 +10,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.navigationBarsPadding
+import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
@@ -22,12 +23,15 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.drawBehind
+import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import com.houseflow.platform.LocalizedText
+import com.houseflow.ui.components.FausButtonGradient
+import com.houseflow.ui.components.FausFramedMark
 import com.houseflow.ui.components.mainScreenBackground
 import com.houseflow.ui.theme.HouseFlowColors
 import com.houseflow.ui.theme.HouseFlowIcons
@@ -56,11 +60,16 @@ internal fun HouseErrorScreen(
             horizontalAlignment = Alignment.CenterHorizontally,
             verticalArrangement = Arrangement.spacedBy(Spacing.xxxl, Alignment.CenterVertically),
         ) {
-            Box(contentAlignment = Alignment.Center) {
-                Box(Modifier.size(120.dp).background(red.copy(alpha = .08f), CircleShape)
-                    .border(1.dp, HouseFlowColors.accentOrange.copy(alpha = .18f), CircleShape))
-                Box(Modifier.size(88.dp).background(red.copy(alpha = .06f), CircleShape))
-                Icon(HouseFlowIcons.exclamationmarkTriangleFill, null, Modifier.size(54.dp), tint = red)
+            Box {
+                FausFramedMark(150.dp)
+                Box(
+                    Modifier.align(Alignment.BottomEnd).offset((-6).dp, (-6).dp).size(42.dp)
+                        .shadow(8.dp, CircleShape, ambientColor = red, spotColor = red)
+                        .background(HouseFlowColors.background, CircleShape),
+                    contentAlignment = Alignment.Center,
+                ) {
+                    Icon(HouseFlowIcons.exclamationmarkTriangleFill, null, Modifier.size(22.dp), tint = red)
+                }
             }
             Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(Spacing.md)) {
                 Text(strings.get("house_error_title"), style = HouseFlowType.title2, color = HouseFlowColors.textPrimary,
@@ -69,8 +78,8 @@ internal fun HouseErrorScreen(
                     style = HouseFlowType.subheadline, color = HouseFlowColors.textSecondary, textAlign = TextAlign.Center)
             }
             Column(Modifier.padding(horizontal = Spacing.xxl), verticalArrangement = Arrangement.spacedBy(Spacing.lg)) {
-                HouseJourneyButton(strings.get("house_error_retry_button"), true, HouseJourneyBrushes.primaryButton,
-                    glow = HouseFlowColors.indigo, onClick = retry)
+                HouseJourneyButton(strings.get("house_error_retry_button"), true, FausButtonGradient,
+                    glow = HouseFlowColors.deepBerry, onClick = retry)
                 val shape = RoundedCornerShape(Radius.lg)
                 Box(
                     Modifier.fillMaxWidth().height(48.dp).clip(shape).background(HouseFlowColors.surface)

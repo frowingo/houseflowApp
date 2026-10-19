@@ -74,12 +74,20 @@ struct MemberCountPicker: View {
                 .cornerRadius(1.5)
             
             Circle()
-                .fill(memberCount >= count ? HouseJourneyTheme.indigo : Color(.systemGray4))
+                .fill(memberCount >= count ? stopColor(for: count) : Color(.systemGray4))
                 .frame(width: 10, height: 10)
                 .animation(AppDesign.Animation.quick, value: memberCount)
         }
     }
     
+    /// Filled stops walk from light orange towards berry as the count grows.
+    private func stopColor(for count: Int) -> Color {
+        let progress = Double(count - minCount) / Double(max(maxCount - minCount, 1))
+        return progress < 0.5
+            ? FausBrand.orangeLight.mix(with: FausBrand.orange, by: progress * 2)
+            : FausBrand.orange.mix(with: FausBrand.markBerry, by: (progress - 0.5) * 2)
+    }
+
     private func floatingBubble(geometry: GeometryProxy, sliderWidth: CGFloat) -> some View {
         let totalStops = CGFloat(maxCount - minCount + 1)
         let stopWidth = sliderWidth / totalStops
@@ -102,23 +110,19 @@ struct MemberCountPicker: View {
             .frame(width: 44, height: 44)
             .background(
                 Circle()
-                    .fill(HouseJourneyTheme.indigo)
+                    .fill(FausBrand.iconGradient)
                     .shadow(
-                        color: HouseJourneyTheme.indigo.opacity(0.26),
+                        color: FausBrand.deepBerry.opacity(0.28),
                         radius: 10,
                         x: 0,
                         y: 4
-                    )
-                    .overlay(
-                        Circle()
-                            .stroke(HouseJourneyTheme.accentOrange.opacity(0.75), lineWidth: 1.5)
                     )
             )
     }
     
     private var bubbleTail: some View {
         Triangle()
-            .fill(HouseJourneyTheme.indigo)
+            .fill(Color(red: 0.71, green: 0.28, blue: 0.23))
             .frame(width: 14, height: 10)
             .offset(y: -1)
     }

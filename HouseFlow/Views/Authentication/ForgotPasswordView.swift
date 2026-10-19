@@ -75,30 +75,14 @@ struct ForgotPasswordView: View {
         .dismissKeyboardOnTap()
     }
 
-    // MARK: - Gradient
-
-    private var heroGradient: LinearGradient {
-        LinearGradient(
-            colors: [Color.orange, Color.orange.opacity(0.72)],
-            startPoint: .topLeading,
-            endPoint: .bottomTrailing
-        )
-    }
-
     // MARK: - Hero Section
 
     private var heroSection: some View {
         VStack(spacing: AppDesign.Spacing.md) {
-            ZStack {
-                Circle()
-                    .fill(Color.white.opacity(0.18))
-                    .frame(width: 70, height: 70)
-                Circle()
-                    .fill(Color.white.opacity(0.10))
-                    .frame(width: 88, height: 88)
+            FausBadge(size: 72) {
                 Image(systemName: "lock.rotation")
-                    .font(.system(size: 28, weight: .semibold))
-                    .foregroundColor(.white)
+                    .font(.system(size: 30, weight: .semibold))
+                    .fausGradientForeground()
             }
 
             VStack(spacing: AppDesign.Spacing.xs) {
@@ -107,14 +91,16 @@ struct ForgotPasswordView: View {
                     .foregroundColor(.white)
                 Text(appViewModel.localized("forgot_password_subtitle"))
                     .font(.system(size: 14))
-                    .foregroundColor(.white.opacity(0.72))
+                    .foregroundColor(.white.opacity(0.8))
+                    .multilineTextAlignment(.center)
+                    .padding(.horizontal, AppDesign.Spacing.xxxl)
             }
         }
-        .padding(.top, AppDesign.Spacing.xl)
-        .padding(.bottom, AppDesign.Spacing.xxl)
+        .padding(.top, AppDesign.Spacing.xxxl)
+        .padding(.bottom, AppDesign.Spacing.huge)
         .frame(maxWidth: .infinity)
         .background(
-            heroGradient
+            FausHeroBackground()
                 .padding(.bottom, -32)
                 .ignoresSafeArea(.container, edges: .top)
         )
@@ -171,7 +157,7 @@ struct ForgotPasswordView: View {
                     .font(.system(size: 16))
                     .foregroundColor(
                         emailFocused && !isEmailDisabled
-                            ? AppDesign.Colors.primary
+                            ? FausBrand.orange
                             : AppDesign.Colors.textSecondary
                     )
                     .frame(width: 20)
@@ -192,7 +178,7 @@ struct ForgotPasswordView: View {
                     .overlay(
                         RoundedRectangle(cornerRadius: AppDesign.CornerRadius.md)
                             .stroke(
-                                emailFocused && !isEmailDisabled ? AppDesign.Colors.primary : Color.clear,
+                                emailFocused && !isEmailDisabled ? FausBrand.orange : Color.clear,
                                 lineWidth: 2
                             )
                     )
@@ -231,7 +217,7 @@ struct ForgotPasswordView: View {
             .background(
                 Group {
                     if !isDisabled {
-                        heroGradient
+                        FausBrand.buttonGradient
                     } else {
                         LinearGradient(
                             colors: [Color(.systemGray4)],
@@ -243,7 +229,7 @@ struct ForgotPasswordView: View {
             )
             .cornerRadius(AppDesign.CornerRadius.xl)
             .shadow(
-                color: !isDisabled ? Color.orange.opacity(0.4) : .clear,
+                color: !isDisabled ? FausBrand.deepBerry.opacity(0.28) : .clear,
                 radius: 12, x: 0, y: 6
             )
         }
@@ -258,9 +244,7 @@ struct ForgotPasswordView: View {
         VStack(spacing: AppDesign.Spacing.md) {
             switch phase { 
             case .loading:
-                ProgressView()
-                    .progressViewStyle(CircularProgressViewStyle(tint: Color.orange))
-                    .scaleEffect(1.6)
+                FausSpinner(size: 56)
                     .frame(height: 80)
                     .transition(.scale.combined(with: .opacity))
 
@@ -350,7 +334,7 @@ struct ForgotPasswordView: View {
             HStack(spacing: AppDesign.Spacing.md) {
                 Image(systemName: "lock.fill")
                     .font(.system(size: 16))
-                    .foregroundColor(newPasswordFocused ? AppDesign.Colors.primary : AppDesign.Colors.textSecondary)
+                    .foregroundColor(newPasswordFocused ? FausBrand.orange : AppDesign.Colors.textSecondary)
                     .frame(width: 20)
 
                 Group {
@@ -380,7 +364,7 @@ struct ForgotPasswordView: View {
                     .overlay(
                         RoundedRectangle(cornerRadius: AppDesign.CornerRadius.md)
                             .stroke(
-                                newPasswordFocused ? AppDesign.Colors.primary : Color.clear,
+                                newPasswordFocused ? FausBrand.orange : Color.clear,
                                 lineWidth: 2
                             )
                     )
@@ -415,7 +399,7 @@ struct ForgotPasswordView: View {
             .background(
                 Group {
                     if !isDisabled {
-                        heroGradient
+                        FausBrand.buttonGradient
                     } else {
                         LinearGradient(
                             colors: [Color(.systemGray4)],
@@ -427,7 +411,7 @@ struct ForgotPasswordView: View {
             )
             .cornerRadius(AppDesign.CornerRadius.xl)
             .shadow(
-                color: !isDisabled ? Color.orange.opacity(0.4) : .clear,
+                color: !isDisabled ? FausBrand.deepBerry.opacity(0.28) : .clear,
                 radius: 12, x: 0, y: 6
             )
         }

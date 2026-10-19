@@ -38,6 +38,11 @@ struct CreateHouseView: View {
                 .font(AppDesign.Typography.subheadline)
                 .foregroundColor(AppDesign.Colors.textSecondary)
                 .multilineTextAlignment(.center)
+
+            Capsule()
+                .fill(FausBrand.iconGradient)
+                .frame(width: 34, height: 4)
+                .padding(.top, AppDesign.Spacing.xs)
         }
         .padding(.top, AppDesign.Spacing.xxxl)
     }
@@ -57,7 +62,7 @@ struct CreateHouseView: View {
                     .clipShape(Circle())
                     .overlay(
                         Circle()
-                            .stroke(HouseJourneyTheme.indigo.opacity(0.10), lineWidth: 1)
+                            .stroke(FausBrand.orange.opacity(0.20), lineWidth: 1)
                     )
             }
             
@@ -110,8 +115,8 @@ struct CreateHouseView: View {
                 RoundedRectangle(cornerRadius: AppDesign.CornerRadius.md)
                     .strokeBorder(
                         houseName.isEmpty
-                            ? HouseJourneyTheme.indigo.opacity(0.10)
-                            : HouseJourneyTheme.accentOrange,
+                            ? FausBrand.orange.opacity(0.18)
+                            : FausBrand.orange,
                         lineWidth: houseName.isEmpty ? 1 : 2
                     )
             )
@@ -179,7 +184,7 @@ struct CreateHouseView: View {
                 .frame(height: AppDesign.Size.buttonHeight)
                 .background(
                     isFormValid
-                        ? HouseJourneyTheme.primaryButtonGradient
+                        ? FausBrand.buttonGradient
                         : LinearGradient(
                             colors: [Color.gray.opacity(0.30), Color.gray.opacity(0.24)],
                             startPoint: .leading,
@@ -190,14 +195,12 @@ struct CreateHouseView: View {
                 .overlay(
                     RoundedRectangle(cornerRadius: AppDesign.CornerRadius.lg)
                         .stroke(
-                            isFormValid
-                                ? HouseJourneyTheme.accentOrange.opacity(0.34)
-                                : Color.clear,
+                            Color.clear,
                             lineWidth: 1
                         )
                 )
                 .shadow(
-                    color: isFormValid ? HouseJourneyTheme.indigo.opacity(0.22) : .clear,
+                    color: isFormValid ? FausBrand.deepBerry.opacity(0.28) : .clear,
                     radius: 12,
                     x: 0,
                     y: 6

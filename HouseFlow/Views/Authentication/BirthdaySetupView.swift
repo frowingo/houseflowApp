@@ -14,7 +14,8 @@ struct BirthdaySetupView: View {
     @State private var isSaving = false
     @State private var errorMessage: String?
 
-    private let accentOrange = Color(red: 1.0, green: 0.48, blue: 0.15)
+    private let accentOrange = FausBrand.orange
+    private let accentInk = HouseJourneyTheme.accentOrangeInk
     private let earliestDate = Calendar.current.startOfDay(
         for: Calendar.current.date(
             byAdding: .year,
@@ -44,32 +45,18 @@ struct BirthdaySetupView: View {
         }
     }
 
-    private var heroGradient: LinearGradient {
-        LinearGradient(
-            colors: [accentOrange, Color(red: 1.0, green: 0.64, blue: 0.22)],
-            startPoint: .topLeading,
-            endPoint: .bottomTrailing
-        )
-    }
-
     private var heroSection: some View {
         ZStack {
-            heroGradient
+            FausHeroBackground()
                 .ignoresSafeArea(edges: .top)
 
             decorativeConfetti
 
             VStack(spacing: AppDesign.Spacing.lg) {
-                ZStack {
-                    Circle()
-                        .fill(Color.white.opacity(0.15))
-                        .frame(width: 112, height: 112)
-                    Circle()
-                        .fill(Color.white.opacity(0.20))
-                        .frame(width: 88, height: 88)
+                FausBadge(size: 80) {
                     Image(systemName: "birthday.cake.fill")
-                        .font(.system(size: 42, weight: .semibold))
-                        .foregroundStyle(.white)
+                        .font(.system(size: 36, weight: .semibold))
+                        .fausGradientForeground()
                 }
 
                 VStack(spacing: AppDesign.Spacing.sm) {
@@ -101,7 +88,7 @@ struct BirthdaySetupView: View {
             Group {
                 confettiCircle(size: 12, opacity: 0.32)
                     .position(x: proxy.size.width * 0.13, y: 58)
-                confettiCircle(size: 7, opacity: 0.42)
+                confettiCircle(size: 7, opacity: 0.7, color: Color(red: 1.0, green: 0.83, blue: 0.66))
                     .position(x: proxy.size.width * 0.82, y: 50)
                 confettiCircle(size: 16, opacity: 0.18)
                     .position(x: proxy.size.width * 0.91, y: 154)
@@ -111,16 +98,16 @@ struct BirthdaySetupView: View {
                     .position(x: proxy.size.width * 0.18, y: 178)
                 Image(systemName: "star.fill")
                     .font(.system(size: 12))
-                    .foregroundStyle(.white.opacity(0.30))
+                    .foregroundStyle(Color(red: 1.0, green: 0.83, blue: 0.66).opacity(0.55))
                     .position(x: proxy.size.width * 0.78, y: 210)
             }
         }
         .allowsHitTesting(false)
     }
 
-    private func confettiCircle(size: CGFloat, opacity: Double) -> some View {
+    private func confettiCircle(size: CGFloat, opacity: Double, color: Color = .white) -> some View {
         Circle()
-            .fill(Color.white.opacity(opacity))
+            .fill(color.opacity(opacity))
             .frame(width: size, height: size)
     }
 
@@ -134,14 +121,14 @@ struct BirthdaySetupView: View {
                     ))
                 } icon: {
                     Image(systemName: "calendar")
-                        .foregroundStyle(accentOrange)
+                        .fausGradientForeground()
                 }
                 .font(.system(size: 17, weight: .bold, design: .rounded))
                 .foregroundStyle(AppDesign.Colors.textPrimary)
 
                 Text(selectedDate.formatted(date: .long, time: .omitted))
                     .font(.system(size: 14, weight: .semibold))
-                    .foregroundStyle(accentOrange)
+                    .foregroundStyle(accentInk)
                     .contentTransition(.numericText())
             }
 
@@ -160,7 +147,7 @@ struct BirthdaySetupView: View {
 
             HStack(alignment: .top, spacing: AppDesign.Spacing.sm) {
                 Image(systemName: "lock.shield.fill")
-                    .foregroundStyle(accentOrange)
+                    .foregroundStyle(accentInk)
                 Text(appViewModel.localized(
                     "birthday_setup_privacy_note",
                     fallback: "Your birthday is saved securely as part of your profile."
@@ -192,7 +179,7 @@ struct BirthdaySetupView: View {
         .padding(AppDesign.Spacing.xl)
         .background(AppDesign.Colors.background)
         .clipShape(RoundedRectangle(cornerRadius: AppDesign.CornerRadius.xxl))
-        .shadow(color: Color.black.opacity(0.10), radius: 22, x: 0, y: 10)
+        .shadow(color: FausBrand.deepBerry.opacity(0.12), radius: 22, x: 0, y: 10)
         .animation(AppDesign.Animation.standard, value: errorMessage)
     }
 
@@ -216,10 +203,16 @@ struct BirthdaySetupView: View {
             }
             .frame(maxWidth: .infinity)
             .frame(height: 54)
-            .background(isSaving ? Color(.systemGray4) : accentOrange)
+            .background {
+                if isSaving {
+                    Color(.systemGray4)
+                } else {
+                    FausBrand.buttonGradient
+                }
+            }
             .clipShape(RoundedRectangle(cornerRadius: AppDesign.CornerRadius.xl))
             .shadow(
-                color: isSaving ? .clear : accentOrange.opacity(0.35),
+                color: isSaving ? .clear : FausBrand.deepBerry.opacity(0.28),
                 radius: 12,
                 x: 0,
                 y: 6

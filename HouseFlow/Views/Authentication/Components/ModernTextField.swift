@@ -40,7 +40,7 @@ struct ModernTextField: View {
     private var iconView: some View {
         Image(systemName: icon)
             .font(.system(size: 16))
-            .foregroundColor(isFocused ? AppDesign.Colors.primary : AppDesign.Colors.textSecondary)
+            .foregroundColor(isFocused ? FausBrand.orange : AppDesign.Colors.textSecondary)
             .frame(width: 20)
     }
     
@@ -59,7 +59,7 @@ struct ModernTextField: View {
             .overlay(
                 RoundedRectangle(cornerRadius: AppDesign.CornerRadius.md)
                     .stroke(
-                        isFocused ? AppDesign.Colors.primary : Color.clear,
+                        isFocused ? FausBrand.orange : Color.clear,
                         lineWidth: 2
                     )
             )

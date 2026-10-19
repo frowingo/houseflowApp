@@ -6,7 +6,6 @@ import HouseFlowCore
 struct JoinHouseView: View {
     @EnvironmentObject var appViewModel: AppViewModel
     @State private var inviteCode = ""
-    @FocusState private var isTextFieldFocused: Bool
     
     var body: some View {
         VStack(spacing: 0) {
@@ -17,11 +16,6 @@ struct JoinHouseView: View {
         .background(joinBackground)
         .navigationBarHidden(true)
         .dismissKeyboardOnTap()
-        .onAppear {
-            DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
-                isTextFieldFocused = true
-            }
-        }
     }
 
     private var joinBackground: some View {
@@ -51,7 +45,7 @@ struct JoinHouseView: View {
                     .clipShape(Circle())
                     .overlay(
                         Circle()
-                            .stroke(HouseJourneyTheme.indigo.opacity(0.10), lineWidth: 1)
+                            .stroke(FausBrand.orange.opacity(0.20), lineWidth: 1)
                     )
             }
             Spacer()
@@ -62,23 +56,24 @@ struct JoinHouseView: View {
     
     private var headerContent: some View {
         VStack(spacing: AppDesign.Spacing.md) {
-            ZStack {
-                Circle()
-                    .fill(HouseJourneyTheme.teal.opacity(0.10))
-                    .frame(width: 102, height: 102)
-                Circle()
-                    .fill(HouseJourneyTheme.indigo.opacity(0.08))
-                    .frame(width: 78, height: 78)
-                Image(systemName: "house.and.flag")
-                    .font(.system(size: 44, weight: .medium))
-                    .foregroundColor(HouseJourneyTheme.indigo)
-            }
-            .overlay(alignment: .topTrailing) {
-                Circle()
-                    .fill(HouseJourneyTheme.accentOrange)
-                    .frame(width: 10, height: 10)
-                    .offset(x: -2, y: 8)
-            }
+            Circle()
+                .fill(Color(.systemBackground))
+                .overlay(Circle().stroke(FausBrand.orange.opacity(0.55), lineWidth: 1.5))
+                .frame(width: 96, height: 96)
+                .overlay(FausHouseIcon(size: 48))
+                .overlay(alignment: .bottomTrailing) {
+                    Image(systemName: "key.fill")
+                        .font(.system(size: 13, weight: .semibold))
+                        .foregroundColor(.white)
+                        .frame(width: 30, height: 30)
+                        .background(
+                            Circle()
+                                .fill(FausBrand.iconGradient)
+                                .shadow(color: FausBrand.deepBerry.opacity(0.3), radius: 4, x: 0, y: 3)
+                        )
+                        .offset(x: 2, y: -2)
+                }
+                .accessibilityHidden(true)
             
             Text(appViewModel.localized("join_house_title"))
                 .font(.system(size: 34, weight: .bold, design: .rounded))
@@ -108,10 +103,11 @@ struct JoinHouseView: View {
                 .font(AppDesign.Typography.headline)
                 .frame(maxWidth: .infinity, alignment: .leading)
             
-            InviteCodeTextField(
-                text: $inviteCode,
-                isError: false,
-                isFocused: $isTextFieldFocused,
+            OTPInputView(
+                code: $inviteCode,
+                characterCount: InviteCodeRules.requiredLength,
+                automaticallyFocus: true,
+                accessibilityLabel: appViewModel.localized("invite_code_label"),
                 onSubmit: joinHouse
             )
         }
@@ -128,10 +124,10 @@ struct JoinHouseView: View {
             }
         }
         .padding(AppDesign.Spacing.lg)
-        .background(HouseJourneyTheme.teal.opacity(0.075))
+        .background(FausBrand.deepBerry.opacity(0.05))
         .overlay(
             RoundedRectangle(cornerRadius: AppDesign.CornerRadius.md)
-                .stroke(HouseJourneyTheme.teal.opacity(0.16), lineWidth: 1)
+                .stroke(FausBrand.deepBerry.opacity(0.12), lineWidth: 1)
         )
         .cornerRadius(AppDesign.CornerRadius.md)
     }
@@ -140,7 +136,7 @@ struct JoinHouseView: View {
         HStack(spacing: AppDesign.Spacing.sm) {
             Image(systemName: "info.circle.fill")
                 .font(.system(size: 16))
-                .foregroundColor(HouseJourneyTheme.indigo)
+                .foregroundColor(HouseJourneyTheme.accentOrangeInk)
             
             Text(appViewModel.localized("join_house_help_title"))
                 .font(AppDesign.Typography.subheadline)
@@ -173,20 +169,18 @@ struct JoinHouseView: View {
                             startPoint: .leading,
                             endPoint: .trailing
                         )
-                        : HouseJourneyTheme.joinButtonGradient
+                        : FausBrand.buttonGradient
                 )
                 .cornerRadius(AppDesign.CornerRadius.lg)
                 .overlay(
                     RoundedRectangle(cornerRadius: AppDesign.CornerRadius.lg)
                         .stroke(
-                            !InviteCodeRules.isValid(inviteCode)
-                                ? Color.clear
-                                : HouseJourneyTheme.accentOrange.opacity(0.34),
+                            Color.clear,
                             lineWidth: 1
                         )
                 )
                 .shadow(
-                    color: InviteCodeRules.isValid(inviteCode) ? HouseJourneyTheme.teal.opacity(0.24) : .clear,
+                    color: InviteCodeRules.isValid(inviteCode) ? FausBrand.deepBerry.opacity(0.28) : .clear,
                     radius: 12,
                     x: 0,
                     y: 6
@@ -200,8 +194,6 @@ struct JoinHouseView: View {
     
     private func joinHouse() {
         guard InviteCodeRules.isValid(inviteCode) else { return }
-        
-        isTextFieldFocused = false
 
         Task {
             await appViewModel.beginJoinHouseFlow(inviteCode: inviteCode)

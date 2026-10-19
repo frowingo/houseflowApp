@@ -39,6 +39,16 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.houseflow.platform.LocalizedText
+import com.houseflow.ui.components.FausGradientIcon
+import com.houseflow.ui.components.FausHouseIcon
+import com.houseflow.ui.components.FausIconGradient
+import com.houseflow.ui.components.drawFausMark
+import com.houseflow.ui.components.fausHeroBackground
+import com.houseflow.ui.components.fausMarkBrush
+import androidx.compose.foundation.Canvas
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.offset
+import androidx.compose.ui.draw.shadow
 import com.houseflow.ui.components.mainScreenBackground
 import com.houseflow.ui.theme.HouseFlowColors
 import com.houseflow.ui.theme.HouseFlowIcons
@@ -48,7 +58,7 @@ import com.houseflow.ui.theme.Radius
 import com.houseflow.ui.theme.Spacing
 import com.houseflow.ui.theme.softShadow
 
-/** `HouseSelectionView`: title with the orange accent bar and the create / join cards. */
+/** `HouseSelectionView`: brand header card with the F badge, then the create / join cards. */
 @Composable
 internal fun HouseSelectionScreen(strings: LocalizedText, onCreate: () -> Unit, onJoin: () -> Unit) {
     Column(
@@ -57,73 +67,101 @@ internal fun HouseSelectionScreen(strings: LocalizedText, onCreate: () -> Unit, 
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.spacedBy(Spacing.xxl),
     ) {
-        Column(
-            Modifier.padding(top = 60.dp, start = Spacing.xxl, end = Spacing.xxl),
-            horizontalAlignment = Alignment.CenterHorizontally,
-            verticalArrangement = Arrangement.spacedBy(Spacing.sm),
-        ) {
-            Text(strings.get("house_selection_title"), fontSize = 34.sp, fontWeight = FontWeight.Bold,
-                color = HouseFlowColors.textPrimary, textAlign = TextAlign.Center)
-            Text(strings.get("house_selection_subtitle"), style = HouseFlowType.subheadline,
-                color = HouseFlowColors.textSecondary, textAlign = TextAlign.Center)
-            // The iOS accent bar sits on the header's 32pt bottom padding.
-            Spacer(Modifier.height(Spacing.xxxl - 4.dp))
-            Box(Modifier.size(34.dp, 4.dp).background(HouseFlowColors.accentOrange, CircleShape))
-        }
+        HeaderCard(strings)
         Column(Modifier.padding(horizontal = Spacing.xxl), verticalArrangement = Arrangement.spacedBy(Spacing.xl)) {
             HouseOptionCard(strings.get("house_selection_create_title"), strings.get("house_selection_create_subtitle"),
-                HouseFlowIcons.plus, HouseFlowColors.indigo, onCreate)
+                OptionKind.CREATE, onCreate)
             HouseOptionCard(strings.get("house_selection_join_title"), strings.get("house_selection_join_subtitle"),
-                HouseFlowIcons.person2Fill, HouseFlowColors.teal, onJoin)
+                OptionKind.JOIN, onJoin)
         }
         Spacer(Modifier.height(60.dp))
     }
 }
 
-/** `HouseOptionCard` + `CardButtonStyle` (scales to 0.96 while pressed). */
+/** Orange → berry header card holding the white F badge, title and subtitle. */
 @Composable
-private fun HouseOptionCard(title: String, subtitle: String, icon: ImageVector, tint: Color, onClick: () -> Unit) {
-    val interaction = remember { MutableInteractionSource() }
-    val pressed by interaction.collectIsPressedAsState()
-    val scale by animateFloatAsState(if (pressed) .96f else 1f, Motion.quick(), label = "optionScale")
+private fun HeaderCard(strings: LocalizedText) {
     val shape = RoundedCornerShape(Radius.xxl)
-    Box(
-        Modifier.fillMaxWidth().height(220.dp)
-            .graphicsLayer { scaleX = scale; scaleY = scale }
-            .softShadow(tint.copy(alpha = .13f), 18.dp, y = 8.dp, shape = shape)
-            .clip(shape)
-            .background(HouseFlowColors.surface)
-            .border(1.dp, tint.copy(alpha = .18f), shape)
-            .clickable(interaction, indication = null, role = Role.Button, onClick = onClick),
+    Row(
+        Modifier.padding(top = 60.dp, start = Spacing.xxl, end = Spacing.xxl).fillMaxWidth()
+            .softShadow(HouseFlowColors.deepBerry.copy(alpha = .28f), 18.dp, y = 8.dp, shape = shape)
+            .clip(shape).fausHeroBackground()
+            .padding(horizontal = Spacing.xl, vertical = Spacing.xxl),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(Spacing.lg),
     ) {
-        Box(Modifier.align(Alignment.TopEnd).padding(18.dp).size(8.dp).background(HouseFlowColors.accentOrange, CircleShape))
-        Column(
-            Modifier.fillMaxSize().padding(Spacing.xxl),
-            horizontalAlignment = Alignment.CenterHorizontally,
-            verticalArrangement = Arrangement.spacedBy(Spacing.xxl, Alignment.CenterVertically),
-        ) {
-            OptionIcon(icon, tint)
-            Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(Spacing.sm)) {
-                Text(title, style = HouseFlowType.title3, color = HouseFlowColors.textPrimary, textAlign = TextAlign.Center)
-                Text(subtitle, style = HouseFlowType.subheadline, color = HouseFlowColors.textSecondary,
-                    textAlign = TextAlign.Center, maxLines = 3)
-            }
+        Box(Modifier.size(70.dp), contentAlignment = Alignment.Center) {
+            Box(Modifier.size(70.dp).background(Color.White.copy(alpha = .16f), CircleShape))
+            Box(Modifier.size(58.dp).shadow(8.dp, CircleShape, ambientColor = HouseFlowColors.deepBerry,
+                spotColor = HouseFlowColors.deepBerry).background(Color.White, CircleShape))
+            Canvas(Modifier.size(58.dp)) { drawFausMark(fausMarkBrush(size.minDimension / 1024f)) }
+        }
+        Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(Spacing.xs)) {
+            Text(strings.get("house_selection_title"), fontSize = 24.sp, fontWeight = FontWeight.Bold,
+                color = Color.White, maxLines = 2)
+            Text(strings.get("house_selection_subtitle"), style = HouseFlowType.subheadline,
+                color = Color.White.copy(alpha = .82f))
         }
     }
 }
 
-/** SF `*.circle.fill` in white on the tinted disc: a white badge with the glyph knocked out in the tint. */
+private enum class OptionKind { CREATE, JOIN }
+
+/** `HouseOptionCard` + `CardButtonStyle` (scales to 0.96 while pressed). */
 @Composable
-private fun OptionIcon(icon: ImageVector, tint: Color) {
-    Box(
-        Modifier.size(100.dp)
-            .softShadow(tint.copy(alpha = .3f), 10.dp, y = 5.dp, shape = CircleShape)
-            .background(Brush.linearGradient(listOf(tint, tint.copy(alpha = .72f))), CircleShape),
-        contentAlignment = Alignment.Center,
+private fun HouseOptionCard(title: String, subtitle: String, kind: OptionKind, onClick: () -> Unit) {
+    val interaction = remember { MutableInteractionSource() }
+    val pressed by interaction.collectIsPressedAsState()
+    val scale by animateFloatAsState(if (pressed) .96f else 1f, Motion.quick(), label = "optionScale")
+    val shape = RoundedCornerShape(Radius.xxl)
+    Row(
+        Modifier.fillMaxWidth()
+            .graphicsLayer { scaleX = scale; scaleY = scale }
+            .softShadow(HouseFlowColors.deepBerry.copy(alpha = .08f), 18.dp, y = 8.dp, shape = shape)
+            .clip(shape)
+            .background(HouseFlowColors.surface)
+            .border(1.dp, HouseFlowColors.brandOrange.copy(alpha = .18f), shape)
+            .clickable(interaction, indication = null, role = Role.Button, onClick = onClick)
+            .padding(Spacing.xl),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(Spacing.lg),
     ) {
-        Box(Modifier.size(88.dp).border(1.dp, Color.White.copy(alpha = .30f), CircleShape))
-        Box(Modifier.size(52.dp).background(Color.White, CircleShape), contentAlignment = Alignment.Center) {
-            Icon(icon, null, Modifier.size(34.dp), tint = tint)
+        OptionIcon(kind)
+        Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(Spacing.xs)) {
+            Text(title, style = HouseFlowType.headline, color = HouseFlowColors.textPrimary)
+            Text(subtitle, style = HouseFlowType.subheadline, color = HouseFlowColors.textSecondary, maxLines = 3)
+        }
+        Icon(HouseFlowIcons.chevronRight, null, Modifier.size(20.dp), tint = HouseFlowColors.accentOrangeInk)
+    }
+}
+
+/** Create: white house on the brand disc with a "+" badge. Join: gradient people on a berry tint. */
+@Composable
+private fun OptionIcon(kind: OptionKind) {
+    when (kind) {
+        OptionKind.CREATE -> Box(Modifier.size(64.dp)) {
+            Box(
+                Modifier.size(64.dp)
+                    .softShadow(HouseFlowColors.deepBerry.copy(alpha = .25f), 6.dp, y = 6.dp, shape = CircleShape)
+                    .background(FausIconGradient, CircleShape),
+                contentAlignment = Alignment.Center,
+            ) {
+                FausHouseIcon(34.dp, color = Color.White)
+            }
+            Box(
+                Modifier.align(Alignment.BottomEnd).offset(2.dp, 2.dp).size(22.dp)
+                    .shadow(2.dp, CircleShape).background(Color.White, CircleShape),
+                contentAlignment = Alignment.Center,
+            ) {
+                Icon(HouseFlowIcons.plus, null, Modifier.size(14.dp), tint = HouseFlowColors.brandOrange)
+            }
+        }
+        OptionKind.JOIN -> Box(
+            Modifier.size(64.dp).background(HouseFlowColors.deepBerry.copy(alpha = .09f), CircleShape)
+                .border(1.5.dp, HouseFlowColors.deepBerry.copy(alpha = .16f), CircleShape),
+            contentAlignment = Alignment.Center,
+        ) {
+            FausGradientIcon(HouseFlowIcons.person2Fill, 30.dp)
         }
     }
 }

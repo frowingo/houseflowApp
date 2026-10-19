@@ -50,46 +50,34 @@ struct AuthView: View {
         }
     }
 
-    // MARK: - Gradient
-
-    private var heroGradient: LinearGradient {
-        LinearGradient(
-            colors: [Color.orange, Color.orange.opacity(0.72)],
-            startPoint: .topLeading,
-            endPoint: .bottomTrailing
-        )
-    }
-
     // MARK: - Hero Section
 
     private var heroSection: some View {
         VStack(spacing: AppDesign.Spacing.lg) {
-            ZStack {
-                Circle()
-                    .fill(Color.white.opacity(0.18))
-                    .frame(width: 84, height: 84)
-                Circle()
-                    .fill(Color.white.opacity(0.10))
-                    .frame(width: 104, height: 104)
-                Image(systemName: "house.fill")
-                    .font(.system(size: 36, weight: .semibold))
-                    .foregroundColor(.white)
+            FausBadge(size: 88) {
+                Rectangle()
+                    .fill(FausBrand.markGradient)
+                    .frame(width: 88, height: 88)
+                    .mask(FausMark(size: 88))
             }
 
+            // Brand wordmark and motto stay fixed across languages.
             VStack(spacing: AppDesign.Spacing.xs) {
-                Text(viewModel.localized("app_name"))
-                    .font(.system(size: 30, weight: .bold, design: .rounded))
+                (Text(verbatim: "Faus").font(.system(size: 30, weight: .heavy, design: .rounded))
+                    + Text(verbatim: "Crew").font(.system(size: 30, weight: .regular, design: .rounded))
+                        .foregroundColor(.white.opacity(0.88)))
                     .foregroundColor(.white)
-                Text(viewModel.localized("auth_tagline"))
+                    .accessibilityLabel("FausCrew")
+                Text(verbatim: "Make living together fun")
                     .font(.system(size: 15))
-                    .foregroundColor(.white.opacity(0.72))
+                    .foregroundColor(.white.opacity(0.8))
             }
         }
         .padding(.top, AppDesign.Spacing.xxxl)
         .padding(.bottom, AppDesign.Spacing.huge)
         .frame(maxWidth: .infinity)
         .background(
-            heroGradient
+            FausHeroBackground()
                 .padding(.bottom, -32)
                 .ignoresSafeArea(.container, edges: .top)
         )
@@ -115,7 +103,7 @@ struct AuthView: View {
         Button(action: { withAnimation(AppDesign.Animation.standard) { action() } }) {
             Text(title)
                 .font(.system(size: 15, weight: .semibold))
-                .foregroundColor(selected ? AppDesign.Colors.primary : AppDesign.Colors.textSecondary)
+                .foregroundColor(selected ? FausBrand.orange : AppDesign.Colors.textSecondary)
                 .frame(maxWidth: .infinity)
                 .frame(height: 36)
                 .background(
@@ -190,7 +178,7 @@ struct AuthView: View {
                         Text(viewModel.localized("auth_forgot_password_button"))
                     }
                     .font(.system(size: 14, weight: .medium))
-                    .foregroundColor(AppDesign.Colors.primary)
+                    .foregroundColor(HouseJourneyTheme.accentOrangeInk)
                 }
                 .transition(.opacity)
             }
@@ -221,7 +209,7 @@ struct AuthView: View {
             .background(
                 Group {
                     if viewModel.isFormValid && !viewModel.isLoading {
-                        heroGradient
+                        FausBrand.buttonGradient
                     } else {
                         LinearGradient(colors: [Color(.systemGray4)], startPoint: .leading, endPoint: .trailing)
                     }
@@ -229,7 +217,7 @@ struct AuthView: View {
             )
             .cornerRadius(AppDesign.CornerRadius.xl)
             .shadow(
-                color: viewModel.isFormValid ? AppDesign.Colors.primary.opacity(0.38) : .clear,
+                color: viewModel.isFormValid ? FausBrand.deepBerry.opacity(0.28) : .clear,
                 radius: 12, x: 0, y: 6
             )
         }
