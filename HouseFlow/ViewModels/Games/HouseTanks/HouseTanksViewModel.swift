@@ -7,6 +7,7 @@ final class HouseTanksViewModel: ObservableObject {
     @Published private(set) var snapshot: HouseTanksSnapshot?
     @Published var difficulty: HouseTanksDifficulty = .normal
     @Published var humanColor: HouseTanksColor = .teal
+    @Published var mapID: HouseTanksMapID = .livingRoom
 
     private let service: any HouseTanksGameServicing
     private var commandSequence = 0
@@ -34,7 +35,8 @@ final class HouseTanksViewModel: ObservableObject {
         isPressing = false
         await service.start(configuration: HouseTanksMatchConfiguration(
             difficulty: difficulty,
-            humanColor: humanColor
+            humanColor: humanColor,
+            mapID: mapID
         ))
     }
 

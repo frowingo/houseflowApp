@@ -108,9 +108,9 @@ internal class AuthViewModel(
     fun setPassword(value: String) { mutableState.value = mutableState.value.copy(password = value, error = null) }
     fun setFirstName(value: String) { mutableState.value = mutableState.value.copy(firstName = value, error = null) }
     fun setLastName(value: String) { mutableState.value = mutableState.value.copy(lastName = value, error = null) }
-    fun setCode(value: String, digitsOnly: Boolean = false) {
-        mutableState.value = mutableState.value.copy(code = value.filter { if (digitsOnly) it.isDigit() else it.isLetterOrDigit() }
-            .take(6).let { if (digitsOnly) it else it.uppercase() }, error = null)
+    fun setCode(value: String) {
+        mutableState.value = mutableState.value.copy(code = value.filter { it.isLetterOrDigit() }
+            .take(6).uppercase(), error = null)
     }
     fun setNewPassword(value: String) { mutableState.value = mutableState.value.copy(newPassword = value, error = null) }
     fun setBirthday(value: LocalDate) { mutableState.value = mutableState.value.copy(birthday = value, error = null) }

@@ -40,12 +40,16 @@ final class HouseTanksBotController {
         }
     }
 
-    func holdDuration(for difficulty: HouseTanksDifficulty) -> UInt64 {
-        switch difficulty {
+    func holdDuration(for difficulty: HouseTanksDifficulty, travelDistance: CGFloat? = nil) -> UInt64 {
+        let normal: UInt64 = switch difficulty {
         case .easy: 360_000_000
         case .normal: 520_000_000
         case .hard: 680_000_000
         }
+        guard let travelDistance else { return normal }
+        // Release before overshooting a nearby corridor turn, then re-evaluate the route.
+        let travelTime = max(0.16, sqrt(max(1, Double(travelDistance)) / 180))
+        return min(normal, UInt64(travelTime * 1_000_000_000))
     }
 
     private func tuning(

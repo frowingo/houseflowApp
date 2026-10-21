@@ -168,7 +168,7 @@ class MainActivity : ComponentActivity() {
                 }
                 composable("forgot") {
                     ForgotPasswordScreen(state, text, model::closeForgotPassword, model::setForgotEmail,
-                        model::requestPasswordReset, { model.setCode(it, true) }, model::setNewPassword, model::resetPassword)
+                        model::requestPasswordReset, model::setCode, model::setNewPassword, model::resetPassword)
                 }
                 composable("verify") {
                     val route = state.route as? AuthRoute.Next

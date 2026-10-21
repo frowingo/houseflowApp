@@ -193,6 +193,10 @@ struct HouseTanksView: View {
             sectionTitle("house_tanks_setup_title")
 
             VStack(spacing: AppDesign.Spacing.xl) {
+                mapPicker
+
+                Divider().overlay(Color.white.opacity(0.12))
+
                 ViewThatFits(in: .horizontal) {
                     HStack(alignment: .top, spacing: AppDesign.Spacing.xl) {
                         colorPicker
@@ -243,6 +247,8 @@ struct HouseTanksView: View {
                 ruleRow(icon: "scope", title: "house_tanks_rule_fire", detail: "house_tanks_rule_fire_detail", color: HouseTanksTheme.teal)
                 ruleRow(icon: "arrow.up", title: "house_tanks_rule_drive", detail: "house_tanks_rule_drive_detail", color: HouseTanksTheme.blue)
                 ruleRow(icon: "shield.lefthalf.filled", title: "house_tanks_rule_survive", detail: "house_tanks_rule_survive_detail", color: HouseTanksTheme.orange)
+                ruleRow(icon: "shippingbox.fill", title: "house_tanks_rule_crates", detail: "house_tanks_rule_crates_detail", color: HouseTanksTheme.amber)
+                ruleRow(icon: "bolt.fill", title: "house_tanks_rule_jokers", detail: "house_tanks_rule_jokers_detail", color: HouseTanksTheme.teal)
             }
             .padding(AppDesign.Spacing.xl)
             .background(HouseTanksTheme.panel)
@@ -350,6 +356,22 @@ struct HouseTanksView: View {
 
             Spacer()
 
+            if let power = snapshot.humanPlayer?.powerUp,
+               snapshot.phase == .playing || snapshot.phase == .paused {
+                Label(
+                    "\(copy(power.kind.titleKey)) · \(Int(ceil(power.remaining)))s",
+                    systemImage: power.kind.symbolName
+                )
+                .font(.subheadline.monospacedDigit().weight(.semibold))
+                .foregroundStyle(HouseTanksTheme.cream)
+                .padding(.horizontal, AppDesign.Spacing.lg)
+                .frame(minHeight: 44)
+                .background(HouseTanksTheme.panel)
+                .clipShape(Capsule())
+                .allowsHitTesting(false)
+                .padding(.bottom, AppDesign.Spacing.sm)
+            }
+
             if snapshot.phase == .playing, hasShownTapHint {
                 Label(copy("house_tanks_tap_hint"), systemImage: "hand.tap.fill")
                     .font(.subheadline.weight(.semibold))
@@ -381,6 +403,12 @@ struct HouseTanksView: View {
                     .foregroundStyle(HouseTanksTheme.cream)
                     .lineLimit(1)
                 Spacer(minLength: 2)
+                if let power = player.powerUp {
+                    Image(systemName: power.kind.symbolName)
+                        .font(.caption2.weight(.bold))
+                        .foregroundStyle(HouseTanksTheme.amber)
+                        .accessibilityLabel(copy(power.kind.titleKey))
+                }
                 Text("\(player.roundsWon)/3")
                     .font(.caption2.monospacedDigit().weight(.black))
                     .foregroundStyle(HouseTanksTheme.amber)
@@ -679,6 +707,66 @@ struct HouseTanksView: View {
         }
     }
 
+    private var mapPicker: some View {
+        VStack(alignment: .leading, spacing: AppDesign.Spacing.sm) {
+            Text(copy("house_tanks_map"))
+                .font(.subheadline.weight(.semibold))
+                .foregroundStyle(HouseTanksTheme.secondary)
+
+            LazyVGrid(
+                columns: [GridItem(.adaptive(minimum: 138), spacing: AppDesign.Spacing.md)],
+                spacing: AppDesign.Spacing.md
+            ) {
+                ForEach(HouseTanksMapID.allCases) { mapID in
+                    mapButton(mapID)
+                }
+            }
+        }
+    }
+
+    private func mapButton(_ mapID: HouseTanksMapID) -> some View {
+        let selected = model.mapID == mapID
+        return Button {
+            model.mapID = mapID
+        } label: {
+            VStack(alignment: .leading, spacing: AppDesign.Spacing.sm) {
+                HStack {
+                    Image(systemName: mapIcon(mapID))
+                        .font(.title3.weight(.bold))
+                        .foregroundStyle(selected ? HouseTanksTheme.deepNavy : HouseTanksTheme.teal)
+
+                    Spacer(minLength: AppDesign.Spacing.sm)
+
+                    if selected {
+                        Image(systemName: "checkmark.circle.fill")
+                            .font(.body.weight(.bold))
+                            .foregroundStyle(HouseTanksTheme.deepNavy)
+                    }
+                }
+
+                Text(copy(mapID.titleKey))
+                    .font(.headline)
+                    .foregroundStyle(selected ? HouseTanksTheme.deepNavy : HouseTanksTheme.cream)
+
+                Text(copy(mapID.detailKey))
+                    .font(.caption)
+                    .foregroundStyle(selected ? HouseTanksTheme.deepNavy.opacity(0.76) : HouseTanksTheme.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+            .frame(maxWidth: .infinity, minHeight: 92, alignment: .topLeading)
+            .padding(AppDesign.Spacing.md)
+            .background(selected ? HouseTanksTheme.teal : Color.white.opacity(0.055))
+            .clipShape(RoundedRectangle(cornerRadius: AppDesign.CornerRadius.md, style: .continuous))
+            .overlay {
+                RoundedRectangle(cornerRadius: AppDesign.CornerRadius.md, style: .continuous)
+                    .stroke(selected ? HouseTanksTheme.teal : Color.white.opacity(0.10), lineWidth: 1)
+            }
+        }
+        .buttonStyle(.plain)
+        .accessibilityElement(children: .combine)
+        .accessibilityAddTraits(selected ? .isSelected : [])
+    }
+
     private var difficultyPicker: some View {
         VStack(alignment: .leading, spacing: AppDesign.Spacing.sm) {
             Text(copy("house_tanks_difficulty"))
@@ -745,6 +833,15 @@ struct HouseTanksView: View {
         case .teal: copy("house_tanks_color_teal")
         case .orange: copy("house_tanks_color_orange")
         case .blue: copy("house_tanks_color_blue")
+        }
+    }
+
+    private func mapIcon(_ mapID: HouseTanksMapID) -> String {
+        switch mapID {
+        case .livingRoom: "house.fill"
+        case .corridors: "square.split.2x2.fill"
+        case .warehouse: "shippingbox.fill"
+        case .courtyard: "circle.circle.fill"
         }
     }
 }

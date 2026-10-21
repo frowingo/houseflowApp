@@ -31,6 +31,105 @@ enum HouseTanksColor: String, CaseIterable, Codable, Identifiable, Sendable {
     var id: String { rawValue }
 }
 
+enum HouseTanksMapID: String, CaseIterable, Codable, Identifiable, Sendable {
+    case livingRoom
+    case corridors
+    case warehouse
+    case courtyard
+
+    var id: String { rawValue }
+    var titleKey: String { "house_tanks_map_\(rawValue)_title" }
+    var detailKey: String { "house_tanks_map_\(rawValue)_detail" }
+}
+
+struct HouseTanksNormalizedPoint: Codable, Equatable, Sendable {
+    let x: Double
+    let y: Double
+}
+
+struct HouseTanksNormalizedSize: Codable, Equatable, Sendable {
+    let width: Double
+    let height: Double
+}
+
+enum HouseTanksObstacleStyle: String, Codable, Equatable, Sendable {
+    case divider
+    case sofa
+    case roundTable
+    case crate
+    case bookshelf
+    case pillar
+    case planter
+}
+
+enum HouseTanksObstacleTone: String, Codable, Equatable, Sendable {
+    case navy
+    case teal
+    case orange
+    case blue
+    case wood
+    case green
+}
+
+struct HouseTanksObstacleDefinition: Codable, Equatable, Sendable {
+    let center: HouseTanksNormalizedPoint
+    let size: HouseTanksNormalizedSize
+    let rotation: Double
+    let style: HouseTanksObstacleStyle
+    let tone: HouseTanksObstacleTone
+
+    var isMovable: Bool { style == .crate }
+    var breaksOnHit: Bool { style == .crate }
+
+    func renderedSize(in arena: CGSize) -> CGSize {
+        let scale = HouseTanksMapCatalog.obstacleBaseScale * HouseTanksMapCatalog.gameplayScale
+        let height = arena.height * size.height * scale
+        switch style {
+        case .roundTable, .crate, .pillar, .planter:
+            return CGSize(width: height, height: height)
+        case .divider, .sofa, .bookshelf:
+            return CGSize(width: arena.width * size.width * scale, height: height)
+        }
+    }
+
+    func bounds(in arena: CGSize) -> CGRect {
+        let rendered = renderedSize(in: arena)
+        let width = abs(cos(rotation)) * rendered.width + abs(sin(rotation)) * rendered.height
+        let height = abs(sin(rotation)) * rendered.width + abs(cos(rotation)) * rendered.height
+        return CGRect(x: center.x * arena.width - width / 2,
+                      y: center.y * arena.height - height / 2, width: width, height: height)
+    }
+
+    func clearance(from point: CGPoint, in arena: CGSize) -> CGFloat {
+        let rendered = renderedSize(in: arena)
+        let dx = point.x - center.x * arena.width
+        let dy = point.y - center.y * arena.height
+        switch style {
+        case .roundTable, .pillar, .planter:
+            return max(0, hypot(dx, dy) - rendered.width / 2)
+        default:
+            let localX = dx * cos(rotation) + dy * sin(rotation)
+            let localY = -dx * sin(rotation) + dy * cos(rotation)
+            return hypot(max(0, abs(localX) - rendered.width / 2),
+                         max(0, abs(localY) - rendered.height / 2))
+        }
+    }
+}
+
+struct HouseTanksFloorLineDefinition: Codable, Equatable, Sendable {
+    let start: HouseTanksNormalizedPoint
+    let end: HouseTanksNormalizedPoint
+}
+
+struct HouseTanksMapDefinition: Codable, Equatable, Sendable {
+    let id: HouseTanksMapID
+    let version: Int
+    let spawnPoints: [HouseTanksNormalizedPoint]
+    let obstacles: [HouseTanksObstacleDefinition]
+    let floorLines: [HouseTanksFloorLineDefinition]
+    let floorMarkers: [HouseTanksNormalizedPoint]
+}
+
 struct HouseTanksPlayer: Identifiable, Codable, Equatable, Sendable {
     let id: UUID
     let nameKey: String
@@ -39,11 +138,33 @@ struct HouseTanksPlayer: Identifiable, Codable, Equatable, Sendable {
     var armor: Int
     var roundsWon: Int
     var isAlive: Bool
+    var powerUp: HouseTanksPowerUpStatus? = nil
+}
+
+enum HouseTanksPowerUp: String, CaseIterable, Codable, Sendable {
+    case speed, rapidFire, spreadShot, shield
+
+    var titleKey: String { "house_tanks_power_\(rawValue)" }
+
+    var symbolName: String {
+        switch self {
+        case .speed: "bolt.fill"
+        case .rapidFire: "flame.fill"
+        case .spreadShot: "arrow.up.left.and.arrow.up.right"
+        case .shield: "shield.fill"
+        }
+    }
+}
+
+struct HouseTanksPowerUpStatus: Codable, Equatable, Sendable {
+    let kind: HouseTanksPowerUp
+    let remaining: TimeInterval
 }
 
 struct HouseTanksMatchConfiguration: Codable, Equatable, Sendable {
     var difficulty: HouseTanksDifficulty
     var humanColor: HouseTanksColor
+    var mapID: HouseTanksMapID = .livingRoom
     var armorPerRound: Int = 5
     var roundWinsNeeded: Int = 3
     var roundDuration: TimeInterval = 60
@@ -72,6 +193,8 @@ struct HouseTanksSnapshot: Codable, Equatable, Sendable {
     let matchID: UUID
     var revision: Int
     var phase: HouseTanksPhase
+    var mapID: HouseTanksMapID
+    var mapVersion: Int
     var players: [HouseTanksPlayer]
     var roundNumber: Int
     var timeRemaining: TimeInterval

@@ -19,7 +19,8 @@ final class DemoHouseTanksGameSession: HouseTanksGameServicing {
     private var invulnerableUntil: [UUID: TimeInterval] = [:]
     private var isResolvingRound = false
 
-    init(scene: HouseTanksScene = HouseTanksScene(size: CGSize(width: 1_180, height: 640))) {
+    init(scene: HouseTanksScene? = nil) {
+        let scene = scene ?? HouseTanksScene(size: CGSize(width: 1_180, height: 640))
         self.scene = scene
         scene.scaleMode = .resizeFill
         scene.onTankHit = { [weak self] targetID, ownerID in
@@ -55,10 +56,13 @@ final class DemoHouseTanksGameSession: HouseTanksGameServicing {
         isResolvingRound = false
 
         let players = makePlayers(configuration: configuration)
+        let map = HouseTanksMapCatalog.definition(for: configuration.mapID)
         snapshot = HouseTanksSnapshot(
             matchID: UUID(),
             revision: 0,
             phase: .countdown,
+            mapID: map.id,
+            mapVersion: map.version,
             players: players,
             roundNumber: 1,
             timeRemaining: configuration.roundDuration,
@@ -67,7 +71,7 @@ final class DemoHouseTanksGameSession: HouseTanksGameServicing {
             championID: nil
         )
         makeBotControllers(players: players)
-        scene.prepareRound(players: players)
+        scene.prepareRound(players: players, map: map)
         scene.setGameplayEnabled(false)
         scene.setSimulationPaused(false)
         publish()
@@ -204,13 +208,13 @@ final class DemoHouseTanksGameSession: HouseTanksGameServicing {
                         observation: observation,
                         difficulty: self.configuration.difficulty
                     ) else { continue }
-                    self.sendBotPress(playerID: playerID, controller: controller)
+                    self.sendBotPress(playerID: playerID, controller: controller, travelDistance: observation.targetDistance)
                 }
             }
         }
     }
 
-    private func sendBotPress(playerID: UUID, controller: HouseTanksBotController) {
+    private func sendBotPress(playerID: UUID, controller: HouseTanksBotController, travelDistance: CGFloat) {
         guard let snapshot else { return }
         let sequence = (lastSequence[playerID] ?? 0) + 1
         let command = HouseTanksCommand(
@@ -224,7 +228,7 @@ final class DemoHouseTanksGameSession: HouseTanksGameServicing {
         }
 
         botReleaseTasks[playerID]?.cancel()
-        let holdDuration = controller.holdDuration(for: configuration.difficulty)
+        let holdDuration = controller.holdDuration(for: configuration.difficulty, travelDistance: travelDistance)
         botReleaseTasks[playerID] = Task { [weak self] in
             try? await Task.sleep(nanoseconds: holdDuration)
             guard !Task.isCancelled, let self, let current = self.snapshot else { return }
@@ -311,10 +315,12 @@ final class DemoHouseTanksGameSession: HouseTanksGameServicing {
             var reset = player
             reset.armor = configuration.armorPerRound
             reset.isAlive = true
+            reset.powerUp = nil
             return reset
         }
         self.snapshot = snapshot
-        scene.prepareRound(players: snapshot.players)
+        let map = HouseTanksMapCatalog.definition(for: snapshot.mapID)
+        scene.prepareRound(players: snapshot.players, map: map)
         scene.setGameplayEnabled(false)
         publish()
         beginCountdown()
@@ -364,6 +370,9 @@ final class DemoHouseTanksGameSession: HouseTanksGameServicing {
 
     private func publish() {
         guard var snapshot else { return }
+        for index in snapshot.players.indices {
+            snapshot.players[index].powerUp = scene.powerUpStatus(for: snapshot.players[index].id)
+        }
         snapshot.revision += 1
         self.snapshot = snapshot
         continuation?.yield(snapshot)

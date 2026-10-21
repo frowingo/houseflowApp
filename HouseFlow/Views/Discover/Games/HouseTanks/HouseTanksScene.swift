@@ -6,23 +6,7 @@ private enum HouseTanksPhysicsCategory {
     static let projectile: UInt32 = 1 << 1
     static let obstacle: UInt32 = 1 << 2
     static let wall: UInt32 = 1 << 3
-}
-
-private enum HouseTanksObstacleStyle {
-    case divider
-    case sofa
-    case roundTable
-    case crate
-}
-
-private struct HouseTanksObstacleSpec {
-    let x: CGFloat
-    let y: CGFloat
-    let width: CGFloat
-    let height: CGFloat
-    let rotation: CGFloat
-    let color: UIColor
-    let style: HouseTanksObstacleStyle
+    static let token: UInt32 = 1 << 4
 }
 
 final class HouseTanksScene: SKScene, SKPhysicsContactDelegate {
@@ -40,15 +24,19 @@ final class HouseTanksScene: SKScene, SKPhysicsContactDelegate {
     private var hasBuiltArena = false
     private var gameplayEnabled = false
     private var reduceMotion = false
+    private var currentMap = HouseTanksMapCatalog.definition(for: .livingRoom)
+    private var powerUps = HouseTanksPowerUpRules()
+    private var nextTokenTime: TimeInterval = 0
+    private var tokenNode: SKNode?
+    private var powerTextures: [HouseTanksPowerUp: SKTexture] = [:]
 
     private let fireCooldown: TimeInterval = 0.58
     private let rotationSpeed: CGFloat = 0.88
     private let projectileSpeed: CGFloat = 510
     private let driveForce: CGFloat = 360
-    private let obstacleScale: CGFloat = 0.72
-    private let tankVisualScale: CGFloat = 0.76
-    private let tankSize = CGSize(width: 40, height: 28)
-    private let projectileSize = CGSize(width: 18, height: 7)
+    private let tankVisualScale: CGFloat = 0.38
+    private let tankSize = CGSize(width: 20, height: 14)
+    private let projectileSize = CGSize(width: 9, height: 3.5)
 
     override func didMove(to view: SKView) {
         scaleMode = .resizeFill
@@ -61,22 +49,57 @@ final class HouseTanksScene: SKScene, SKPhysicsContactDelegate {
     override func didChangeSize(_ oldSize: CGSize) {
         super.didChangeSize(oldSize)
         guard size.width > 0, size.height > 0 else { return }
+        let preserveLayout = hasBuiltArena && oldSize.width > 0 && oldSize.height > 0
+        let crates = Dictionary(uniqueKeysWithValues: children.compactMap { node -> (Int, (CGPoint, CGFloat))? in
+            guard node.userData?["breaksOnHit"] as? Bool == true,
+                  let index = node.userData?["obstacleIndex"] as? Int else { return nil }
+            return (index, (node.position, node.zRotation))
+        })
+        clearToken()
         removeArenaNodes()
         hasBuiltArena = false
         buildArenaIfNeeded()
 
+        if preserveLayout {
+            for node in children where node.userData?["breaksOnHit"] as? Bool == true {
+                guard let index = node.userData?["obstacleIndex"] as? Int,
+                      let previous = crates[index] else {
+                    node.removeFromParent()
+                    continue
+                }
+                node.position = CGPoint(x: previous.0.x * size.width / oldSize.width,
+                                        y: previous.0.y * size.height / oldSize.height)
+                node.zRotation = previous.1
+            }
+        }
+
         let spawns = spawnPoints()
         for (index, playerID) in spawnOrder.enumerated() {
             guard let tank = tankNodes[playerID], index < spawns.count else { continue }
-            tank.position = spawns[index]
+            tank.position = preserveLayout
+                ? CGPoint(x: tank.position.x * size.width / oldSize.width,
+                          y: tank.position.y * size.height / oldSize.height)
+                : spawns[index]
             tank.physicsBody?.velocity = .zero
             tank.physicsBody?.angularVelocity = 0
         }
     }
 
-    func prepareRound(players: [HouseTanksPlayer]) {
-        buildArenaIfNeeded()
+    func prepareRound(players: [HouseTanksPlayer], map: HouseTanksMapDefinition) {
+        assert(
+            HouseTanksMapCatalog.validationIssues(for: map).isEmpty,
+            "House-Tanks map definition is invalid"
+        )
+        // Rebuild every round to restore destroyed crates and their starting positions.
+        currentMap = map
+        removeArenaNodes()
+        hasBuiltArena = false
         removeRoundNodes()
+        buildArenaIfNeeded()
+        powerUps = HouseTanksPowerUpRules()
+        nextTokenTime = TimeInterval.random(in: HouseTanksPowerUpRules.spawnInterval)
+        currentSceneTime = 0
+        lastUpdateTime = 0
         gameplayEnabled = false
         lastFireTime.removeAll()
         drivingPlayerIDs.removeAll()
@@ -105,6 +128,7 @@ final class HouseTanksScene: SKScene, SKPhysicsContactDelegate {
     }
 
     func setSimulationPaused(_ paused: Bool) {
+        lastUpdateTime = 0
         isPaused = paused
     }
 
@@ -139,26 +163,42 @@ final class HouseTanksScene: SKScene, SKPhysicsContactDelegate {
 
     @discardableResult
     private func fire(playerID: UUID, angle: CGFloat, tank: SKNode) -> Bool {
-
+        let power = powerUps.status(for: playerID)?.kind
+        let cooldown = power == .rapidFire ? HouseTanksPowerUpRules.rapidFireCooldown : fireCooldown
         let previous = lastFireTime[playerID] ?? -.greatestFiniteMagnitude
-        guard currentSceneTime - previous >= fireCooldown else { return false }
+        guard currentSceneTime - previous >= cooldown else { return false }
         lastFireTime[playerID] = currentSceneTime
 
-        let direction = CGVector(dx: cos(angle), dy: sin(angle))
-        let startDistance = tankSize.width / 2 + 10
-        let start = CGPoint(
-            x: tank.position.x + direction.dx * startDistance,
-            y: tank.position.y + direction.dy * startDistance
-        )
-
-        let projectile = makeProjectile(ownerID: playerID, color: tank.userData?["color"] as? String)
-        projectile.position = start
-        projectile.zRotation = angle
-        projectile.physicsBody?.velocity = CGVector(
-            dx: direction.dx * projectileSpeed,
-            dy: direction.dy * projectileSpeed
-        )
-        addChild(projectile)
+        let offsets: [CGFloat] = power == .spreadShot ? HouseTanksPowerUpRules.spreadAngles : [0]
+        for offset in offsets {
+            let shotAngle = angle + offset
+            let direction = CGVector(dx: cos(shotAngle), dy: sin(shotAngle))
+            let startDistance = tankSize.width / 2 + 5
+            let start = CGPoint(
+                x: tank.position.x + direction.dx * startDistance,
+                y: tank.position.y + direction.dy * startDistance
+            )
+            let projectile = makeProjectile(ownerID: playerID, color: tank.userData?["color"] as? String)
+            projectile.position = start
+            projectile.zRotation = shotAngle
+            projectile.physicsBody?.velocity = CGVector(
+                dx: direction.dx * projectileSpeed,
+                dy: direction.dy * projectileSpeed
+            )
+            addChild(projectile)
+            // The muzzle may touch a pushed crate or a thin wall. Do not spawn a shot
+            // on the far side of that cover just because its center is outside the tank.
+            var muzzleBlock: (body: SKPhysicsBody, distance: CGFloat)?
+            physicsWorld.enumerateBodies(alongRayStart: tank.position, end: start) { body, point, _, _ in
+                guard body.node !== tank,
+                      body.categoryBitMask & (HouseTanksPhysicsCategory.obstacle | HouseTanksPhysicsCategory.wall | HouseTanksPhysicsCategory.tank) != 0 else { return }
+                let hitDistance = hypot(point.x - tank.position.x, point.y - tank.position.y)
+                if hitDistance < (muzzleBlock?.distance ?? .greatestFiniteMagnitude) {
+                    muzzleBlock = (body, hitDistance)
+                }
+            }
+            if let muzzleBlock { resolveImpact(projectile: projectile, otherBody: muzzleBlock.body) }
+        }
 
         addMuzzleFlash(to: tank, colorName: tank.userData?["color"] as? String)
         return true
@@ -187,6 +227,8 @@ final class HouseTanksScene: SKScene, SKPhysicsContactDelegate {
         rotationDirections[playerID] = nil
         drivingPlayerIDs.remove(playerID)
         drivingDirections[playerID] = nil
+        powerUps.remove(playerID: playerID)
+        tank.childNode(withName: "power-indicator")?.removeFromParent()
 
         if let artwork = tank.childNode(withName: "artwork") {
             artwork.childNode(withName: "aura")?.removeFromParent()
@@ -206,6 +248,11 @@ final class HouseTanksScene: SKScene, SKPhysicsContactDelegate {
         }
         drivingPlayerIDs.removeAll()
         drivingDirections.removeAll()
+        for obstacle in children where obstacle.name == "arena" {
+            obstacle.physicsBody?.velocity = .zero
+            obstacle.physicsBody?.angularVelocity = 0
+        }
+        clearToken()
     }
 
     func botObservation(for playerID: UUID) -> HouseTanksBotObservation {
@@ -223,11 +270,23 @@ final class HouseTanksScene: SKScene, SKPhysicsContactDelegate {
             return HouseTanksBotObservation(aimError: .pi, targetDistance: 0, hasTarget: false)
         }
 
-        let targetAngle = atan2(target.position.y - tank.position.y, target.position.x - tank.position.x)
+        let obstacles = children.filter {
+            $0.physicsBody?.categoryBitMask == HouseTanksPhysicsCategory.obstacle
+        }.map { $0.calculateAccumulatedFrame() }
+        let inset = max(16, size.height * 0.035) + 16
+        let goal = powerUps.token.map { token in
+            distance(from: tank.position, to: token.position) < 220 ? token.position : target.position
+        } ?? target.position
+        let waypoint = HouseTanksNavigation.waypoint(
+            from: tank.position, to: goal,
+            arena: CGRect(origin: .zero, size: size).insetBy(dx: inset, dy: inset),
+            obstacles: obstacles
+        )
+        let targetAngle = atan2(waypoint.y - tank.position.y, waypoint.x - tank.position.x)
         let aimError = abs(HouseTanksMath.normalizedAngle(targetAngle - tank.zRotation))
         return HouseTanksBotObservation(
             aimError: aimError,
-            targetDistance: distance(from: tank.position, to: target.position),
+            targetDistance: distance(from: tank.position, to: waypoint),
             hasTarget: true
         )
     }
@@ -238,44 +297,90 @@ final class HouseTanksScene: SKScene, SKPhysicsContactDelegate {
     }
 
     override func update(_ currentTime: TimeInterval) {
-        currentSceneTime = currentTime
         let delta = lastUpdateTime > 0 ? min(1.0 / 20.0, currentTime - lastUpdateTime) : 0
         lastUpdateTime = currentTime
         guard gameplayEnabled, delta > 0 else { return }
+        powerUps.advance(by: delta)
+        currentSceneTime = powerUps.time
+        updateJokers()
 
         for playerID in activePlayerIDs {
             guard let tank = tankNodes[playerID] else { continue }
+            let power = powerUps.status(for: playerID)?.kind
+            let speed: CGFloat = power == .speed ? HouseTanksPowerUpRules.speedMultiplier : 1
             if drivingPlayerIDs.contains(playerID), let direction = drivingDirections[playerID] {
                 tank.physicsBody?.applyForce(CGVector(
-                    dx: direction.dx * driveForce,
-                    dy: direction.dy * driveForce
+                    dx: direction.dx * driveForce * speed,
+                    dy: direction.dy * driveForce * speed
                 ))
+                if power == .rapidFire {
+                    _ = fire(playerID: playerID, angle: tank.zRotation, tank: tank)
+                }
             } else {
                 tank.zRotation += rotationSpeed * (rotationDirections[playerID] ?? 1) * delta
             }
-            capVelocity(of: tank, maximum: 245)
+            capVelocity(of: tank, maximum: 245 * speed)
+            updatePowerIndicator(for: playerID, tank: tank)
         }
     }
 
     func didBegin(_ contact: SKPhysicsContact) {
+        guard gameplayEnabled else { return }
         let first = contact.bodyA
         let second = contact.bodyB
+        if let tokenBody = [first, second].first(where: {
+            $0.categoryBitMask == HouseTanksPhysicsCategory.token
+        }) {
+            guard let node = tokenBody.node, node === tokenNode, node.parent != nil else { return }
+            let tankBody = tokenBody === first ? second : first
+            if let raw = tankBody.node?.userData?["tankID"] as? String,
+               let playerID = UUID(uuidString: raw), activePlayerIDs.contains(playerID),
+               powerUps.collect(playerID: playerID) != nil {
+                tokenNode?.removeFromParent()
+                tokenNode = nil
+                if let tank = tankNodes[playerID] { updatePowerIndicator(for: playerID, tank: tank) }
+            }
+            return
+        }
         guard let projectileBody = [first, second].first(where: {
             $0.categoryBitMask & HouseTanksPhysicsCategory.projectile != 0
         }) else { return }
 
         let otherBody = projectileBody === first ? second : first
-        defer { projectileBody.node?.removeFromParent() }
+        guard let projectile = projectileBody.node else { return }
+        resolveImpact(projectile: projectile, otherBody: otherBody)
+    }
+
+    private func resolveImpact(projectile: SKNode, otherBody: SKPhysicsBody) {
+        // SpriteKit can deliver several contacts for one shot in the same physics step.
+        guard projectile.parent != nil,
+              projectile.userData?["spent"] as? Bool != true else { return }
+        if projectile.userData?["ownerID"] as? String == otherBody.node?.userData?["tankID"] as? String {
+            return
+        }
+        projectile.userData?["spent"] = true
+        defer { projectile.removeFromParent() }
+
+        if let obstacle = otherBody.node, obstacle.userData?["breaksOnHit"] as? Bool == true {
+            guard obstacle.parent != nil else { return }
+            addCrateFragments(at: obstacle.position)
+            obstacle.removeFromParent()
+            return
+        }
 
         guard otherBody.categoryBitMask & HouseTanksPhysicsCategory.tank != 0,
-              let ownerRaw = projectileBody.node?.userData?["ownerID"] as? String,
+              let ownerRaw = projectile.userData?["ownerID"] as? String,
               let ownerID = UUID(uuidString: ownerRaw),
               let targetRaw = otherBody.node?.userData?["tankID"] as? String,
               let targetID = UUID(uuidString: targetRaw),
               ownerID != targetID,
               activePlayerIDs.contains(targetID) else { return }
 
-        onTankHit?(targetID, ownerID)
+        if powerUps.status(for: targetID)?.kind == .shield {
+            showHit(playerID: targetID)
+        } else {
+            onTankHit?(targetID, ownerID)
+        }
     }
 
     private func buildArenaIfNeeded() {
@@ -284,7 +389,7 @@ final class HouseTanksScene: SKScene, SKPhysicsContactDelegate {
 
         let mat = SKShapeNode(rect: CGRect(origin: .zero, size: size), cornerRadius: 0)
         mat.name = "arena"
-        mat.fillColor = UIColor(red: 0.86, green: 0.80, blue: 0.69, alpha: 1)
+        mat.fillColor = floorColor
         mat.strokeColor = .clear
         mat.zPosition = -20
         addChild(mat)
@@ -296,32 +401,25 @@ final class HouseTanksScene: SKScene, SKPhysicsContactDelegate {
 
     private func addFloorPlanLines() {
         let path = CGMutablePath()
-        path.move(to: CGPoint(x: size.width * 0.10, y: size.height * 0.50))
-        path.addLine(to: CGPoint(x: size.width * 0.28, y: size.height * 0.50))
-        path.addLine(to: CGPoint(x: size.width * 0.28, y: size.height * 0.78))
-        path.move(to: CGPoint(x: size.width * 0.72, y: size.height * 0.22))
-        path.addLine(to: CGPoint(x: size.width * 0.72, y: size.height * 0.50))
-        path.addLine(to: CGPoint(x: size.width * 0.90, y: size.height * 0.50))
+        for line in currentMap.floorLines {
+            path.move(to: scenePoint(line.start))
+            path.addLine(to: scenePoint(line.end))
+        }
 
         let lines = SKShapeNode(path: path)
         lines.name = "arena"
-        lines.strokeColor = UIColor(red: 0.25, green: 0.39, blue: 0.38, alpha: 0.18)
+        lines.strokeColor = floorAccent.withAlphaComponent(0.20)
         lines.lineWidth = max(3, size.height * 0.006)
         lines.lineCap = .round
         lines.zPosition = -15
         addChild(lines)
 
-        for point in [
-            CGPoint(x: size.width * 0.12, y: size.height * 0.20),
-            CGPoint(x: size.width * 0.88, y: size.height * 0.80),
-            CGPoint(x: size.width * 0.50, y: size.height * 0.12),
-            CGPoint(x: size.width * 0.50, y: size.height * 0.88),
-        ] {
-            let marker = SKShapeNode(circleOfRadius: max(8, size.height * 0.018))
+        for point in currentMap.floorMarkers {
+            let marker = SKShapeNode(circleOfRadius: max(5, size.height * 0.010))
             marker.name = "arena"
-            marker.position = point
-            marker.fillColor = UIColor(red: 0.20, green: 0.58, blue: 0.53, alpha: 0.18)
-            marker.strokeColor = UIColor(red: 0.20, green: 0.58, blue: 0.53, alpha: 0.30)
+            marker.position = scenePoint(point)
+            marker.fillColor = floorAccent.withAlphaComponent(0.16)
+            marker.strokeColor = floorAccent.withAlphaComponent(0.30)
             marker.lineWidth = 2
             marker.zPosition = -14
             addChild(marker)
@@ -341,67 +439,38 @@ final class HouseTanksScene: SKScene, SKPhysicsContactDelegate {
         boundary.physicsBody?.categoryBitMask = HouseTanksPhysicsCategory.wall
         boundary.physicsBody?.collisionBitMask = HouseTanksPhysicsCategory.tank
             | HouseTanksPhysicsCategory.projectile
+            | HouseTanksPhysicsCategory.obstacle
         boundary.physicsBody?.contactTestBitMask = HouseTanksPhysicsCategory.projectile
         addChild(boundary)
     }
 
     private func addObstacles() {
-        let specs: [HouseTanksObstacleSpec] = [
-            HouseTanksObstacleSpec(
-                x: 0.50, y: 0.50, width: 0.07, height: 0.28, rotation: 0,
-                color: UIColor(red: 0.18, green: 0.27, blue: 0.32, alpha: 1), style: .divider
-            ),
-            HouseTanksObstacleSpec(
-                x: 0.31, y: 0.30, width: 0.18, height: 0.075, rotation: 0.04,
-                color: UIColor(red: 0.24, green: 0.47, blue: 0.45, alpha: 1), style: .sofa
-            ),
-            HouseTanksObstacleSpec(
-                x: 0.69, y: 0.70, width: 0.18, height: 0.075, rotation: -0.04,
-                color: UIColor(red: 0.84, green: 0.43, blue: 0.22, alpha: 1), style: .sofa
-            ),
-            HouseTanksObstacleSpec(
-                x: 0.30, y: 0.72, width: 0.12, height: 0.12, rotation: 0,
-                color: UIColor(red: 0.33, green: 0.42, blue: 0.64, alpha: 1), style: .roundTable
-            ),
-            HouseTanksObstacleSpec(
-                x: 0.70, y: 0.28, width: 0.10, height: 0.10, rotation: .pi / 12,
-                color: UIColor(red: 0.58, green: 0.43, blue: 0.25, alpha: 1), style: .crate
-            ),
-        ]
-
-        for spec in specs {
-            let obstacleSize: CGSize
-            switch spec.style {
-            case .roundTable, .crate:
-                let side = size.height * spec.height * obstacleScale
-                obstacleSize = CGSize(width: side, height: side)
-            case .divider, .sofa:
-                obstacleSize = CGSize(
-                    width: size.width * spec.width * obstacleScale,
-                    height: size.height * spec.height * obstacleScale
-                )
-            }
-            let obstacle = makeObstacle(spec: spec, size: obstacleSize)
+        for (index, definition) in currentMap.obstacles.enumerated() {
+            let obstacleSize = definition.renderedSize(in: size)
+            let obstacle = makeObstacle(definition: definition, size: obstacleSize)
             obstacle.name = "arena"
-            obstacle.position = CGPoint(x: size.width * spec.x, y: size.height * spec.y)
-            obstacle.zRotation = spec.rotation
+            obstacle.userData = ["obstacleIndex": index, "breaksOnHit": definition.breaksOnHit]
+            obstacle.position = scenePoint(definition.center)
+            obstacle.zRotation = CGFloat(definition.rotation)
             obstacle.zPosition = 2
             obstacle.physicsBody?.categoryBitMask = HouseTanksPhysicsCategory.obstacle
             obstacle.physicsBody?.collisionBitMask = HouseTanksPhysicsCategory.tank
                 | HouseTanksPhysicsCategory.projectile
+                | HouseTanksPhysicsCategory.obstacle
+                | HouseTanksPhysicsCategory.wall
             obstacle.physicsBody?.contactTestBitMask = HouseTanksPhysicsCategory.projectile
             addChild(obstacle)
         }
     }
 
     private func makeObstacle(
-        spec: HouseTanksObstacleSpec,
+        definition: HouseTanksObstacleDefinition,
         size obstacleSize: CGSize
     ) -> SKShapeNode {
         let obstacle: SKShapeNode
 
-        switch spec.style {
-        case .roundTable:
+        switch definition.style {
+        case .roundTable, .pillar, .planter:
             let diameter = min(obstacleSize.width, obstacleSize.height)
             obstacle = SKShapeNode(circleOfRadius: diameter / 2)
             obstacle.physicsBody = SKPhysicsBody(circleOfRadius: diameter / 2)
@@ -413,11 +482,18 @@ final class HouseTanksScene: SKScene, SKPhysicsContactDelegate {
             obstacle.physicsBody = SKPhysicsBody(rectangleOf: obstacleSize)
         }
 
-        obstacle.fillColor = spec.color
+        obstacle.fillColor = obstacleColor(for: definition.isMovable ? .wood : definition.tone)
         obstacle.strokeColor = UIColor.white.withAlphaComponent(0.46)
-        obstacle.lineWidth = 2.4
-        obstacle.physicsBody?.isDynamic = false
-        decorateObstacle(obstacle, style: spec.style, size: obstacleSize)
+        obstacle.lineWidth = 1.6
+        obstacle.physicsBody?.isDynamic = definition.isMovable
+        if definition.isMovable {
+            obstacle.physicsBody?.mass = 0.45
+            obstacle.physicsBody?.linearDamping = 4
+            obstacle.physicsBody?.angularDamping = 5
+            obstacle.physicsBody?.friction = 0.55
+            obstacle.physicsBody?.restitution = 0.05
+        }
+        decorateObstacle(obstacle, style: definition.style, size: obstacleSize)
         return obstacle
     }
 
@@ -501,6 +577,48 @@ final class HouseTanksScene: SKScene, SKPhysicsContactDelegate {
             cross.lineWidth = 2
             cross.lineCap = .round
             obstacle.addChild(cross)
+
+        case .bookshelf:
+            for xOffset in [CGFloat(-0.28), -0.09, 0.10, 0.29] {
+                let book = SKShapeNode(
+                    rectOf: CGSize(
+                        width: max(2, obstacleSize.width * 0.08),
+                        height: max(4, obstacleSize.height * 0.58)
+                    ),
+                    cornerRadius: 1
+                )
+                book.position.x = obstacleSize.width * xOffset
+                book.fillColor = UIColor.white.withAlphaComponent(0.18 + abs(xOffset) * 0.16)
+                book.strokeColor = .clear
+                obstacle.addChild(book)
+            }
+
+        case .pillar:
+            let inner = SKShapeNode(
+                circleOfRadius: min(obstacleSize.width, obstacleSize.height) * 0.28
+            )
+            inner.fillColor = UIColor.white.withAlphaComponent(0.16)
+            inner.strokeColor = UIColor.white.withAlphaComponent(0.28)
+            inner.lineWidth = 1
+            obstacle.addChild(inner)
+
+        case .planter:
+            for angle in stride(from: CGFloat.zero, to: .pi * 2, by: .pi / 3) {
+                let leaf = SKShapeNode(
+                    ellipseOf: CGSize(
+                        width: max(3, obstacleSize.width * 0.24),
+                        height: max(5, obstacleSize.height * 0.42)
+                    )
+                )
+                leaf.position = CGPoint(
+                    x: cos(angle) * obstacleSize.width * 0.14,
+                    y: sin(angle) * obstacleSize.height * 0.14
+                )
+                leaf.zRotation = angle - .pi / 2
+                leaf.fillColor = UIColor.white.withAlphaComponent(0.15)
+                leaf.strokeColor = .clear
+                obstacle.addChild(leaf)
+            }
         }
     }
 
@@ -529,6 +647,7 @@ final class HouseTanksScene: SKScene, SKPhysicsContactDelegate {
             | HouseTanksPhysicsCategory.obstacle
             | HouseTanksPhysicsCategory.wall
         root.physicsBody?.contactTestBitMask = HouseTanksPhysicsCategory.projectile
+            | HouseTanksPhysicsCategory.token
 
         let artwork = SKNode()
         artwork.name = "artwork"
@@ -590,7 +709,7 @@ final class HouseTanksScene: SKScene, SKPhysicsContactDelegate {
         projectile.name = "projectile"
         projectile.fillColor = color(for: HouseTanksColor(rawValue: colorName ?? "") ?? .teal)
         projectile.strokeColor = UIColor.white.withAlphaComponent(0.92)
-        projectile.lineWidth = 2
+        projectile.lineWidth = 1
         projectile.zPosition = 8
         projectile.userData = ["ownerID": ownerID.uuidString]
         projectile.physicsBody = SKPhysicsBody(rectangleOf: projectileSize)
@@ -609,11 +728,11 @@ final class HouseTanksScene: SKScene, SKPhysicsContactDelegate {
 
     private func addMuzzleFlash(to tank: SKNode, colorName: String?) {
         guard !reduceMotion else { return }
-        let flash = SKShapeNode(circleOfRadius: 6)
+        let flash = SKShapeNode(circleOfRadius: 3)
         flash.fillColor = color(for: HouseTanksColor(rawValue: colorName ?? "") ?? .teal)
         flash.strokeColor = UIColor.white
-        flash.lineWidth = 2
-        flash.position = CGPoint(x: tankSize.width / 2 + 6, y: 0)
+        flash.lineWidth = 1
+        flash.position = CGPoint(x: tankSize.width / 2 + 3, y: 0)
         flash.zPosition = 5
         tank.addChild(flash)
         flash.run(.sequence([
@@ -625,7 +744,8 @@ final class HouseTanksScene: SKScene, SKPhysicsContactDelegate {
     private func addExplosion(at position: CGPoint) {
         let count = reduceMotion ? 4 : 10
         for index in 0..<count {
-            let shard = SKShapeNode(circleOfRadius: reduceMotion ? 3 : 5)
+            let shard = SKShapeNode(circleOfRadius: reduceMotion ? 1.5 : 2.5)
+            shard.name = "effect"
             shard.fillColor = index.isMultiple(of: 2)
                 ? UIColor(red: 0.96, green: 0.48, blue: 0.20, alpha: 1)
                 : UIColor(red: 1.00, green: 0.78, blue: 0.28, alpha: 1)
@@ -635,7 +755,7 @@ final class HouseTanksScene: SKScene, SKPhysicsContactDelegate {
             addChild(shard)
 
             let angle = CGFloat(index) / CGFloat(max(1, count)) * .pi * 2
-            let distance: CGFloat = reduceMotion ? 22 : 54
+            let distance: CGFloat = reduceMotion ? 11 : 27
             let destination = CGPoint(
                 x: position.x + cos(angle) * distance,
                 y: position.y + sin(angle) * distance
@@ -647,15 +767,178 @@ final class HouseTanksScene: SKScene, SKPhysicsContactDelegate {
         }
     }
 
+    func powerUpStatus(for playerID: UUID) -> HouseTanksPowerUpStatus? {
+        powerUps.status(for: playerID)
+    }
+
+    private func updateJokers() {
+        if powerUps.token == nil {
+            tokenNode?.removeFromParent()
+            tokenNode = nil
+        }
+        if let token = powerUps.token, let node = tokenNode {
+            updateTimerArc(on: node, fraction: (token.expiresAt - powerUps.time) / HouseTanksPowerUpRules.tokenLifetime, radius: 17)
+        }
+        guard powerUps.token == nil, powerUps.time >= nextTokenTime else { return }
+        // Keep tokens clear of the top HUD, walls, initial spawns and current actors.
+        let spawnArea = CGRect(x: 48, y: 44, width: size.width - 96, height: size.height - 124)
+        guard spawnArea.width > 0, spawnArea.height > 0 else { return }
+        let blocked = children.filter {
+            $0.physicsBody?.categoryBitMask == HouseTanksPhysicsCategory.obstacle
+        }.map { $0.calculateAccumulatedFrame() }
+        let tanks = activePlayerIDs.compactMap { tankNodes[$0]?.position }
+        for _ in 0..<80 {
+            let point = CGPoint(x: CGFloat.random(in: spawnArea.minX...spawnArea.maxX),
+                                y: CGFloat.random(in: spawnArea.minY...spawnArea.maxY))
+            guard HouseTanksPowerUpRules.isValidSpawn(
+                point, arena: spawnArea, starts: spawnPoints(), tanks: tanks, obstacles: blocked
+            ) else { continue }
+            let kind = HouseTanksPowerUp.allCases.randomElement() ?? .speed
+            guard powerUps.spawn(kind: kind, at: point) else { return }
+            let node = SKShapeNode(circleOfRadius: 14)
+            node.name = "joker"
+            node.position = point
+            node.zPosition = 6
+            node.fillColor = powerColor(kind)
+            node.strokeColor = .white
+            node.lineWidth = 1.5
+            node.addChild(powerIcon(kind, side: 16))
+            node.physicsBody = SKPhysicsBody(circleOfRadius: 16)
+            node.physicsBody?.isDynamic = false
+            node.physicsBody?.categoryBitMask = HouseTanksPhysicsCategory.token
+            node.physicsBody?.collisionBitMask = 0
+            node.physicsBody?.contactTestBitMask = HouseTanksPhysicsCategory.tank
+            addChild(node)
+            tokenNode = node
+            updateTimerArc(on: node, fraction: 1, radius: 17)
+            nextTokenTime = powerUps.time + TimeInterval.random(in: HouseTanksPowerUpRules.spawnInterval)
+            return
+        }
+        // A crowded arena skips this attempt instead of placing a token in an unfair location.
+        nextTokenTime = powerUps.time + 1
+    }
+
+    private func clearToken() {
+        tokenNode?.removeFromParent()
+        tokenNode = nil
+        powerUps.removeToken()
+    }
+
+    private func updatePowerIndicator(for playerID: UUID, tank: SKNode) {
+        guard let status = powerUps.status(for: playerID) else {
+            tank.childNode(withName: "power-indicator")?.removeFromParent()
+            return
+        }
+        var indicator = tank.childNode(withName: "power-indicator")
+        if indicator?.userData?["kind"] as? String != status.kind.rawValue {
+            indicator?.removeFromParent()
+            let node = SKNode()
+            node.name = "power-indicator"
+            node.userData = ["kind": status.kind.rawValue]
+            let ring = SKShapeNode(circleOfRadius: 20)
+            ring.fillColor = powerColor(status.kind).withAlphaComponent(status.kind == .shield ? 0.22 : 0.08)
+            ring.strokeColor = powerColor(status.kind)
+            ring.lineWidth = status.kind == .shield ? 2.5 : 1
+            node.addChild(ring)
+            let badge = SKShapeNode(circleOfRadius: 9)
+            badge.position = CGPoint(x: 0, y: 29)
+            badge.fillColor = powerColor(status.kind)
+            badge.strokeColor = .white
+            badge.lineWidth = 1
+            badge.addChild(powerIcon(status.kind, side: 11))
+            node.addChild(badge)
+            tank.addChild(node)
+            indicator = node
+        }
+        guard let indicator else { return }
+        indicator.zRotation = -tank.zRotation
+        updateTimerArc(on: indicator, fraction: status.remaining / HouseTanksPowerUpRules.duration, radius: 22)
+    }
+
+    private func updateTimerArc(on node: SKNode, fraction: Double, radius: CGFloat) {
+        let arc: SKShapeNode
+        if let existing = node.childNode(withName: "timer-arc") as? SKShapeNode {
+            arc = existing
+        } else {
+            arc = SKShapeNode()
+            arc.name = "timer-arc"
+            arc.strokeColor = UIColor(red: 0.23, green: 0.18, blue: 0.11, alpha: 1)
+            arc.lineWidth = 2
+            arc.lineCap = .round
+            node.addChild(arc)
+        }
+        let path = CGMutablePath()
+        path.addArc(center: .zero, radius: radius, startAngle: .pi / 2,
+                    endAngle: .pi / 2 - .pi * 2 * CGFloat(min(1, max(0, fraction))), clockwise: true)
+        arc.path = path
+    }
+
+    private func powerIcon(_ kind: HouseTanksPowerUp, side: CGFloat) -> SKNode {
+        if powerTextures[kind] == nil,
+           let icon = UIImage(systemName: kind.symbolName,
+                              withConfiguration: UIImage.SymbolConfiguration(pointSize: 18, weight: .bold)) {
+            powerTextures[kind] = SKTexture(image: icon.withTintColor(.white, renderingMode: .alwaysOriginal))
+        }
+        let icon = SKSpriteNode(texture: powerTextures[kind])
+        if let texture = powerTextures[kind] {
+            let native = texture.size()
+            let scale = side / max(native.width, native.height)
+            icon.size = CGSize(width: native.width * scale, height: native.height * scale)
+        }
+        return icon
+    }
+
+    private func powerColor(_ kind: HouseTanksPowerUp) -> UIColor {
+        switch kind {
+        case .speed: UIColor(red: 0.24, green: 0.38, blue: 0.13, alpha: 1)
+        case .rapidFire: UIColor(red: 0.66, green: 0.23, blue: 0.10, alpha: 1)
+        case .spreadShot: UIColor(red: 0.43, green: 0.22, blue: 0.57, alpha: 1)
+        case .shield: UIColor(red: 0.16, green: 0.34, blue: 0.61, alpha: 1)
+        }
+    }
+
+    private var floorColor: UIColor {
+        switch currentMap.id {
+        case .livingRoom: UIColor(red: 0.88, green: 0.81, blue: 0.68, alpha: 1)
+        case .corridors: UIColor(red: 0.73, green: 0.80, blue: 0.87, alpha: 1)
+        case .warehouse: UIColor(red: 0.83, green: 0.73, blue: 0.66, alpha: 1)
+        case .courtyard: UIColor(red: 0.75, green: 0.83, blue: 0.68, alpha: 1)
+        }
+    }
+
+    private var floorAccent: UIColor {
+        switch currentMap.id {
+        case .livingRoom: obstacleColor(for: .wood)
+        case .corridors: obstacleColor(for: .blue)
+        case .warehouse: obstacleColor(for: .orange)
+        case .courtyard: obstacleColor(for: .green)
+        }
+    }
+
+    private func addCrateFragments(at position: CGPoint) {
+        for index in 0..<(reduceMotion ? 1 : 5) {
+            let shard = SKShapeNode(rectOf: CGSize(width: 8, height: 3), cornerRadius: 1)
+            shard.name = "effect"
+            shard.fillColor = obstacleColor(for: .wood)
+            shard.strokeColor = .clear
+            shard.position = position
+            shard.zPosition = 12
+            addChild(shard)
+            let angle = CGFloat(index) / 5 * .pi * 2
+            let move = reduceMotion ? SKAction.wait(forDuration: 0.2)
+                : SKAction.moveBy(x: cos(angle) * 20, y: sin(angle) * 20, duration: 0.25)
+            shard.run(.sequence([.group([move, .fadeOut(withDuration: 0.3)]), .removeFromParent()]))
+        }
+    }
+
     private func spawnPoints() -> [CGPoint] {
-        [
-            CGPoint(x: size.width * 0.18, y: size.height * 0.50),
-            CGPoint(x: size.width * 0.80, y: size.height * 0.25),
-            CGPoint(x: size.width * 0.80, y: size.height * 0.75),
-        ]
+        currentMap.spawnPoints.map(scenePoint)
     }
 
     private func removeRoundNodes() {
+        clearToken()
+        powerUps = HouseTanksPowerUpRules()
+        children.filter { $0.name == "effect" }.forEach { $0.removeFromParent() }
         enumerateChildNodes(withName: "//tank") { node, _ in node.removeFromParent() }
         enumerateChildNodes(withName: "//projectile") { node, _ in node.removeFromParent() }
         tankNodes.removeAll()
@@ -672,6 +955,10 @@ final class HouseTanksScene: SKScene, SKPhysicsContactDelegate {
 
     private func distance(from first: CGPoint, to second: CGPoint) -> CGFloat {
         hypot(second.x - first.x, second.y - first.y)
+    }
+
+    private func scenePoint(_ point: HouseTanksNormalizedPoint) -> CGPoint {
+        CGPoint(x: size.width * CGFloat(point.x), y: size.height * CGFloat(point.y))
     }
 
     private func applyDestroyedAppearance(to node: SKNode) {
@@ -698,6 +985,17 @@ final class HouseTanksScene: SKScene, SKPhysicsContactDelegate {
         case .teal: UIColor(red: 0.12, green: 0.74, blue: 0.65, alpha: 1)
         case .orange: UIColor(red: 0.95, green: 0.43, blue: 0.18, alpha: 1)
         case .blue: UIColor(red: 0.24, green: 0.48, blue: 0.88, alpha: 1)
+        }
+    }
+
+    private func obstacleColor(for tone: HouseTanksObstacleTone) -> UIColor {
+        switch tone {
+        case .navy: UIColor(red: 0.18, green: 0.27, blue: 0.32, alpha: 1)
+        case .teal: UIColor(red: 0.24, green: 0.47, blue: 0.45, alpha: 1)
+        case .orange: UIColor(red: 0.84, green: 0.43, blue: 0.22, alpha: 1)
+        case .blue: UIColor(red: 0.33, green: 0.42, blue: 0.64, alpha: 1)
+        case .wood: UIColor(red: 0.58, green: 0.43, blue: 0.25, alpha: 1)
+        case .green: UIColor(red: 0.28, green: 0.50, blue: 0.34, alpha: 1)
         }
     }
 }

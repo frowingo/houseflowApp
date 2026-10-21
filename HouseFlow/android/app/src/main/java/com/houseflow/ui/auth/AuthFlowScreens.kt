@@ -239,7 +239,7 @@ internal fun ForgotPasswordScreen(state: AuthUiState, strings: LocalizedText, on
             Text(strings.get("forgot_password_check_inbox_title"), fontSize = 18.sp, fontWeight = FontWeight.Bold, color = ink)
             Text(strings.get("forgot_password_code_instruction_template").replace("{email}", state.forgotEmail),
                 fontSize = 14.sp, color = muted)
-            OtpField(state.code, onCode, strings.get("forgot_password_check_inbox_title"), true)
+            OtpField(state.code, onCode, strings.get("forgot_password_check_inbox_title"), false)
             FlowField(strings.get("forgot_password_new_password_label"), state.newPassword, onPassword,
                 strings.get("forgot_password_new_password_placeholder"), password = true, keyboard = KeyboardType.Password)
             FlowButton(strings.get("forgot_password_reset_button"), state.busy,

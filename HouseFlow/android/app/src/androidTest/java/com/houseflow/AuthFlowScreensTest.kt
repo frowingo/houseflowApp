@@ -70,7 +70,11 @@ class AuthFlowScreensTest {
         compose.onNodeWithContentDescription("Email Address").performTextInput("ada@example.com")
         compose.onNodeWithText("Send code").performClick()
         compose.onNodeWithText("Check inbox").assertExists()
-        compose.runOnIdle { assertEquals(1, sends) }
+        compose.onNodeWithContentDescription("Check inbox").performTextInput("a1b2c3")
+        compose.runOnIdle {
+            assertEquals(1, sends)
+            assertEquals("A1B2C3", state.code)
+        }
     }
 
     @Test fun birthdayScreenKeepsExistingHeadingAndSaveAction() {
