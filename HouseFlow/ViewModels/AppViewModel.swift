@@ -100,7 +100,10 @@ class AppViewModel: ObservableObject {
                 keychain: dependencies.keychain,
                 authService: dependencies.authService,
                 userService: dependencies.userService,
-                sessionRestorer: dependencies.sessionRestorer
+                sessionRestorer: dependencies.sessionRestorer,
+                socialAuthService: dependencies.socialAuthService,
+                socialCredentials: dependencies.socialCredentials,
+                socialConfig: dependencies.socialConfig
             ),
             toastStore: ToastStore(),
             overlayStore: OverlayStore(),
@@ -173,6 +176,9 @@ class AppViewModel: ObservableObject {
                     firstName: firstName,
                     lastName: lastName
                 )
+            },
+            socialSignInAction: { provider in
+                await sessionCoordinator.socialSignIn(provider)
             }
         )
         houseFlowCoordinator = HouseFlowCoordinator(
@@ -496,6 +502,22 @@ class AppViewModel: ObservableObject {
             houseFlowCoordinator.resetSession()
             dashboardCoordinator.clearSession()
         }
+    }
+
+    // MARK: - Social sign-in
+
+    var socialAuthStore: AuthSessionStore { authStore }
+
+    func completeSocialSignUp(email: String, code: String, firstName: String, lastName: String) async throws(SocialStepError) {
+        try await sessionCoordinator.completeSocialSignUp(
+            email: email, code: code, firstName: firstName, lastName: lastName
+        )
+    }
+
+    /// Deletes the account on the backend, then wipes local state and returns to sign-in.
+    func deleteAccount() async throws(SocialStepError) {
+        try await authStore.deleteAccount()
+        logout()
     }
 
     func cancelEmailVerification() {

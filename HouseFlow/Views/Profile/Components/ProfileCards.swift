@@ -165,8 +165,12 @@ struct ProfileSettingsCard: View {
     let languageSettingsLabel: String
     let aboutLabel: String
     let logoutLabel: String
+    let loginMethodsLabel: String
+    let deleteAccountLabel: String
     let onOpenLanguageSettings: () -> Void
     let onOpenAbout: () -> Void
+    let onOpenLoginMethods: () -> Void
+    let onDeleteAccount: () -> Void
     let onLogout: () -> Void
 
     var body: some View {
@@ -209,10 +213,24 @@ struct ProfileSettingsCard: View {
             )
             ProfileCardDivider()
             ProfileSettingsRow(
+                icon: "person.badge.key.fill",
+                tint: Color(red: 0.2, green: 0.6, blue: 0.5),
+                label: loginMethodsLabel,
+                action: onOpenLoginMethods
+            )
+            ProfileCardDivider()
+            ProfileSettingsRow(
                 icon: "rectangle.portrait.and.arrow.right",
                 tint: AppDesign.Colors.error,
                 label: logoutLabel,
                 action: onLogout
+            )
+            ProfileCardDivider()
+            ProfileSettingsRow(
+                icon: "trash.fill",
+                tint: AppDesign.Colors.error,
+                label: deleteAccountLabel,
+                action: onDeleteAccount
             )
         }
     }

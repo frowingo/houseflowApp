@@ -26,6 +26,9 @@ import androidx.compose.ui.unit.dp
 import com.houseflow.platform.AuthProfile
 import com.houseflow.platform.LocalizedText
 import com.houseflow.platform.ProfileChange
+import com.houseflow.platform.SocialProvider
+import com.houseflow.ui.auth.social
+import com.houseflow.viewmodel.AccountUiState
 import com.houseflow.ui.components.mainScreenBackground
 import com.houseflow.ui.dashboard.displayApiDate
 import com.houseflow.ui.main.TabBarClearance
@@ -87,6 +90,8 @@ private sealed interface ProfilePopup {
     data object About : ProfilePopup
     data object Phone : ProfilePopup
     data object Logout : ProfilePopup
+    data object LoginMethods : ProfilePopup
+    data object DeleteAccount : ProfilePopup
     data object Join : ProfilePopup
     data class House(val id: String) : ProfilePopup
 }
@@ -104,6 +109,14 @@ internal fun ProfileScreen(
     onRemoveMember: (String, String) -> Unit, onLeave: (String) -> Unit,
     onClearHouseError: () -> Unit,
     onOverlayChange: (Boolean) -> Unit = {},
+    accountState: AccountUiState = AccountUiState(),
+    socialProviders: List<SocialProvider> = emptyList(),
+    onOpenAccount: () -> Unit = {},
+    onLinkProvider: (SocialProvider) -> Unit = {},
+    onUnlinkProvider: (SocialProvider) -> Unit = {},
+    onRequestPasswordCode: () -> Unit = {},
+    onSetPassword: (String, String) -> Unit = { _, _ -> },
+    onDeleteAccount: () -> Unit = {},
 ) {
     var popup by remember { mutableStateOf<ProfilePopup?>(null) }
     var openedAt by remember { mutableLongStateOf(0) }
@@ -117,6 +130,7 @@ internal fun ProfileScreen(
             ProfilePopup.Avatar -> onLoadImages("profile/superhero")
             ProfilePopup.Language -> onLoadLanguages()
             is ProfilePopup.House -> onOpenHouse(next.id)
+            ProfilePopup.LoginMethods, ProfilePopup.DeleteAccount -> onOpenAccount()
             else -> Unit
         }
     }
@@ -223,8 +237,18 @@ internal fun ProfileScreen(
                         open(ProfilePopup.About)
                     }
                     ProfileCardDivider()
+                    ProfileSettingsRow(HouseFlowIcons.lockShieldFill, ProfileTints.personalTeal,
+                        strings.social("profile_login_methods_label", "Giriş yöntemleri", "Sign-in methods")) {
+                        open(ProfilePopup.LoginMethods)
+                    }
+                    ProfileCardDivider()
                     ProfileSettingsRow(HouseFlowIcons.logout, HouseFlowColors.error, strings.profileValue("profile_logout_label")) {
                         open(ProfilePopup.Logout)
+                    }
+                    ProfileCardDivider()
+                    ProfileSettingsRow(HouseFlowIcons.exclamationmarkTriangleFill, HouseFlowColors.error,
+                        strings.social("profile_delete_account_label", "Hesabı sil", "Delete account")) {
+                        open(ProfilePopup.DeleteAccount)
                     }
                 }
             }
@@ -239,6 +263,9 @@ internal fun ProfileScreen(
         ProfilePopup.About -> AboutDialog(strings, ::close)
         ProfilePopup.Phone -> PhoneManagementDialog(user, strings, ::close)
         ProfilePopup.Logout -> LogoutConfirmationPopup(strings, onConfirm = { close(); onLogout() }, onCancel = ::close)
+        ProfilePopup.LoginMethods -> LoginMethodsDialog(user, accountState, socialProviders, strings, ::close,
+            onLinkProvider, onUnlinkProvider, onRequestPasswordCode, onSetPassword)
+        ProfilePopup.DeleteAccount -> DeleteAccountDialog(accountState, strings, ::close, onDeleteAccount)
         ProfilePopup.Join -> JoinHouseDialog(house, strings, ::close, onJoin)
         is ProfilePopup.House -> HouseInfoDialog(shown.id, house, profile, strings, ::close,
             onOpenHouse, onInvite, onLoadImages, onUpdateHouse, onRemoveMember, onLeave)

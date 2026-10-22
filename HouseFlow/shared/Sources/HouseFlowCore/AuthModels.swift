@@ -128,6 +128,10 @@ public struct IsAuthUserData: Decodable, Sendable {
     public let lastName: String
     public let phoneNumber: String
     public let updatedOn: String
+    /// Added with social sign-in; nil when talking to an older backend.
+    public var signUpProvider: Int?
+    public var linkedProviders: [Int]?
+    public var hasPassword: Bool?
 
     public var fullName: String { "\(firstName) \(lastName)" }
 
@@ -146,8 +150,14 @@ public struct IsAuthUserData: Decodable, Sendable {
         lastLogin: String,
         lastName: String,
         phoneNumber: String,
-        updatedOn: String
+        updatedOn: String,
+        signUpProvider: Int? = nil,
+        linkedProviders: [Int]? = nil,
+        hasPassword: Bool? = nil
     ) {
+        self.signUpProvider = signUpProvider
+        self.linkedProviders = linkedProviders
+        self.hasPassword = hasPassword
         self.birthDate = birthDate
         self.createdOn = createdOn
         self.email = email
@@ -170,6 +180,7 @@ public struct IsAuthUserData: Decodable, Sendable {
         case createdOn, email, firstName, houseList, id, imageUrl
         case isActive, isVerifyEmail, isVerifyPhone, language, lastLogin, lastName
         case phoneNumber, updatedOn
+        case signUpProvider, linkedProviders, hasPassword
     }
 }
 

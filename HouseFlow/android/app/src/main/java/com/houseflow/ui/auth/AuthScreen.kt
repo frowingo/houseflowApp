@@ -28,6 +28,7 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowForward
 import androidx.compose.material.icons.filled.Email
+import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.Lock
 import androidx.compose.material.icons.filled.Person
 import androidx.compose.material3.CircularProgressIndicator
@@ -62,6 +63,7 @@ import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.houseflow.platform.LocalizedText
+import com.houseflow.platform.SocialProvider
 import com.houseflow.ui.components.FausButtonGradient
 import com.houseflow.ui.components.FausBadge
 import com.houseflow.ui.components.fausHeroBackground
@@ -88,6 +90,7 @@ internal fun AuthScreen(
     onMode: (AuthMode) -> Unit,
     onForgot: () -> Unit,
     onSubmit: () -> Unit,
+    onSocial: (SocialProvider) -> Unit = {},
 ) {
     val focus = LocalFocusManager.current
     Column(Modifier.fillMaxSize().background(Color.White)) {
@@ -151,6 +154,13 @@ internal fun AuthScreen(
                     Modifier.fillMaxWidth().background(Color.Red.copy(alpha = .08f), RoundedCornerShape(12.dp)).padding(12.dp),
                     color = Color.Red, fontSize = 15.sp)
             }
+            if (state.info != null) {
+                Row(Modifier.fillMaxWidth().background(Color(0xFF007AFF).copy(alpha = .10f), RoundedCornerShape(12.dp)).padding(12.dp),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.Top) {
+                    Icon(Icons.Filled.Info, null, Modifier.size(18.dp), tint = Color(0xFF007AFF))
+                    Text(state.info, color = ink, fontSize = 15.sp)
+                }
+            }
             if (state.notice != null) {
                 Text(state.notice,
                     Modifier.fillMaxWidth().background(Color(0xFF34C759).copy(alpha = .10f), RoundedCornerShape(12.dp)).padding(12.dp),
@@ -174,15 +184,27 @@ internal fun AuthScreen(
                         color = Color.White, fontWeight = FontWeight.Bold, fontSize = 17.sp)
                 }
             }
-            Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                Box(Modifier.weight(1f).height(1.dp).background(Color(0xFFE5E5EA)))
-                Text(strings.get("auth_divider_or"), color = secondary, fontSize = 12.sp)
-                Box(Modifier.weight(1f).height(1.dp).background(Color(0xFFE5E5EA)))
-            }
-            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(16.dp)) {
-                SocialButton(strings.get("auth_google_button"), SocialKind.Google, Color.White, ink, Modifier.weight(1f).border(1.dp, Color(0xFFD1D1D6), RoundedCornerShape(12.dp)))
-                SocialButton(strings.get("auth_apple_button"), SocialKind.Apple, Color.Black, Color.White, Modifier.weight(1f))
-                SocialButton(strings.get("auth_snapchat_button"), SocialKind.Snapchat, Color.Yellow, Color.Black, Modifier.weight(1f))
+            // Only providers this build enabled; Apple has no Android flow and is never listed.
+            if (state.socialProviders.isNotEmpty()) {
+                Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                    Box(Modifier.weight(1f).height(1.dp).background(Color(0xFFE5E5EA)))
+                    Text(strings.get("auth_divider_or"), color = secondary, fontSize = 12.sp)
+                    Box(Modifier.weight(1f).height(1.dp).background(Color(0xFFE5E5EA)))
+                }
+                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(16.dp)) {
+                    state.socialProviders.forEach { provider ->
+                        val onClick = { focus.clearFocus(); onSocial(provider) }
+                        when (provider) {
+                            SocialProvider.GOOGLE -> SocialButton(strings.get("auth_google_button"), SocialKind.Google, Color.White, ink,
+                                Modifier.weight(1f).border(1.dp, Color(0xFFD1D1D6), RoundedCornerShape(12.dp)), !state.busy, onClick)
+                            SocialProvider.FACEBOOK -> SocialButton("Facebook", SocialKind.Facebook, Color(0xFF1877F2), Color.White,
+                                Modifier.weight(1f), !state.busy, onClick)
+                            SocialProvider.SNAPCHAT -> SocialButton(strings.get("auth_snapchat_button"), SocialKind.Snapchat, Color(0xFFFFFC00),
+                                Color.Black, Modifier.weight(1f), !state.busy, onClick)
+                            SocialProvider.APPLE -> Unit
+                        }
+                    }
+                }
             }
         }
     }
@@ -224,10 +246,12 @@ private fun AuthField(label: String, placeholder: String, value: String, onValue
 }
 
 @Composable
-private fun SocialButton(label: String, kind: SocialKind, background: Color, foreground: Color, modifier: Modifier) {
-    Column(modifier.height(60.dp).clip(RoundedCornerShape(12.dp)).background(background),
+private fun SocialButton(label: String, kind: SocialKind, background: Color, foreground: Color, modifier: Modifier,
+    enabled: Boolean, onClick: () -> Unit) {
+    Column(modifier.height(60.dp).clip(RoundedCornerShape(12.dp)).background(background)
+        .clickable(enabled = enabled, onClick = onClick).semantics { contentDescription = label },
         verticalArrangement = Arrangement.Center, horizontalAlignment = Alignment.CenterHorizontally) {
-        SocialIcon(kind, foreground)
+        SocialIcon(kind)
         Text(label, color = foreground, fontSize = 12.sp)
     }
 }

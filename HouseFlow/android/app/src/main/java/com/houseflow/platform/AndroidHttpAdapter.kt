@@ -85,6 +85,8 @@ internal class AndroidHttpAdapter private constructor(
                 byteArrayOf().toRequestBody(contentType)
             } else null
         return Request.Builder().url(url).method(input.method, body).apply {
+            // Server error text comes back in this language; callers may override it.
+            header("Accept-Language", ApiLanguage.code)
             input.headers.forEach { (name, value) -> header(name, value) }
         }.build()
     }

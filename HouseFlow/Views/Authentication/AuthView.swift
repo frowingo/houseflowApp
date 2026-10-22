@@ -1,4 +1,5 @@
 import SwiftUI
+import HouseFlowCore
 
 struct AuthView: View {
     @ObservedObject var viewModel: AuthenticationViewModel
@@ -20,8 +21,11 @@ struct AuthView: View {
                         if let error = viewModel.errorMessage {
                             errorBanner(message: error)
                         }
+                        if let info = viewModel.infoMessage {
+                            infoBanner(message: info)
+                        }
                         primaryButton
-                        dividerRow
+                        if !viewModel.socialProviders.isEmpty { dividerRow }
                         socialRow
                     }
                     .padding(.horizontal, AppDesign.Spacing.xxl)
@@ -47,6 +51,9 @@ struct AuthView: View {
         .dismissKeyboardOnTap()
         .fullScreenCover(isPresented: $viewModel.isForgotPasswordPresented) {
             ForgotPasswordView()
+        }
+        .fullScreenCover(isPresented: $viewModel.isSocialEmailPresented) {
+            SocialEmailCompletionView()
         }
     }
 
@@ -239,41 +246,79 @@ struct AuthView: View {
 
     // MARK: - Social Login
 
+    @ViewBuilder
     private var socialRow: some View {
-        HStack(spacing: AppDesign.Spacing.lg) {
+        if !viewModel.socialProviders.isEmpty {
+            HStack(spacing: AppDesign.Spacing.lg) {
+                ForEach(viewModel.socialProviders, id: \.self) { provider in
+                    socialButton(for: provider)
+                }
+            }
+        }
+    }
+
+    @ViewBuilder
+    private func socialButton(for provider: SocialProvider) -> some View {
+        switch provider {
+        case .google:
             SocialLoginButton(
                 name: viewModel.localized("auth_google_button"),
                 backgroundColor: .white,
                 foregroundColor: .black,
                 borderColor: Color(.systemGray4),
-                action: { authenticateWithSocial("Google") }
+                action: { authenticateWithSocial(.google) }
             ) {
-                GoogleLogoView(size: 22)
+                SocialBrandLogo(provider: .google)
             }
-
+        case .apple:
             SocialLoginButton(
                 name: viewModel.localized("auth_apple_button"),
                 backgroundColor: .black,
                 foregroundColor: .white,
-                action: { authenticateWithSocial("Apple") }
+                action: { authenticateWithSocial(.apple) }
             ) {
-                Image(systemName: "applelogo")
-                    .font(.system(size: 20))
-                    .foregroundColor(.white)
+                SocialBrandLogo(provider: .apple)
             }
-
+        case .facebook:
+            SocialLoginButton(
+                name: "Facebook",
+                backgroundColor: SocialBrandColor.facebook,
+                foregroundColor: .white,
+                action: { authenticateWithSocial(.facebook) }
+            ) {
+                SocialBrandLogo(provider: .facebook)
+            }
+        case .snapchat:
             SocialLoginButton(
                 name: viewModel.localized("auth_snapchat_button"),
-                backgroundColor: Color.yellow,
+                backgroundColor: SocialBrandColor.snapchat,
                 foregroundColor: .black,
-                action: { authenticateWithSocial("Snapchat") }
+                action: { authenticateWithSocial(.snapchat) }
             ) {
-                SnapchatGhostView(size: 20, color: .black)
+                SocialBrandLogo(provider: .snapchat)
             }
+        case .email:
+            EmptyView()
         }
     }
 
     // MARK: - Error Banner
+
+    private func infoBanner(message: String) -> some View {
+        HStack(spacing: AppDesign.Spacing.sm) {
+            Image(systemName: "info.circle.fill")
+                .foregroundColor(AppDesign.Colors.primary)
+            Text(message)
+                .font(AppDesign.Typography.subheadline)
+                .foregroundColor(AppDesign.Colors.text)
+                .multilineTextAlignment(.leading)
+            Spacer()
+        }
+        .padding(AppDesign.Spacing.md)
+        .background(AppDesign.Colors.primary.opacity(0.1))
+        .cornerRadius(AppDesign.CornerRadius.md)
+        .accessibilityIdentifier("socialInfoBanner")
+    }
 
     private func errorBanner(message: String) -> some View {
         HStack(spacing: AppDesign.Spacing.sm) {
@@ -329,9 +374,9 @@ struct AuthView: View {
         }
     }
 
-    private func authenticateWithSocial(_ platform: String) {
+    private func authenticateWithSocial(_ provider: SocialProvider) {
         focusedField = nil
-        viewModel.beginSocialAuthentication(platform)
+        Task { await viewModel.signInWithSocial(provider) }
     }
 }
 

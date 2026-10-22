@@ -59,6 +59,12 @@ dependencies {
     implementation("androidx.lifecycle:lifecycle-viewmodel-compose:2.10.0")
     implementation("androidx.lifecycle:lifecycle-runtime-compose:2.10.0")
     implementation("androidx.navigation:navigation-compose:2.9.7")
+    // Social sign-in SDKs; each provider only proves identity, the session is our own JWT.
+    implementation("androidx.credentials:credentials:1.6.0")
+    implementation("androidx.credentials:credentials-play-services-auth:1.6.0")
+    implementation("com.google.android.libraries.identity.googleid:googleid:1.1.1") // 1.2.x needs Kotlin metadata 2.4; this project compiles with Kotlin 2.0
+    implementation("com.facebook.android:facebook-login:18.3.0")
+    implementation("com.snap.loginkit:loginkit:3.0.0")
     debugImplementation("androidx.compose.ui:ui-tooling")
     androidTestImplementation(platform("androidx.compose:compose-bom:2026.06.00"))
     androidTestImplementation("androidx.compose.ui:ui-test-junit4")

@@ -18,6 +18,18 @@ import com.houseflow.platform.PlatformLanguage
 import com.houseflow.platform.ProfileChange
 import com.houseflow.platform.ProfileImage
 import com.houseflow.platform.ProfileRepository
+import com.houseflow.platform.FacebookCredentialAdapter
+import com.houseflow.platform.GoogleCredentialAdapter
+import com.houseflow.platform.SnapchatCredentialAdapter
+import com.houseflow.platform.SocialActivityHolder
+import com.houseflow.platform.SocialAuthConfig
+import com.houseflow.platform.SocialAuthException
+import com.houseflow.platform.SocialCredential
+import com.houseflow.platform.SocialCredentialProvider
+import com.houseflow.platform.SocialCredentialRouter
+import com.houseflow.platform.SocialProvider
+import com.houseflow.platform.SocialSignInException
+import com.houseflow.platform.SocialSignInResult
 import java.io.IOException
 import java.time.LocalDate
 import java.time.ZoneId
@@ -36,12 +48,45 @@ internal sealed interface AuthRoute {
     data object Onboarding : AuthRoute
     data object SignIn : AuthRoute
     data object ForgotPassword : AuthRoute
+    /** A provider gave no email; the account opens only after the user verifies one. */
+    data object SocialEmail : AuthRoute
     data class Next(val destination: AuthDestination, val email: String) : AuthRoute
     data class RestoreError(val message: String?) : AuthRoute
 }
 
 internal enum class AuthMode { SIGN_IN, SIGN_UP }
 internal enum class ForgotPhase { IDLE, CODE_ENTRY, FAILED, COMPLETE }
+internal enum class SocialEmailStep { EMAIL, CODE }
+
+/** `needsEmail` registration. Memory only: the pending token is valid for 10 minutes and never persisted. */
+internal data class SocialPending(
+    val provider: SocialProvider,
+    val pendingToken: String,
+    val step: SocialEmailStep = SocialEmailStep.EMAIL,
+    val email: String = "",
+    val code: String = "",
+    val firstName: String = "",
+    val lastName: String = "",
+) {
+    val canSubmit: Boolean get() = when (step) {
+        SocialEmailStep.EMAIL -> email.trim().contains('@')
+        SocialEmailStep.CODE -> code.length == 6
+    }
+    override fun toString() = "SocialPending(provider=$provider, step=$step)"
+}
+
+/** Settings → sign-in methods and account deletion. */
+internal data class AccountUiState(
+    val busyProvider: SocialProvider? = null,
+    val message: String? = null,
+    /** [message] explains (not configured) rather than reports a failure. */
+    val messageIsInfo: Boolean = false,
+    val passwordBusy: Boolean = false,
+    val passwordCodeSent: Boolean = false,
+    val passwordSaved: Boolean = false,
+    val deleting: Boolean = false,
+    val deleteError: String? = null,
+)
 
 internal data class AuthUiState(
     val route: AuthRoute = AuthRoute.Restoring,
@@ -62,6 +107,10 @@ internal data class AuthUiState(
     val busy: Boolean = false,
     val error: String? = null,
     val notice: String? = null,
+    /** Neutral explanation, e.g. a sign-in method that is not set up in this build. */
+    val info: String? = null,
+    val socialProviders: List<SocialProvider> = emptyList(),
+    val socialPending: SocialPending? = null,
 ) {
     val canSubmit: Boolean get() = email.isNotEmpty() && password.isNotEmpty() &&
         (mode == AuthMode.SIGN_IN || (firstName.isNotEmpty() && lastName.isNotEmpty())) && !busy
@@ -83,13 +132,18 @@ internal class AuthViewModel(
     private val preferences: AndroidPreferencesStore,
     private val now: () -> Long = System::currentTimeMillis,
     private val profileRepository: ProfileRepository? = null,
+    private val socialCredentials: SocialCredentialProvider = SocialCredentialRouter(emptyMap()),
+    private val socialConfig: SocialAuthConfig = SocialAuthConfig(emptyList()),
 ) : ViewModel() {
-    private val mutableState = MutableStateFlow(AuthUiState())
+    private val mutableState = MutableStateFlow(AuthUiState(socialProviders = socialConfig.shown))
     val state: StateFlow<AuthUiState> = mutableState.asStateFlow()
     val text: StateFlow<LocalizedText> = localization.text
     private val mutableProfileState = MutableStateFlow(ProfileUiState())
     val profileState: StateFlow<ProfileUiState> = mutableProfileState.asStateFlow()
+    private val mutableAccountState = MutableStateFlow(AccountUiState())
+    val accountState: StateFlow<AccountUiState> = mutableAccountState.asStateFlow()
     private var sessionJob: Job? = null
+    private var accountJob: Job? = null
     private var profileJob: Job? = null
     private var imageJob: Job? = null
     private var languageJob: Job? = null
@@ -104,10 +158,10 @@ internal class AuthViewModel(
         restore()
     }
 
-    fun setEmail(value: String) { mutableState.value = mutableState.value.copy(email = value, error = null) }
-    fun setPassword(value: String) { mutableState.value = mutableState.value.copy(password = value, error = null) }
-    fun setFirstName(value: String) { mutableState.value = mutableState.value.copy(firstName = value, error = null) }
-    fun setLastName(value: String) { mutableState.value = mutableState.value.copy(lastName = value, error = null) }
+    fun setEmail(value: String) { mutableState.value = mutableState.value.copy(email = value, error = null, info = null) }
+    fun setPassword(value: String) { mutableState.value = mutableState.value.copy(password = value, error = null, info = null) }
+    fun setFirstName(value: String) { mutableState.value = mutableState.value.copy(firstName = value, error = null, info = null) }
+    fun setLastName(value: String) { mutableState.value = mutableState.value.copy(lastName = value, error = null, info = null) }
     fun setCode(value: String) {
         mutableState.value = mutableState.value.copy(code = value.filter { it.isLetterOrDigit() }
             .take(6).uppercase(), error = null)
@@ -331,12 +385,15 @@ internal class AuthViewModel(
         profileJob?.cancel()
         imageJob?.cancel()
         languageJob?.cancel()
+        accountJob?.cancel()
         sessionJob = viewModelScope.launch {
             mutableState.value = mutableState.value.copy(busy = true)
             try {
                 session.logout()
+                socialCredentials.signOutAll()
                 mutableProfileState.value = ProfileUiState()
-                mutableState.value = AuthUiState(route = signedOutRoute(preferences.hasSeenOnboarding()))
+                mutableAccountState.value = AccountUiState()
+                mutableState.value = signedOutState()
             } catch (cancel: CancellationException) {
                 throw cancel
             } catch (_: Exception) {
@@ -413,7 +470,7 @@ internal class AuthViewModel(
                 imageJob?.cancel()
                 languageJob?.cancel()
                 mutableProfileState.value = ProfileUiState()
-                mutableState.value = AuthUiState(route = signedOutRoute(preferences.hasSeenOnboarding()),
+                mutableState.value = signedOutState().copy(
                     notice = localization.text.value.get("language_settings_relogin_message"))
             } catch (cancel: CancellationException) { throw cancel }
             catch (error: Exception) { profileFail(error, busy = false) }
@@ -429,6 +486,248 @@ internal class AuthViewModel(
             error = (error as? AuthRequestException)?.serverMessage ?: "Request failed.",
         )
     }
+
+    // MARK: - Social sign-in / sign-up
+
+    /** Same request for sign-in and sign-up; the answer says whether the account is new. */
+    fun signInWithSocial(provider: SocialProvider) {
+        val current = state.value
+        if (current.busy) return
+        if (!socialConfig.isShown(provider)) {
+            mutableState.value = current.copy(error = SocialMessages.unavailable(), info = null)
+            return
+        }
+        if (!socialConfig.isConfigured(provider)) {
+            mutableState.value = current.copy(error = null, info = SocialMessages.notConfigured(provider))
+            return
+        }
+        sessionJob?.cancel()
+        sessionJob = viewModelScope.launch {
+            mutableState.value = current.copy(busy = true, error = null, notice = null, info = null)
+            val credential = providerCredential(provider) { message ->
+                mutableState.value = state.value.copy(busy = false, error = message)
+            } ?: return@launch
+            try {
+                when (val result = session.socialSignIn(provider, credential)) {
+                    is SocialSignInResult.SignedIn -> {
+                        applyLanguageBestEffort(result.profile.language)
+                        route(result.profile)
+                    }
+                    is SocialSignInResult.NeedsEmail -> mutableState.value = state.value.copy(
+                        route = AuthRoute.SocialEmail, busy = false, error = null,
+                        socialPending = SocialPending(provider, result.pendingToken,
+                            firstName = credential.firstName.orEmpty(), lastName = credential.lastName.orEmpty()),
+                    )
+                }
+            } catch (cancel: CancellationException) { throw cancel }
+            catch (error: AuthProfileException) {
+                mutableState.value = state.value.copy(route = AuthRoute.RestoreError(error.serverMessage), busy = false)
+            } catch (error: Exception) {
+                // 401: the provider token was rejected; close the SDK session so a retry starts clean.
+                if ((error as? SocialAuthException)?.status == 401) socialCredentials.signOutAll()
+                mutableState.value = state.value.copy(busy = false, error = SocialMessages.of(error))
+            }
+        }
+    }
+
+    fun setSocialEmail(value: String) = updatePending { it.copy(email = value) }
+    fun setSocialCode(value: String) = updatePending { it.copy(code = value.filter(Char::isLetterOrDigit).take(6).uppercase()) }
+    fun setSocialFirstName(value: String) = updatePending { it.copy(firstName = value.take(50)) }
+    fun setSocialLastName(value: String) = updatePending { it.copy(lastName = value.take(50)) }
+
+    /** Step 1, and "resend" on step 2: `POST auth/social/complete/code`. */
+    fun sendSocialCode() {
+        val current = state.value
+        val pending = current.socialPending ?: return
+        if (current.busy || !pending.email.trim().contains('@')) return
+        sessionJob?.cancel()
+        sessionJob = viewModelScope.launch {
+            mutableState.value = current.copy(busy = true, error = null)
+            try {
+                session.requestSocialCode(pending.pendingToken, pending.email)
+                updatePending(busy = false) { it.copy(step = SocialEmailStep.CODE, code = "") }
+            } catch (cancel: CancellationException) { throw cancel }
+            catch (error: Exception) { socialStepFailed(error) }
+        }
+    }
+
+    /** Step 2: `POST auth/social/complete`; 201 opens the account with a verified email. */
+    fun completeSocial() {
+        val current = state.value
+        val pending = current.socialPending ?: return
+        if (current.busy || pending.code.length != 6) return
+        sessionJob?.cancel()
+        sessionJob = viewModelScope.launch {
+            mutableState.value = current.copy(busy = true, error = null)
+            try {
+                val profile = session.completeSocial(pending.pendingToken, pending.email, pending.code,
+                    pending.firstName, pending.lastName)
+                applyLanguageBestEffort(profile.language)
+                mutableState.value = state.value.copy(socialPending = null)
+                route(profile)
+            } catch (cancel: CancellationException) { throw cancel }
+            catch (error: AuthProfileException) {
+                mutableState.value = state.value.copy(route = AuthRoute.RestoreError(error.serverMessage),
+                    busy = false, socialPending = null)
+            } catch (error: Exception) { socialStepFailed(error) }
+        }
+    }
+
+    fun cancelSocial() {
+        sessionJob?.cancel()
+        socialCredentials.signOutAll()
+        mutableState.value = state.value.copy(route = AuthRoute.SignIn, socialPending = null, busy = false, error = null)
+    }
+
+    /** 401: the pending token expired, so start the provider again. 409: try another email. */
+    private fun socialStepFailed(error: Exception) {
+        val message = SocialMessages.of(error)
+        when ((error as? SocialAuthException)?.status) {
+            401 -> {
+                socialCredentials.signOutAll()
+                mutableState.value = state.value.copy(route = AuthRoute.SignIn, socialPending = null, busy = false, error = message)
+            }
+            409 -> updatePending(busy = false, error = message) { it.copy(step = SocialEmailStep.EMAIL, code = "") }
+            else -> mutableState.value = state.value.copy(busy = false, error = message)
+        }
+    }
+
+    private fun updatePending(busy: Boolean? = null, error: String? = null, change: (SocialPending) -> SocialPending) {
+        val current = state.value
+        val pending = current.socialPending ?: return
+        mutableState.value = current.copy(socialPending = change(pending), busy = busy ?: current.busy, error = error)
+    }
+
+    // MARK: - Settings: sign-in methods
+
+    fun clearAccountMessage() {
+        mutableAccountState.value = accountState.value.copy(message = null, messageIsInfo = false, deleteError = null,
+            passwordSaved = false)
+    }
+
+    fun linkProvider(provider: SocialProvider) {
+        if (accountState.value.busyProvider != null || !socialConfig.isShown(provider)) return
+        if (!socialConfig.isConfigured(provider)) {
+            mutableAccountState.value = accountState.value.copy(message = SocialMessages.notConfigured(provider), messageIsInfo = true)
+            return
+        }
+        accountJob?.cancel()
+        accountJob = viewModelScope.launch {
+            mutableAccountState.value = accountState.value.copy(busyProvider = provider, message = null, messageIsInfo = false)
+            val credential = providerCredential(provider) { message ->
+                mutableAccountState.value = accountState.value.copy(busyProvider = null, message = message)
+            } ?: return@launch
+            try {
+                applyLinked(session.linkSocial(provider, credential))
+            } catch (cancel: CancellationException) { throw cancel }
+            catch (error: Exception) {
+                // 401 means a bad session *or* a bad provider token: ask auth/isAuth before signing out.
+                if ((error as? SocialAuthException)?.status == 401 && session.isSessionValid() == false) {
+                    mutableAccountState.value = AccountUiState()
+                    logout()
+                    return@launch
+                }
+                mutableAccountState.value = accountState.value.copy(busyProvider = null, message = SocialMessages.of(error))
+            }
+        }
+    }
+
+    fun unlinkProvider(provider: SocialProvider) {
+        if (accountState.value.busyProvider != null) return
+        accountJob?.cancel()
+        accountJob = viewModelScope.launch {
+            mutableAccountState.value = accountState.value.copy(busyProvider = provider, message = null, messageIsInfo = false)
+            try {
+                applyLinked(session.unlinkSocial(provider))
+            } catch (cancel: CancellationException) { throw cancel }
+            catch (error: Exception) {
+                val status = (error as? SocialAuthException)?.status
+                if (status == 401) {
+                    mutableAccountState.value = AccountUiState()
+                    logout()
+                    return@launch
+                }
+                if (status == 404) refreshProfile()
+                val message = SocialMessages.of(error) + if (status == 409) " " + SocialMessages.onlyMethodHint() else ""
+                mutableAccountState.value = accountState.value.copy(busyProvider = null, message = message)
+            }
+        }
+    }
+
+    /** Social accounts have no password; the forgot-password endpoints set one. */
+    fun requestPasswordSetup() {
+        val email = state.value.profile?.email ?: return
+        if (accountState.value.passwordBusy) return
+        accountJob?.cancel()
+        accountJob = viewModelScope.launch {
+            mutableAccountState.value = accountState.value.copy(passwordBusy = true, message = null)
+            try {
+                session.forgotPassword(email)
+                mutableAccountState.value = accountState.value.copy(passwordBusy = false, passwordCodeSent = true)
+            } catch (cancel: CancellationException) { throw cancel }
+            catch (error: Exception) {
+                mutableAccountState.value = accountState.value.copy(passwordBusy = false,
+                    message = (error as? AuthRequestException)?.serverMessage ?: SocialMessages.of(error))
+            }
+        }
+    }
+
+    fun setPassword(code: String, newPassword: String) {
+        val email = state.value.profile?.email ?: return
+        if (accountState.value.passwordBusy || code.length != 6 || newPassword.isEmpty()) return
+        accountJob?.cancel()
+        accountJob = viewModelScope.launch {
+            mutableAccountState.value = accountState.value.copy(passwordBusy = true, message = null)
+            try {
+                session.resetPassword(email, code, newPassword)
+                state.value.profile?.let { mutableState.value = state.value.copy(profile = it.copy(hasPassword = true)) }
+                mutableAccountState.value = accountState.value.copy(passwordBusy = false, passwordCodeSent = false, passwordSaved = true)
+                refreshProfile()
+            } catch (cancel: CancellationException) { throw cancel }
+            catch (error: Exception) {
+                mutableAccountState.value = accountState.value.copy(passwordBusy = false,
+                    message = (error as? AuthRequestException)?.serverMessage ?: SocialMessages.of(error))
+            }
+        }
+    }
+
+    private fun applyLinked(providers: List<Int>) {
+        state.value.profile?.let { mutableState.value = state.value.copy(profile = it.copy(linkedProviders = providers)) }
+        mutableAccountState.value = accountState.value.copy(busyProvider = null, message = null)
+    }
+
+    // MARK: - Account deletion (App Store 5.1.1(v); same flow on Android)
+
+    fun deleteAccount() {
+        if (accountState.value.deleting) return
+        accountJob?.cancel()
+        accountJob = viewModelScope.launch {
+            mutableAccountState.value = accountState.value.copy(deleting = true, deleteError = null)
+            try {
+                session.deleteAccount()
+            } catch (cancel: CancellationException) { throw cancel }
+            catch (error: Exception) {
+                mutableAccountState.value = accountState.value.copy(deleting = false, deleteError = SocialMessages.of(error))
+                return@launch
+            }
+            sessionJob?.cancel(); profileJob?.cancel(); imageJob?.cancel(); languageJob?.cancel()
+            socialCredentials.signOutAll()
+            mutableProfileState.value = ProfileUiState()
+            mutableAccountState.value = AccountUiState()
+            mutableState.value = signedOutState()
+        }
+    }
+
+    /** Returns null after reporting the failure; a closed provider sheet reports nothing. */
+    private suspend fun providerCredential(provider: SocialProvider, onFailure: (String?) -> Unit): SocialCredential? =
+        try {
+            socialCredentials.credential(provider)
+        } catch (cancel: CancellationException) { throw cancel }
+        catch (_: SocialSignInException.Cancelled) { onFailure(null); null }
+        catch (error: Exception) { onFailure(SocialMessages.of(error)); null }
+
+    private suspend fun signedOutState() =
+        AuthUiState(route = signedOutRoute(preferences.hasSeenOnboarding()), socialProviders = socialConfig.shown)
 
     fun onBackground() { backgroundAt = now() }
     fun onForeground() {
@@ -461,6 +760,12 @@ internal class AuthViewModel(
                 AndroidLocalizationState.live(applicationContext, http),
                 AndroidPreferencesStore(applicationContext),
                 profileRepository = ProfileRepository.live(applicationContext, http),
+                socialCredentials = SocialCredentialRouter(mapOf(
+                    SocialProvider.GOOGLE to GoogleCredentialAdapter(applicationContext, SocialActivityHolder::current),
+                    SocialProvider.FACEBOOK to FacebookCredentialAdapter(applicationContext, SocialActivityHolder::current),
+                    SocialProvider.SNAPCHAT to SnapchatCredentialAdapter(applicationContext, SocialActivityHolder::current),
+                )),
+                socialConfig = SocialAuthConfig.load(applicationContext),
             ) as T
         }
     }

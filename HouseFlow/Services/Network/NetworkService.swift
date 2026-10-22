@@ -143,7 +143,7 @@ final class NetworkService: NetworkServicing, HTTPRequestExecuting, HTTPClient {
         body: Data? = nil,
         token: String? = nil
     ) -> HTTPRequest {
-        var headers: [String: String] = [:]
+        var headers: [String: String] = ["Accept-Language": APILanguage.code]
         if body != nil { headers["Content-Type"] = "application/json" }
         if let token { headers["Authorization"] = "Bearer \(token)" }
 

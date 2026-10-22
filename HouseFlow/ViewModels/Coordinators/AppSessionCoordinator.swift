@@ -101,6 +101,18 @@ final class AppSessionCoordinator: ObservableObject {
     }
 
     @discardableResult
+    func socialSignIn(_ provider: SocialProvider) async -> SocialSignInResult {
+        let result = await authStore.socialSignIn(provider)
+        if case .signedIn = result { await didAuthenticate() }
+        return result
+    }
+
+    func completeSocialSignUp(email: String, code: String, firstName: String, lastName: String) async throws(SocialStepError) {
+        try await authStore.completeSocialSignUp(email: email, code: code, firstName: firstName, lastName: lastName)
+        await didAuthenticate()
+    }
+
+    @discardableResult
     func signup(email: String, password: String, firstName: String, lastName: String) async -> Bool {
         router.navigationDirection = .forward
         signupSuccessMessage = nil

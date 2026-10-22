@@ -37,6 +37,7 @@ internal class AndroidLocalizationState(
         val initial = persisted ?: cached?.first
         if (initial != null && desiredPrefix == null && mutableText.value.prefix == null) {
             mutableText.value = LocalizedText(initial, withContext(Dispatchers.IO) { cache.load(initial) })
+            ApiLanguage.update(initial)
         }
         val languages = try { repository.fetchLanguages() } catch (cancel: CancellationException) {
             throw cancel
@@ -53,6 +54,7 @@ internal class AndroidLocalizationState(
         val cached = withContext(Dispatchers.IO) { cache.load(normalized) }
         if (desiredPrefix != normalized) return
         mutableText.value = LocalizedText(normalized, cached)
+        ApiLanguage.update(normalized)
         preferences.setSelectedLanguage(normalized)
         val fresh = repository.values(normalized, forceRefresh)
         if (desiredPrefix == normalized) mutableText.value = LocalizedText(normalized, fresh)

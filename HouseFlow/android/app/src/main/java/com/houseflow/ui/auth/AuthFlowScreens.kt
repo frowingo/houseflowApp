@@ -249,3 +249,53 @@ internal fun ForgotPasswordScreen(state: AuthUiState, strings: LocalizedText, on
         ErrorText(state.error, strings)
     }
 }
+
+/** Copy for keys the remote catalog does not ship yet, in the API language. */
+internal fun LocalizedText.social(key: String, tr: String, en: String): String =
+    values[key] ?: if (com.houseflow.platform.ApiLanguage.code == "tr") tr else en
+
+/**
+ * `needsEmail`: the provider (Snapchat, Facebook without email) gave no address. The account
+ * is created only after the user verifies one with the emailed 6-character code.
+ */
+@Composable
+internal fun SocialEmailScreen(state: AuthUiState, strings: LocalizedText, onCancel: () -> Unit,
+    onEmail: (String) -> Unit, onSend: () -> Unit, onCode: (String) -> Unit,
+    onFirstName: (String) -> Unit, onLastName: (String) -> Unit, onComplete: () -> Unit) {
+    BackHandler(onBack = onCancel)
+    val pending = state.socialPending ?: return
+    val codeStep = pending.step == com.houseflow.viewmodel.SocialEmailStep.CODE
+    FlowScaffold(
+        strings.social("social_email_title", "Emailini doğrula", "Verify your email"),
+        if (codeStep) strings.social("social_code_subtitle", "${pending.email} adresine gönderilen 6 karakterlik kodu gir.",
+            "Enter the 6-character code sent to ${pending.email}.")
+        else strings.social("social_email_subtitle", "Hesabını açmak için bir email adresine ihtiyacımız var. Sana bir kod göndereceğiz.",
+            "We need an email address to create your account. We'll send you a code."),
+        Icons.Filled.Email, onCancel,
+    ) {
+        FlowField(strings.get("auth_email_label"), pending.email, onEmail, strings.get("auth_email_placeholder"),
+            readOnly = state.busy || codeStep, keyboard = KeyboardType.Email)
+        if (!codeStep) {
+            FlowButton(strings.social("social_email_send", "Kod gönder", "Send code"), state.busy,
+                !state.busy && pending.canSubmit, onSend)
+        } else {
+            OtpField(pending.code, onCode, strings.social("social_code_label", "Doğrulama kodu", "Verification code"), false)
+            Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                Box(Modifier.weight(1f)) {
+                    FlowField(strings.get("auth_first_name_label"), pending.firstName, onFirstName, strings.get("auth_first_name_placeholder"))
+                }
+                Box(Modifier.weight(1f)) {
+                    FlowField(strings.get("auth_last_name_label"), pending.lastName, onLastName, strings.get("auth_last_name_placeholder"))
+                }
+            }
+            FlowButton(strings.social("social_code_confirm", "Hesabı oluştur", "Create account"), state.busy,
+                !state.busy && pending.canSubmit, onComplete)
+            Text(strings.social("social_code_resend", "Tekrar gönder", "Resend code"),
+                Modifier.fillMaxWidth().clickable(enabled = !state.busy, onClick = onSend),
+                color = HouseFlowColors.accentOrangeInk, fontSize = 15.sp, fontWeight = FontWeight.SemiBold, textAlign = TextAlign.Center)
+        }
+        ErrorText(state.error, strings)
+        Text(strings.get("common_cancel"), Modifier.fillMaxWidth().clickable(onClick = onCancel),
+            color = muted, fontSize = 15.sp, textAlign = TextAlign.Center)
+    }
+}

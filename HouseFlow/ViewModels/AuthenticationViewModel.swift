@@ -1,5 +1,6 @@
 import Foundation
 import Combine
+import HouseFlowCore
 
 @MainActor
 final class AuthenticationViewModel: ObservableObject {
@@ -16,25 +17,31 @@ final class AuthenticationViewModel: ObservableObject {
         _ lastName: String
     ) async -> Bool
 
+    typealias SocialSignInAction = (_ provider: SocialProvider) async -> SocialSignInResult
+
     @Published private(set) var mode: Mode = .signIn
     @Published var firstName = ""
     @Published var lastName = ""
     @Published var email = ""
     @Published var password = ""
     @Published var isForgotPasswordPresented = false
+    @Published var isSocialEmailPresented = false
 
     private let authStore: AuthSessionStore
     private let localizationStore: LocalizationStore
     private let loginAction: LoginAction
     private let signupAction: SignupAction
+    private let socialSignInAction: SocialSignInAction?
     private var cancellables = Set<AnyCancellable>()
 
     init(
         authStore: AuthSessionStore,
         localizationStore: LocalizationStore,
         loginAction: @escaping LoginAction,
-        signupAction: @escaping SignupAction
+        signupAction: @escaping SignupAction,
+        socialSignInAction: SocialSignInAction? = nil
     ) {
+        self.socialSignInAction = socialSignInAction
         self.authStore = authStore
         self.localizationStore = localizationStore
         self.loginAction = loginAction
@@ -93,10 +100,21 @@ final class AuthenticationViewModel: ObservableObject {
         }
     }
 
-    func beginSocialAuthentication(_ platform: String) {
-        // The social providers are presentation-ready but do not have an
-        // authentication use case yet. Keeping this boundary here prevents the
-        // view from acquiring another application-wide dependency later.
+    /// Buttons to show, in display order: every listed provider, configured or not.
+    var socialProviders: [SocialProvider] {
+        let order: [SocialProvider] = [.google, .apple, .facebook, .snapchat]
+        return order.filter { authStore.shownSocialProviders.contains($0) }
+    }
+
+    var infoMessage: String? {
+        authStore.authInfo
+    }
+
+    func signInWithSocial(_ provider: SocialProvider) async {
+        guard !isLoading, let socialSignInAction else { return }
+        if await socialSignInAction(provider) == .needsEmail {
+            isSocialEmailPresented = true
+        }
     }
 
     private func clearForm() {

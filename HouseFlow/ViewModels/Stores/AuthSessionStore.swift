@@ -6,24 +6,37 @@ import HouseFlowCore
 final class AuthSessionStore: ObservableObject {
     @Published var isAuthenticated = false
     @Published var currentUser: User?
-    @Published private(set) var isLoading = false
-    @Published private(set) var authError: String?
+    @Published var isLoading = false
+    @Published var authError: String?
+    /// Neutral notice, e.g. a sign-in method that is not set up in this build.
+    @Published var authInfo: String?
+    /// Set while a provider that gave no email waits for the user to verify one. Memory only.
+    @Published var socialPending: SocialPendingRegistration?
     @Published private(set) var successToast: String?
     @Published private(set) var pendingEmailVerification: String?
     @Published private(set) var currentUserId: String?
-    @Published private(set) var currentUserProfile: IsAuthUserData?
+    @Published internal(set) var currentUserProfile: IsAuthUserData?
 
     private let keychain: any KeychainStoring
     private let authService: any AuthServicing
     private let userService: any UserServicing
     private let sessionRestorer: (any SessionRestoring)?
+    let socialAuthService: (any SocialAuthServicing)?
+    let socialCredentials: (any SocialCredentialProviding)?
+    let socialConfig: SocialAuthConfig
 
     init(
         keychain: any KeychainStoring,
         authService: any AuthServicing,
         userService: any UserServicing,
-        sessionRestorer: (any SessionRestoring)? = nil
+        sessionRestorer: (any SessionRestoring)? = nil,
+        socialAuthService: (any SocialAuthServicing)? = nil,
+        socialCredentials: (any SocialCredentialProviding)? = nil,
+        socialConfig: SocialAuthConfig = SocialAuthConfig(enabledProviders: [])
     ) {
+        self.socialAuthService = socialAuthService
+        self.socialCredentials = socialCredentials
+        self.socialConfig = socialConfig
         self.keychain = keychain
         self.authService = authService
         self.userService = userService
@@ -34,6 +47,7 @@ final class AuthSessionStore: ObservableObject {
     func login(email: String, password: String) async -> Bool {
         isLoading = true
         authError = nil
+        authInfo = nil
         defer { isLoading = false }
 
         do {
@@ -49,6 +63,7 @@ final class AuthSessionStore: ObservableObject {
     func signup(email: String, password: String, firstName: String, lastName: String) async -> Bool {
         isLoading = true
         authError = nil
+        authInfo = nil
         defer { isLoading = false }
 
         do {
@@ -126,7 +141,10 @@ final class AuthSessionStore: ObservableObject {
             lastLogin: data.lastLogin,
             lastName: data.lastName,
             phoneNumber: data.phoneNumber,
-            updatedOn: data.updatedOn
+            updatedOn: data.updatedOn,
+            signUpProvider: currentUserProfile?.signUpProvider,
+            linkedProviders: currentUserProfile?.linkedProviders,
+            hasPassword: currentUserProfile?.hasPassword
         )
     }
 
@@ -170,11 +188,14 @@ final class AuthSessionStore: ObservableObject {
     }
 
     func logout() {
+        socialCredentials?.signOutAll()
+        socialPending = nil
         authService.logout()
         clearPendingEmailVerification()
         isAuthenticated = false
         isLoading = false
         authError = nil
+        authInfo = nil
         successToast = nil
         clearUser()
     }
@@ -213,6 +234,7 @@ final class AuthSessionStore: ObservableObject {
 
     func clearFeedback() {
         authError = nil
+        authInfo = nil
         successToast = nil
     }
 }

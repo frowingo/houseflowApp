@@ -10,6 +10,8 @@ struct ProfileView: View {
     @State private var showAbout = false
     @State private var showPhoneManagement = false
     @State private var showLogoutConfirmation = false
+    @State private var showLoginMethods = false
+    @State private var showDeleteAccount = false
     @State private var showJoinHouse = false
     @State private var selectedHouseForInfo: AuthHouseSummary?
     @State private var appeared = false
@@ -37,6 +39,12 @@ struct ProfileView: View {
         .onChange(of: showLogoutConfirmation) { _, _ in syncOverlayPresentation() }
         .onChange(of: showJoinHouse) { _, _ in syncOverlayPresentation() }
         .onChange(of: selectedHouseForInfo) { _, _ in syncOverlayPresentation() }
+        .sheet(isPresented: $showLoginMethods) {
+            LoginMethodsView().environmentObject(appViewModel)
+        }
+        .sheet(isPresented: $showDeleteAccount) {
+            DeleteAccountView().environmentObject(appViewModel)
+        }
         .onDisappear {
             appViewModel.isOverlayPresented = false
         }
@@ -194,6 +202,8 @@ struct ProfileView: View {
             languageSettingsLabel: appViewModel.localized("profile_language_settings_label"),
             aboutLabel: appViewModel.localized("profile_about_label"),
             logoutLabel: appViewModel.localized("profile_logout_label", fallback: "Log out"),
+            loginMethodsLabel: appViewModel.social("profile_login_methods_label", tr: "Giriş yöntemleri", en: "Sign-in methods"),
+            deleteAccountLabel: appViewModel.social("profile_delete_account_label", tr: "Hesabı sil", en: "Delete account"),
             onOpenLanguageSettings: {
                 withAnimation(AppDesign.Animation.standard) {
                     showLanguageSettings = true
@@ -204,6 +214,8 @@ struct ProfileView: View {
                     showAbout = true
                 }
             },
+            onOpenLoginMethods: { showLoginMethods = true },
+            onDeleteAccount: { showDeleteAccount = true },
             onLogout: {
                 withAnimation(AppDesign.Animation.standard) {
                     showLogoutConfirmation = true

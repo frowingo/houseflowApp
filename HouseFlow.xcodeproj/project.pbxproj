@@ -9,6 +9,10 @@
 /* Begin PBXBuildFile section */
 		A20000000000000000000003 /* HouseFlowCore in Frameworks */ = {isa = PBXBuildFile; productRef = A20000000000000000000002 /* HouseFlowCore */; };
 		A20000000000000000000005 /* HouseFlowCore in Frameworks */ = {isa = PBXBuildFile; productRef = A20000000000000000000004 /* HouseFlowCore */; };
+		A20000000000000000000121 /* GoogleSignIn in Frameworks */ = {isa = PBXBuildFile; productRef = A20000000000000000000111 /* GoogleSignIn */; };
+		A20000000000000000000122 /* FacebookCore in Frameworks */ = {isa = PBXBuildFile; productRef = A20000000000000000000112 /* FacebookCore */; };
+		A20000000000000000000123 /* FacebookLogin in Frameworks */ = {isa = PBXBuildFile; productRef = A20000000000000000000113 /* FacebookLogin */; };
+		A20000000000000000000124 /* SnapSDK in Frameworks */ = {isa = PBXBuildFile; productRef = A20000000000000000000114 /* SnapSDK */; };
 		A30000000000000000000001 /* HouseFlowApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = A30000000000000000000003 /* HouseFlowApp.swift */; };
 		A30000000000000000000002 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = A30000000000000000000004 /* Assets.xcassets */; };
 /* End PBXBuildFile section */
@@ -64,6 +68,10 @@
 			buildActionMask = 2147483647;
 			files = (
 				A20000000000000000000003 /* HouseFlowCore in Frameworks */,
+				A20000000000000000000121 /* GoogleSignIn in Frameworks */,
+				A20000000000000000000122 /* FacebookCore in Frameworks */,
+				A20000000000000000000123 /* FacebookLogin in Frameworks */,
+				A20000000000000000000124 /* SnapSDK in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -133,6 +141,10 @@
 			name = HouseFlow;
 			packageProductDependencies = (
 				A20000000000000000000002 /* HouseFlowCore */,
+				A20000000000000000000111 /* GoogleSignIn */,
+				A20000000000000000000112 /* FacebookCore */,
+				A20000000000000000000113 /* FacebookLogin */,
+				A20000000000000000000114 /* SnapSDK */,
 			);
 			productName = HouseFlow;
 			productReference = 0F6663B22ED8FB930023ADA0 /* HouseFlow.app */;
@@ -192,6 +204,9 @@
 			minimizedProjectReferenceProxies = 1;
 			packageReferences = (
 				A20000000000000000000001 /* XCLocalSwiftPackageReference "HouseFlow/shared" */,
+				A20000000000000000000101 /* XCRemoteSwiftPackageReference "GoogleSignIn-iOS" */,
+				A20000000000000000000102 /* XCRemoteSwiftPackageReference "facebook-ios-sdk" */,
+				A20000000000000000000103 /* XCRemoteSwiftPackageReference "snap-kit-spm" */,
 			);
 			preferredProjectObjectVersion = 77;
 			productRefGroup = 0F6663B32ED8FB930023ADA0 /* Products */;
@@ -411,6 +426,7 @@
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				CODE_SIGN_ENTITLEMENTS = HouseFlow.entitlements;
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
 				DEVELOPMENT_TEAM = 5H3BB7M794;
@@ -535,6 +551,33 @@
 		};
 /* End XCLocalSwiftPackageReference section */
 
+/* Begin XCRemoteSwiftPackageReference section */
+		A20000000000000000000101 /* XCRemoteSwiftPackageReference "GoogleSignIn-iOS" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/google/GoogleSignIn-iOS";
+			requirement = {
+				kind = exactVersion;
+				version = 10.0.0;
+			};
+		};
+		A20000000000000000000102 /* XCRemoteSwiftPackageReference "facebook-ios-sdk" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/facebook/facebook-ios-sdk";
+			requirement = {
+				kind = exactVersion;
+				version = 18.1.1;
+			};
+		};
+		A20000000000000000000103 /* XCRemoteSwiftPackageReference "snap-kit-spm" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/Snapchat/snap-kit-spm";
+			requirement = {
+				kind = exactVersion;
+				version = 2.6.0;
+			};
+		};
+/* End XCRemoteSwiftPackageReference section */
+
 /* Begin XCSwiftPackageProductDependency section */
 		A20000000000000000000002 /* HouseFlowCore */ = {
 			isa = XCSwiftPackageProductDependency;
@@ -545,6 +588,26 @@
 			isa = XCSwiftPackageProductDependency;
 			package = A20000000000000000000001 /* XCLocalSwiftPackageReference "HouseFlow/shared" */;
 			productName = HouseFlowCore;
+		};
+		A20000000000000000000111 /* GoogleSignIn */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = A20000000000000000000101 /* XCRemoteSwiftPackageReference "GoogleSignIn-iOS" */;
+			productName = GoogleSignIn;
+		};
+		A20000000000000000000112 /* FacebookCore */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = A20000000000000000000102 /* XCRemoteSwiftPackageReference "facebook-ios-sdk" */;
+			productName = FacebookCore;
+		};
+		A20000000000000000000113 /* FacebookLogin */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = A20000000000000000000102 /* XCRemoteSwiftPackageReference "facebook-ios-sdk" */;
+			productName = FacebookLogin;
+		};
+		A20000000000000000000114 /* SnapSDK */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = A20000000000000000000103 /* XCRemoteSwiftPackageReference "snap-kit-spm" */;
+			productName = SnapSDK;
 		};
 /* End XCSwiftPackageProductDependency section */
 	};

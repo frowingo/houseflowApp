@@ -1,4 +1,5 @@
 import CoreGraphics
+import SpriteKit
 import XCTest
 @testable import HouseFlow
 

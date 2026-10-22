@@ -42,6 +42,8 @@ struct HouseFlowApp: App {
                 }
             }
             .preferredColorScheme(.light)
+            // Google, Facebook and Snapchat return to the app through these redirects.
+            .onOpenURL { SocialURLHandler.handle($0) }
         }
         .onChange(of: scenePhase) { _, newPhase in
             if newPhase == .background {

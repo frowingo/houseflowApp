@@ -49,12 +49,17 @@ grep -Eq 'public static java\.lang\.String gameCatalogResponse\(java\.lang\.Stri
 grep -Eq 'public static int appEventsCreate\(\)' "$java_file"
 grep -Eq 'public static boolean appEventsDestroy\(int handle\)' "$java_file"
 grep -Eq 'public static java\.lang\.String appEventsEvent\(int handle, java\.lang\.String eventJSON\)' "$java_file"
+grep -Eq 'public static java\.lang\.String socialProviderSlug\(int provider\)' "$java_file"
+grep -Eq 'public static java\.lang\.String socialSignInRequestBody\(java\.lang\.String idToken, java\.lang\.String accessToken, java\.lang\.String nonce, java\.lang\.String authorizationCode, java\.lang\.String firstName, java\.lang\.String lastName, java\.lang\.String language\)' "$java_file"
+grep -Eq 'public static java\.lang\.String socialCompleteCodeRequestBody\(java\.lang\.String pendingToken, java\.lang\.String email\)' "$java_file"
+grep -Eq 'public static java\.lang\.String socialCompleteRequestBody\(java\.lang\.String pendingToken, java\.lang\.String email, java\.lang\.String code, java\.lang\.String firstName, java\.lang\.String lastName, java\.lang\.String language\)' "$java_file"
+grep -Eq 'public static java\.lang\.String socialResponse\(java\.lang\.String action, int status, java\.lang\.String body\)' "$java_file"
 grep -Fq 'SwiftLibraries.loadLibraryWithFallbacks(LIB_NAME);' "$java_file"
 
 public_methods=$(grep -Ec '^[[:space:]]*public static .*\(' "$java_file")
-if [ "$public_methods" -ne 39 ]; then
-    echo "Expected exactly thirty-nine public JNI methods, found ${public_methods}" >&2
+if [ "$public_methods" -ne 44 ]; then
+    echo "Expected exactly forty-four public JNI methods, found ${public_methods}" >&2
     exit 1
 fi
 
-echo 'Generated JNI API matches the version-9 Kotlin boundary.'
+echo 'Generated JNI API matches the version-10 Kotlin boundary.'

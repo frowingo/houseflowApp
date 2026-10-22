@@ -30,6 +30,7 @@ import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
 import com.houseflow.platform.AppLifecycle
+import com.houseflow.platform.SocialActivityHolder
 import com.houseflow.platform.AppVisibility
 import com.houseflow.viewmodel.AppEventsRequest
 import com.houseflow.viewmodel.AppEventsViewModel
@@ -38,6 +39,7 @@ import com.houseflow.ui.auth.AuthScreen
 import com.houseflow.ui.auth.BirthdaySetupScreen
 import com.houseflow.ui.auth.EmailVerificationScreen
 import com.houseflow.ui.auth.ForgotPasswordScreen
+import com.houseflow.ui.auth.SocialEmailScreen
 import com.houseflow.ui.onboarding.OnboardingScreen
 import com.houseflow.ui.house.CreateHouseScreen
 import com.houseflow.ui.dashboard.DashboardScreen
@@ -60,6 +62,8 @@ class MainActivity : ComponentActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        // Provider SDKs (Credential Manager, Facebook, Snap) present from this activity.
+        SocialActivityHolder.attach(this)
         // The theme paints the launch window brand orange; the app itself sits on white.
         window.setBackgroundDrawableResource(android.R.color.white)
         val coldStart = savedInstanceState == null
@@ -78,6 +82,7 @@ class MainActivity : ComponentActivity() {
             val state by model.state.collectAsStateWithLifecycle()
             val houseState by houseModel.state.collectAsStateWithLifecycle()
             val profileState by model.profileState.collectAsStateWithLifecycle()
+            val accountState by model.accountState.collectAsStateWithLifecycle()
             val text by model.text.collectAsStateWithLifecycle()
             var selectedTab by rememberSaveable { mutableStateOf(MainTab.HOME) }
             var showsHouseRockets by rememberSaveable { mutableStateOf(false) }
@@ -115,6 +120,7 @@ class MainActivity : ComponentActivity() {
             }
             LaunchedEffect(state.route, showsSplash) {
                 val isAuth = state.route is AuthRoute.SignIn || state.route is AuthRoute.ForgotPassword ||
+                    state.route is AuthRoute.SocialEmail ||
                     (state.route is AuthRoute.Next && (state.route as AuthRoute.Next).destination == AuthDestination.EMAIL_VERIFICATION)
                 window.statusBarColor = when {
                     showsSplash -> android.graphics.Color.TRANSPARENT
@@ -131,6 +137,7 @@ class MainActivity : ComponentActivity() {
                 AuthRoute.Onboarding -> "onboarding"
                 AuthRoute.SignIn -> "auth"
                 AuthRoute.ForgotPassword -> "forgot"
+                AuthRoute.SocialEmail -> "socialEmail"
                 is AuthRoute.Next -> when (currentRoute.destination) {
                     AuthDestination.EMAIL_VERIFICATION -> "verify"
                     AuthDestination.BIRTHDAY_SETUP -> "birthday"
@@ -164,7 +171,12 @@ class MainActivity : ComponentActivity() {
                 }
                 composable("auth") {
                     AuthScreen(state, text, model::setEmail, model::setPassword, model::setFirstName,
-                        model::setLastName, model::selectMode, model::openForgotPassword, model::submitAuth)
+                        model::setLastName, model::selectMode, model::openForgotPassword, model::submitAuth,
+                        model::signInWithSocial)
+                }
+                composable("socialEmail") {
+                    SocialEmailScreen(state, text, model::cancelSocial, model::setSocialEmail, model::sendSocialCode,
+                        model::setSocialCode, model::setSocialFirstName, model::setSocialLastName, model::completeSocial)
                 }
                 composable("forgot") {
                     ForgotPasswordScreen(state, text, model::closeForgotPassword, model::setForgotEmail,
@@ -220,7 +232,15 @@ class MainActivity : ComponentActivity() {
                                     model::clearProfileError, houseModel::joinFromProfile,
                                     houseModel::loadInfo, houseModel::clearInfo, houseModel::createInvite,
                                     houseModel::updateHouseProfile, houseModel::removeMember,
-                                    houseModel::leaveHouse, houseModel::clearProfileError, onOverlayChange)
+                                    houseModel::leaveHouse, houseModel::clearProfileError, onOverlayChange,
+                                    accountState = accountState,
+                                    socialProviders = state.socialProviders,
+                                    onOpenAccount = { model.clearAccountMessage(); model.refreshProfile() },
+                                    onLinkProvider = model::linkProvider,
+                                    onUnlinkProvider = model::unlinkProvider,
+                                    onRequestPasswordCode = model::requestPasswordSetup,
+                                    onSetPassword = model::setPassword,
+                                    onDeleteAccount = model::deleteAccount)
                             }
                         },
                         dashboard = { onOverlayChange ->
@@ -258,6 +278,11 @@ class MainActivity : ComponentActivity() {
             if (showsSplash) FausSplash(onReveal = { splashCovering = false }) { showsSplash = false }
             }
         }
+    }
+
+    override fun onDestroy() {
+        SocialActivityHolder.detach(this)
+        super.onDestroy()
     }
 
     override fun onStart() {

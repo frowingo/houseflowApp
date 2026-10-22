@@ -2,7 +2,7 @@ import Foundation
 import HouseFlowCore
 
 /// Narrow, versioned JNI boundary. HTTP execution and secure storage stay on Android.
-public func bridgeVersion() -> Int32 { 9 }
+public func bridgeVersion() -> Int32 { 10 }
 
 public func normalizeInviteCode(_ input: String) -> String {
     InviteCodeRules.normalized(input)
@@ -74,7 +74,7 @@ public func loginResponse(_ status: Int32, _ body: String) -> String {
 public func profileResponse(_ status: Int32, _ body: String) -> String {
     do {
         let profile = try AuthWireContract.profile(from: response(status, body))
-        return json([
+        var payload: [String: Any] = [
             "ok": true,
             "destination": AuthWireContract.destination(for: profile).rawValue,
             "userId": profile.id,
@@ -93,7 +93,12 @@ public func profileResponse(_ status: Int32, _ body: String) -> String {
                 "houseName": $0.houseName,
                 "houseProfile": $0.houseProfile
             ] }
-        ])
+        ]
+        // Sign-in methods; absent when the backend predates social sign-in.
+        if let provider = profile.signUpProvider { payload["signUpProvider"] = provider }
+        if let linked = profile.linkedProviders { payload["linkedProviders"] = linked }
+        if let hasPassword = profile.hasPassword { payload["hasPassword"] = hasPassword }
+        return json(payload)
     } catch {
         return failure(error)
     }

@@ -7,6 +7,9 @@ struct AppDependencies {
     let keychain: any KeychainStoring
     let authService: any AuthServicing
     let sessionRestorer: (any SessionRestoring)?
+    var socialAuthService: (any SocialAuthServicing)? = nil
+    var socialCredentials: (any SocialCredentialProviding)? = nil
+    var socialConfig = SocialAuthConfig(enabledProviders: [])
     let userService: any UserServicing
     let houseService: any HouseServicing
     let choreService: any ChoreServicing
@@ -23,12 +26,22 @@ struct AppDependencies {
         let gameURL = gameBaseURL ?? AppEnvironment.current.baseURL
         let gameNetwork = gameBaseURL == nil ? network : NetworkService(baseURL: gameURL)
 
+        let credentials = SocialCredentialRouter(adapters: [
+            .google: GoogleCredentialProvider(),
+            .apple: AppleCredentialProvider(),
+            .facebook: FacebookCredentialProvider(),
+            .snapchat: SnapchatCredentialProvider(),
+        ])
+
         return AppDependencies(
             keychain: keychain,
             authService: AuthService(network: network, keychain: keychain),
             sessionRestorer: SessionRestoreAdapter(
                 useCase: RestoreSessionUseCase(httpClient: network, secureStore: keychain)
             ),
+            socialAuthService: SocialAuthService(http: network, keychain: keychain),
+            socialCredentials: credentials,
+            socialConfig: SocialAuthConfig.load(),
             userService: UserService(network: network, keychain: keychain),
             houseService: HouseService(network: network, keychain: keychain),
             choreService: ChoreService(network: network, keychain: keychain),

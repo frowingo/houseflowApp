@@ -4,7 +4,9 @@ import HouseFlowCore
 
 @MainActor
 final class LocalizationStore: ObservableObject {
-    @Published private(set) var languagePrefix: String?
+    @Published private(set) var languagePrefix: String? {
+        didSet { APILanguage.update(prefix: languagePrefix) }
+    }
     @Published private(set) var availableLanguages: [LocalizationLanguage] = []
     @Published private(set) var values: [String: String]
     @Published private(set) var isRefreshing = false
@@ -24,6 +26,7 @@ final class LocalizationStore: ObservableObject {
 
         if let cached = cache.loadMostRecent() {
             self.languagePrefix = cached.languagePrefix
+            APILanguage.update(prefix: cached.languagePrefix)
             self.values = cached.values
         } else {
             self.languagePrefix = nil
