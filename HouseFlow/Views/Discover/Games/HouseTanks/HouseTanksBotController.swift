@@ -20,6 +20,11 @@ final class HouseTanksBotController {
         self.randomUnit = randomUnit
     }
 
+    // The controller owns no resources to tear down. Keeping deinit nonisolated avoids the
+    // main-actor executor hop (swift_task_deinitOnExecutor), which crashes when the last
+    // reference is released from a synchronous context with no current task.
+    nonisolated deinit {}
+
     func shouldFire(
         observation: HouseTanksBotObservation,
         difficulty: HouseTanksDifficulty
