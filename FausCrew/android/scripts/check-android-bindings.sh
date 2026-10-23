@@ -11,6 +11,11 @@ fi
 
 grep -Fqx 'package com.fauscrew.androidbridge;' "$java_file"
 grep -Eq 'public static int bridgeVersion\(\)' "$java_file"
+grep -Eq 'public static int houseTanksBotCreate\(\)' "$java_file"
+grep -Eq 'public static java\.lang\.String houseTanksBotStart\(int handle, java\.lang\.String difficulty, java\.lang\.String color, java\.lang\.String map\)' "$java_file"
+grep -Eq 'public static java\.lang\.String houseTanksBotStep\(int handle, double delta\)' "$java_file"
+grep -Eq 'public static java\.lang\.String houseTanksBotPress\(int handle, boolean pressed\)' "$java_file"
+grep -Eq 'public static java\.lang\.String houseTanksMaps\(\)' "$java_file"
 grep -Eq 'public static java\.lang\.String normalizeInviteCode\(java\.lang\.String input\)' "$java_file"
 grep -Eq 'public static java\.lang\.String loginRequestBody\(java\.lang\.String email, java\.lang\.String password\)' "$java_file"
 grep -Eq 'public static java\.lang\.String loginResponse\(int status, java\.lang\.String body\)' "$java_file"
@@ -57,9 +62,9 @@ grep -Eq 'public static java\.lang\.String socialResponse\(java\.lang\.String ac
 grep -Fq 'SwiftLibraries.loadLibraryWithFallbacks(LIB_NAME);' "$java_file"
 
 public_methods=$(grep -Ec '^[[:space:]]*public static .*\(' "$java_file")
-if [ "$public_methods" -ne 44 ]; then
-    echo "Expected exactly forty-four public JNI methods, found ${public_methods}" >&2
+if [ "$public_methods" -ne 58 ]; then
+    echo "Expected exactly fifty-eight public JNI methods, found ${public_methods}" >&2
     exit 1
 fi
 
-echo 'Generated JNI API matches the version-10 Kotlin boundary.'
+echo 'Generated JNI API matches the version-11 Kotlin boundary.'

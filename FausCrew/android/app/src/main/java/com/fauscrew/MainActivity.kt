@@ -44,6 +44,7 @@ import com.fauscrew.ui.onboarding.OnboardingScreen
 import com.fauscrew.ui.house.CreateHouseScreen
 import com.fauscrew.ui.dashboard.DashboardScreen
 import com.fauscrew.ui.games.GamesHubScreen
+import com.fauscrew.ui.games.tanks.HouseTanksScreen
 import com.fauscrew.ui.games.rockets.HouseRocketsScreen
 import com.fauscrew.ui.house.HouseErrorScreen
 import com.fauscrew.ui.house.HouseLoadingScreen
@@ -86,6 +87,7 @@ class MainActivity : ComponentActivity() {
             val text by model.text.collectAsStateWithLifecycle()
             var selectedTab by rememberSaveable { mutableStateOf(MainTab.HOME) }
             var showsHouseRockets by rememberSaveable { mutableStateOf(false) }
+            var showsHouseTanks by rememberSaveable { mutableStateOf(false) }
             // Brand intro on every cold start (not on configuration changes).
             var showsSplash by rememberSaveable { mutableStateOf(coldStart) }
             // Until the splash starts opening, the app underneath is hidden and holds its animations.
@@ -116,6 +118,7 @@ class MainActivity : ComponentActivity() {
                 if (state.route !is AuthRoute.Next) {
                     selectedTab = MainTab.HOME
                     showsHouseRockets = false
+                    showsHouseTanks = false
                 }
             }
             LaunchedEffect(state.route, showsSplash) {
@@ -251,8 +254,15 @@ class MainActivity : ComponentActivity() {
                         games = { onOverlayChange ->
                             // The game is a full-screen destination of the Games tab, so the
                             // floating tab bar steps aside while it is open.
-                            LaunchedEffect(showsHouseRockets) { onOverlayChange(showsHouseRockets) }
-                            if (showsHouseRockets) {
+                            LaunchedEffect(showsHouseRockets, showsHouseTanks) {
+                                onOverlayChange(showsHouseRockets || showsHouseTanks)
+                            }
+                            if (showsHouseTanks) {
+                                HouseTanksScreen(text, houseState.details?.id, state.profile?.userId,
+                                    onExit = { showsHouseTanks = false },
+                                    members = houseState.details?.members.orEmpty()
+                                        .filter { it.name.isNotBlank() }.map { it.id to it.name })
+                            } else if (showsHouseRockets) {
                                 HouseRocketsScreen(text, houseState.details?.id, state.profile?.userId,
                                     onExit = { showsHouseRockets = false },
                                     houseOwnerId = houseState.details?.ownerId?.ifBlank { null },
@@ -263,13 +273,14 @@ class MainActivity : ComponentActivity() {
                                         model.logout()
                                     })
                             } else {
-                                GamesHubScreen(text, onOpenHouseRockets = { showsHouseRockets = true })
+                                GamesHubScreen(text, onOpenHouseRockets = { showsHouseRockets = true },
+                                    onOpenHouseTanks = { showsHouseTanks = true })
                             }
                         },
                     )
                     // Profile returns to Home; Home is the root tab and keeps the session screen.
                     // An open game owns Back (pause/exit), so the tab fallback yields to it.
-                    BackHandler(enabled = !(selectedTab == MainTab.GAMES && showsHouseRockets)) {
+                    BackHandler(enabled = !(selectedTab == MainTab.GAMES && (showsHouseRockets || showsHouseTanks))) {
                         if (selectedTab != MainTab.HOME) selectedTab = MainTab.HOME
                     }
                 }

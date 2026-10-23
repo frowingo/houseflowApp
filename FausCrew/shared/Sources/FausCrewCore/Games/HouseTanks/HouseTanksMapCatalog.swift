@@ -1,11 +1,11 @@
 import Foundation
-import CoreGraphics
 
-enum HouseTanksMapCatalog {
-    static let gameplayScale = 0.5
-    static let obstacleBaseScale = 0.72
+/// The four authored arenas. Positions are normalized to the arena (y up).
+public enum HouseTanksMapCatalog {
+    public static let gameplayScale = 0.5
+    public static let obstacleBaseScale = 0.72
 
-    static func definition(for id: HouseTanksMapID) -> HouseTanksMapDefinition {
+    public static func definition(for id: HouseTanksMapID) -> HouseTanksMapDefinition {
         switch id {
         case .livingRoom: livingRoom
         case .corridors: corridors
@@ -14,10 +14,11 @@ enum HouseTanksMapCatalog {
         }
     }
 
-    static let livingRoom = HouseTanksMapDefinition(
+    // Spawns stay at or below 0.70 so no tank starts under the top HUD row.
+    public static let livingRoom = HouseTanksMapDefinition(
         id: .livingRoom,
         version: 2,
-        spawnPoints: [point(0.18, 0.50), point(0.80, 0.25), point(0.80, 0.75)],
+        spawnPoints: [point(0.10, 0.36), point(0.88, 0.22), point(0.88, 0.64), point(0.12, 0.70)],
         obstacles: [
             obstacle(0.50, 0.50, 0.07, 0.28, .divider, .navy),
             obstacle(0.31, 0.30, 0.18, 0.075, .sofa, .teal, rotation: 0.04),
@@ -37,10 +38,10 @@ enum HouseTanksMapCatalog {
         floorMarkers: [point(0.12, 0.20), point(0.88, 0.80), point(0.50, 0.12), point(0.50, 0.88)]
     )
 
-    static let corridors = HouseTanksMapDefinition(
+    public static let corridors = HouseTanksMapDefinition(
         id: .corridors,
         version: 2,
-        spawnPoints: [point(0.14, 0.50), point(0.84, 0.22), point(0.84, 0.78)],
+        spawnPoints: [point(0.12, 0.24), point(0.88, 0.70), point(0.88, 0.24), point(0.12, 0.70)],
         obstacles: [
             // Three alternating L-shaped walls; both ends have a route around them.
             obstacle(0.30, 0.36, 0.055, 1.25, .divider, .navy),
@@ -61,10 +62,10 @@ enum HouseTanksMapCatalog {
         floorMarkers: [point(0.12, 0.12), point(0.88, 0.12), point(0.12, 0.88), point(0.88, 0.88)]
     )
 
-    static let warehouse = HouseTanksMapDefinition(
+    public static let warehouse = HouseTanksMapDefinition(
         id: .warehouse,
         version: 2,
-        spawnPoints: [point(0.13, 0.50), point(0.85, 0.20), point(0.85, 0.80)],
+        spawnPoints: [point(0.10, 0.36), point(0.90, 0.64), point(0.90, 0.24), point(0.10, 0.70)],
         obstacles: [
             obstacle(0.28, 0.24, 0.10, 0.10, .crate, .wood, rotation: 0.10),
             obstacle(0.38, 0.30, 0.08, 0.08, .crate, .wood, rotation: -0.06),
@@ -90,10 +91,10 @@ enum HouseTanksMapCatalog {
         floorMarkers: [point(0.10, 0.30), point(0.10, 0.70), point(0.90, 0.30), point(0.90, 0.70)]
     )
 
-    static let courtyard = HouseTanksMapDefinition(
+    public static let courtyard = HouseTanksMapDefinition(
         id: .courtyard,
         version: 2,
-        spawnPoints: [point(0.15, 0.50), point(0.82, 0.20), point(0.82, 0.80)],
+        spawnPoints: [point(0.12, 0.36), point(0.88, 0.64), point(0.86, 0.22), point(0.14, 0.70)],
         obstacles: [
             // A broken garden ring: four entrances, a central island and a wide outer route.
             obstacle(0.50, 0.50, 0.18, 0.18, .roundTable, .teal),
@@ -116,18 +117,17 @@ enum HouseTanksMapCatalog {
         floorMarkers: [point(0.18, 0.18), point(0.82, 0.18), point(0.18, 0.82), point(0.82, 0.82)]
     )
 
-    static func validationIssues(
+    public static func validationIssues(
         for definition: HouseTanksMapDefinition,
-        arenaSize: CGSize = CGSize(width: 1_180, height: 640)
+        arenaSize: HouseTanksSize = .reference
     ) -> [String] {
         var issues: [String] = []
-        let tankClearance: CGFloat = 28
+        let tankClearance = 28.0
 
         if definition.version < 1 { issues.append("map version must be positive") }
-        if definition.spawnPoints.count < 3 { issues.append("at least three spawn points are required") }
+        if definition.spawnPoints.count < 4 { issues.append("at least four spawn points are required") }
 
-        for (index, point) in definition.spawnPoints.enumerated()
-        where !isNormalized(point) {
+        for (index, point) in definition.spawnPoints.enumerated() where !isNormalized(point) {
             issues.append("spawn \(index) is outside normalized bounds")
         }
 
@@ -135,18 +135,16 @@ enum HouseTanksMapCatalog {
             if obstacle.size.width <= 0 || obstacle.size.height <= 0 {
                 issues.append("obstacle \(index) must have a positive size")
             }
-            if !CGRect(origin: .zero, size: arenaSize).contains(obstacle.bounds(in: arenaSize)) {
+            if !HouseTanksRect(size: arenaSize).contains(obstacle.bounds(in: arenaSize)) {
                 issues.append("obstacle \(index) is outside normalized bounds")
             }
         }
 
         for (spawnIndex, spawn) in definition.spawnPoints.enumerated() where isNormalized(spawn) {
-            let point = CGPoint(x: spawn.x * arenaSize.width, y: spawn.y * arenaSize.height)
-
-            for (obstacleIndex, obstacle) in definition.obstacles.enumerated() {
-                if obstacle.clearance(from: point, in: arenaSize) < tankClearance {
-                    issues.append("spawn \(spawnIndex) overlaps obstacle \(obstacleIndex) clearance")
-                }
+            let point = spawn.point(in: arenaSize)
+            for (obstacleIndex, obstacle) in definition.obstacles.enumerated()
+            where obstacle.clearance(from: point, in: arenaSize) < tankClearance {
+                issues.append("spawn \(spawnIndex) overlaps obstacle \(obstacleIndex) clearance")
             }
         }
 
@@ -170,30 +168,14 @@ enum HouseTanksMapCatalog {
         .init(x: x, y: y)
     }
 
-    private static func line(
-        _ startX: Double,
-        _ startY: Double,
-        _ endX: Double,
-        _ endY: Double
-    ) -> HouseTanksFloorLineDefinition {
+    private static func line(_ startX: Double, _ startY: Double, _ endX: Double, _ endY: Double) -> HouseTanksFloorLineDefinition {
         .init(start: point(startX, startY), end: point(endX, endY))
     }
 
     private static func obstacle(
-        _ x: Double,
-        _ y: Double,
-        _ width: Double,
-        _ height: Double,
-        _ style: HouseTanksObstacleStyle,
-        _ tone: HouseTanksObstacleTone,
-        rotation: Double = 0
+        _ x: Double, _ y: Double, _ width: Double, _ height: Double,
+        _ style: HouseTanksObstacleStyle, _ tone: HouseTanksObstacleTone, rotation: Double = 0
     ) -> HouseTanksObstacleDefinition {
-        .init(
-            center: point(x, y),
-            size: .init(width: width, height: height),
-            rotation: rotation,
-            style: style,
-            tone: tone
-        )
+        .init(center: point(x, y), size: .init(width: width, height: height), rotation: rotation, style: style, tone: tone)
     }
 }

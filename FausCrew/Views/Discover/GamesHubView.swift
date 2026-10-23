@@ -157,16 +157,19 @@ private struct HubGameCard: View {
 
                 HubGameCoverBackdrop(gameID: game.id)
 
-                VStack(spacing: AppDesign.Spacing.sm) {
-                    coverSymbol
+                // The FauseTanks cover is artwork only: no symbol, no badge.
+                if !isArtworkOnlyCover {
+                    VStack(spacing: AppDesign.Spacing.sm) {
+                        coverSymbol
 
-                    LocalizedText(game.badgeKey)
-                        .font(AppDesign.Typography.caption)
-                        .foregroundStyle(Color.white.opacity(0.9))
-                        .padding(.horizontal, AppDesign.Spacing.sm)
-                        .padding(.vertical, 3)
-                        .background(Color.white.opacity(0.2))
-                        .clipShape(Capsule())
+                        LocalizedText(game.badgeKey)
+                            .font(AppDesign.Typography.caption)
+                            .foregroundStyle(Color.white.opacity(0.9))
+                            .padding(.horizontal, AppDesign.Spacing.sm)
+                            .padding(.vertical, 3)
+                            .background(Color.white.opacity(0.2))
+                            .clipShape(Capsule())
+                    }
                 }
             }
 
@@ -190,6 +193,8 @@ private struct HubGameCard: View {
         .shadow(color: Color.black.opacity(0.06), radius: 8, x: 0, y: 2)
         .frame(maxHeight: .infinity, alignment: .top)
     }
+
+    private var isArtworkOnlyCover: Bool { game.id == 6 }
 
     @ViewBuilder
     private var coverSymbol: some View {
@@ -238,11 +243,7 @@ private struct HubGameCard: View {
             ]
         }
         if game.id == 6 {
-            return [
-                Color(hex: "14252C"),
-                Color(hex: "1FBEA7"),
-                Color(hex: "F26F2D"),
-            ]
+            return [HouseTanksMapPalette.paper, HouseTanksMapPalette.sand]
         }
         if game.id == 7 {
             return [Color(HouseRocketsPalette.navy), Color(HouseRocketsPalette.blue)]
@@ -420,24 +421,9 @@ private struct HubGameCoverBackdrop: View {
     }
 
     private var houseTanksArtwork: some View {
-        ZStack {
-            RoundedRectangle(cornerRadius: 16, style: .continuous)
-                .fill(Color.white.opacity(0.10))
-                .frame(width: 116, height: 72)
-                .rotationEffect(.degrees(9))
-                .offset(x: 54, y: 24)
-
-            HStack(spacing: 26) {
-                Capsule()
-                    .fill(Color.white.opacity(0.15))
-                    .frame(width: 74, height: 12)
-                Capsule()
-                    .fill(Color.white.opacity(0.12))
-                    .frame(width: 54, height: 12)
-            }
-            .rotationEffect(.degrees(-16))
-            .offset(x: -38, y: -28)
-        }
+        HouseTanksCoverArtwork()
+            .frame(height: 120)
+            .clipped()
     }
 
     private func skylineBuilding(width: CGFloat, height: CGFloat) -> some View {
@@ -478,6 +464,21 @@ struct ScaleButtonStyle: ButtonStyle {
 }
 
 /// A tiny race in progress: a rocket threads between opposing wedges.
+/// The FauseTanks cover: one olive arena tank on the field-map sheet.
+private struct HouseTanksCoverArtwork: View {
+    var body: some View {
+        GeometryReader { geometry in
+            ZStack {
+                HouseTanksMapBackdrop()
+                HouseTanksArenaTank(color: .olive)
+                    .frame(width: 62, height: 62)
+                    .position(x: geometry.size.width * 0.5, y: geometry.size.height * 0.5)
+            }
+        }
+        .accessibilityHidden(true)
+    }
+}
+
 private struct HouseRocketsCoverArtwork: View {
     var body: some View {
         GeometryReader { geometry in

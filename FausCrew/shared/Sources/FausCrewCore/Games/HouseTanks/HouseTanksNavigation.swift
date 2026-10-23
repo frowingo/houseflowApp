@@ -1,14 +1,14 @@
-import CoreGraphics
 import Foundation
 
-/// A small local grid is sufficient for three tanks; rebuilt from current crate/wreck bounds.
-enum HouseTanksNavigation {
-    static func waypoint(from start: CGPoint, to goal: CGPoint, arena: CGRect, obstacles: [CGRect]) -> CGPoint {
+/// A small local grid is sufficient for four tanks; rebuilt from current crate/wreck bounds.
+public enum HouseTanksNavigation {
+    public static func waypoint(from start: HouseTanksVector, to goal: HouseTanksVector,
+                                arena: HouseTanksRect, obstacles: [HouseTanksRect]) -> HouseTanksVector {
         let blocks = obstacles.map { $0.insetBy(dx: -14, dy: -14) }
-        func isClear(from a: CGPoint, to b: CGPoint) -> Bool {
+        func isClear(from a: HouseTanksVector, to b: HouseTanksVector) -> Bool {
             !blocks.contains { rect in
-                var entry: CGFloat = 0
-                var exit: CGFloat = 1
+                var entry = 0.0
+                var exit = 1.0
                 for (origin, delta, low, high) in [
                     (a.x, b.x - a.x, rect.minX, rect.maxX),
                     (a.y, b.y - a.y, rect.minY, rect.maxY),
@@ -28,19 +28,19 @@ enum HouseTanksNavigation {
         }
         if isClear(from: start, to: goal) { return goal }
 
-        let step: CGFloat = 16
+        let step = 16.0
         let columns = Int(arena.width / step)
         let rows = Int(arena.height / step)
         guard columns > 0, rows > 0 else { return goal }
-        func point(_ index: Int) -> CGPoint {
-            CGPoint(x: arena.minX + (CGFloat(index % columns) + 0.5) * step,
-                    y: arena.minY + (CGFloat(index / columns) + 0.5) * step)
+        func point(_ index: Int) -> HouseTanksVector {
+            HouseTanksVector(x: arena.minX + (Double(index % columns) + 0.5) * step,
+                             y: arena.minY + (Double(index / columns) + 0.5) * step)
         }
         let open = (0..<(columns * rows)).map { index in
             !blocks.contains { $0.contains(point(index)) }
         }
-        func nearestCell(to position: CGPoint, requireClearPath: Bool = false) -> Int? {
-            func distanceSquared(_ index: Int) -> CGFloat {
+        func nearestCell(to position: HouseTanksVector, requireClearPath: Bool = false) -> Int? {
+            func distanceSquared(_ index: Int) -> Double {
                 let p = point(index)
                 return (p.x - position.x) * (p.x - position.x) + (p.y - position.y) * (p.y - position.y)
             }
@@ -63,8 +63,7 @@ enum HouseTanksNavigation {
                 guard open.indices.contains(next), open[next], previous[next] == -1,
                       abs(next % columns - cell % columns) <= 1 else { continue }
                 // Avoid crossing a thin wall that lies between two open grid centers.
-                let midpoint = CGPoint(x: (point(cell).x + point(next).x) / 2,
-                                       y: (point(cell).y + point(next).y) / 2)
+                let midpoint = (point(cell) + point(next)) * 0.5
                 guard !blocks.contains(where: { $0.contains(midpoint) }) else { continue }
                 previous[next] = cell
                 queue.append(next)

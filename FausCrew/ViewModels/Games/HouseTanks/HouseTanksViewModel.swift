@@ -1,13 +1,16 @@
 import Combine
 import Foundation
 import UIKit
+import FausCrewCore
 
 @MainActor
 final class HouseTanksViewModel: ObservableObject {
     @Published private(set) var snapshot: HouseTanksSnapshot?
-    @Published var difficulty: HouseTanksDifficulty = .normal
-    @Published var humanColor: HouseTanksColor = .teal
-    @Published var mapID: HouseTanksMapID = .livingRoom
+    @Published var difficulty: HouseTanksDifficulty?
+    @Published var humanColor: HouseTanksColor?
+    @Published var mapID: HouseTanksMapID?
+    @Published private(set) var selectedMode: HouseTanksMode?
+    @Published private(set) var onlineMapID: HouseTanksMapID?
 
     private let service: any HouseTanksGameServicing
     private var commandSequence = 0
@@ -30,7 +33,44 @@ final class HouseTanksViewModel: ObservableObject {
         }
     }
 
+    /// The arena the next match uses: the player's pick in demo, the drawn one online.
+    var matchMapID: HouseTanksMapID? {
+        selectedMode == .online ? onlineMapID : mapID
+    }
+
+    /// The first pick still missing, in the order the setup screen asks for them.
+    var pendingSetupStep: HouseTanksSetupStep? {
+        if matchMapID == nil { return .map }
+        if humanColor == nil { return .color }
+        if difficulty == nil { return .difficulty }
+        return nil
+    }
+
+    var completedSetupSteps: Int {
+        [matchMapID != nil, humanColor != nil, difficulty != nil].filter { $0 }.count
+    }
+
+    func selectMode(_ mode: HouseTanksMode) {
+        guard snapshot == nil else { return }
+        selectedMode = mode
+        // Until the online service assigns arenas, each room visit draws one locally.
+        onlineMapID = mode == .online ? HouseTanksMapID.allCases.randomElement() : nil
+    }
+
+    func returnToModeSelection() {
+        guard snapshot == nil else { return }
+        selectedMode = nil
+        onlineMapID = nil
+    }
+
+    /// Ends the match and reopens the demo setup with the same map, color and difficulty.
+    func returnToDemoSetup() {
+        stop()
+        selectMode(.demo)
+    }
+
     func startMatch() async {
+        guard let difficulty, let humanColor, let mapID = matchMapID else { return }
         commandSequence = 0
         isPressing = false
         await service.start(configuration: HouseTanksMatchConfiguration(
@@ -106,11 +146,6 @@ final class HouseTanksViewModel: ObservableObject {
         commandTask = nil
         service.disconnect()
         snapshot = nil
-    }
-
-    var timeLabel: String {
-        guard let snapshot else { return "60" }
-        return "\(Int(ceil(snapshot.timeRemaining)))"
     }
 
     private func sendSystemAction(_ action: HouseTanksAction) {
