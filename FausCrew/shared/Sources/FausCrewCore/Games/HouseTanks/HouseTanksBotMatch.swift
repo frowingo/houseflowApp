@@ -49,7 +49,8 @@ public struct HouseTanksBotMatch: Sendable {
         let human = HouseTanksPlayer(id: UUID(), nameKey: HouseTanksMatchConfiguration.humanNameKey, role: .human,
                                      color: configuration.humanColor, armor: configuration.armorPerRound,
                                      roundsWon: 0, isAlive: true)
-        let bots = zip(HouseTanksMatchConfiguration.botNameKeys, botColors).map { nameKey, color in
+        let seats = configuration.playerCount - 1
+        let bots = zip(HouseTanksMatchConfiguration.botNameKeys.prefix(seats), botColors).map { nameKey, color in
             HouseTanksPlayer(id: UUID(), nameKey: nameKey, role: .bot, color: color,
                              armor: configuration.armorPerRound, roundsWon: 0, isAlive: true)
         }

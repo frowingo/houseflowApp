@@ -12,10 +12,14 @@ internal enum class TanksPhase(val raw: String) {
 internal enum class TanksRole(val raw: String) { HUMAN("human"), BOT("bot") }
 
 /** Serialized tank colors from Core; the inks live in the UI palette. */
-internal enum class TanksColor(val raw: String) { PLUM("plum"), ORANGE("orange"), BLUE("blue"), OLIVE("olive") }
+internal enum class TanksColor(val raw: String) {
+    PLUM("plum"), ORANGE("orange"), BLUE("blue"), OLIVE("olive"),
+    MUSTARD("mustard"), CRIMSON("crimson"), SKY("sky"), IVORY("ivory"),
+}
 
 internal enum class TanksMap(val raw: String) {
-    LIVING_ROOM("livingRoom"), CORRIDORS("corridors"), WAREHOUSE("warehouse"), COURTYARD("courtyard");
+    LIVING_ROOM("livingRoom"), CORRIDORS("corridors"), WAREHOUSE("warehouse"), COURTYARD("courtyard"),
+    BASEMENT("basement");
 
     val titleKey: String get() = "house_tanks_map_${raw}_title"
     val detailKey: String get() = "house_tanks_map_${raw}_detail"
@@ -102,6 +106,8 @@ internal sealed interface TanksEvent {
 /** The static arena of a round: furniture, crate shapes and floor plan, in arena dp. */
 internal data class TanksArena(
     val map: TanksMap,
+    /** Crowded-match maps draw every actor smaller. */
+    val scale: Double,
     val frameX: Double,
     val frameY: Double,
     val frameWidth: Double,
@@ -146,9 +152,16 @@ internal data class TanksMapPreview(
     val obstacles: List<TanksObstacle>,
     val lines: List<DoubleArray>,
     val markers: List<DoubleArray>,
-    /** `obstacleBaseScale × gameplayScale`: rendered size = arena size × normalized size × scale. */
+    /** `obstacleBaseScale × gameplayScale`: rendered size = arena size × normalized size × scale × map scale. */
     val obstacleScale: Double,
-)
+    val scale: Double,
+    val minPlayers: Int,
+    val maxPlayers: Int,
+) {
+    val playerCounts: IntRange get() = minPlayers..maxPlayers
+    /** A map that lets the player choose how many tanks take part. */
+    val hasPlayerChoice: Boolean get() = minPlayers != maxPlayers
+}
 
 /**
  * The shared FauseTanks demo match (FausCrewCore) behind a handle. Android owns the clock:
@@ -156,7 +169,8 @@ internal data class TanksMapPreview(
  */
 internal interface HouseTanksEngine {
     fun viewport(width: Float, height: Float): TanksUpdate
-    fun start(difficulty: TanksDifficulty, color: TanksColor, map: TanksMap): TanksUpdate
+    /** `playerCount` includes the human; Core clamps it to the map's player range. */
+    fun start(difficulty: TanksDifficulty, color: TanksColor, map: TanksMap, playerCount: Int): TanksUpdate
     fun countdown(): TanksUpdate
     fun step(deltaSeconds: Double): TanksUpdate
     fun press(pressed: Boolean): TanksUpdate
@@ -205,8 +219,8 @@ private class NativeHouseTanksEngine(private val handle: Int) : HouseTanksEngine
 
     override fun viewport(width: Float, height: Float) =
         parser.parse(FausCrewAndroidBridge.houseTanksBotViewport(handle, width.toDouble(), height.toDouble()))
-    override fun start(difficulty: TanksDifficulty, color: TanksColor, map: TanksMap) =
-        parser.parse(FausCrewAndroidBridge.houseTanksBotStart(handle, difficulty.raw, color.raw, map.raw))
+    override fun start(difficulty: TanksDifficulty, color: TanksColor, map: TanksMap, playerCount: Int) =
+        parser.parse(FausCrewAndroidBridge.houseTanksBotStart(handle, difficulty.raw, color.raw, map.raw, playerCount))
     override fun countdown() = parser.parse(FausCrewAndroidBridge.houseTanksBotCountdown(handle))
     override fun step(deltaSeconds: Double) = parser.parse(FausCrewAndroidBridge.houseTanksBotStep(handle, deltaSeconds))
     override fun press(pressed: Boolean) = parser.parse(FausCrewAndroidBridge.houseTanksBotPress(handle, pressed))
@@ -240,6 +254,7 @@ internal class TanksFrameParser {
             val frame = json.getJSONArray("frame")
             arena = TanksArena(
                 map = map(json.getString("mapId")),
+                scale = json.optDouble("scale", 1.0),
                 frameX = frame.getDouble(0), frameY = frame.getDouble(1),
                 frameWidth = frame.getDouble(2), frameHeight = frame.getDouble(3),
                 obstacles = json.getJSONArray("obstacles").objects { obstacle(it) },
@@ -306,6 +321,9 @@ internal class TanksFrameParser {
                     lines = map.getJSONArray("lines").doubleArrays(),
                     markers = map.getJSONArray("markers").doubleArrays(),
                     obstacleScale = scale,
+                    scale = map.optDouble("scale", 1.0),
+                    minPlayers = map.optInt("minPlayers", 4),
+                    maxPlayers = map.optInt("maxPlayers", 4),
                 )
             }.associateBy { it.map }
         }

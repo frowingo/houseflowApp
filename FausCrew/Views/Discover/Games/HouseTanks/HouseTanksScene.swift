@@ -109,6 +109,11 @@ extension HouseTanksColor {
         case .orange: UIColor(red: 200 / 255, green: 104 / 255, blue: 58 / 255, alpha: 1)
         case .blue: FieldInk.steel
         case .olive: UIColor(red: 124 / 255, green: 139 / 255, blue: 46 / 255, alpha: 1)
+        // Crowded-match colors, each a hue or lightness no other tank, wreck or crate shares.
+        case .mustard: UIColor(red: 201 / 255, green: 162 / 255, blue: 39 / 255, alpha: 1)
+        case .crimson: UIColor(red: 163 / 255, green: 36 / 255, blue: 59 / 255, alpha: 1)
+        case .sky: UIColor(red: 79 / 255, green: 163 / 255, blue: 199 / 255, alpha: 1)
+        case .ivory: UIColor(red: 237 / 255, green: 230 / 255, blue: 211 / 255, alpha: 1)
         }
     }
 }
@@ -125,6 +130,8 @@ final class HouseTanksScene: SKScene {
     private var lastUpdateTime: TimeInterval = 0
     private var reduceMotion = false
     private var currentMap = HouseTanksMapCatalog.definition(for: .livingRoom)
+    /// Crowded-match maps draw every actor smaller, matching the engine's scale.
+    private var mapScale: CGFloat { CGFloat(currentMap.scale) }
     private var arenaKey: String?
     private var tankNodes: [UUID: SKNode] = [:]
     private var destroyedTanks = Set<UUID>()
@@ -295,6 +302,7 @@ final class HouseTanksScene: SKScene {
                 node = existing
             } else {
                 node = projectile.isRocket ? makeRocket() : makeProjectile(color: projectile.color)
+                node.setScale(mapScale)
                 projectileNodes[projectile.id] = node
                 addChild(node)
             }
@@ -323,6 +331,7 @@ final class HouseTanksScene: SKScene {
             node.strokeColor = FieldInk.paper
             node.lineWidth = 1.5
             node.addChild(powerIcon(token.kind, side: 16))
+            node.setScale(mapScale)
             addChild(node)
             tokenNode = node
             tokenKind = token.kind
@@ -366,7 +375,7 @@ final class HouseTanksScene: SKScene {
             line.zPosition = -1
             tank.addChild(line)
         }
-        let start = tankSize.width / 2 + 6
+        let start = (tankSize.width / 2 + 6) * mapScale
         guard CGFloat(length) > start else {
             line.path = nil
             return
@@ -608,7 +617,7 @@ final class HouseTanksScene: SKScene {
 
         let artwork = SKNode()
         artwork.name = "artwork"
-        artwork.setScale(tankVisualScale)
+        artwork.setScale(tankVisualScale * mapScale)
         root.addChild(artwork)
 
         let tint = color(for: player.color)
@@ -715,7 +724,7 @@ final class HouseTanksScene: SKScene {
         flash.fillColor = color(for: HouseTanksColor(rawValue: colorName ?? "") ?? .plum)
         flash.strokeColor = FieldInk.paper
         flash.lineWidth = 1
-        flash.position = CGPoint(x: tankSize.width / 2 + 3, y: 0)
+        flash.position = CGPoint(x: (tankSize.width / 2 + 3) * mapScale, y: 0)
         flash.zPosition = 5
         tank.addChild(flash)
         flash.run(.sequence([
@@ -800,6 +809,7 @@ final class HouseTanksScene: SKScene {
             badge.lineWidth = 1
             badge.addChild(powerIcon(status.kind, side: 11))
             node.addChild(badge)
+            node.setScale(mapScale)
             tank.addChild(node)
             indicator = node
         }
@@ -850,6 +860,8 @@ final class HouseTanksScene: SKScene {
         case .corridors: FieldInk.steel.withAlphaComponent(0.07)
         case .warehouse: FieldInk.rust.withAlphaComponent(0.08)
         case .courtyard: FieldInk.olive.withAlphaComponent(0.12)
+        // A cool concrete wash for the crowded Basement.
+        case .basement: FieldInk.slate.withAlphaComponent(0.10)
         }
     }
 
@@ -859,6 +871,7 @@ final class HouseTanksScene: SKScene {
         case .corridors: FieldInk.steel
         case .warehouse: FieldInk.rust
         case .courtyard: FieldInk.olive
+        case .basement: FieldInk.slate
         }
     }
 

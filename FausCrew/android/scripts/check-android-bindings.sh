@@ -12,7 +12,7 @@ fi
 grep -Fqx 'package com.fauscrew.androidbridge;' "$java_file"
 grep -Eq 'public static int bridgeVersion\(\)' "$java_file"
 grep -Eq 'public static int houseTanksBotCreate\(\)' "$java_file"
-grep -Eq 'public static java\.lang\.String houseTanksBotStart\(int handle, java\.lang\.String difficulty, java\.lang\.String color, java\.lang\.String map\)' "$java_file"
+grep -Eq 'public static java\.lang\.String houseTanksBotStart\(int handle, java\.lang\.String difficulty, java\.lang\.String color, java\.lang\.String map, int playerCount\)' "$java_file"
 grep -Eq 'public static java\.lang\.String houseTanksBotStep\(int handle, double delta\)' "$java_file"
 grep -Eq 'public static java\.lang\.String houseTanksBotPress\(int handle, boolean pressed\)' "$java_file"
 grep -Eq 'public static java\.lang\.String houseTanksMaps\(\)' "$java_file"

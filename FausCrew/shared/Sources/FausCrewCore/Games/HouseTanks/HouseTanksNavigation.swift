@@ -2,9 +2,12 @@ import Foundation
 
 /// A small local grid is sufficient for four tanks; rebuilt from current crate/wreck bounds.
 public enum HouseTanksNavigation {
+    /// `padding` keeps a tank's body clear of cover; `step` is the grid size. Both shrink on
+    /// crowded-match maps, where tanks and gaps are smaller.
     public static func waypoint(from start: HouseTanksVector, to goal: HouseTanksVector,
-                                arena: HouseTanksRect, obstacles: [HouseTanksRect]) -> HouseTanksVector {
-        let blocks = obstacles.map { $0.insetBy(dx: -14, dy: -14) }
+                                arena: HouseTanksRect, obstacles: [HouseTanksRect],
+                                padding: Double = 14, step: Double = 16) -> HouseTanksVector {
+        let blocks = obstacles.map { $0.insetBy(dx: -padding, dy: -padding) }
         func isClear(from a: HouseTanksVector, to b: HouseTanksVector) -> Bool {
             !blocks.contains { rect in
                 var entry = 0.0
@@ -28,7 +31,6 @@ public enum HouseTanksNavigation {
         }
         if isClear(from: start, to: goal) { return goal }
 
-        let step = 16.0
         let columns = Int(arena.width / step)
         let rows = Int(arena.height / step)
         guard columns > 0, rows > 0 else { return goal }

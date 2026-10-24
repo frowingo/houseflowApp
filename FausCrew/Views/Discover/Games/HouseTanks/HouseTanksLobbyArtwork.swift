@@ -364,7 +364,8 @@ struct HouseTanksMapPreview: View {
                            style: StrokeStyle(lineWidth: 0.8, dash: [3, 3]))
 
             for obstacle in definition.obstacles {
-                let rendered = obstacle.renderedSize(in: HouseTanksSize(width: Double(size.width), height: Double(size.height)))
+                let rendered = obstacle.renderedSize(in: HouseTanksSize(width: Double(size.width), height: Double(size.height)),
+                                                     mapScale: definition.scale)
                 var piece = context
                 piece.translateBy(x: obstacle.center.x * size.width, y: (1 - obstacle.center.y) * size.height)
                 piece.rotate(by: .radians(-obstacle.rotation))

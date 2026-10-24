@@ -23,7 +23,7 @@ class TanksFrameParserTest {
          "token":{"kind":"spreadShot","x":420,"y":200,"fraction":0.75},
          "events":[{"type":"fired","playerId":"h","angle":0.3},{"type":"crateBroken","index":2,"x":10,"y":20},
                    {"type":"jokerCollected","playerId":"h","kind":"aim"}],
-         "arena":{"mapId":"livingRoom","frame":[16,16,812,358],
+         "arena":{"mapId":"livingRoom","scale":1,"frame":[16,16,812,358],
            "obstacles":[{"index":0,"style":"divider","tone":"navy","x":422,"y":195,"width":21,"height":39,
                          "rotation":0,"movable":false,"destroyed":false},
                         {"index":4,"style":"crate","tone":"wood","x":590,"y":109,"width":14,"height":14,
@@ -72,7 +72,7 @@ class TanksFrameParserTest {
 
     @Test fun parsesMapPreviews() {
         val maps = TanksFrameParser.maps("""
-            {"obstacleScale":0.36,"maps":[{"id":"courtyard","spawns":[[0.12,0.36],[0.88,0.64],[0.86,0.22],[0.14,0.7]],
+            {"obstacleScale":0.36,"maps":[{"id":"courtyard","scale":1,"minPlayers":4,"maxPlayers":4,"spawns":[[0.12,0.36],[0.88,0.64],[0.86,0.22],[0.14,0.7]],
               "obstacles":[{"x":0.5,"y":0.5,"width":0.18,"height":0.18,"rotation":0,"style":"roundTable","tone":"teal"}],
               "lines":[[0.18,0.5,0.38,0.5]],"markers":[[0.18,0.18]]}]}
         """.trimIndent())
@@ -80,6 +80,7 @@ class TanksFrameParserTest {
         assertEquals(4, courtyard.spawns.size)
         assertTrue(courtyard.obstacles.single().style.isRound)
         assertEquals(0.36, courtyard.obstacleScale, 0.0)
+        assertEquals(false, courtyard.hasPlayerChoice)
     }
 
     private fun assertNull(value: Any?, message: String) = org.junit.Assert.assertNull(message, value)

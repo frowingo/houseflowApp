@@ -76,10 +76,11 @@ public struct HouseTanksWorld: Sendable {
         public var velocity: HouseTanksVector
         public let isRocket: Bool
         public let holdsAim: Bool
+        /// Collision radius, already scaled to the map.
+        public let radius: Double
         public var age = 0.0
 
         public var rotation: Double { velocity.angle }
-        var radius: Double { isRocket ? HouseTanksWorld.rocketRadius : HouseTanksWorld.shellRadius }
         var lifetime: Double { isRocket ? HouseTanksWorld.rocketLifetime : HouseTanksWorld.shellLifetime }
     }
 
@@ -117,6 +118,11 @@ public struct HouseTanksWorld: Sendable {
 
     public var time: Double { powerUps.time }
 
+    /// The map's scale; every body size below follows it (speeds and timings do not).
+    public var scale: Double { map.scale }
+    public var bodyRadius: Double { Self.tankRadius * scale }
+    public var bodyLength: Double { Self.tankLength * scale }
+
     public init(map: HouseTanksMapDefinition, size: HouseTanksSize, players: [HouseTanksPlayer],
                 random: HouseTanksRandom, jokerBag: HouseTanksJokerBag = HouseTanksJokerBag()) {
         let arena = size.isUsable ? size : .reference
@@ -126,7 +132,7 @@ public struct HouseTanksWorld: Sendable {
         self.jokerBag = jokerBag
         obstacles = map.obstacles.enumerated().map { index, definition in
             Obstacle(index: index, definition: definition, position: definition.center.point(in: arena),
-                     size: definition.renderedSize(in: arena))
+                     size: definition.renderedSize(in: arena, mapScale: map.scale))
         }
         let spawns = map.spawnPoints.map { $0.point(in: arena) }
         let center = HouseTanksVector(x: arena.width / 2, y: arena.height / 2)
@@ -187,7 +193,7 @@ public struct HouseTanksWorld: Sendable {
         size = newSize
         for index in tanks.indices { tanks[index].position = scaled(tanks[index].position) }
         for index in obstacles.indices {
-            obstacles[index].size = obstacles[index].definition.renderedSize(in: newSize)
+            obstacles[index].size = obstacles[index].definition.renderedSize(in: newSize, mapScale: scale)
             obstacles[index].position = obstacles[index].isMovable
                 ? scaled(obstacles[index].position)
                 : obstacles[index].definition.center.point(in: newSize)
@@ -242,13 +248,13 @@ public struct HouseTanksWorld: Sendable {
         let candidates = tanks.filter { $0.isActive && $0.id != playerID }.map { (id: $0.id, position: $0.position) }
         guard let targetID = HouseTanksBotBrain.target(from: tank.position, among: candidates, focus: focusID),
               let target = self.tank(targetID) else { return .none }
-        let inset = max(16, size.height * 0.035) + 16
+        let inset = max(16, size.height * 0.035) + 16 * scale
         let goal = powerUps.token.map { token in
             tank.position.distance(to: token.position) < 220 ? token.position : target.position
         } ?? target.position
         let waypoint = HouseTanksNavigation.waypoint(
             from: tank.position, to: goal, arena: HouseTanksRect(size: size).insetBy(dx: inset, dy: inset),
-            obstacles: coverBounds
+            obstacles: coverBounds, padding: 14 * scale, step: 16 * scale
         )
         let aimError = abs(HouseTanksMath.normalizedAngle((waypoint - tank.position).angle - tank.rotation))
         return HouseTanksBotObservation(aimError: aimError, targetDistance: tank.position.distance(to: waypoint),
@@ -258,8 +264,8 @@ public struct HouseTanksWorld: Sendable {
     /// Everything that blocks a route: furniture, crates and wrecks.
     private var coverBounds: [HouseTanksRect] {
         obstacles.filter { !$0.isDestroyed }.map(\.bounds) + tanks.filter { !$0.isActive }.map { tank in
-            HouseTanksRect(x: tank.position.x - Self.tankRadius, y: tank.position.y - Self.tankRadius,
-                           width: Self.tankRadius * 2, height: Self.tankRadius * 2)
+            HouseTanksRect(x: tank.position.x - bodyRadius, y: tank.position.y - bodyRadius,
+                           width: bodyRadius * 2, height: bodyRadius * 2)
         }
     }
 
@@ -337,12 +343,13 @@ public struct HouseTanksWorld: Sendable {
             let angle = tank.rotation + offset
             let direction = HouseTanksVector(angle: angle)
             // A rocket is long; launch it clear of its own hull so it does not bounce off it.
-            let startDistance = Self.tankLength / 2 + (isRocket ? Self.rocketLength / 2 + 4 : 5)
+            let startDistance = (Self.tankLength / 2 + (isRocket ? Self.rocketLength / 2 + 4 : 5)) * scale
             let start = tank.position + direction * startDistance
             let projectile = Projectile(
                 id: nextProjectileID, ownerID: tank.id, color: tank.color, position: start,
                 velocity: direction * (isRocket ? Self.rocketSpeed : Self.projectileSpeed),
-                isRocket: isRocket, holdsAim: power == .aim
+                isRocket: isRocket, holdsAim: power == .aim,
+                radius: (isRocket ? Self.rocketRadius : Self.shellRadius) * scale
             )
             nextProjectileID += 1
             if projectile.holdsAim { tanks[index].aimLocks += 1 }
@@ -374,7 +381,7 @@ public struct HouseTanksWorld: Sendable {
         consider(.wall, Self.exitFraction(from: start, to: end, inside: arenaFrame.insetBy(dx: radius, dy: radius)))
         for (index, tank) in tanks.enumerated() where tank.id != ownerID {
             consider(.tank(index), Self.segmentCircle(from: start, to: end, center: tank.position,
-                                                      radius: Self.tankRadius + radius))
+                                                      radius: bodyRadius + radius))
         }
         for (index, obstacle) in obstacles.enumerated() where !obstacle.isDestroyed {
             let fraction = obstacle.isRound
@@ -472,7 +479,7 @@ public struct HouseTanksWorld: Sendable {
     private mutating func collectJokers() {
         guard let token = powerUps.token else { return }
         for tank in tanks where tank.isActive
-        && tank.position.distance(to: token.position) < Self.tokenRadius + Self.tankRadius {
+        && tank.position.distance(to: token.position) < (Self.tokenRadius + Self.tankRadius) * scale {
             if let kind = powerUps.collect(playerID: tank.id) {
                 events.append(.jokerCollected(playerID: tank.id, kind: kind))
             }
@@ -488,7 +495,7 @@ public struct HouseTanksWorld: Sendable {
         for a in tanks.indices where tanks[a].isActive {
             confine(tank: a, in: frame)
             for o in obstacles.indices where !obstacles[o].isDestroyed {
-                guard let contact = Self.circleContact(center: tanks[a].position, radius: Self.tankRadius,
+                guard let contact = Self.circleContact(center: tanks[a].position, radius: bodyRadius,
                                                        obstacle: obstacles[o]) else { continue }
                 if obstacles[o].isMovable {
                     push(tank: a, crate: o, normal: contact.normal, depth: contact.depth)
@@ -501,7 +508,7 @@ public struct HouseTanksWorld: Sendable {
             for b in tanks.indices where b != a {
                 let offset = tanks[a].position - tanks[b].position
                 let distance = offset.length
-                let minimum = Self.tankRadius * 2
+                let minimum = bodyRadius * 2
                 guard distance < minimum else { continue }
                 let normal = distance > 0.0001 ? offset * (1 / distance) : HouseTanksVector(x: 1, y: 0)
                 let depth = minimum - distance
@@ -549,7 +556,7 @@ public struct HouseTanksWorld: Sendable {
             for tank in tanks where !tank.isActive {
                 let offset = obstacles[c].position - tank.position
                 let distance = offset.length
-                let minimum = radius + Self.tankRadius
+                let minimum = radius + bodyRadius
                 guard distance < minimum, distance > 0.0001 else { continue }
                 obstacles[c].position += offset * ((minimum - distance) / distance)
             }
@@ -557,7 +564,7 @@ public struct HouseTanksWorld: Sendable {
     }
 
     private mutating func confine(tank index: Int, in frame: HouseTanksRect) {
-        let r = Self.tankRadius
+        let r = bodyRadius
         var position = tanks[index].position
         var velocity = tanks[index].velocity
         if position.x < frame.minX + r { position.x = frame.minX + r; if velocity.x < 0 { velocity.x *= -Self.tankRestitution } }

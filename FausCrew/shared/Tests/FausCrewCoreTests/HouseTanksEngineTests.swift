@@ -7,12 +7,12 @@ final class HouseTanksEngineTests: XCTestCase {
 
     // MARK: - Maps and navigation
 
-    func testMapCatalogContainsFourValidVersionedMapsWithFourSpawns() {
-        XCTAssertEqual(HouseTanksMapID.allCases.count, 4)
+    func testMapCatalogMapsAreValidAndSeatEveryPlayer() {
+        XCTAssertEqual(HouseTanksMapID.allCases.count, 5)
         for mapID in HouseTanksMapID.allCases {
             let map = HouseTanksMapCatalog.definition(for: mapID)
             XCTAssertEqual(map.id, mapID)
-            XCTAssertEqual(map.spawnPoints.count, 4)
+            XCTAssertGreaterThanOrEqual(map.spawnPoints.count, map.maxPlayers)
             XCTAssertTrue(map.obstacles.contains(where: \.isMovable))
             XCTAssertTrue(map.obstacles.contains(where: { !$0.isMovable }))
             for size in [HouseTanksSize.reference, HouseTanksSize(width: 844, height: 390), HouseTanksSize(width: 667, height: 320)] {
@@ -28,18 +28,22 @@ final class HouseTanksEngineTests: XCTestCase {
                 let starts = map.spawnPoints.map { $0.point(in: size) }
                 let inset = max(16, size.height * 0.035) + 16
                 let frame = HouseTanksRect(size: size).insetBy(dx: inset, dy: inset)
+                let scale = map.scale
                 for goal in starts.dropFirst() {
                     var position = starts[0]
-                    for _ in 0..<600 {
-                        if position.distance(to: goal) < 20 { break }
-                        let waypoint = HouseTanksNavigation.waypoint(from: position, to: goal, arena: frame,
-                                                                     obstacles: map.obstacles.map { $0.bounds(in: size) })
+                    for _ in 0..<900 {
+                        if position.distance(to: goal) < 20 * scale { break }
+                        let waypoint = HouseTanksNavigation.waypoint(
+                            from: position, to: goal, arena: frame,
+                            obstacles: map.obstacles.map { $0.bounds(in: size, mapScale: scale) },
+                            padding: 14 * scale, step: 16 * scale)
                         let distance = position.distance(to: waypoint)
                         guard distance > 0.01 else { break }
-                        position += (waypoint - position) * min(1, 8 / distance)
-                        XCTAssertTrue(map.obstacles.allSatisfy { $0.clearance(from: position, in: size) >= 12 })
+                        position += (waypoint - position) * min(1, 8 * scale / distance)
+                        XCTAssertTrue(map.obstacles.allSatisfy { $0.clearance(from: position, in: size, mapScale: scale) >= 12 * scale },
+                                      "\(id) at \(size)")
                     }
-                    XCTAssertLessThan(position.distance(to: goal), 20, "\(id) at \(size)")
+                    XCTAssertLessThan(position.distance(to: goal), 20 * scale, "\(id) at \(size)")
                 }
             }
         }
@@ -276,6 +280,39 @@ final class HouseTanksEngineTests: XCTestCase {
             XCTAssertEqual(match.world?.obstacles.filter { $0.isMovable && !$0.isDestroyed }.count, crates)
             XCTAssertTrue(match.snapshot!.players.allSatisfy { $0.isAlive && $0.armor == 5 })
         }
+    }
+
+    func testBasementSeatsSixToEightTanksAtASmallerScale() {
+        let basement = HouseTanksMapCatalog.definition(for: .basement)
+        XCTAssertEqual(basement.playerCounts, 6...8)
+        XCTAssertLessThan(basement.scale, 1)
+        XCTAssertGreaterThan(basement.obstacles.count, HouseTanksMapCatalog.definition(for: .livingRoom).obstacles.count)
+
+        var match = HouseTanksBotMatch(seed: 8)
+        match.setViewport(HouseTanksSize.reference)
+        match.start(configuration: .init(difficulty: .normal, humanColor: .sky, mapID: .basement, playerCount: 8))
+        let players = match.snapshot!.players
+        XCTAssertEqual(players.count, 8)
+        XCTAssertEqual(Set(players.map(\.color)).count, 8)
+        XCTAssertEqual(Set(players.map(\.nameKey)).count, 8)
+        let world = match.world!
+        XCTAssertEqual(world.bodyRadius, HouseTanksWorld.tankRadius * basement.scale, accuracy: 1e-9)
+        XCTAssertEqual(world.tanks.count, 8)
+
+        // Out-of-range counts are clamped to the map; standard maps stay at four.
+        XCTAssertEqual(HouseTanksMatchConfiguration(difficulty: .easy, humanColor: .plum, mapID: .basement, playerCount: 3).playerCount, 6)
+        XCTAssertEqual(HouseTanksMatchConfiguration(difficulty: .easy, humanColor: .plum, mapID: .basement, playerCount: 12).playerCount, 8)
+        XCTAssertEqual(HouseTanksMatchConfiguration(difficulty: .easy, humanColor: .plum, mapID: .warehouse, playerCount: 8).playerCount, 4)
+    }
+
+    func testBotsResolveACrowdedBasementRound() {
+        var match = HouseTanksBotMatch(seed: 21)
+        match.setViewport(HouseTanksSize(width: 844, height: 390))
+        match.start(configuration: .init(difficulty: .hard, humanColor: .crimson, mapID: .basement, playerCount: 7))
+        while match.advanceCountdown() == false {}
+        for _ in 0..<(60 * 300) where match.snapshot?.phase == .playing { match.advance(by: 1 / 60) }
+        let phase = match.snapshot!.phase
+        XCTAssertTrue(phase == .roundEnded || phase == .matchEnded)
     }
 
     func testPauseStopsTheArena() {

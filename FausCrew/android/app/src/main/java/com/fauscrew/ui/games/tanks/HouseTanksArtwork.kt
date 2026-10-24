@@ -106,6 +106,11 @@ internal val TanksColor.ink: Color
         TanksColor.ORANGE -> Color(0xFFC8683A)
         TanksColor.BLUE -> HouseTanksPalette.steel
         TanksColor.OLIVE -> Color(0xFF7C8B2E)
+        // Crowded-match colors, each a hue or lightness no other tank, wreck or crate shares.
+        TanksColor.MUSTARD -> Color(0xFFC9A227)
+        TanksColor.CRIMSON -> Color(0xFFA3243B)
+        TanksColor.SKY -> Color(0xFF4FA3C7)
+        TanksColor.IVORY -> Color(0xFFEDE6D3)
     }
 
 internal val TanksColor.nameKey: String get() = "house_tanks_color_${raw}"
@@ -346,9 +351,10 @@ internal fun HouseTanksMapPreview(preview: TanksMapPreview?, selected: Boolean, 
         drawPath(lines, palette.steel.copy(alpha = .28f),
             style = Stroke(.8.dp.toPx(), pathEffect = PathEffect.dashPathEffect(floatArrayOf(3.dp.toPx(), 3.dp.toPx()))))
         preview.obstacles.forEach { obstacle ->
-            val height = size.height * obstacle.height * preview.obstacleScale
+            val scale = preview.obstacleScale * preview.scale
+            val height = size.height * obstacle.height * scale
             val width = if (obstacle.style.isRound || obstacle.style == TanksObstacleStyle.CRATE) height
-            else size.width * obstacle.width * preview.obstacleScale
+            else size.width * obstacle.width * scale
             val center = point(obstacle.x, obstacle.y)
             withTransform({
                 translate(center.x, center.y)

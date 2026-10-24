@@ -11,6 +11,7 @@ public enum HouseTanksMapCatalog {
         case .corridors: corridors
         case .warehouse: warehouse
         case .courtyard: courtyard
+        case .basement: basement
         }
     }
 
@@ -117,15 +118,63 @@ public enum HouseTanksMapCatalog {
         floorMarkers: [point(0.18, 0.18), point(0.82, 0.18), point(0.18, 0.82), point(0.82, 0.82)]
     )
 
+    /// Crowded-match map: a smaller scale and dense cover so six to eight tanks have room.
+    /// Seats run up both side walls and along the bottom; the top band stays under the HUD.
+    public static let basement = HouseTanksMapDefinition(
+        id: .basement,
+        version: 1,
+        spawnPoints: [point(0.07, 0.40), point(0.93, 0.40), point(0.07, 0.68), point(0.93, 0.68),
+                      point(0.07, 0.12), point(0.93, 0.12), point(0.36, 0.08), point(0.64, 0.08)],
+        obstacles: [
+            // Two long walls split the floor into three lanes with gaps at both ends.
+            obstacle(0.24, 0.50, 0.05, 0.95, .divider, .navy),
+            obstacle(0.76, 0.50, 0.05, 0.95, .divider, .navy),
+            obstacle(0.50, 0.80, 0.42, 0.06, .divider, .blue),
+            obstacle(0.50, 0.24, 0.30, 0.06, .divider, .blue),
+            obstacle(0.38, 0.64, 0.26, 0.06, .bookshelf, .navy),
+            obstacle(0.62, 0.36, 0.26, 0.06, .bookshelf, .navy),
+            obstacle(0.50, 0.50, 0.14, 0.14, .roundTable, .teal),
+            obstacle(0.15, 0.26, 0.07, 0.07, .pillar, .teal),
+            obstacle(0.85, 0.26, 0.07, 0.07, .pillar, .teal),
+            obstacle(0.15, 0.84, 0.07, 0.07, .pillar, .teal),
+            obstacle(0.85, 0.84, 0.07, 0.07, .pillar, .teal),
+            obstacle(0.40, 0.90, 0.08, 0.08, .planter, .green),
+            obstacle(0.60, 0.90, 0.08, 0.08, .planter, .green),
+            obstacle(0.15, 0.55, 0.12, 0.055, .sofa, .orange, rotation: .pi / 2),
+            obstacle(0.85, 0.55, 0.12, 0.055, .sofa, .orange, rotation: .pi / 2),
+            obstacle(0.38, 0.40, 0.11, 0.11, .crate, .wood),
+            obstacle(0.62, 0.60, 0.11, 0.11, .crate, .wood),
+            obstacle(0.50, 0.64, 0.10, 0.10, .crate, .wood, rotation: .pi / 12),
+            obstacle(0.44, 0.14, 0.10, 0.10, .crate, .wood),
+            obstacle(0.56, 0.14, 0.10, 0.10, .crate, .wood),
+            obstacle(0.32, 0.88, 0.10, 0.10, .crate, .wood),
+            obstacle(0.68, 0.88, 0.10, 0.10, .crate, .wood),
+        ],
+        floorLines: [
+            line(0.10, 0.50, 0.20, 0.50), line(0.80, 0.50, 0.90, 0.50),
+            line(0.30, 0.24, 0.30, 0.76), line(0.70, 0.24, 0.70, 0.76),
+        ],
+        floorMarkers: [point(0.50, 0.08), point(0.50, 0.92), point(0.12, 0.92), point(0.88, 0.92)],
+        scale: 0.72,
+        minPlayers: 6,
+        maxPlayers: 8
+    )
+
     public static func validationIssues(
         for definition: HouseTanksMapDefinition,
         arenaSize: HouseTanksSize = .reference
     ) -> [String] {
         var issues: [String] = []
-        let tankClearance = 28.0
+        let tankClearance = 28.0 * definition.scale
+        let scale = definition.scale
 
         if definition.version < 1 { issues.append("map version must be positive") }
-        if definition.spawnPoints.count < 4 { issues.append("at least four spawn points are required") }
+        if definition.minPlayers < 2 || definition.maxPlayers < definition.minPlayers {
+            issues.append("player range is invalid")
+        }
+        if definition.spawnPoints.count < definition.maxPlayers {
+            issues.append("every seat needs a spawn point")
+        }
 
         for (index, point) in definition.spawnPoints.enumerated() where !isNormalized(point) {
             issues.append("spawn \(index) is outside normalized bounds")
@@ -135,7 +184,7 @@ public enum HouseTanksMapCatalog {
             if obstacle.size.width <= 0 || obstacle.size.height <= 0 {
                 issues.append("obstacle \(index) must have a positive size")
             }
-            if !HouseTanksRect(size: arenaSize).contains(obstacle.bounds(in: arenaSize)) {
+            if !HouseTanksRect(size: arenaSize).contains(obstacle.bounds(in: arenaSize, mapScale: scale)) {
                 issues.append("obstacle \(index) is outside normalized bounds")
             }
         }
@@ -143,7 +192,7 @@ public enum HouseTanksMapCatalog {
         for (spawnIndex, spawn) in definition.spawnPoints.enumerated() where isNormalized(spawn) {
             let point = spawn.point(in: arenaSize)
             for (obstacleIndex, obstacle) in definition.obstacles.enumerated()
-            where obstacle.clearance(from: point, in: arenaSize) < tankClearance {
+            where obstacle.clearance(from: point, in: arenaSize, mapScale: scale) < tankClearance {
                 issues.append("spawn \(spawnIndex) overlaps obstacle \(obstacleIndex) clearance")
             }
         }

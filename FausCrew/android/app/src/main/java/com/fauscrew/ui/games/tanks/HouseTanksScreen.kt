@@ -208,6 +208,7 @@ internal fun HouseTanksScreen(
                 orientationFailed = orientationFailed, onBack = ::exitGame,
                 onSelectMode = { mode: TanksMode -> model.selectMode(mode) },
                 onChangeMode = model::returnToModeSelection, onSelectMap = model::selectMap,
+                onSelectPlayerCount = model::selectPlayerCount,
                 onSelectColor = model::selectColor, onSelectDifficulty = model::selectDifficulty,
                 onStart = ::requestLandscape,
             )

@@ -19,6 +19,8 @@ public enum HouseTanksMode: String, CaseIterable, Identifiable, Sendable {
 /// Demo picks the player must make before a match; nothing is preselected.
 public enum HouseTanksSetupStep: Int, CaseIterable, Identifiable, Sendable {
     case map
+    /// Only on maps with a player range (the crowded-match Basement).
+    case players
     case color
     case difficulty
 
@@ -44,6 +46,10 @@ public enum HouseTanksColor: String, CaseIterable, Codable, Identifiable, Sendab
     case orange
     case blue
     case olive
+    case mustard
+    case crimson
+    case sky
+    case ivory
 
     public var id: String { rawValue }
 }
@@ -53,6 +59,7 @@ public enum HouseTanksMapID: String, CaseIterable, Codable, Identifiable, Sendab
     case corridors
     case warehouse
     case courtyard
+    case basement
 
     public var id: String { rawValue }
     public var titleKey: String { "house_tanks_map_\(rawValue)_title" }
@@ -123,8 +130,9 @@ public struct HouseTanksObstacleDefinition: Codable, Equatable, Sendable {
     public var isMovable: Bool { style == .crate }
     public var breaksOnHit: Bool { style == .crate }
 
-    public func renderedSize(in arena: HouseTanksSize) -> HouseTanksSize {
-        let scale = HouseTanksMapCatalog.obstacleBaseScale * HouseTanksMapCatalog.gameplayScale
+    /// `mapScale` is the map's own scale (smaller on crowded-match maps).
+    public func renderedSize(in arena: HouseTanksSize, mapScale: Double = 1) -> HouseTanksSize {
+        let scale = HouseTanksMapCatalog.obstacleBaseScale * HouseTanksMapCatalog.gameplayScale * mapScale
         let height = arena.height * size.height * scale
         switch style {
         case .roundTable, .crate, .pillar, .planter:
@@ -134,16 +142,16 @@ public struct HouseTanksObstacleDefinition: Codable, Equatable, Sendable {
         }
     }
 
-    public func bounds(in arena: HouseTanksSize) -> HouseTanksRect {
-        let rendered = renderedSize(in: arena)
+    public func bounds(in arena: HouseTanksSize, mapScale: Double = 1) -> HouseTanksRect {
+        let rendered = renderedSize(in: arena, mapScale: mapScale)
         let width = abs(cos(rotation)) * rendered.width + abs(sin(rotation)) * rendered.height
         let height = abs(sin(rotation)) * rendered.width + abs(cos(rotation)) * rendered.height
         return HouseTanksRect(x: center.x * arena.width - width / 2,
                               y: center.y * arena.height - height / 2, width: width, height: height)
     }
 
-    public func clearance(from point: HouseTanksVector, in arena: HouseTanksSize) -> Double {
-        let rendered = renderedSize(in: arena)
+    public func clearance(from point: HouseTanksVector, in arena: HouseTanksSize, mapScale: Double = 1) -> Double {
+        let rendered = renderedSize(in: arena, mapScale: mapScale)
         let dx = point.x - center.x * arena.width
         let dy = point.y - center.y * arena.height
         if style.isRound {
@@ -173,17 +181,29 @@ public struct HouseTanksMapDefinition: Codable, Equatable, Sendable {
     public let obstacles: [HouseTanksObstacleDefinition]
     public let floorLines: [HouseTanksFloorLineDefinition]
     public let floorMarkers: [HouseTanksNormalizedPoint]
+    /// Size of tanks, shots, jokers and furniture relative to the standard maps.
+    /// Crowded-match maps are smaller so six to eight tanks still have room.
+    public let scale: Double
+    public let minPlayers: Int
+    public let maxPlayers: Int
 
     public init(id: HouseTanksMapID, version: Int, spawnPoints: [HouseTanksNormalizedPoint],
                 obstacles: [HouseTanksObstacleDefinition], floorLines: [HouseTanksFloorLineDefinition],
-                floorMarkers: [HouseTanksNormalizedPoint]) {
+                floorMarkers: [HouseTanksNormalizedPoint], scale: Double = 1, minPlayers: Int = 4, maxPlayers: Int = 4) {
         self.id = id
         self.version = version
         self.spawnPoints = spawnPoints
         self.obstacles = obstacles
         self.floorLines = floorLines
         self.floorMarkers = floorMarkers
+        self.scale = scale
+        self.minPlayers = minPlayers
+        self.maxPlayers = maxPlayers
     }
+
+    public var playerCounts: ClosedRange<Int> { minPlayers...maxPlayers }
+    /// A map that lets the player choose how many tanks take part.
+    public var hasPlayerChoice: Bool { minPlayers != maxPlayers }
 }
 
 public struct HouseTanksPlayer: Identifiable, Codable, Equatable, Sendable {
@@ -230,18 +250,24 @@ public struct HouseTanksMatchConfiguration: Codable, Equatable, Sendable {
     public var difficulty: HouseTanksDifficulty
     public var humanColor: HouseTanksColor
     public var mapID: HouseTanksMapID
+    /// Tanks in the match, the human included. Clamped to the map's player range.
+    public var playerCount: Int
     public var armorPerRound: Int
     public var roundWinsNeeded: Int
 
-    /// One human and three bots; every map provides a spawn point for each.
-    public static let botNameKeys = ["house_tanks_bot_one", "house_tanks_bot_two", "house_tanks_bot_three"]
+    /// Bot names in seat order; a match uses as many as it has bots.
+    public static let botNameKeys = ["house_tanks_bot_one", "house_tanks_bot_two", "house_tanks_bot_three",
+                                     "house_tanks_bot_four", "house_tanks_bot_five", "house_tanks_bot_six",
+                                     "house_tanks_bot_seven"]
     public static let humanNameKey = "house_tanks_you"
 
     public init(difficulty: HouseTanksDifficulty, humanColor: HouseTanksColor, mapID: HouseTanksMapID = .livingRoom,
-                armorPerRound: Int = 5, roundWinsNeeded: Int = 3) {
+                playerCount: Int? = nil, armorPerRound: Int = 5, roundWinsNeeded: Int = 3) {
         self.difficulty = difficulty
         self.humanColor = humanColor
         self.mapID = mapID
+        let map = HouseTanksMapCatalog.definition(for: mapID)
+        self.playerCount = min(max(playerCount ?? map.minPlayers, map.minPlayers), map.maxPlayers)
         self.armorPerRound = armorPerRound
         self.roundWinsNeeded = roundWinsNeeded
     }

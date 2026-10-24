@@ -113,7 +113,8 @@ internal class TanksCopy(private val strings: LocalizedText, private val bundled
 }
 
 private val ButtonHeightLarge = 56.dp
-private val BotNameKeys = listOf("house_tanks_bot_one", "house_tanks_bot_two", "house_tanks_bot_three")
+private val BotNameKeys = listOf("house_tanks_bot_one", "house_tanks_bot_two", "house_tanks_bot_three",
+    "house_tanks_bot_four", "house_tanks_bot_five", "house_tanks_bot_six", "house_tanks_bot_seven")
 private val TitleStyle = FausCrewType.largeTitle.copy(fontWeight = FontWeight.Black, letterSpacing = (-0.6).sp)
 
 /**
@@ -136,6 +137,7 @@ internal fun HouseTanksLobby(
     onSelectMode: (TanksMode) -> Unit,
     onChangeMode: () -> Unit,
     onSelectMap: (TanksMap) -> Unit,
+    onSelectPlayerCount: (Int) -> Unit,
     onSelectColor: (TanksColor) -> Unit,
     onSelectDifficulty: (TanksDifficulty) -> Unit,
     onStart: () -> Unit,
@@ -176,13 +178,13 @@ internal fun HouseTanksLobby(
                         ModeBar(mode, copy, enabled = !isWaitingForLandscape, onChangeMode)
                         if (mode == TanksMode.DEMO) {
                             DemoSetup(state, copy, maps, requesters, highlighted, enabled = !isWaitingForLandscape,
-                                onSelectMap, onSelectColor, onSelectDifficulty)
+                                onSelectMap, onSelectPlayerCount, onSelectColor, onSelectDifficulty)
                         } else {
                             OnlineRoom(state, copy, maps, userId, houseId, members)
                         }
                     }
                 }
-                FieldManual(copy, state.selectedMode)
+                FieldManual(copy, state.selectedMode, state.setupSteps.size)
                 if (state.selectedMode == TanksMode.DEMO || orientationFailed) {
                     IconLabel(Icons.Rounded.ScreenRotation,
                         copy(if (orientationFailed) "house_tanks_landscape_error" else "house_tanks_landscape_detail"),
@@ -295,6 +297,7 @@ private fun DemoSetup(
     highlighted: TanksSetupStep?,
     enabled: Boolean,
     onSelectMap: (TanksMap) -> Unit,
+    onSelectPlayerCount: (Int) -> Unit,
     onSelectColor: (TanksColor) -> Unit,
     onSelectDifficulty: (TanksDifficulty) -> Unit,
 ) {
@@ -305,19 +308,32 @@ private fun DemoSetup(
                     row.forEach { map ->
                         MapTile(map, maps[map], copy, state.map == map, enabled, Modifier.weight(1f).fillMaxHeight()) { onSelectMap(map) }
                     }
+                    if (row.size == 1) Spacer(Modifier.weight(1f))
+                }
+            }
+        }
+        if (state.needsPlayerCount) {
+            SetupStep(TanksSetupStep.PLAYERS, state, copy, requesters, highlighted) {
+                Column(Modifier.fieldCard(), verticalArrangement = Arrangement.spacedBy(Spacing.sm)) {
+                    SegmentedChoice(state.playerChoices?.toList().orEmpty(), state.playerCount, enabled,
+                        label = { copy.template("house_tanks_players_count", "count" to it.toString()) }, onSelect = onSelectPlayerCount)
+                    Text(copy.template("house_tanks_players_detail", "bots" to (state.rosterSize - 1).toString()),
+                        style = FausCrewType.caption, color = HouseTanksFieldTheme.muted)
                 }
             }
         }
         SetupStep(TanksSetupStep.COLOR, state, copy, requesters, highlighted) {
             Column(Modifier.fieldCard(), verticalArrangement = Arrangement.spacedBy(Spacing.lg)) {
                 FieldLabel(copy("house_tanks_color"))
-                Row(horizontalArrangement = Arrangement.spacedBy(Spacing.sm)) {
-                    TanksColor.entries.forEach { color ->
-                        TankSwatch(color, copy, state.color == color, enabled, Modifier.weight(1f)) { onSelectColor(color) }
+                TanksColor.entries.chunked(4).forEach { row ->
+                    Row(horizontalArrangement = Arrangement.spacedBy(Spacing.sm)) {
+                        row.forEach { color ->
+                            TankSwatch(color, copy, state.color == color, enabled, Modifier.weight(1f)) { onSelectColor(color) }
+                        }
                     }
                 }
                 Box(Modifier.fillMaxWidth().height(1.dp).background(HouseTanksFieldTheme.hairline))
-                Roster(state.color, copy)
+                Roster(state.color, state.rosterSize, copy)
             }
         }
         SetupStep(TanksSetupStep.DIFFICULTY, state, copy, requesters, highlighted) {
@@ -361,7 +377,7 @@ private fun SetupStep(
         verticalArrangement = Arrangement.spacedBy(Spacing.md),
     ) {
         Row(verticalAlignment = Alignment.CenterVertically) {
-            SectionHeader("%02d".format(step.ordinal + 1), copy(stepTitleKey(step)), Modifier.weight(1f))
+            SectionHeader("%02d".format(state.setupSteps.indexOf(step) + 1), copy(stepTitleKey(step)), Modifier.weight(1f))
             StepBadge(step, state, copy)
         }
         content()
@@ -370,6 +386,7 @@ private fun SetupStep(
 
 private fun stepTitleKey(step: TanksSetupStep) = when (step) {
     TanksSetupStep.MAP -> "house_tanks_map_pick"
+    TanksSetupStep.PLAYERS -> "house_tanks_step_players"
     TanksSetupStep.COLOR -> "house_tanks_step_color"
     TanksSetupStep.DIFFICULTY -> "house_tanks_step_difficulty"
 }
@@ -406,9 +423,20 @@ private fun MapTile(
             .padding(Spacing.sm),
         verticalArrangement = Arrangement.spacedBy(Spacing.sm),
     ) {
-        HouseTanksMapPreview(preview, selected, Modifier.clip(RoundedCornerShape(Radius.xs)))
+        Box {
+            HouseTanksMapPreview(preview, selected, Modifier.clip(RoundedCornerShape(Radius.xs)))
+            // On the sheet rather than beside the title, so long map names never break.
+            if (preview?.hasPlayerChoice == true) {
+                Text(copy("house_tanks_map_crowd_badge"),
+                    style = TextStyle(fontFamily = FontFamily.Monospace, fontSize = 9.sp, fontWeight = FontWeight.ExtraBold),
+                    color = HouseTanksPalette.paper, maxLines = 1, softWrap = false,
+                    modifier = Modifier.padding(4.dp).clip(CircleShape).background(HouseTanksPalette.umber)
+                        .padding(horizontal = 5.dp, vertical = 2.dp))
+            }
+        }
         Row(verticalAlignment = Alignment.CenterVertically) {
-            Text(copy(map.titleKey), style = FausCrewType.headline, color = HouseTanksFieldTheme.ink, modifier = Modifier.weight(1f))
+            Text(copy(map.titleKey), style = FausCrewType.headline, color = HouseTanksFieldTheme.ink, maxLines = 1,
+                softWrap = false, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f))
             if (selected) Icon(Icons.Rounded.CheckCircle, null, Modifier.size(18.dp), tint = HouseTanksFieldTheme.accent)
         }
         Text(copy(map.detailKey), style = FausCrewType.caption, color = HouseTanksFieldTheme.muted)
@@ -439,21 +467,26 @@ private fun TankSwatch(color: TanksColor, copy: TanksCopy, selected: Boolean, en
 }
 
 @Composable
-private fun SegmentedDifficulty(selection: TanksDifficulty?, copy: TanksCopy, enabled: Boolean, onSelect: (TanksDifficulty) -> Unit) {
+private fun SegmentedDifficulty(selection: TanksDifficulty?, copy: TanksCopy, enabled: Boolean, onSelect: (TanksDifficulty) -> Unit) =
+    SegmentedChoice(TanksDifficulty.entries, selection, enabled, label = { copy(it.titleKey) }, onSelect = onSelect)
+
+/** A segmented control with nothing preselected (the iOS segmented `Picker` with an optional tag). */
+@Composable
+private fun <T> SegmentedChoice(options: List<T>, selection: T?, enabled: Boolean, label: (T) -> String, onSelect: (T) -> Unit) {
     val shape = RoundedCornerShape(Radius.sm)
     Row(
         Modifier.widthIn(max = 300.dp).fillMaxWidth().clip(shape).background(HouseTanksPalette.slate.copy(alpha = .14f), shape).padding(2.dp),
     ) {
-        TanksDifficulty.entries.forEach { difficulty ->
-            val selected = selection == difficulty
+        options.forEach { option ->
+            val selected = selection == option
             Box(
                 Modifier.weight(1f).heightIn(min = 32.dp).clip(RoundedCornerShape(Radius.sm - 2.dp))
                     .background(if (selected) HouseTanksPalette.paper else Color.Transparent)
-                    .clickable(enabled = enabled, role = Role.RadioButton) { onSelect(difficulty) }
+                    .clickable(enabled = enabled, role = Role.RadioButton) { onSelect(option) }
                     .semantics { this.selected = selected },
                 contentAlignment = Alignment.Center,
             ) {
-                Text(copy(difficulty.titleKey), style = FausCrewType.subheadline.copy(fontWeight = if (selected) FontWeight.SemiBold else FontWeight.Normal),
+                Text(label(option), style = FausCrewType.subheadline.copy(fontWeight = if (selected) FontWeight.SemiBold else FontWeight.Normal),
                     color = HouseTanksFieldTheme.ink)
             }
         }
@@ -461,16 +494,18 @@ private fun SegmentedDifficulty(selection: TanksDifficulty?, copy: TanksCopy, en
 }
 
 @Composable
-private fun Roster(humanColor: TanksColor?, copy: TanksCopy) {
+private fun Roster(humanColor: TanksColor?, size: Int, copy: TanksCopy) {
     Column(verticalArrangement = Arrangement.spacedBy(Spacing.sm)) {
         FieldLabel(copy("house_tanks_roster"))
         // Bot colors are whatever the player leaves; until then the roster stays blank.
-        val botColors: List<TanksColor?> = humanColor?.let { human -> TanksColor.entries.filter { it != human } } ?: listOf(null, null, null)
+        val botColors: List<TanksColor?> = humanColor?.let { human -> TanksColor.entries.filter { it != human } }
+            ?: List(BotNameKeys.size) { null }
         val entries = listOf(Triple("house_tanks_you", "house_tanks_human_role", humanColor)) +
-            BotNameKeys.zip(botColors).map { (name, color) -> Triple(name, "house_tanks_bot_role", color) }
+            BotNameKeys.take(size - 1).zip(botColors).map { (name, color) -> Triple(name, "house_tanks_bot_role", color) }
         entries.chunked(2).forEach { row ->
             Row(horizontalArrangement = Arrangement.spacedBy(Spacing.sm)) {
                 row.forEach { (name, role, color) -> RosterChip(copy(name), copy(role), color, Modifier.weight(1f)) }
+                if (row.size == 1) Spacer(Modifier.weight(1f))
             }
         }
     }
@@ -512,12 +547,13 @@ private fun StartBar(
         if (pending != null) {
             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(Spacing.sm)) {
                 Row(horizontalArrangement = Arrangement.spacedBy(3.dp)) {
-                    TanksSetupStep.entries.forEach { step ->
+                    state.setupSteps.forEach { step ->
                         Box(Modifier.size(18.dp, 4.dp).clip(CircleShape)
                             .background(if (state.isComplete(step)) HouseTanksPalette.steel else HouseTanksPalette.slate.copy(alpha = .25f)))
                     }
                 }
-                Text(copy.template("house_tanks_setup_progress", "done" to state.completedSetupSteps.toString()),
+                Text(copy.template("house_tanks_setup_progress", "done" to state.completedSetupSteps.toString(),
+                    "total" to state.setupSteps.size.toString()),
                     style = HouseTanksFieldTheme.stencil, color = HouseTanksFieldTheme.muted)
             }
             Row(
@@ -638,10 +674,11 @@ private fun OnlineRoom(
 // MARK: - Field manual
 
 @Composable
-private fun FieldManual(copy: TanksCopy, mode: TanksMode?) {
+private fun FieldManual(copy: TanksCopy, mode: TanksMode?, setupStepCount: Int) {
     var showsJokers by remember { mutableStateOf(false) }
     Column(verticalArrangement = Arrangement.spacedBy(Spacing.lg)) {
-        SectionHeader(when (mode) { TanksMode.DEMO -> "04"; TanksMode.ONLINE -> "03"; null -> "01" }, copy("house_tanks_rules_title"))
+        SectionHeader(when (mode) { TanksMode.DEMO -> "%02d".format(setupStepCount + 1); TanksMode.ONLINE -> "03"; null -> "01" },
+            copy("house_tanks_rules_title"))
         Column {
             GuideStep(copy("house_tanks_rule_fire"), copy("house_tanks_rule_fire_detail"), Icons.Rounded.GpsFixed, HouseTanksPalette.steel)
             GuideStep(copy("house_tanks_rule_drive"), copy("house_tanks_rule_drive_detail"), Icons.Rounded.ArrowUpward, HouseTanksPalette.deepSteel)

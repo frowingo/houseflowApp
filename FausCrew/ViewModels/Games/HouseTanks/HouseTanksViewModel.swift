@@ -9,6 +9,8 @@ final class HouseTanksViewModel: ObservableObject {
     @Published var difficulty: HouseTanksDifficulty?
     @Published var humanColor: HouseTanksColor?
     @Published var mapID: HouseTanksMapID?
+    /// Tanks in the match, the human included; asked only on maps with a player range.
+    @Published var playerCount: Int?
     @Published private(set) var selectedMode: HouseTanksMode?
     @Published private(set) var onlineMapID: HouseTanksMapID?
 
@@ -38,16 +40,31 @@ final class HouseTanksViewModel: ObservableObject {
         selectedMode == .online ? onlineMapID : mapID
     }
 
+    /// The picks this setup asks for: the player count appears only on crowded-match maps.
+    var setupSteps: [HouseTanksSetupStep] {
+        HouseTanksSetupStep.allCases.filter { $0 != .players || needsPlayerCount }
+    }
+
+    var needsPlayerCount: Bool {
+        selectedMode != .online && mapID.map { HouseTanksMapCatalog.definition(for: $0).hasPlayerChoice } == true
+    }
+
+    func isComplete(_ step: HouseTanksSetupStep) -> Bool {
+        switch step {
+        case .map: matchMapID != nil
+        case .players: playerCount != nil
+        case .color: humanColor != nil
+        case .difficulty: difficulty != nil
+        }
+    }
+
     /// The first pick still missing, in the order the setup screen asks for them.
     var pendingSetupStep: HouseTanksSetupStep? {
-        if matchMapID == nil { return .map }
-        if humanColor == nil { return .color }
-        if difficulty == nil { return .difficulty }
-        return nil
+        setupSteps.first { !isComplete($0) }
     }
 
     var completedSetupSteps: Int {
-        [matchMapID != nil, humanColor != nil, difficulty != nil].filter { $0 }.count
+        setupSteps.filter(isComplete).count
     }
 
     func selectMode(_ mode: HouseTanksMode) {
@@ -70,13 +87,14 @@ final class HouseTanksViewModel: ObservableObject {
     }
 
     func startMatch() async {
-        guard let difficulty, let humanColor, let mapID = matchMapID else { return }
+        guard pendingSetupStep == nil, let difficulty, let humanColor, let mapID = matchMapID else { return }
         commandSequence = 0
         isPressing = false
         await service.start(configuration: HouseTanksMatchConfiguration(
             difficulty: difficulty,
             humanColor: humanColor,
-            mapID: mapID
+            mapID: mapID,
+            playerCount: needsPlayerCount ? playerCount : nil
         ))
     }
 

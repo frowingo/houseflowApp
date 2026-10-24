@@ -59,6 +59,21 @@ final class HouseTanksTests: XCTestCase {
         model.stop()
     }
 
+    func testBasementAsksForThePlayerCountBeforeColor() {
+        let model = HouseTanksViewModel(service: DemoHouseTanksGameSession())
+        model.selectMode(.demo)
+        model.mapID = .warehouse
+        XCTAssertEqual(model.setupSteps, [.map, .color, .difficulty])
+        model.mapID = .basement
+        XCTAssertEqual(model.setupSteps, [.map, .players, .color, .difficulty])
+        XCTAssertEqual(model.pendingSetupStep, .players)
+        model.playerCount = 7
+        model.humanColor = .ivory
+        model.difficulty = .easy
+        XCTAssertNil(model.pendingSetupStep)
+        XCTAssertEqual(model.completedSetupSteps, 4)
+    }
+
     func testOnlineRoomDrawsItsMap() {
         let model = HouseTanksViewModel(service: DemoHouseTanksGameSession())
         model.selectMode(.online)

@@ -11,10 +11,10 @@ final class HouseTanksBridgeTests: XCTestCase {
         defer { XCTAssertTrue(houseTanksBotDestroy(handle)) }
 
         XCTAssertEqual(try object(houseTanksBotViewport(handle, 844, 390))["ok"] as? Bool, true)
-        XCTAssertEqual(try object(houseTanksBotStart(handle, "hard", "teal", "warehouse"))["ok"] as? Bool, false,
+        XCTAssertEqual(try object(houseTanksBotStart(handle, "hard", "teal", "warehouse", 4))["ok"] as? Bool, false,
                        "Unknown colors are rejected")
 
-        let start = try object(houseTanksBotStart(handle, "hard", "olive", "warehouse"))
+        let start = try object(houseTanksBotStart(handle, "hard", "olive", "warehouse", 4))
         XCTAssertEqual(start["ok"] as? Bool, true)
         XCTAssertEqual(start["phase"] as? String, "countdown")
         XCTAssertEqual(start["countdown"] as? Int, 3)
@@ -52,11 +52,22 @@ final class HouseTanksBridgeTests: XCTestCase {
         XCTAssertEqual(try object(houseTanksCopy("en"))["house_tanks_title"] as? String, "FauseTanks")
         XCTAssertEqual(try object(houseTanksCopy("tr"))["house_tanks_power_rocket"] as? String, "Dev roket")
         let maps = try XCTUnwrap(try object(houseTanksMaps())["maps"] as? [[String: Any]])
-        XCTAssertEqual(maps.map { $0["id"] as? String }, ["livingRoom", "corridors", "warehouse", "courtyard"])
+        XCTAssertEqual(maps.map { $0["id"] as? String }, ["livingRoom", "corridors", "warehouse", "courtyard", "basement"])
         XCTAssertEqual((maps.first?["spawns"] as? [[Double]])?.count, 4)
+        XCTAssertEqual(maps.last?["minPlayers"] as? Int, 6)
+        XCTAssertEqual(maps.last?["maxPlayers"] as? Int, 8)
+        XCTAssertEqual(maps.last?["scale"] as? Double, 0.72)
         let constants = try object(houseTanksConstants())
         XCTAssertEqual(constants["countdownStepMillis"] as? Int, 720)
         XCTAssertEqual(constants["jokers"] as? [String], ["rocket", "rapidFire", "spreadShot", "shield", "aim"])
+    }
+
+    func testBasementStartsWithTheChosenPlayerCount() throws {
+        let handle = houseTanksBotCreate()
+        defer { XCTAssertTrue(houseTanksBotDestroy(handle)) }
+        let start = try object(houseTanksBotStart(handle, "normal", "sky", "basement", 7))
+        XCTAssertEqual((start["players"] as? [[String: Any]])?.count, 7)
+        XCTAssertEqual((start["arena"] as? [String: Any])?["scale"] as? Double, 0.72)
     }
 
     func testUnknownHandleFailsCleanly() throws {

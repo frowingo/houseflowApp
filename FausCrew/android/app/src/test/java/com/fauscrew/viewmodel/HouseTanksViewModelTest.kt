@@ -52,9 +52,12 @@ class HouseTanksViewModelTest {
         )
 
         override fun viewport(width: Float, height: Float) = TanksUpdate(if (started > 0) frame() else null)
-        override fun start(difficulty: TanksDifficulty, color: TanksColor, map: TanksMap): TanksUpdate {
+        var lastPlayerCount = 0
+
+        override fun start(difficulty: TanksDifficulty, color: TanksColor, map: TanksMap, playerCount: Int): TanksUpdate {
             started += 1; phase = TanksPhase.COUNTDOWN; countdown = 3; humanArmor = 5
             lastStart = Triple(difficulty, color, map)
+            lastPlayerCount = playerCount
             return TanksUpdate(frame())
         }
         override fun countdown(): TanksUpdate {
@@ -65,13 +68,14 @@ class HouseTanksViewModelTest {
         override fun step(deltaSeconds: Double): TanksUpdate { steps += deltaSeconds; return TanksUpdate(frame()) }
         override fun press(pressed: Boolean): TanksUpdate { presses += pressed; return TanksUpdate(frame(), changed = true) }
         override fun nextRound(): TanksUpdate { phase = TanksPhase.COUNTDOWN; countdown = 3; return TanksUpdate(frame(), changed = true) }
-        override fun restart() = start(lastStart!!.first, lastStart!!.second, lastStart!!.third).copy(changed = true)
+        override fun restart() = start(lastStart!!.first, lastStart!!.second, lastStart!!.third, lastPlayerCount).copy(changed = true)
         override fun pause(): TanksUpdate { phase = TanksPhase.PAUSED; return TanksUpdate(frame(), changed = true) }
         override fun resume(): TanksUpdate { phase = TanksPhase.PLAYING; return TanksUpdate(frame(), changed = true) }
         override fun close() { closed = true }
     }
 
-    private fun model(engine: FakeEngine) = HouseTanksViewModel({ engine }, { 720L }, { TanksMap.WAREHOUSE })
+    private fun model(engine: FakeEngine) = HouseTanksViewModel({ engine }, { 720L }, { TanksMap.WAREHOUSE },
+        { map -> if (map == TanksMap.BASEMENT) 6..8 else 4..4 })
 
     @Test fun demoSetupStartsEmptyAndWillNotStartUntilEveryPickIsMade() {
         val engine = FakeEngine()
@@ -92,6 +96,23 @@ class HouseTanksViewModelTest {
         model.startMatch()
         assertEquals(Triple(TanksDifficulty.HARD, TanksColor.BLUE, TanksMap.COURTYARD), engine.lastStart)
         assertNotNull(model.frame.value)
+    }
+
+    @Test fun basementAsksForThePlayerCountAndStartsWithIt() {
+        val engine = FakeEngine()
+        val model = model(engine)
+        model.selectMode(TanksMode.DEMO)
+        model.selectMap(TanksMap.WAREHOUSE)
+        assertEquals(listOf(TanksSetupStep.MAP, TanksSetupStep.COLOR, TanksSetupStep.DIFFICULTY), model.state.value.setupSteps)
+        model.selectMap(TanksMap.BASEMENT)
+        assertEquals(TanksSetupStep.PLAYERS, model.state.value.pendingSetupStep)
+        assertEquals(6, model.state.value.rosterSize)
+        model.selectPlayerCount(8)
+        model.selectColor(TanksColor.IVORY)
+        model.selectDifficulty(TanksDifficulty.EASY)
+        assertEquals(4, model.state.value.completedSetupSteps)
+        model.startMatch()
+        assertEquals(8, engine.lastPlayerCount)
     }
 
     @Test fun onlineRoomDrawsItsMap() {

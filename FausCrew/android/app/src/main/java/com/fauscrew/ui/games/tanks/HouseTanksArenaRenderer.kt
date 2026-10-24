@@ -74,6 +74,8 @@ internal class HouseTanksArenaRenderer {
             fun point(x: Double, y: Double) = Offset(x.toFloat(), height - y.toFloat())
 
             val arena = frame.arena
+            // Crowded-match maps draw every actor smaller, matching the engine's scale.
+            val actor = (arena?.scale ?: 1.0).toFloat()
             drawRect(floorTint(arena?.map), size = Size(frame.width.toFloat(), height))
             if (arena != null) {
                 drawFloorPlan(arena, height, ::point)
@@ -86,15 +88,21 @@ internal class HouseTanksArenaRenderer {
 
             frame.token?.let { token ->
                 val center = point(token.x, token.y)
-                drawCircle(token.kind.tint, 14f, center)
-                drawCircle(HouseTanksPalette.paper, 14f, center, style = Stroke(1.5f))
-                translate(center.x, center.y) { drawJokerGlyph(token.kind, 16f, Color.White, painters) }
-                drawTimerArc(center, 17f, token.fraction)
+                withTransform({ translate(center.x, center.y); scale(actor, actor, Offset.Zero) }) {
+                    drawCircle(token.kind.tint, 14f, Offset.Zero)
+                    drawCircle(HouseTanksPalette.paper, 14f, Offset.Zero, style = Stroke(1.5f))
+                    drawJokerGlyph(token.kind, 16f, Color.White, painters)
+                    drawTimerArc(Offset.Zero, 17f, token.fraction)
+                }
             }
 
             frame.projectiles.forEach { shot ->
                 val center = point(shot.x, shot.y)
-                withTransform({ translate(center.x, center.y); rotate(-Math.toDegrees(shot.rotation).toFloat(), Offset.Zero) }) {
+                withTransform({
+                    translate(center.x, center.y)
+                    rotate(-Math.toDegrees(shot.rotation).toFloat(), Offset.Zero)
+                    scale(actor, actor, Offset.Zero)
+                }) {
                     if (shot.isRocket) drawRocket(now, reduceMotion) else {
                         drawRoundRect(shot.color.ink, Offset(-4.5f, -1.75f), Size(9f, 3.5f), CornerRadius(1.75f))
                         drawRoundRect(HouseTanksPalette.ink, Offset(-4.5f, -1.75f), Size(9f, 3.5f), CornerRadius(1.75f), style = Stroke(1f))
@@ -107,19 +115,23 @@ internal class HouseTanksArenaRenderer {
                 val flash = effects.filterIsInstance<HullFlash>().lastOrNull { it.playerId == tank.id }
                 val hullAlpha = flash?.let { hullFlashAlpha(now - it.start) } ?: 1f
                 withTransform({ translate(center.x, center.y); rotate(-Math.toDegrees(tank.rotation).toFloat(), Offset.Zero) }) {
-                    tank.aimLength?.let { length -> drawAimLine(length.toFloat()) }
-                    scale(.38f, .38f, Offset.Zero) {
+                    tank.aimLength?.let { length -> drawAimLine(length.toFloat(), 16f * actor) }
+                    scale(.38f * actor, .38f * actor, Offset.Zero) {
                         drawTankArtwork(tank.color.ink, tank.role == TanksRole.HUMAN, !tank.isActive, hullAlpha)
                     }
                     effects.filterIsInstance<Muzzle>().lastOrNull { it.playerId == tank.id }?.let { muzzle ->
                         val progress = ((now - muzzle.start) / 80_000_000f).coerceIn(0f, 1f)
                         val fade = 1f - ((now - muzzle.start) / 100_000_000f).coerceIn(0f, 1f)
-                        val radius = 3f * (1f + .8f * progress)
-                        drawCircle(tank.color.ink.copy(alpha = fade), radius, Offset(13f, 0f))
-                        drawCircle(HouseTanksPalette.paper.copy(alpha = fade), radius, Offset(13f, 0f), style = Stroke(1f))
+                        val radius = 3f * (1f + .8f * progress) * actor
+                        drawCircle(tank.color.ink.copy(alpha = fade), radius, Offset(13f * actor, 0f))
+                        drawCircle(HouseTanksPalette.paper.copy(alpha = fade), radius, Offset(13f * actor, 0f), style = Stroke(1f))
                     }
                 }
-                if (tank.isActive) tank.power?.let { power -> drawPowerIndicator(center, power, tank.powerFraction, painters) }
+                if (tank.isActive) tank.power?.let { power ->
+                    withTransform({ translate(center.x, center.y); scale(actor, actor, Offset.Zero) }) {
+                        drawPowerIndicator(Offset.Zero, power, tank.powerFraction, painters)
+                    }
+                }
             }
 
             effects.forEach { effect ->
@@ -145,6 +157,8 @@ internal class HouseTanksArenaRenderer {
         TanksMap.CORRIDORS -> HouseTanksPalette.steel.copy(alpha = .07f)
         TanksMap.WAREHOUSE -> HouseTanksPalette.rust.copy(alpha = .08f)
         TanksMap.COURTYARD -> HouseTanksPalette.olive.copy(alpha = .12f)
+        // A cool concrete wash for the crowded Basement.
+        TanksMap.BASEMENT -> HouseTanksPalette.slate.copy(alpha = .10f)
     }
 
     private fun floorAccent(map: TanksMap): Color = when (map) {
@@ -152,6 +166,7 @@ internal class HouseTanksArenaRenderer {
         TanksMap.CORRIDORS -> HouseTanksPalette.steel
         TanksMap.WAREHOUSE -> HouseTanksPalette.rust
         TanksMap.COURTYARD -> HouseTanksPalette.olive
+        TanksMap.BASEMENT -> HouseTanksPalette.slate
     }
 
     private fun DrawScope.drawFloorPlan(arena: TanksArena, height: Float, point: (Double, Double) -> Offset) {
@@ -291,8 +306,7 @@ internal class HouseTanksArenaRenderer {
     }
 
     /** Aim joker: a dotted red sight line from the muzzle to the arena wall. */
-    private fun DrawScope.drawAimLine(length: Float) {
-        val start = 16f
+    private fun DrawScope.drawAimLine(length: Float, start: Float) {
         if (length <= start) return
         drawLine(HouseTanksPalette.signalRed, Offset(start, 0f), Offset(length, 0f), 2.6f, StrokeCap.Round,
             PathEffect.dashPathEffect(floatArrayOf(.1f, 7f)))

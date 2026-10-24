@@ -25,7 +25,7 @@ import kotlinx.coroutines.launch
 internal enum class TanksMode { DEMO, ONLINE }
 
 /** `HouseTanksSetupStep`: the demo picks the player must make; nothing is preselected. */
-internal enum class TanksSetupStep { MAP, COLOR, DIFFICULTY }
+internal enum class TanksSetupStep { MAP, PLAYERS, COLOR, DIFFICULTY }
 
 internal enum class TanksHaptic { HIT, ROUND_END, WIN, LOSS }
 
@@ -34,25 +34,35 @@ internal data class HouseTanksUiState(
     val map: TanksMap? = null,
     val color: TanksColor? = null,
     val difficulty: TanksDifficulty? = null,
+    /** Tanks in the match, the human included; asked only on maps with a player range. */
+    val playerCount: Int? = null,
+    /** The selected map's player range (from Core's catalog). */
+    val playerChoices: IntRange? = null,
     /** Online rooms draw their arena at random. */
     val onlineMap: TanksMap? = null,
 ) {
+    val needsPlayerCount: Boolean
+        get() = selectedMode != TanksMode.ONLINE && playerChoices != null && playerChoices.first != playerChoices.last
+
+    /** The picks this setup asks for: the player count appears only on crowded-match maps. */
+    val setupSteps: List<TanksSetupStep>
+        get() = TanksSetupStep.entries.filter { it != TanksSetupStep.PLAYERS || needsPlayerCount }
+
+    /** Four tanks on the standard maps; the chosen (or smallest) count on crowded-match maps. */
+    val rosterSize: Int
+        get() = playerChoices?.let { range -> (playerCount ?: range.first).coerceIn(range) } ?: 4
+
     /** The arena the next match uses: the player's pick in demo, the drawn one online. */
     val matchMap: TanksMap? get() = if (selectedMode == TanksMode.ONLINE) onlineMap else map
 
     /** The first pick still missing, in the order the setup screen asks for them. */
-    val pendingSetupStep: TanksSetupStep?
-        get() = when {
-            matchMap == null -> TanksSetupStep.MAP
-            color == null -> TanksSetupStep.COLOR
-            difficulty == null -> TanksSetupStep.DIFFICULTY
-            else -> null
-        }
+    val pendingSetupStep: TanksSetupStep? get() = setupSteps.firstOrNull { !isComplete(it) }
 
-    val completedSetupSteps: Int get() = listOf(matchMap != null, color != null, difficulty != null).count { it }
+    val completedSetupSteps: Int get() = setupSteps.count(::isComplete)
 
     fun isComplete(step: TanksSetupStep): Boolean = when (step) {
-        TanksSetupStep.MAP -> map != null
+        TanksSetupStep.MAP -> matchMap != null
+        TanksSetupStep.PLAYERS -> playerCount != null
         TanksSetupStep.COLOR -> color != null
         TanksSetupStep.DIFFICULTY -> difficulty != null
     }
@@ -67,6 +77,7 @@ internal class HouseTanksViewModel(
     private val makeEngine: () -> HouseTanksEngine = HouseTanksNative::engine,
     private val countdownStepMillis: () -> Long = { HouseTanksNative.countdownStepMillis },
     private val drawMap: () -> TanksMap = { TanksMap.entries.random() },
+    private val playerRange: (TanksMap) -> IntRange = { map -> HouseTanksNative.maps[map]?.playerCounts ?: 4..4 },
 ) : ViewModel() {
     private val mutableState = MutableStateFlow(HouseTanksUiState())
     val state: StateFlow<HouseTanksUiState> = mutableState.asStateFlow()
@@ -99,7 +110,8 @@ internal class HouseTanksViewModel(
         mutableState.update { it.copy(selectedMode = null, onlineMap = null) }
     }
 
-    fun selectMap(map: TanksMap) = mutableState.update { it.copy(map = map) }
+    fun selectMap(map: TanksMap) = mutableState.update { it.copy(map = map, playerChoices = playerRange(map)) }
+    fun selectPlayerCount(count: Int) = mutableState.update { it.copy(playerCount = count) }
     fun selectColor(color: TanksColor) = mutableState.update { it.copy(color = color) }
     fun selectDifficulty(difficulty: TanksDifficulty) = mutableState.update { it.copy(difficulty = difficulty) }
 
@@ -111,6 +123,7 @@ internal class HouseTanksViewModel(
     /** Starts a demo match once every pick is made. */
     fun startMatch() {
         val current = mutableState.value
+        if (current.pendingSetupStep != null) return
         val map = current.matchMap ?: return
         val color = current.color ?: return
         val difficulty = current.difficulty ?: return
@@ -118,7 +131,7 @@ internal class HouseTanksViewModel(
         if (viewport[0] > 0f && viewport[1] > 0f) engine.viewport(viewport[0], viewport[1])
         isPressing = false
         lastFrameNanos = null
-        apply(engine.start(difficulty, color, map))
+        apply(engine.start(difficulty, color, map, if (current.needsPlayerCount) current.rosterSize else 4))
         beginCountdown()
     }
 

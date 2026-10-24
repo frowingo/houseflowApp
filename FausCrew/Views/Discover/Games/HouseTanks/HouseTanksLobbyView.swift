@@ -182,9 +182,24 @@ struct HouseTanksLobbyView: View {
     private var demoSetup: some View {
         VStack(alignment: .leading, spacing: 28) {
             setupStep(.map) {
-                LazyVGrid(columns: [GridItem(.adaptive(minimum: 148), spacing: AppDesign.Spacing.md)],
-                          spacing: AppDesign.Spacing.md) {
-                    ForEach(HouseTanksMapID.allCases) { mapID in mapTile(mapID) }
+                // An eager two-column grid: a lazy grid under-measures its last row while
+                // scrolling, letting the odd fifth tile slide under the next section.
+                VStack(spacing: AppDesign.Spacing.md) {
+                    ForEach(Array(stride(from: 0, to: HouseTanksMapID.allCases.count, by: 2)), id: \.self) { start in
+                        let row = Array(HouseTanksMapID.allCases[start..<min(start + 2, HouseTanksMapID.allCases.count)])
+                        HStack(alignment: .top, spacing: AppDesign.Spacing.md) {
+                            ForEach(row) { mapID in mapTile(mapID) }
+                            if row.count == 1 { Color.clear.frame(maxWidth: .infinity) }
+                        }
+                        .fixedSize(horizontal: false, vertical: true)
+                    }
+                }
+            }
+
+            if model.needsPlayerCount {
+                setupStep(.players) {
+                    playerCountPicker
+                        .houseTanksFieldCard()
                 }
             }
 
@@ -212,7 +227,8 @@ struct HouseTanksLobbyView: View {
         let isHighlighted = highlightedStep == step
         return VStack(alignment: .leading, spacing: AppDesign.Spacing.md) {
             HStack(alignment: .firstTextBaseline) {
-                sectionHeader(code: String(format: "%02d", step.rawValue + 1), key: stepTitleKey(step))
+                sectionHeader(code: String(format: "%02d", (model.setupSteps.firstIndex(of: step) ?? 0) + 1),
+                              key: stepTitleKey(step))
                 Spacer(minLength: AppDesign.Spacing.sm)
                 stepBadge(step)
             }
@@ -238,7 +254,7 @@ struct HouseTanksLobbyView: View {
     }
 
     private func stepBadge(_ step: HouseTanksSetupStep) -> some View {
-        let done = isComplete(step)
+        let done = model.isComplete(step)
         let isNext = model.pendingSetupStep == step
         let key = done ? "house_tanks_step_done" : isNext ? "house_tanks_step_next" : "house_tanks_step_waiting"
         let tint = done ? HouseTanksMapPalette.steel : isNext ? HouseTanksMapPalette.umber : HouseTanksFieldTheme.muted
@@ -251,17 +267,10 @@ struct HouseTanksLobbyView: View {
             .background(tint.opacity(0.12), in: Capsule())
     }
 
-    private func isComplete(_ step: HouseTanksSetupStep) -> Bool {
-        switch step {
-        case .map: model.mapID != nil
-        case .color: model.humanColor != nil
-        case .difficulty: model.difficulty != nil
-        }
-    }
-
     private func stepTitleKey(_ step: HouseTanksSetupStep) -> String {
         switch step {
         case .map: "house_tanks_map_pick"
+        case .players: "house_tanks_step_players"
         case .color: "house_tanks_step_color"
         case .difficulty: "house_tanks_step_difficulty"
         }
@@ -273,10 +282,26 @@ struct HouseTanksLobbyView: View {
             VStack(alignment: .leading, spacing: AppDesign.Spacing.sm) {
                 HouseTanksMapPreview(mapID: mapID, isSelected: selected)
                     .clipShape(RoundedRectangle(cornerRadius: AppDesign.CornerRadius.xs, style: .continuous))
+                    .overlay(alignment: .topLeading) {
+                        // On the sheet rather than beside the title, so long map names never break.
+                        if HouseTanksMapCatalog.definition(for: mapID).hasPlayerChoice {
+                            Text(copy("house_tanks_map_crowd_badge"))
+                                .font(.system(size: 9, weight: .heavy, design: .monospaced))
+                                .foregroundStyle(HouseTanksMapPalette.paper)
+                                .padding(.horizontal, 5)
+                                .padding(.vertical, 2)
+                                .background(HouseTanksMapPalette.umber, in: Capsule())
+                                .lineLimit(1)
+                                .fixedSize()
+                                .padding(4)
+                        }
+                    }
                 HStack(spacing: AppDesign.Spacing.xs) {
                     Text(copy(mapID.titleKey))
                         .font(.headline)
                         .foregroundStyle(HouseTanksFieldTheme.ink)
+                        .lineLimit(1)
+                        .minimumScaleFactor(0.8)
                     Spacer(minLength: 0)
                     if selected {
                         Image(systemName: "checkmark.circle.fill")
@@ -377,14 +402,38 @@ struct HouseTanksLobbyView: View {
             // Bot colors are whatever the player leaves; until then the roster stays blank.
             let botColors: [HouseTanksColor?] = model.humanColor.map { human in
                 HouseTanksColor.allCases.filter { $0 != human }
-            } ?? [nil, nil, nil]
+            } ?? Array(repeating: nil, count: HouseTanksMatchConfiguration.botNameKeys.count)
             let entries = [("house_tanks_you", "house_tanks_human_role", model.humanColor)]
-                + zip(HouseTanksMatchConfiguration.botNameKeys, botColors).map { ($0, "house_tanks_bot_role", $1) }
+                + zip(HouseTanksMatchConfiguration.botNameKeys.prefix(rosterSize - 1), botColors)
+                    .map { ($0, "house_tanks_bot_role", $1) }
             LazyVGrid(columns: [GridItem(.flexible(), spacing: AppDesign.Spacing.sm),
                                 GridItem(.flexible(), spacing: AppDesign.Spacing.sm)],
                       spacing: AppDesign.Spacing.sm) {
                 ForEach(entries, id: \.0) { rosterChip(nameKey: $0.0, roleKey: $0.1, color: $0.2) }
             }
+        }
+    }
+
+    /// Four tanks on the standard maps; the chosen (or smallest) count on crowded-match maps.
+    private var rosterSize: Int {
+        guard let mapID = model.mapID else { return 4 }
+        let map = HouseTanksMapCatalog.definition(for: mapID)
+        return min(max(model.playerCount ?? map.minPlayers, map.minPlayers), map.maxPlayers)
+    }
+
+    private var playerCountPicker: some View {
+        let range = model.mapID.map { HouseTanksMapCatalog.definition(for: $0).playerCounts } ?? 6...8
+        return VStack(alignment: .leading, spacing: AppDesign.Spacing.sm) {
+            Picker(copy("house_tanks_step_players"), selection: $model.playerCount) {
+                ForEach(Array(range), id: \.self) { count in
+                    Text(copy("house_tanks_players_count", replacements: ["count": "\(count)"])).tag(Optional(count))
+                }
+            }
+            .pickerStyle(.segmented)
+            Text(copy("house_tanks_players_detail", replacements: ["bots": "\(rosterSize - 1)"]))
+                .font(.caption)
+                .foregroundStyle(HouseTanksFieldTheme.muted)
+                .fixedSize(horizontal: false, vertical: true)
         }
     }
 
@@ -419,13 +468,14 @@ struct HouseTanksLobbyView: View {
             if let pending {
                 HStack(spacing: AppDesign.Spacing.sm) {
                     HStack(spacing: 3) {
-                        ForEach(HouseTanksSetupStep.allCases) { step in
+                        ForEach(model.setupSteps) { step in
                             Capsule()
-                                .fill(isComplete(step) ? HouseTanksMapPalette.steel : HouseTanksMapPalette.slate.opacity(0.25))
+                                .fill(model.isComplete(step) ? HouseTanksMapPalette.steel : HouseTanksMapPalette.slate.opacity(0.25))
                                 .frame(width: 18, height: 4)
                         }
                     }
-                    Text(copy("house_tanks_setup_progress", replacements: ["done": "\(model.completedSetupSteps)"]))
+                    Text(copy("house_tanks_setup_progress", replacements: ["done": "\(model.completedSetupSteps)",
+                                                                             "total": "\(model.setupSteps.count)"]))
                         .font(HouseTanksFieldTheme.stencil)
                         .foregroundStyle(HouseTanksFieldTheme.muted)
                     Spacer(minLength: 0)
@@ -805,12 +855,16 @@ struct HouseTanksLobbyView: View {
         case .orange: copy("house_tanks_color_orange")
         case .blue: copy("house_tanks_color_blue")
         case .olive: copy("house_tanks_color_olive")
+        case .mustard: copy("house_tanks_color_mustard")
+        case .crimson: copy("house_tanks_color_crimson")
+        case .sky: copy("house_tanks_color_sky")
+        case .ivory: copy("house_tanks_color_ivory")
         }
     }
 
     private var fieldManualCode: String {
         switch model.selectedMode {
-        case .demo: "04"
+        case .demo: String(format: "%02d", model.setupSteps.count + 1)
         case .online: "03"
         case nil: "01"
         }

@@ -57,15 +57,18 @@ public func houseTanksBotViewport(_ handle: Int32, _ width: Double, _ height: Do
     }
 }
 
-/// Starts (or replaces) a match; the countdown starts at 3. Unknown values are rejected.
-public func houseTanksBotStart(_ handle: Int32, _ difficulty: String, _ color: String, _ map: String) -> String {
+/// Starts (or replaces) a match; the countdown starts at 3. Unknown values are rejected and
+/// `playerCount` (the human included) is clamped to the map's player range.
+public func houseTanksBotStart(_ handle: Int32, _ difficulty: String, _ color: String, _ map: String,
+                               _ playerCount: Int32) -> String {
     guard let difficulty = HouseTanksDifficulty(rawValue: difficulty),
           let color = HouseTanksColor(rawValue: color),
           let map = HouseTanksMapID(rawValue: map) else {
         return bridgeJSON(["ok": false, "message": "Unknown FauseTanks setup"])
     }
     return tanksFrame(handle) { entry in
-        entry.match.start(configuration: HouseTanksMatchConfiguration(difficulty: difficulty, humanColor: color, mapID: map))
+        entry.match.start(configuration: HouseTanksMatchConfiguration(difficulty: difficulty, humanColor: color, mapID: map,
+                                                                      playerCount: Int(playerCount)))
         entry.arenaKey = ""
         entry.pressSequence = 0
         return [:]
@@ -127,6 +130,9 @@ public func houseTanksMaps() -> String {
             let map = HouseTanksMapCatalog.definition(for: id)
             return [
                 "id": id.rawValue,
+                "scale": map.scale,
+                "minPlayers": map.minPlayers,
+                "maxPlayers": map.maxPlayers,
                 "spawns": map.spawnPoints.map { [$0.x, $0.y] },
                 "obstacles": map.obstacles.map { obstacle -> [String: Any] in [
                     "x": obstacle.center.x, "y": obstacle.center.y,
@@ -232,6 +238,7 @@ enum HouseTanksFrameJSON {
             let frame = world.arenaFrame
             object["arena"] = [
                 "mapId": world.map.id.rawValue,
+                "scale": world.scale,
                 "frame": [frame.x, frame.y, frame.width, frame.height],
                 "obstacles": world.obstacles.map { obstacle -> [String: Any] in [
                     "index": obstacle.index, "style": obstacle.definition.style.rawValue,
