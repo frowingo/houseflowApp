@@ -97,7 +97,6 @@ internal class HouseTanksViewModel(
     private var countdownJob: Job? = null
     private var lastFrameNanos: Long? = null
     private var isPressing = false
-    private var viewport = floatArrayOf(0f, 0f)
 
     fun selectMode(mode: TanksMode) {
         if (mutableFrame.value != null) return
@@ -115,11 +114,6 @@ internal class HouseTanksViewModel(
     fun selectColor(color: TanksColor) = mutableState.update { it.copy(color = color) }
     fun selectDifficulty(difficulty: TanksDifficulty) = mutableState.update { it.copy(difficulty = difficulty) }
 
-    fun setViewport(width: Float, height: Float) {
-        viewport = floatArrayOf(width, height)
-        engine?.let { apply(it.viewport(width, height)) }
-    }
-
     /** Starts a demo match once every pick is made. */
     fun startMatch() {
         val current = mutableState.value
@@ -128,7 +122,6 @@ internal class HouseTanksViewModel(
         val color = current.color ?: return
         val difficulty = current.difficulty ?: return
         val engine = engine ?: makeEngine().also { engine = it }
-        if (viewport[0] > 0f && viewport[1] > 0f) engine.viewport(viewport[0], viewport[1])
         isPressing = false
         lastFrameNanos = null
         apply(engine.start(difficulty, color, map, if (current.needsPlayerCount) current.rosterSize else 4))

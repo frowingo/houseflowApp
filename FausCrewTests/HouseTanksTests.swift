@@ -23,12 +23,16 @@ final class HouseTanksTests: XCTestCase {
     }
 
     func testSceneDrawsEveryTankAndCrateFromTheEngine() throws {
-        let scene = HouseTanksScene(size: CGSize(width: 844, height: 390))
+        let scene = HouseTanksScene()
+        XCTAssertEqual(scene.scaleMode, .resizeFill, "no letterbox: the scene fills the view")
+        scene.size = CGSize(width: 852, height: 393)
+        let camera = try XCTUnwrap(scene.camera)
+        XCTAssertEqual(camera.xScale, 872 / 852, accuracy: 0.001, "the camera fits the 872×400 arena by width")
+        XCTAssertEqual(camera.position, CGPoint(x: 436, y: 200))
         var match = HouseTanksBotMatch(seed: 11)
-        match.setViewport(HouseTanksSize(width: 844, height: 390))
         match.start(configuration: .init(difficulty: .easy, humanColor: .plum, mapID: .livingRoom))
         let world = try XCTUnwrap(match.world)
-        scene.render(world, roundKey: "round-1", events: [])
+        scene.render(world, roundKey: "round-1", events: [], localPlayerID: world.tanks.first?.id)
         XCTAssertEqual(scene.children.filter { $0.name == "tank" }.count, 4)
         XCTAssertEqual(scene.children.filter { $0.name == "crate" }.count, world.obstacles.filter(\.isMovable).count)
         for tank in world.tanks {

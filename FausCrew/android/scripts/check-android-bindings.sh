@@ -62,9 +62,9 @@ grep -Eq 'public static java\.lang\.String socialResponse\(java\.lang\.String ac
 grep -Fq 'SwiftLibraries.loadLibraryWithFallbacks(LIB_NAME);' "$java_file"
 
 public_methods=$(grep -Ec '^[[:space:]]*public static .*\(' "$java_file")
-if [ "$public_methods" -ne 58 ]; then
-    echo "Expected exactly fifty-eight public JNI methods, found ${public_methods}" >&2
+if [ "$public_methods" -ne 57 ]; then
+    echo "Expected exactly fifty-seven public JNI methods, found ${public_methods}" >&2
     exit 1
 fi
 
-echo 'Generated JNI API matches the version-11 Kotlin boundary.'
+echo 'Generated JNI API matches the version-12 Kotlin boundary.'

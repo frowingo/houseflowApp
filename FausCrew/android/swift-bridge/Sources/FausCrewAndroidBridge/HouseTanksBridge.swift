@@ -4,7 +4,8 @@ import FausCrewCore
 // FauseTanks demo match. Rules, physics, bots and jokers stay in FausCrewCore;
 // Android owns timers, input and drawing. Gameplay is one JNI call per rendered
 // frame: each step returns the moving state, and the static arena (furniture and
-// crate shapes) is resent only when a round starts or the viewport changes.
+// crate shapes) is resent only when a round starts. The arena is the fixed 872×400
+// of contract houseTanks.v2; Android fits it to its canvas.
 
 final class TanksMatchRegistry: @unchecked Sendable {
     static let shared = TanksMatchRegistry()
@@ -14,7 +15,7 @@ final class TanksMatchRegistry: @unchecked Sendable {
 
     struct Entry {
         var match = HouseTanksBotMatch()
-        var arenaKey = ""
+        var arenaRoundKey = ""
         var pressSequence = 0
     }
 
@@ -48,17 +49,8 @@ public func houseTanksBotDestroy(_ handle: Int32) -> Bool {
     TanksMatchRegistry.shared.destroy(handle)
 }
 
-/// The canvas size in dp. The arena follows it; the next frame carries the arena again.
-public func houseTanksBotViewport(_ handle: Int32, _ width: Double, _ height: Double) -> String {
-    tanksFrame(handle) { entry in
-        entry.match.setViewport(HouseTanksSize(width: width, height: height))
-        entry.arenaKey = ""
-        return [:]
-    }
-}
-
 /// Starts (or replaces) a match; the countdown starts at 3. Unknown values are rejected and
-/// `playerCount` (the human included) is clamped to the map's player range.
+/// `playerCount` (the human included) is clamped to the map's demo player range.
 public func houseTanksBotStart(_ handle: Int32, _ difficulty: String, _ color: String, _ map: String,
                                _ playerCount: Int32) -> String {
     guard let difficulty = HouseTanksDifficulty(rawValue: difficulty),
@@ -69,7 +61,7 @@ public func houseTanksBotStart(_ handle: Int32, _ difficulty: String, _ color: S
     return tanksFrame(handle) { entry in
         entry.match.start(configuration: HouseTanksMatchConfiguration(difficulty: difficulty, humanColor: color, mapID: map,
                                                                       playerCount: Int(playerCount)))
-        entry.arenaKey = ""
+        entry.arenaRoundKey = ""
         entry.pressSequence = 0
         return [:]
     }
@@ -122,18 +114,20 @@ public func houseTanksCopy(_ language: String) -> String {
     bridgeJSON(HouseTanksLocalization.table(language: language))
 }
 
-/// The four authored maps, normalized (y up), for lobby previews.
+/// The catalog maps, normalized (y up), for lobby previews. `minPlayers`/`maxPlayers` and
+/// `spawns` are the demo's seats: four on standard maps, the full range on crowded ones.
 public func houseTanksMaps() -> String {
     bridgeJSON([
         "obstacleScale": HouseTanksMapCatalog.obstacleBaseScale * HouseTanksMapCatalog.gameplayScale,
         "maps": HouseTanksMapID.allCases.map { id -> [String: Any] in
             let map = HouseTanksMapCatalog.definition(for: id)
+            let seats = map.demoPlayerCounts
             return [
                 "id": id.rawValue,
                 "scale": map.scale,
-                "minPlayers": map.minPlayers,
-                "maxPlayers": map.maxPlayers,
-                "spawns": map.spawnPoints.map { [$0.x, $0.y] },
+                "minPlayers": seats.lowerBound,
+                "maxPlayers": seats.upperBound,
+                "spawns": map.spawnPoints.prefix(seats.upperBound).map { [$0.x, $0.y] },
                 "obstacles": map.obstacles.map { obstacle -> [String: Any] in [
                     "x": obstacle.center.x, "y": obstacle.center.y,
                     "width": obstacle.size.width, "height": obstacle.size.height,
@@ -178,22 +172,22 @@ private func tanksFrame(_ handle: Int32, _ action: (inout TanksMatchRegistry.Ent
             return object
         }
         let roundKey = "\(snapshot.matchID.uuidString)-\(snapshot.roundNumber)"
-        let arenaKey = "\(roundKey)|\(world.size.width)x\(world.size.height)"
         object.merge(HouseTanksFrameJSON.object(snapshot: snapshot, world: world, roundKey: roundKey,
                                                 events: entry.match.drainEvents(),
-                                                includeArena: arenaKey != entry.arenaKey)) { current, _ in current }
-        entry.arenaKey = arenaKey
+                                                includeArena: roundKey != entry.arenaRoundKey)) { current, _ in current }
+        entry.arenaRoundKey = roundKey
         object["ok"] = true
         return object
     }
     return bridgeJSON(result ?? ["ok": false, "message": "Unknown match handle"])
 }
 
-/// The Android render contract. Positions are arena dp with SpriteKit's y-up origin;
-/// the canvas flips y exactly once.
+/// The Android render contract. Positions are arena points of the fixed 872×400 arena with
+/// SpriteKit's y-up origin; the canvas scales them to fit and flips y exactly once.
 enum HouseTanksFrameJSON {
     static func object(snapshot: HouseTanksSnapshot, world: HouseTanksWorld, roundKey: String,
                        events: [HouseTanksWorld.Event], includeArena: Bool) -> [String: Any] {
+        let roles = Dictionary(uniqueKeysWithValues: snapshot.players.map { (HouseTanksBotMatch.tankID($0.id), $0.role) })
         var object: [String: Any] = [
             "matchId": snapshot.matchID.uuidString,
             "roundKey": roundKey,
@@ -214,7 +208,7 @@ enum HouseTanksFrameJSON {
             "tanks": world.tanks.map { tank -> [String: Any] in
                 let power = world.powerUpStatus(for: tank.id)
                 return [
-                    "id": tank.id.uuidString, "color": tank.color.rawValue, "role": tank.role.rawValue,
+                    "id": tank.id, "color": tank.color.rawValue, "role": (roles[tank.id] ?? .bot).rawValue,
                     "x": tank.position.x, "y": tank.position.y, "rotation": tank.rotation, "active": tank.isActive,
                     "power": power?.kind.rawValue ?? NSNull(),
                     "powerFraction": power.map { $0.remaining / HouseTanksPowerUpRules.duration } ?? 0,
@@ -228,11 +222,11 @@ enum HouseTanksFrameJSON {
                 "id": shot.id, "x": shot.position.x, "y": shot.position.y, "rotation": shot.rotation,
                 "rocket": shot.isRocket, "color": shot.color.rawValue,
             ] },
-            "token": world.powerUps.token.map { token -> [String: Any] in [
+            "token": world.token.map { token -> [String: Any] in [
                 "kind": token.kind.rawValue, "x": token.position.x, "y": token.position.y,
-                "fraction": max(0, (token.expiresAt - world.time) / HouseTanksPowerUpRules.tokenLifetime),
+                "fraction": world.tokenFraction,
             ] } ?? NSNull(),
-            "events": events.map(eventObject),
+            "events": events.compactMap(eventObject),
         ]
         if includeArena {
             let frame = world.arenaFrame
@@ -247,12 +241,12 @@ enum HouseTanksFrameJSON {
                     "movable": obstacle.isMovable, "destroyed": obstacle.isDestroyed,
                 ] },
                 "lines": world.map.floorLines.map { line -> [Double] in
-                    let start = line.start.point(in: world.size)
-                    let end = line.end.point(in: world.size)
+                    let start = line.start.point()
+                    let end = line.end.point()
                     return [start.x, start.y, end.x, end.y]
                 },
                 "markers": world.map.floorMarkers.map { marker -> [Double] in
-                    let point = marker.point(in: world.size)
+                    let point = marker.point()
                     return [point.x, point.y]
                 },
             ] as [String: Any]
@@ -260,20 +254,24 @@ enum HouseTanksFrameJSON {
         return object
     }
 
-    private static func eventObject(_ event: HouseTanksWorld.Event) -> [String: Any] {
-        switch event {
-        case .fired(let playerID, let angle):
-            return ["type": "fired", "playerId": playerID.uuidString, "angle": angle]
-        case .shielded(let playerID):
-            return ["type": "shielded", "playerId": playerID.uuidString]
-        case .crateBroken(let index, let position):
-            return ["type": "crateBroken", "index": index, "x": position.x, "y": position.y]
-        case .explosion(let position):
+    /// Effects the canvas animates; armor changes reach it through the players instead.
+    private static func eventObject(_ event: HouseTanksWorld.Event) -> [String: Any]? {
+        let position = event.position ?? .zero
+        switch event.kind {
+        case .fired:
+            return ["type": "fired", "playerId": event.playerID ?? "", "angle": event.angle ?? 0]
+        case .shielded:
+            return ["type": "shielded", "playerId": event.playerID ?? ""]
+        case .crateBroken:
+            return ["type": "crateBroken", "index": event.crateIndex ?? 0, "x": position.x, "y": position.y]
+        case .explosion:
             return ["type": "explosion", "x": position.x, "y": position.y]
-        case .eliminated(let playerID, let position):
-            return ["type": "eliminated", "playerId": playerID.uuidString, "x": position.x, "y": position.y]
-        case .jokerCollected(let playerID, let kind):
-            return ["type": "jokerCollected", "playerId": playerID.uuidString, "kind": kind.rawValue]
+        case .eliminated:
+            return ["type": "eliminated", "playerId": event.playerID ?? "", "x": position.x, "y": position.y]
+        case .jokerCollected:
+            return ["type": "jokerCollected", "playerId": event.playerID ?? "", "kind": event.powerUp?.rawValue ?? ""]
+        case .hit:
+            return nil
         }
     }
 }

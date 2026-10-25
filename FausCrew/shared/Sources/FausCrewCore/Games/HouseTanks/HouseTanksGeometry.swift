@@ -55,7 +55,7 @@ public struct HouseTanksSize: Codable, Equatable, Hashable, Sendable {
 
     public static let zero = HouseTanksSize(width: 0, height: 0)
     /// The reference arena maps are authored and validated against.
-    public static let reference = HouseTanksSize(width: 1_180, height: 640)
+    public static let reference = HouseTanksSize(width: 872, height: 400)
 
     public var isUsable: Bool { width > 0 && height > 0 && width.isFinite && height.isFinite }
 }

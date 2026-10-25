@@ -19,7 +19,6 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.unit.IntSize
 import androidx.core.view.WindowCompat
@@ -64,7 +63,6 @@ internal fun HouseTanksScreen(
     val renderer = remember { HouseTanksArenaRenderer() }
     val activity = LocalContext.current.findActivity()
     val view = LocalView.current
-    val density = LocalDensity.current
     val reduceMotion = rememberReduceMotion()
 
     var isLandscapeLayout by remember { mutableStateOf(false) }
@@ -119,7 +117,6 @@ internal fun HouseTanksScreen(
 
     LaunchedEffect(canvasSize) {
         if (canvasSize == IntSize.Zero) return@LaunchedEffect
-        with(density) { model.setViewport(canvasSize.width.toDp().value, canvasSize.height.toDp().value) }
         isLandscapeLayout = canvasSize.width > canvasSize.height
         if (isLandscapeLayout && isWaitingForLandscape && !hasMatch && isForeground && !orientationFailed) {
             isWaitingForLandscape = false

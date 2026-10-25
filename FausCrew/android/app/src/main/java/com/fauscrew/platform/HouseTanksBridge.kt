@@ -155,11 +155,12 @@ internal data class TanksMapPreview(
     /** `obstacleBaseScale × gameplayScale`: rendered size = arena size × normalized size × scale × map scale. */
     val obstacleScale: Double,
     val scale: Double,
+    /** The demo's seats: four on standard maps, the full range on crowded-match maps. */
     val minPlayers: Int,
     val maxPlayers: Int,
 ) {
     val playerCounts: IntRange get() = minPlayers..maxPlayers
-    /** A map that lets the player choose how many tanks take part. */
+    /** A map whose demo setup asks how many tanks take part. */
     val hasPlayerChoice: Boolean get() = minPlayers != maxPlayers
 }
 
@@ -168,8 +169,7 @@ internal data class TanksMapPreview(
  * it steps the countdown and advances the arena once per rendered frame.
  */
 internal interface HouseTanksEngine {
-    fun viewport(width: Float, height: Float): TanksUpdate
-    /** `playerCount` includes the human; Core clamps it to the map's player range. */
+    /** `playerCount` includes the human; Core clamps it to the map's demo player range. */
     fun start(difficulty: TanksDifficulty, color: TanksColor, map: TanksMap, playerCount: Int): TanksUpdate
     fun countdown(): TanksUpdate
     fun step(deltaSeconds: Double): TanksUpdate
@@ -217,8 +217,6 @@ internal object HouseTanksNative {
 private class NativeHouseTanksEngine(private val handle: Int) : HouseTanksEngine {
     private val parser = TanksFrameParser()
 
-    override fun viewport(width: Float, height: Float) =
-        parser.parse(FausCrewAndroidBridge.houseTanksBotViewport(handle, width.toDouble(), height.toDouble()))
     override fun start(difficulty: TanksDifficulty, color: TanksColor, map: TanksMap, playerCount: Int) =
         parser.parse(FausCrewAndroidBridge.houseTanksBotStart(handle, difficulty.raw, color.raw, map.raw, playerCount))
     override fun countdown() = parser.parse(FausCrewAndroidBridge.houseTanksBotCountdown(handle))
@@ -234,8 +232,8 @@ private class NativeHouseTanksEngine(private val handle: Int) : HouseTanksEngine
 }
 
 /**
- * Parses the bridge's frame JSON. The static arena arrives only when a round starts or the
- * viewport changes, so the parser keeps the last one for lighter frames of the same round.
+ * Parses the bridge's frame JSON. The static arena arrives only when a round starts, so the
+ * parser keeps the last one for lighter frames of the same round.
  */
 internal class TanksFrameParser {
     private var arena: TanksArena? = null

@@ -284,7 +284,7 @@ struct HouseTanksLobbyView: View {
                     .clipShape(RoundedRectangle(cornerRadius: AppDesign.CornerRadius.xs, style: .continuous))
                     .overlay(alignment: .topLeading) {
                         // On the sheet rather than beside the title, so long map names never break.
-                        if HouseTanksMapCatalog.definition(for: mapID).hasPlayerChoice {
+                        if HouseTanksMapCatalog.definition(for: mapID).hasDemoPlayerChoice {
                             Text(copy("house_tanks_map_crowd_badge"))
                                 .font(.system(size: 9, weight: .heavy, design: .monospaced))
                                 .foregroundStyle(HouseTanksMapPalette.paper)
@@ -417,12 +417,12 @@ struct HouseTanksLobbyView: View {
     /// Four tanks on the standard maps; the chosen (or smallest) count on crowded-match maps.
     private var rosterSize: Int {
         guard let mapID = model.mapID else { return 4 }
-        let map = HouseTanksMapCatalog.definition(for: mapID)
-        return min(max(model.playerCount ?? map.minPlayers, map.minPlayers), map.maxPlayers)
+        let seats = HouseTanksMapCatalog.definition(for: mapID).demoPlayerCounts
+        return min(max(model.playerCount ?? seats.lowerBound, seats.lowerBound), seats.upperBound)
     }
 
     private var playerCountPicker: some View {
-        let range = model.mapID.map { HouseTanksMapCatalog.definition(for: $0).playerCounts } ?? 6...8
+        let range = model.mapID.map { HouseTanksMapCatalog.definition(for: $0).demoPlayerCounts } ?? 6...8
         return VStack(alignment: .leading, spacing: AppDesign.Spacing.sm) {
             Picker(copy("house_tanks_step_players"), selection: $model.playerCount) {
                 ForEach(Array(range), id: \.self) { count in

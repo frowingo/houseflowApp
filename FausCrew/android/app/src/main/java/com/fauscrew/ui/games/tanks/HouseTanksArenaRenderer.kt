@@ -68,15 +68,21 @@ internal class HouseTanksArenaRenderer {
         }
         effects.removeAll { now - it.start > it.duration }
 
-        val density = density
-        scale(density, density, Offset.Zero) {
-            val height = frame.height.toFloat()
+        // The arena is the fixed 872×400 of the online contract: fit it to the canvas and
+        // centre it; the paper backdrop fills the spare edges.
+        val width = frame.width.toFloat()
+        val height = frame.height.toFloat()
+        val fit = min(size.width / width, size.height / height)
+        withTransform({
+            translate((size.width - width * fit) / 2, (size.height - height * fit) / 2)
+            scale(fit, fit, Offset.Zero)
+        }) {
             fun point(x: Double, y: Double) = Offset(x.toFloat(), height - y.toFloat())
 
             val arena = frame.arena
             // Crowded-match maps draw every actor smaller, matching the engine's scale.
             val actor = (arena?.scale ?: 1.0).toFloat()
-            drawRect(floorTint(arena?.map), size = Size(frame.width.toFloat(), height))
+            drawRect(floorTint(arena?.map), size = Size(width, height))
             if (arena != null) {
                 drawFloorPlan(arena, height, ::point)
                 drawBoundary(arena, height)

@@ -75,7 +75,7 @@ public struct HouseTanksNormalizedPoint: Codable, Equatable, Sendable {
         self.y = y
     }
 
-    public func point(in arena: HouseTanksSize) -> HouseTanksVector {
+    public func point(in arena: HouseTanksSize = HouseTanksWorld.arenaSize) -> HouseTanksVector {
         HouseTanksVector(x: x * arena.width, y: y * arena.height)
     }
 }
@@ -131,7 +131,7 @@ public struct HouseTanksObstacleDefinition: Codable, Equatable, Sendable {
     public var breaksOnHit: Bool { style == .crate }
 
     /// `mapScale` is the map's own scale (smaller on crowded-match maps).
-    public func renderedSize(in arena: HouseTanksSize, mapScale: Double = 1) -> HouseTanksSize {
+    public func renderedSize(in arena: HouseTanksSize = HouseTanksWorld.arenaSize, mapScale: Double = 1) -> HouseTanksSize {
         let scale = HouseTanksMapCatalog.obstacleBaseScale * HouseTanksMapCatalog.gameplayScale * mapScale
         let height = arena.height * size.height * scale
         switch style {
@@ -142,7 +142,7 @@ public struct HouseTanksObstacleDefinition: Codable, Equatable, Sendable {
         }
     }
 
-    public func bounds(in arena: HouseTanksSize, mapScale: Double = 1) -> HouseTanksRect {
+    public func bounds(in arena: HouseTanksSize = HouseTanksWorld.arenaSize, mapScale: Double = 1) -> HouseTanksRect {
         let rendered = renderedSize(in: arena, mapScale: mapScale)
         let width = abs(cos(rotation)) * rendered.width + abs(sin(rotation)) * rendered.height
         let height = abs(sin(rotation)) * rendered.width + abs(cos(rotation)) * rendered.height
@@ -150,7 +150,7 @@ public struct HouseTanksObstacleDefinition: Codable, Equatable, Sendable {
                               y: center.y * arena.height - height / 2, width: width, height: height)
     }
 
-    public func clearance(from point: HouseTanksVector, in arena: HouseTanksSize, mapScale: Double = 1) -> Double {
+    public func clearance(from point: HouseTanksVector, in arena: HouseTanksSize = HouseTanksWorld.arenaSize, mapScale: Double = 1) -> Double {
         let rendered = renderedSize(in: arena, mapScale: mapScale)
         let dx = point.x - center.x * arena.width
         let dy = point.y - center.y * arena.height
@@ -189,7 +189,7 @@ public struct HouseTanksMapDefinition: Codable, Equatable, Sendable {
 
     public init(id: HouseTanksMapID, version: Int, spawnPoints: [HouseTanksNormalizedPoint],
                 obstacles: [HouseTanksObstacleDefinition], floorLines: [HouseTanksFloorLineDefinition],
-                floorMarkers: [HouseTanksNormalizedPoint], scale: Double = 1, minPlayers: Int = 4, maxPlayers: Int = 4) {
+                floorMarkers: [HouseTanksNormalizedPoint], scale: Double, minPlayers: Int, maxPlayers: Int) {
         self.id = id
         self.version = version
         self.spawnPoints = spawnPoints
@@ -201,9 +201,19 @@ public struct HouseTanksMapDefinition: Codable, Equatable, Sendable {
         self.maxPlayers = maxPlayers
     }
 
+    /// Seats online play may fill on this map.
     public var playerCounts: ClosedRange<Int> { minPlayers...maxPlayers }
-    /// A map that lets the player choose how many tanks take part.
-    public var hasPlayerChoice: Bool { minPlayers != maxPlayers }
+
+    /// Demo matches keep their own rule: standard maps always seat four tanks, only the
+    /// crowded-match maps (above four seats) let the player pick how many take part.
+    public static let demoStandardPlayerCount = 4
+    public var demoPlayerCounts: ClosedRange<Int> {
+        minPlayers > Self.demoStandardPlayerCount
+            ? playerCounts : Self.demoStandardPlayerCount...Self.demoStandardPlayerCount
+    }
+
+    /// A map whose demo setup asks how many tanks take part.
+    public var hasDemoPlayerChoice: Bool { demoPlayerCounts.count > 1 }
 }
 
 public struct HouseTanksPlayer: Identifiable, Codable, Equatable, Sendable {
@@ -250,7 +260,7 @@ public struct HouseTanksMatchConfiguration: Codable, Equatable, Sendable {
     public var difficulty: HouseTanksDifficulty
     public var humanColor: HouseTanksColor
     public var mapID: HouseTanksMapID
-    /// Tanks in the match, the human included. Clamped to the map's player range.
+    /// Tanks in the match, the human included. Clamped to the map's demo player range.
     public var playerCount: Int
     public var armorPerRound: Int
     public var roundWinsNeeded: Int
@@ -267,7 +277,8 @@ public struct HouseTanksMatchConfiguration: Codable, Equatable, Sendable {
         self.humanColor = humanColor
         self.mapID = mapID
         let map = HouseTanksMapCatalog.definition(for: mapID)
-        self.playerCount = min(max(playerCount ?? map.minPlayers, map.minPlayers), map.maxPlayers)
+        let seats = map.demoPlayerCounts
+        self.playerCount = min(max(playerCount ?? seats.lowerBound, seats.lowerBound), seats.upperBound)
         self.armorPerRound = armorPerRound
         self.roundWinsNeeded = roundWinsNeeded
     }

@@ -10,7 +10,6 @@ final class HouseTanksBridgeTests: XCTestCase {
         let handle = houseTanksBotCreate()
         defer { XCTAssertTrue(houseTanksBotDestroy(handle)) }
 
-        XCTAssertEqual(try object(houseTanksBotViewport(handle, 844, 390))["ok"] as? Bool, true)
         XCTAssertEqual(try object(houseTanksBotStart(handle, "hard", "teal", "warehouse", 4))["ok"] as? Bool, false,
                        "Unknown colors are rejected")
 
@@ -26,7 +25,8 @@ final class HouseTanksBridgeTests: XCTestCase {
         XCTAssertEqual(arena["mapId"] as? String, "warehouse")
         XCTAssertFalse(try XCTUnwrap(arena["obstacles"] as? [[String: Any]]).isEmpty)
         XCTAssertEqual((start["tanks"] as? [[String: Any]])?.count, 4)
-        XCTAssertEqual(start["width"] as? Double, 844)
+        XCTAssertEqual(start["width"] as? Double, 872, "The arena is fixed; Android fits it to the canvas")
+        XCTAssertEqual(start["height"] as? Double, 400)
 
         var started = false
         for _ in 0..<3 { started = try object(houseTanksBotCountdown(handle))["started"] as? Bool ?? false }
@@ -45,7 +45,6 @@ final class HouseTanksBridgeTests: XCTestCase {
 
         XCTAssertEqual(try object(houseTanksBotPause(handle))["phase"] as? String, "paused")
         XCTAssertEqual(try object(houseTanksBotResume(handle))["phase"] as? String, "playing")
-        XCTAssertNotNil(try object(houseTanksBotViewport(handle, 800, 360))["arena"], "A resize resends the arena")
     }
 
     func testCopyMapsAndConstants() throws {
@@ -53,7 +52,9 @@ final class HouseTanksBridgeTests: XCTestCase {
         XCTAssertEqual(try object(houseTanksCopy("tr"))["house_tanks_power_rocket"] as? String, "Dev roket")
         let maps = try XCTUnwrap(try object(houseTanksMaps())["maps"] as? [[String: Any]])
         XCTAssertEqual(maps.map { $0["id"] as? String }, ["livingRoom", "corridors", "warehouse", "courtyard", "basement"])
-        XCTAssertEqual((maps.first?["spawns"] as? [[Double]])?.count, 4)
+        XCTAssertEqual((maps.first?["spawns"] as? [[Double]])?.count, 4, "Demo standard maps seat four")
+        XCTAssertEqual(maps.first?["minPlayers"] as? Int, 4)
+        XCTAssertEqual(maps.first?["maxPlayers"] as? Int, 4)
         XCTAssertEqual(maps.last?["minPlayers"] as? Int, 6)
         XCTAssertEqual(maps.last?["maxPlayers"] as? Int, 8)
         XCTAssertEqual(maps.last?["scale"] as? Double, 0.72)

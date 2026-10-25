@@ -42,14 +42,9 @@ final class DemoHouseTanksGameSession: HouseTanksGameServicing {
     }
 
     init(scene: HouseTanksScene? = nil) {
-        let scene = scene ?? HouseTanksScene(size: CGSize(width: 1_180, height: 640))
+        let scene = scene ?? HouseTanksScene()
         self.scene = scene
-        scene.scaleMode = .resizeFill
         scene.onFrame = { [weak self] delta in self?.frame(delta: delta) }
-        scene.onResize = { [weak self] size in
-            self?.match.setViewport(HouseTanksSize(width: Double(size.width), height: Double(size.height)))
-            self?.render()
-        }
     }
 
     deinit {
@@ -67,7 +62,6 @@ final class DemoHouseTanksGameSession: HouseTanksGameServicing {
     }
 
     func start(configuration: HouseTanksMatchConfiguration) async {
-        match.setViewport(HouseTanksSize(width: Double(scene.size.width), height: Double(scene.size.height)))
         match.start(configuration: configuration)
         scene.setSimulationPaused(false)
         render()
@@ -140,7 +134,8 @@ final class DemoHouseTanksGameSession: HouseTanksGameServicing {
     private func render() {
         guard let world = match.world, let snapshot = match.snapshot else { return }
         scene.render(world, roundKey: "\(snapshot.matchID.uuidString)-\(snapshot.roundNumber)",
-                     events: match.drainEvents())
+                     events: match.drainEvents(),
+                     localPlayerID: snapshot.humanPlayer.map { HouseTanksBotMatch.tankID($0.id) })
     }
 
     private func publish(force: Bool = false) {
@@ -150,7 +145,7 @@ final class DemoHouseTanksGameSession: HouseTanksGameServicing {
             // Armor loss flashes the hull, as SpriteKit did on every regular hit.
             for (index, player) in snapshot.players.enumerated()
             where index < previous.players.count && player.armor < previous.players[index].armor && player.isAlive {
-                scene.showHit(playerID: player.id)
+                scene.showHit(playerID: HouseTanksBotMatch.tankID(player.id))
             }
         }
         guard force || state != publishedState else { return }

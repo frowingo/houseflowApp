@@ -48,10 +48,9 @@ class HouseTanksViewModelTest {
         fun frame() = TanksFrame(
             "m$started", "m$started-1", ++revision, phase, countdown, 1, null, null,
             listOf(TanksPlayer("h", "house_tanks_you", TanksRole.HUMAN, TanksColor.PLUM, humanArmor, 0, humanArmor > 0)),
-            844.0, 390.0, 0.0, emptyList(), emptyList(), emptyList(), null, emptyList(), null,
+            872.0, 400.0, 0.0, emptyList(), emptyList(), emptyList(), null, emptyList(), null,
         )
 
-        override fun viewport(width: Float, height: Float) = TanksUpdate(if (started > 0) frame() else null)
         var lastPlayerCount = 0
 
         override fun start(difficulty: TanksDifficulty, color: TanksColor, map: TanksMap, playerCount: Int): TanksUpdate {

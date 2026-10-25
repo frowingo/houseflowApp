@@ -48,13 +48,13 @@ public enum HouseTanksBotBrain {
 
     /// Bots engage whichever living tank is closest, human or bot alike.
     public static func nearestTarget(from position: HouseTanksVector,
-                                     among candidates: [(id: UUID, position: HouseTanksVector)]) -> UUID? {
+                                     among candidates: [(id: String, position: HouseTanksVector)]) -> String? {
         candidates.min { $0.position.distance(to: position) < $1.position.distance(to: position) }?.id
     }
 
     /// The focused tank wins while it is still in play; otherwise fall back to the nearest one.
     public static func target(from position: HouseTanksVector,
-                              among candidates: [(id: UUID, position: HouseTanksVector)], focus: UUID?) -> UUID? {
+                              among candidates: [(id: String, position: HouseTanksVector)], focus: String?) -> String? {
         if let focus, candidates.contains(where: { $0.id == focus }) { return focus }
         return nearestTarget(from: position, among: candidates)
     }

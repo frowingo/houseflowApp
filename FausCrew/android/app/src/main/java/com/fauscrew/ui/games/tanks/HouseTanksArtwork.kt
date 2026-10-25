@@ -327,7 +327,7 @@ internal fun RaisedButton(
 /** `HouseTanksMapPreview`: a small survey sheet of a real arena from its definition. */
 @Composable
 internal fun HouseTanksMapPreview(preview: TanksMapPreview?, selected: Boolean, modifier: Modifier = Modifier) {
-    Canvas(modifier.fillMaxWidth().aspectRatio(1180f / 640f)) {
+    Canvas(modifier.fillMaxWidth().aspectRatio(872f / 400f)) {
         val palette = HouseTanksPalette
         drawRect(if (selected) palette.paper else palette.sand.copy(alpha = .45f))
         val rise = size.width * tan(Math.PI.toFloat() / 6)

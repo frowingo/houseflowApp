@@ -1,57 +1,82 @@
 import Foundation
 
-/// The FauseTanks arena: tanks, crates, shells, rockets and jokers in one deterministic,
-/// fixed-step simulation. It replaces SpriteKit's physics so iOS, Android and a future
-/// server run the same rules. Coordinates are arena points, origin bottom-left, y up.
-public struct HouseTanksWorld: Sendable {
-    public static let fireCooldown = 0.58
+/// The FauseTanks arena: tanks, crates, shells, rockets and jokers in one deterministic
+/// simulation of whole 1/120 s ticks on a fixed 872×400 arena (origin bottom-left, y up).
+/// The backend's Go engine (`houseTanks/world.go`) is the reference; every step, timer and
+/// event here follows it, and `houseTanksSimulation.json` pins the two together. Renderers
+/// fit the arena to their screen; the simulation never sees a viewport.
+public struct HouseTanksWorld: Codable, Sendable {
+    // Physics contract of houseTanks.v2: arena points, radians counter-clockwise from +x.
+    public static let arenaSize = HouseTanksSize.reference
+    public static let physicsRate = 120
+    public static let fixedStep = 1.0 / Double(physicsRate)
     public static let rotationSpeed = 1.5
-    public static let projectileSpeed = 510.0
-    public static let rocketSpeed = 400.0
     public static let driveForce = 360.0
     public static let tankMass = 1.25
     public static let tankDamping = 1.8
     public static let maxTankSpeed = 245.0
-    /// Tanks collide as circles; SpriteKit used a 20×14 box with rotation locked.
     public static let tankRadius = 9.0
-    /// Body length the muzzle is measured from.
+    /// Body length the renderers draw.
     public static let tankLength = 20.0
-    public static let shellRadius = 1.8
-    public static let shellLifetime = 2.8
-    public static let rocketLength = 22.0
-    public static let rocketRadius = 4.0
-    public static let rocketLifetime = 3.2
-    public static let tokenRadius = 16.0
+    /// Against the arena frame and between live tanks.
+    public static let tankRestitution = 0.36
+    /// Against fixed cover and wrecks.
+    public static let obstacleRestitution = 0.2
+    public static let crateRestitution = 0.05
     public static let crateMass = 0.45
     public static let crateDamping = 4.0
-    public static let tankRestitution = 0.36
-    public static let wallRestitution = 0.2
-    /// Physics runs at a fixed rate whatever the display does.
-    public static let fixedStep = 1.0 / 120.0
-    private static let maximumFrameDelta = 1.0 / 20.0
+    public static let shellSpeed = 510.0
+    public static let shellRadius = 1.8
+    public static let shellMuzzleOffset = 15.0
+    public static let rocketSpeed = 400.0
+    public static let rocketRadius = 4.0
+    public static let rocketLength = 22.0
+    public static let rocketMuzzleOffset = 25.0
+    public static let tokenRadius = 16.0
+    public static let armorPerRound = 5
+    public static let contactIterations = 3
+    // Timers in whole ticks.
+    public static let fireCooldownTicks = 70
+    public static let hitProtectionTicks = 44
+    public static let shellLifetimeTicks = 336
+    public static let rocketLifetimeTicks = 384
 
-    public struct Tank: Equatable, Sendable {
-        public let id: UUID
-        public let color: HouseTanksColor
-        public let role: HouseTanksPlayerRole
-        public var position: HouseTanksVector
-        public var velocity: HouseTanksVector = .zero
-        /// Barrel heading in radians, counter-clockwise from +x.
-        public var rotation: Double
-        public var rotationDirection: Double
-        public var isActive: Bool
-        public var isDriving = false
-        public var driveDirection: HouseTanksVector = .zero
-        public var lastFireTime = -Double.greatestFiniteMagnitude
-        /// Aim joker shots still in flight; the tank holds its heading until they land.
-        public var aimLocks = 0
+    public struct PowerUpEffect: Codable, Equatable, Sendable {
+        public let kind: HouseTanksPowerUp
+        public let expiresAtTick: Int
     }
 
-    public struct Obstacle: Equatable, Sendable {
+    /// One seat's body. `isActive` is false once destroyed: the tank stays on the floor as a
+    /// wreck that blocks tanks, crates and shots. A tank that is not controllable is a
+    /// stationary target: it neither turns, drives nor fires.
+    public struct Tank: Codable, Equatable, Sendable {
+        public let id: String
+        public let seat: Int
+        /// For renderers only.
+        public let color: HouseTanksColor
+        public var position: HouseTanksVector
+        public var velocity: HouseTanksVector = .zero
+        public var rotation: Double
+        public var rotationDirection: Double
+        public var isActive = true
+        public var isControllable = true
+        public var isDriving = false
+        public var driveDirection: HouseTanksVector = .zero
+        public var hasFired = false
+        public var lastFireTick = 0
+        /// Aim joker shots still in flight; the tank holds its heading until they land.
+        public var aimLocks = 0
+        public var armor = HouseTanksWorld.armorPerRound
+        public var protectedUntilTick = 0
+        public var powerUp: PowerUpEffect?
+    }
+
+    /// The moving part of a map obstacle; its shape comes from the map.
+    public struct Obstacle: Codable, Equatable, Sendable {
         public let index: Int
         public let definition: HouseTanksObstacleDefinition
+        public let size: HouseTanksSize
         public var position: HouseTanksVector
-        public var size: HouseTanksSize
         public var velocity: HouseTanksVector = .zero
         public var isDestroyed = false
 
@@ -60,7 +85,7 @@ public struct HouseTanksWorld: Sendable {
         public var isMovable: Bool { definition.isMovable }
         public var radius: Double { min(size.width, size.height) / 2 }
 
-        /// Axis-aligned bounds of the rotated shape.
+        /// Axis-aligned bounds of the rotated shape where it is now.
         public var bounds: HouseTanksRect {
             let width = abs(cos(rotation)) * size.width + abs(sin(rotation)) * size.height
             let height = abs(sin(rotation)) * size.width + abs(cos(rotation)) * size.height
@@ -68,9 +93,10 @@ public struct HouseTanksWorld: Sendable {
         }
     }
 
-    public struct Projectile: Equatable, Sendable {
+    public struct Projectile: Codable, Equatable, Sendable {
         public let id: Int
-        public let ownerID: UUID
+        public let ownerID: String
+        /// For renderers only.
         public let color: HouseTanksColor
         public var position: HouseTanksVector
         public var velocity: HouseTanksVector
@@ -78,130 +104,160 @@ public struct HouseTanksWorld: Sendable {
         public let holdsAim: Bool
         /// Collision radius, already scaled to the map.
         public let radius: Double
-        public var age = 0.0
+        public var age = 0
+        public let spawnTick: Int
 
         public var rotation: Double { velocity.angle }
-        var lifetime: Double { isRocket ? HouseTanksWorld.rocketLifetime : HouseTanksWorld.shellLifetime }
+        var lifetime: Int { isRocket ? HouseTanksWorld.rocketLifetimeTicks : HouseTanksWorld.shellLifetimeTicks }
     }
 
-    /// One-off effects for renderers; drained every frame.
-    public enum Event: Equatable, Sendable {
-        case fired(playerID: UUID, angle: Double)
-        case shielded(playerID: UUID)
-        case crateBroken(index: Int, position: HouseTanksVector)
-        case explosion(position: HouseTanksVector)
-        case eliminated(playerID: UUID, position: HouseTanksVector)
-        case jokerCollected(playerID: UUID, kind: HouseTanksPowerUp)
+    /// The joker lying on the floor; at most one exists.
+    public struct Token: Codable, Equatable, Sendable {
+        public let kind: HouseTanksPowerUp
+        public let position: HouseTanksVector
+        public let expiresAtTick: Int
     }
 
-    /// A shell or rocket that reached a tank without a shield.
-    public struct Hit: Equatable, Sendable {
-        public let targetID: UUID
-        public let ownerID: UUID
+    public enum EventKind: String, Codable, Sendable {
+        case fired, hit, shielded, crateBroken, explosion, eliminated, jokerCollected
+    }
+
+    /// One effect for renderers, stamped with its tick. Fields beyond `kind` are set only for
+    /// the kinds that use them, as on the wire:
+    /// fired (player, angle), hit (player = target, source = shooter, armor, lethal),
+    /// shielded (player, source), crateBroken (crateIndex, position), explosion (position),
+    /// eliminated (player, source, position), jokerCollected (player, powerUp).
+    public struct Event: Codable, Equatable, Sendable {
+        public var tick: Int
+        public var kind: EventKind
+        public var playerID: String?
+        public var sourceID: String?
+        public var position: HouseTanksVector?
+        public var angle: Double?
+        public var armor: Int?
+        public var lethal = false
+        public var crateIndex: Int?
+        public var powerUp: HouseTanksPowerUp?
+
+        public init(tick: Int, kind: EventKind, playerID: String? = nil, sourceID: String? = nil,
+                    position: HouseTanksVector? = nil, angle: Double? = nil, armor: Int? = nil, lethal: Bool = false,
+                    crateIndex: Int? = nil, powerUp: HouseTanksPowerUp? = nil) {
+            self.tick = tick
+            self.kind = kind
+            self.playerID = playerID
+            self.sourceID = sourceID
+            self.position = position
+            self.angle = angle
+            self.armor = armor
+            self.lethal = lethal
+            self.crateIndex = crateIndex
+            self.powerUp = powerUp
+        }
+    }
+
+    /// A shot that reached an unshielded live tank. Hits are applied at the end of the tick,
+    /// so tanks destroyed on the same tick end a round as a draw.
+    public struct Hit: Codable, Equatable, Sendable {
+        public let targetID: String
+        public let ownerID: String
         /// The giant rocket destroys a tank whatever armor it has left.
         public let isLethal: Bool
     }
 
-    public private(set) var size: HouseTanksSize
     public let map: HouseTanksMapDefinition
+    public private(set) var tick: Int
     public private(set) var tanks: [Tank]
     public private(set) var obstacles: [Obstacle]
     public private(set) var projectiles: [Projectile] = []
-    public private(set) var powerUps = HouseTanksPowerUpRules()
-    public private(set) var isEnabled = false
-    public private(set) var random: HouseTanksRandom
-    public private(set) var jokerBag: HouseTanksJokerBag
+    public private(set) var token: Token?
+    public private(set) var nextProjectileID = 1
+    /// Deals tokens while the round plays; nil deals none.
+    public private(set) var jokers: HouseTanksJokerSchedule?
+    /// Muzzle hits of a press, applied by the next step.
+    public private(set) var pendingHits: [Hit] = []
     private var events: [Event] = []
-    private var nextTokenTime: Double
-    private var accumulator = 0.0
-    private var nextProjectileID = 1
 
-    public var time: Double { powerUps.time }
+    private enum CodingKeys: String, CodingKey {
+        case map, tick, tanks, obstacles, projectiles, token, nextProjectileID, jokers, pendingHits
+    }
+
+    /// Seats the players in order on the map's spawn points, every tank facing the middle
+    /// of the arena; neighbours sweep in opposite directions. Colors default to seat order.
+    public init(map: HouseTanksMapDefinition, playerIDs: [String], colors: [HouseTanksColor]? = nil, tick: Int = 0) {
+        precondition(!playerIDs.isEmpty && playerIDs.count <= map.spawnPoints.count && tick >= 0,
+                     "a world seats one to \(map.spawnPoints.count) players")
+        precondition(Set(playerIDs).count == playerIDs.count, "player ids must be unique")
+        self.map = map
+        self.tick = tick
+        let palette = colors ?? HouseTanksColor.allCases
+        let center = HouseTanksVector(x: Self.arenaSize.width / 2, y: Self.arenaSize.height / 2)
+        tanks = playerIDs.enumerated().map { seat, id in
+            let spawn = map.spawnPoints[seat].point()
+            return Tank(id: id, seat: seat, color: palette[seat % palette.count], position: spawn,
+                        rotation: (center - spawn).angle, rotationDirection: seat.isMultiple(of: 2) ? 1 : -1)
+        }
+        obstacles = map.obstacles.enumerated().map { index, definition in
+            Obstacle(index: index, definition: definition, size: definition.renderedSize(mapScale: map.scale),
+                     position: definition.center.point())
+        }
+    }
+
+    /// The whole logical arena.
+    public static let arenaRect = HouseTanksRect(size: arenaSize)
+
+    /// The playable frame inside the wall; shells and tanks stop here.
+    public static let arenaFrame: HouseTanksRect = {
+        let inset = max(16, arenaSize.height * 0.035)
+        return arenaRect.insetBy(dx: inset, dy: inset)
+    }()
+
+    public var size: HouseTanksSize { Self.arenaSize }
+    public var arenaFrame: HouseTanksRect { Self.arenaFrame }
+
+    /// Seconds of play this round, for countdown rings and bots.
+    public var time: Double { Double(tick) * Self.fixedStep }
 
     /// The map's scale; every body size below follows it (speeds and timings do not).
     public var scale: Double { map.scale }
     public var bodyRadius: Double { Self.tankRadius * scale }
     public var bodyLength: Double { Self.tankLength * scale }
 
-    public init(map: HouseTanksMapDefinition, size: HouseTanksSize, players: [HouseTanksPlayer],
-                random: HouseTanksRandom, jokerBag: HouseTanksJokerBag = HouseTanksJokerBag()) {
-        let arena = size.isUsable ? size : .reference
-        self.size = arena
-        self.map = map
-        self.random = random
-        self.jokerBag = jokerBag
-        obstacles = map.obstacles.enumerated().map { index, definition in
-            Obstacle(index: index, definition: definition, position: definition.center.point(in: arena),
-                     size: definition.renderedSize(in: arena, mapScale: map.scale))
-        }
-        let spawns = map.spawnPoints.map { $0.point(in: arena) }
-        let center = HouseTanksVector(x: arena.width / 2, y: arena.height / 2)
-        tanks = players.enumerated().map { index, player in
-            let spawn = spawns[min(index, spawns.count - 1)]
-            // Every tank starts facing the middle of the arena; neighbors sweep in opposite directions.
-            return Tank(id: player.id, color: player.color, role: player.role, position: spawn,
-                        rotation: (center - spawn).angle, rotationDirection: index.isMultiple(of: 2) ? 1 : -1,
-                        isActive: player.isAlive)
-        }
-        nextTokenTime = self.random.value(in: HouseTanksPowerUpRules.spawnInterval)
+    public var spawnPositions: [HouseTanksVector] { map.spawnPoints.map { $0.point() } }
+
+    public func tank(_ id: String) -> Tank? { tanks.first { $0.id == id } }
+
+    private func tankIndex(_ id: String) -> Int? { tanks.firstIndex { $0.id == id } }
+
+    private func powerUp(of index: Int) -> HouseTanksPowerUp? {
+        guard let effect = tanks[index].powerUp, effect.expiresAtTick > tick else { return nil }
+        return effect.kind
     }
 
-    /// The playable frame inside the arena border; shells and tanks stop here.
-    public var arenaFrame: HouseTanksRect {
-        let inset = max(16, size.height * 0.035)
-        return HouseTanksRect(size: size).insetBy(dx: inset, dy: inset)
+    public func powerUpStatus(for playerID: String) -> HouseTanksPowerUpStatus? {
+        guard let index = tankIndex(playerID), let kind = powerUp(of: index),
+              let expires = tanks[index].powerUp?.expiresAtTick else { return nil }
+        return HouseTanksPowerUpStatus(kind: kind, remaining: Double(expires - tick) * Self.fixedStep)
     }
-
-    public var spawnPositions: [HouseTanksVector] { map.spawnPoints.map { $0.point(in: size) } }
-
-    public func tank(_ id: UUID) -> Tank? { tanks.first { $0.id == id } }
-
-    public func powerUpStatus(for playerID: UUID) -> HouseTanksPowerUpStatus? { powerUps.status(for: playerID) }
 
     /// Length of the aim joker's sight line from the tank to the arena wall, or nil without the joker.
-    public func aimLength(for playerID: UUID) -> Double? {
-        guard let tank = tank(playerID), tank.isActive, powerUps.status(for: playerID)?.kind == .aim else { return nil }
-        return HouseTanksMath.rayLength(from: tank.position, angle: tank.rotation, in: arenaFrame)
+    public func aimLength(for playerID: String) -> Double? {
+        guard let index = tankIndex(playerID), tanks[index].isActive, powerUp(of: index) == .aim else { return nil }
+        return HouseTanksMath.rayLength(from: tanks[index].position, angle: tanks[index].rotation, in: arenaFrame)
     }
 
-    // MARK: - Lifecycle
-
-    public mutating func setEnabled(_ enabled: Bool) {
-        isEnabled = enabled
-        accumulator = 0
-        if !enabled { clearShots() }
+    /// Fraction of the floor token's life left, 0…1.
+    public var tokenFraction: Double {
+        guard let token else { return 0 }
+        return max(0, Double(token.expiresAtTick - tick) / Double(HouseTanksPowerUpRules.tokenLifetimeTicks))
     }
 
-    /// Stops everything at a round's end: no shells, no motion, no joker on the floor.
-    public mutating func freeze() {
-        isEnabled = false
-        clearShots()
-        for index in tanks.indices {
-            tanks[index].velocity = .zero
-            tanks[index].isDriving = false
-        }
-        for index in obstacles.indices { obstacles[index].velocity = .zero }
-        powerUps.removeToken()
+    private mutating func emit(_ event: Event) {
+        var event = event
+        event.tick = tick
+        events.append(event)
     }
 
-    /// Follows a viewport change, keeping every body at the same relative place.
-    public mutating func resize(to newSize: HouseTanksSize) {
-        guard newSize.isUsable, newSize != size else { return }
-        let scaleX = newSize.width / size.width
-        let scaleY = newSize.height / size.height
-        func scaled(_ point: HouseTanksVector) -> HouseTanksVector { .init(x: point.x * scaleX, y: point.y * scaleY) }
-        size = newSize
-        for index in tanks.indices { tanks[index].position = scaled(tanks[index].position) }
-        for index in obstacles.indices {
-            obstacles[index].size = obstacles[index].definition.renderedSize(in: newSize, mapScale: scale)
-            obstacles[index].position = obstacles[index].isMovable
-                ? scaled(obstacles[index].position)
-                : obstacles[index].definition.center.point(in: newSize)
-        }
-        for index in projectiles.indices { projectiles[index].position = scaled(projectiles[index].position) }
-        if powerUps.token != nil { powerUps.removeToken() }
-    }
-
+    /// Returns and forgets the events since the last call.
     public mutating func drainEvents() -> [Event] {
         defer { events.removeAll() }
         return events
@@ -209,51 +265,106 @@ public struct HouseTanksWorld: Sendable {
 
     // MARK: - Input
 
-    /// Press: lock the heading, fire once and start driving along the barrel.
+    /// Locks the heading, fires once and starts driving along the barrel. A shot still
+    /// cooling down is skipped but the tank drives anyway. Returns whether a shot was fired.
     @discardableResult
-    public mutating func beginPress(playerID: UUID) -> Bool {
-        guard isEnabled, let index = tanks.firstIndex(where: { $0.id == playerID }),
-              tanks[index].isActive, !tanks[index].isDriving else { return false }
+    public mutating func press(_ playerID: String) -> Bool {
+        guard let index = tankIndex(playerID), tanks[index].isActive, tanks[index].isControllable,
+              !tanks[index].isDriving else { return false }
         tanks[index].isDriving = true
         tanks[index].driveDirection = HouseTanksVector(angle: tanks[index].rotation)
-        return fire(tankIndex: index)
+        let shot = fire(tankIndex: index)
+        pendingHits += shot.hits
+        return shot.fired
     }
 
-    /// Release: stop, and sweep the other way next time.
-    public mutating func endPress(playerID: UUID) {
-        guard let index = tanks.firstIndex(where: { $0.id == playerID }), tanks[index].isDriving else { return }
+    /// Stops the tank; it sweeps the other way afterwards.
+    public mutating func release(_ playerID: String) {
+        guard let index = tankIndex(playerID), tanks[index].isDriving else { return }
         tanks[index].isDriving = false
         tanks[index].driveDirection = .zero
         tanks[index].velocity = .zero
         tanks[index].rotationDirection = HouseTanksMath.oppositeRotationDirection(after: tanks[index].rotationDirection)
     }
 
-    /// A destroyed tank stays on the floor as fixed cover.
-    public mutating func eliminate(playerID: UUID) {
-        guard let index = tanks.firstIndex(where: { $0.id == playerID }), tanks[index].isActive else { return }
-        tanks[index].isActive = false
-        tanks[index].velocity = .zero
-        tanks[index].isDriving = false
-        tanks[index].aimLocks = 0
-        powerUps.remove(playerID: playerID)
-        events.append(.eliminated(playerID: playerID, position: tanks[index].position))
+    /// Turns a tank into a stationary target or back. Losing control releases the press
+    /// without reversing the sweep, stops the tank and clears its aim lock; the body, armor
+    /// and joker stay.
+    public mutating func setControllable(_ playerID: String, _ controllable: Bool) {
+        guard let index = tankIndex(playerID), tanks[index].isControllable != controllable else { return }
+        tanks[index].isControllable = controllable
+        if !controllable {
+            tanks[index].isDriving = false
+            tanks[index].driveDirection = .zero
+            tanks[index].velocity = .zero
+            tanks[index].aimLocks = 0
+        }
+    }
+
+    /// Turns an idle tank to a given heading (online lag compensation).
+    @discardableResult
+    public mutating func setRotation(_ playerID: String, _ rotation: Double) -> Bool {
+        guard let index = tankIndex(playerID), tanks[index].isActive, !tanks[index].isDriving,
+              rotation.isFinite else { return false }
+        tanks[index].rotation = rotation
+        return true
+    }
+
+    /// Gives a live tank a joker effect from now, replacing any other.
+    @discardableResult
+    public mutating func grant(_ kind: HouseTanksPowerUp, to playerID: String) -> Bool {
+        guard let index = tankIndex(playerID), tanks[index].isActive else { return false }
+        tanks[index].powerUp = PowerUpEffect(kind: kind, expiresAtTick: tick + HouseTanksPowerUpRules.durationTicks)
+        return true
+    }
+
+    /// Stops the arena at a round's end: no shots, motion, presses, aim locks or jokers.
+    /// A frozen world is shown but not stepped again.
+    public mutating func freeze() {
+        projectiles.removeAll()
+        pendingHits.removeAll()
+        token = nil
+        jokers = nil
+        for index in tanks.indices {
+            tanks[index].velocity = .zero
+            tanks[index].isDriving = false
+            tanks[index].aimLocks = 0
+            tanks[index].powerUp = nil
+        }
+        for index in obstacles.indices { obstacles[index].velocity = .zero }
+    }
+
+    /// Lays a joker on the floor unless one is already there.
+    @discardableResult
+    public mutating func placeToken(_ kind: HouseTanksPowerUp, at position: HouseTanksVector) -> Bool {
+        guard token == nil, Self.arenaRect.contains(position) else { return false }
+        token = Token(kind: kind, position: position, expiresAtTick: tick + HouseTanksPowerUpRules.tokenLifetimeTicks)
+        return true
+    }
+
+    /// Deals jokers in this world from the match's generator and bag; the first one is due
+    /// 7–11 s after now.
+    public mutating func startJokers(random: HouseTanksRandom, bag: HouseTanksJokerBag) {
+        var schedule = HouseTanksJokerSchedule(random: random, bag: bag, nextTokenTick: 0)
+        schedule.nextTokenTick = tick + HouseTanksPowerUpRules.spawnInterval(using: &schedule.random)
+        jokers = schedule
     }
 
     // MARK: - Bots
 
     /// What a bot sees: aim error toward its next waypoint and the distance to it.
     /// `focusID` pins every bot on one tank (the demo's hard mode); otherwise the nearest tank is engaged.
-    public func botObservation(for playerID: UUID, focusing focusID: UUID? = nil) -> HouseTanksBotObservation {
+    public func botObservation(for playerID: String, focusing focusID: String? = nil) -> HouseTanksBotObservation {
         guard let tank = tank(playerID), tank.isActive else { return .none }
         let candidates = tanks.filter { $0.isActive && $0.id != playerID }.map { (id: $0.id, position: $0.position) }
         guard let targetID = HouseTanksBotBrain.target(from: tank.position, among: candidates, focus: focusID),
               let target = self.tank(targetID) else { return .none }
-        let inset = max(16, size.height * 0.035) + 16 * scale
-        let goal = powerUps.token.map { token in
+        let inset = arenaFrame.minX + 16 * scale
+        let goal = token.map { token in
             tank.position.distance(to: token.position) < 220 ? token.position : target.position
         } ?? target.position
         let waypoint = HouseTanksNavigation.waypoint(
-            from: tank.position, to: goal, arena: HouseTanksRect(size: size).insetBy(dx: inset, dy: inset),
+            from: tank.position, to: goal, arena: Self.arenaRect.insetBy(dx: inset, dy: inset),
             obstacles: coverBounds, padding: 14 * scale, step: 16 * scale
         )
         let aimError = abs(HouseTanksMath.normalizedAngle((waypoint - tank.position).angle - tank.rotation))
@@ -261,7 +372,8 @@ public struct HouseTanksWorld: Sendable {
                                         hasTarget: true)
     }
 
-    /// Everything that blocks a route: furniture, crates and wrecks.
+    /// Everything a token or a route keeps clear of: standing furniture and crates where
+    /// they are now, and wrecks.
     private var coverBounds: [HouseTanksRect] {
         obstacles.filter { !$0.isDestroyed }.map(\.bounds) + tanks.filter { !$0.isActive }.map { tank in
             HouseTanksRect(x: tank.position.x - bodyRadius, y: tank.position.y - bodyRadius,
@@ -271,31 +383,19 @@ public struct HouseTanksWorld: Sendable {
 
     // MARK: - Simulation
 
-    /// Advances by a real frame delta in fixed steps. Returns the tank hits in this frame.
-    @discardableResult
-    public mutating func step(by delta: Double) -> [Hit] {
-        guard isEnabled, delta > 0 else { return [] }
-        accumulator += min(Self.maximumFrameDelta, delta)
+    /// Advances the arena by one tick in the reference order: expiry, joker dealing, tank
+    /// motion, crate motion, three contact passes, joker pickup, shots, hits.
+    public mutating func step() {
+        tick += 1
+        expirePowerUps()
+        dealJoker()
         var hits: [Hit] = []
-        while accumulator >= Self.fixedStep {
-            accumulator -= Self.fixedStep
-            hits += substep(Self.fixedStep)
-            guard isEnabled else { break }
-        }
-        return hits
-    }
-
-    private mutating func substep(_ dt: Double) -> [Hit] {
-        powerUps.advance(by: dt)
-        updateJokers()
-        var hits: [Hit] = []
-
+        let dt = Self.fixedStep
         for index in tanks.indices where tanks[index].isActive {
-            let power = powerUps.status(for: tanks[index].id)?.kind
             if tanks[index].isDriving {
                 tanks[index].velocity += tanks[index].driveDirection * (Self.driveForce / Self.tankMass * dt)
-                if power == .rapidFire { hits += fireCollectingHits(tankIndex: index) }
-            } else if tanks[index].aimLocks == 0 {
+                if powerUp(of: index) == .rapidFire { hits += fire(tankIndex: index).hits }
+            } else if tanks[index].aimLocks == 0 && tanks[index].isControllable {
                 tanks[index].rotation += Self.rotationSpeed * tanks[index].rotationDirection * dt
             }
             tanks[index].velocity = tanks[index].velocity * (1 / (1 + dt * Self.tankDamping))
@@ -307,62 +407,56 @@ public struct HouseTanksWorld: Sendable {
             obstacles[index].velocity = obstacles[index].velocity * (1 / (1 + dt * Self.crateDamping))
             obstacles[index].position += obstacles[index].velocity * dt
         }
+        for _ in 0..<Self.contactIterations { resolveContacts() }
+        collectToken()
+        hits += advanceProjectiles()
+        apply(hits)
+    }
 
-        for _ in 0..<3 { resolveContacts() }
-        collectJokers()
-        hits += advanceProjectiles(dt)
-        return hits
+    private mutating func expirePowerUps() {
+        if let token, tick >= token.expiresAtTick { self.token = nil }
+        for index in tanks.indices {
+            if let effect = tanks[index].powerUp, tick >= effect.expiresAtTick { tanks[index].powerUp = nil }
+        }
     }
 
     // MARK: Firing
 
-    @discardableResult
-    private mutating func fire(tankIndex index: Int) -> Bool {
-        let hits = fireCollectingHits(tankIndex: index)
-        pendingMuzzleHits += hits
-        return firedLastAttempt
-    }
-
-    /// Muzzle hits from a press arrive outside `step`; the next step reports them.
-    private var pendingMuzzleHits: [Hit] = []
-    private var firedLastAttempt = false
-
-    private mutating func fireCollectingHits(tankIndex index: Int) -> [Hit] {
-        firedLastAttempt = false
+    /// Launches one shot, or a spread-shot volley, unless the barrel is still cooling down.
+    /// A muzzle already touching cover or a tank hits it at once.
+    private mutating func fire(tankIndex index: Int) -> (hits: [Hit], fired: Bool) {
         let tank = tanks[index]
-        let power = powerUps.status(for: tank.id)?.kind
-        let cooldown = power == .rapidFire ? HouseTanksPowerUpRules.rapidFireCooldown : Self.fireCooldown
-        guard time - tank.lastFireTime >= cooldown else { return [] }
-        tanks[index].lastFireTime = time
-        firedLastAttempt = true
+        let power = powerUp(of: index)
+        let cooldown = power == .rapidFire ? HouseTanksPowerUpRules.rapidFireCooldownTicks : Self.fireCooldownTicks
+        if tank.hasFired && tick - tank.lastFireTick < cooldown { return ([], false) }
+        tanks[index].hasFired = true
+        tanks[index].lastFireTick = tick
 
         var hits: [Hit] = []
         let isRocket = power == .rocket
         let offsets = power == .spreadShot ? HouseTanksPowerUpRules.spreadAngles : [0]
         for offset in offsets {
-            let angle = tank.rotation + offset
-            let direction = HouseTanksVector(angle: angle)
-            // A rocket is long; launch it clear of its own hull so it does not bounce off it.
-            let startDistance = (Self.tankLength / 2 + (isRocket ? Self.rocketLength / 2 + 4 : 5)) * scale
-            let start = tank.position + direction * startDistance
+            let direction = HouseTanksVector(angle: tank.rotation + offset)
+            let muzzle = isRocket ? Self.rocketMuzzleOffset : Self.shellMuzzleOffset
+            let start = tank.position + direction * (muzzle * scale)
             let projectile = Projectile(
                 id: nextProjectileID, ownerID: tank.id, color: tank.color, position: start,
-                velocity: direction * (isRocket ? Self.rocketSpeed : Self.projectileSpeed),
+                velocity: direction * (isRocket ? Self.rocketSpeed : Self.shellSpeed),
                 isRocket: isRocket, holdsAim: power == .aim,
-                radius: (isRocket ? Self.rocketRadius : Self.shellRadius) * scale
+                radius: (isRocket ? Self.rocketRadius : Self.shellRadius) * scale, spawnTick: tick
             )
             nextProjectileID += 1
             if projectile.holdsAim { tanks[index].aimLocks += 1 }
-            // The muzzle may touch a pushed crate or a thin wall. Do not spawn a shot
-            // on the far side of that cover just because its center is outside the tank.
+            // The muzzle may touch a pushed crate or a thin wall; never spawn a shot on the
+            // far side of that cover.
             if let blocker = firstContact(from: tank.position, to: start, radius: projectile.radius, ownerID: tank.id) {
                 hits += impact(of: projectile, on: blocker.body, at: start)
             } else {
                 projectiles.append(projectile)
             }
         }
-        events.append(.fired(playerID: tank.id, angle: tank.rotation))
-        return hits
+        emit(Event(tick: tick, kind: .fired, playerID: tank.id, angle: tank.rotation))
+        return (hits, true)
     }
 
     private enum Body: Equatable {
@@ -371,8 +465,10 @@ public struct HouseTanksWorld: Sendable {
         case obstacle(Int)
     }
 
+    /// The first wall, tank (live or wreck, never the owner) or standing obstacle the swept
+    /// shot touches.
     private func firstContact(from start: HouseTanksVector, to end: HouseTanksVector, radius: Double,
-                              ownerID: UUID) -> (body: Body, fraction: Double)? {
+                              ownerID: String) -> (body: Body, fraction: Double)? {
         var best: (body: Body, fraction: Double)?
         func consider(_ body: Body, _ fraction: Double?) {
             guard let fraction, fraction >= 0, fraction <= 1, fraction < (best?.fraction ?? .infinity) else { return }
@@ -394,14 +490,14 @@ public struct HouseTanksWorld: Sendable {
         return best
     }
 
-    private mutating func advanceProjectiles(_ dt: Double) -> [Hit] {
-        var hits = pendingMuzzleHits
-        pendingMuzzleHits.removeAll()
+    private mutating func advanceProjectiles() -> [Hit] {
+        var hits = pendingHits
+        pendingHits.removeAll()
         var survivors: [Projectile] = []
         for var projectile in projectiles {
-            projectile.age += dt
+            projectile.age += 1
             let start = projectile.position
-            let end = start + projectile.velocity * dt
+            let end = start + projectile.velocity * Self.fixedStep
             if let contact = firstContact(from: start, to: end, radius: projectile.radius, ownerID: projectile.ownerID) {
                 let point = start + (end - start) * contact.fraction
                 hits += impact(of: projectile, on: contact.body, at: point)
@@ -418,71 +514,92 @@ public struct HouseTanksWorld: Sendable {
         return hits
     }
 
+    /// Ends a shot: a crate breaks, a shield absorbs the shot, a live tank is hit. Walls,
+    /// furniture and wrecks only stop it.
     private mutating func impact(of projectile: Projectile, on body: Body, at point: HouseTanksVector) -> [Hit] {
         releaseAim(of: projectile)
-        if projectile.isRocket { events.append(.explosion(position: point)) }
+        if projectile.isRocket { emit(Event(tick: tick, kind: .explosion, position: point)) }
         switch body {
         case .wall:
             return []
         case .obstacle(let index):
             guard obstacles[index].definition.breaksOnHit else { return [] }
             obstacles[index].isDestroyed = true
-            events.append(.crateBroken(index: index, position: obstacles[index].position))
+            emit(Event(tick: tick, kind: .crateBroken, position: obstacles[index].position, crateIndex: index))
             return []
         case .tank(let index):
             let target = tanks[index]
             guard target.isActive else { return [] }
-            if powerUps.status(for: target.id)?.kind == .shield {
-                events.append(.shielded(playerID: target.id))
+            if powerUp(of: index) == .shield {
+                emit(Event(tick: tick, kind: .shielded, playerID: target.id, sourceID: projectile.ownerID))
                 return []
             }
             return [Hit(targetID: target.id, ownerID: projectile.ownerID, isLethal: projectile.isRocket)]
         }
     }
 
-    /// Lets the owner turn again once its last aimed shot has hit something or expired.
+    /// Lets the owner turn again once its last aimed shot has landed.
     private mutating func releaseAim(of projectile: Projectile) {
-        guard projectile.holdsAim, let index = tanks.firstIndex(where: { $0.id == projectile.ownerID }) else { return }
-        tanks[index].aimLocks = max(0, tanks[index].aimLocks - 1)
+        guard projectile.holdsAim, let index = tankIndex(projectile.ownerID), tanks[index].aimLocks > 0 else { return }
+        tanks[index].aimLocks -= 1
     }
 
-    private mutating func clearShots() {
-        projectiles.removeAll()
-        pendingMuzzleHits.removeAll()
-        for index in tanks.indices { tanks[index].aimLocks = 0 }
+    /// Takes armor in order. A regular shot right after a hit is ignored for
+    /// `hitProtectionTicks`; a rocket destroys whatever armor is left.
+    private mutating func apply(_ hits: [Hit]) {
+        for hit in hits {
+            guard let index = tankIndex(hit.targetID), tanks[index].isActive else { continue }
+            if !hit.isLethal && tick < tanks[index].protectedUntilTick { continue }
+            tanks[index].protectedUntilTick = tick + Self.hitProtectionTicks
+            if hit.isLethal { tanks[index].armor = 0 } else { tanks[index].armor -= 1 }
+            emit(Event(tick: tick, kind: .hit, playerID: tanks[index].id, sourceID: hit.ownerID,
+                       armor: tanks[index].armor, lethal: hit.isLethal))
+            if tanks[index].armor == 0 { eliminate(index, sourceID: hit.ownerID) }
+        }
+    }
+
+    private mutating func eliminate(_ index: Int, sourceID: String) {
+        tanks[index].isActive = false
+        tanks[index].velocity = .zero
+        tanks[index].isDriving = false
+        tanks[index].driveDirection = .zero
+        tanks[index].aimLocks = 0
+        tanks[index].powerUp = nil
+        emit(Event(tick: tick, kind: .eliminated, playerID: tanks[index].id, sourceID: sourceID,
+                   position: tanks[index].position))
     }
 
     // MARK: Jokers
 
-    private mutating func updateJokers() {
-        guard powerUps.token == nil, time >= nextTokenTime else { return }
-        // Keep tokens clear of the top HUD, walls, initial spawns and current actors.
-        let spawnArea = HouseTanksRect(x: 48, y: 44, width: size.width - 96, height: size.height - 124)
-        guard spawnArea.width > 0, spawnArea.height > 0 else { return }
-        let blocked = coverBounds
-        let actors = tanks.filter(\.isActive).map(\.position)
+    /// Places the joker that is due, replacing one still on the floor: up to 80 sampled
+    /// spots, else a retry one second later rather than an unfair spot.
+    private mutating func dealJoker() {
+        guard var schedule = jokers, tick >= schedule.nextTokenTick else { return }
         let starts = spawnPositions
-        for _ in 0..<80 {
-            let point = HouseTanksVector(x: random.value(in: spawnArea.minX...spawnArea.maxX),
-                                         y: random.value(in: spawnArea.minY...spawnArea.maxY))
-            guard HouseTanksPowerUpRules.isValidSpawn(point, arena: spawnArea, starts: starts, tanks: actors,
-                                                      obstacles: blocked) else { continue }
-            let kind = jokerBag.next(using: &random)
-            powerUps.spawn(kind: kind, at: point)
-            nextTokenTime = time + random.value(in: HouseTanksPowerUpRules.spawnInterval)
+        let live = tanks.filter(\.isActive).map(\.position)
+        let cover = coverBounds
+        let area = HouseTanksPowerUpRules.area
+        defer { jokers = schedule }
+        for _ in 0..<HouseTanksPowerUpRules.spawnAttempts {
+            let x = schedule.random.between(area.minX, area.maxX)
+            let point = HouseTanksVector(x: x, y: schedule.random.between(area.minY, area.maxY))
+            guard HouseTanksPowerUpRules.isValidSpawn(point, starts: starts, tanks: live, cover: cover) else { continue }
+            let kind = schedule.bag.next(using: &schedule.random)
+            token = Token(kind: kind, position: point, expiresAtTick: tick + HouseTanksPowerUpRules.tokenLifetimeTicks)
+            schedule.nextTokenTick = tick + HouseTanksPowerUpRules.spawnInterval(using: &schedule.random)
             return
         }
-        // A crowded arena skips this attempt instead of placing a token in an unfair location.
-        nextTokenTime = time + 1
+        schedule.nextTokenTick = tick + HouseTanksPowerUpRules.retryTicks
     }
 
-    private mutating func collectJokers() {
-        guard let token = powerUps.token else { return }
-        for tank in tanks where tank.isActive
-        && tank.position.distance(to: token.position) < (Self.tokenRadius + Self.tankRadius) * scale {
-            if let kind = powerUps.collect(playerID: tank.id) {
-                events.append(.jokerCollected(playerID: tank.id, kind: kind))
-            }
+    /// Gives the floor joker to the first live tank over it.
+    private mutating func collectToken() {
+        guard let token else { return }
+        let reach = (Self.tokenRadius + Self.tankRadius) * scale
+        for index in tanks.indices where tanks[index].isActive && tanks[index].position.distance(to: token.position) < reach {
+            self.token = nil
+            tanks[index].powerUp = PowerUpEffect(kind: token.kind, expiresAtTick: tick + HouseTanksPowerUpRules.durationTicks)
+            emit(Event(tick: tick, kind: .jokerCollected, playerID: tanks[index].id, powerUp: token.kind))
             return
         }
     }
@@ -491,40 +608,41 @@ public struct HouseTanksWorld: Sendable {
 
     private mutating func resolveContacts() {
         let frame = arenaFrame
+        let radius = bodyRadius
         // Tanks against the frame, furniture, wrecks, crates and each other.
         for a in tanks.indices where tanks[a].isActive {
             confine(tank: a, in: frame)
             for o in obstacles.indices where !obstacles[o].isDestroyed {
-                guard let contact = Self.circleContact(center: tanks[a].position, radius: bodyRadius,
+                guard let contact = Self.circleContact(center: tanks[a].position, radius: radius,
                                                        obstacle: obstacles[o]) else { continue }
                 if obstacles[o].isMovable {
                     push(tank: a, crate: o, normal: contact.normal, depth: contact.depth)
                 } else {
                     tanks[a].position += contact.normal * contact.depth
                     tanks[a].velocity = Self.reflect(tanks[a].velocity, normal: contact.normal,
-                                                     restitution: Self.wallRestitution)
+                                                     restitution: Self.obstacleRestitution)
                 }
             }
             for b in tanks.indices where b != a {
                 let offset = tanks[a].position - tanks[b].position
                 let distance = offset.length
-                let minimum = bodyRadius * 2
+                let minimum = radius * 2
                 guard distance < minimum else { continue }
                 let normal = distance > 0.0001 ? offset * (1 / distance) : HouseTanksVector(x: 1, y: 0)
                 let depth = minimum - distance
-                if tanks[b].isActive {
-                    if b < a { continue } // each live pair once
-                    tanks[a].position += normal * (depth / 2)
-                    tanks[b].position -= normal * (depth / 2)
-                    let relative = (tanks[a].velocity - tanks[b].velocity).dot(normal)
-                    if relative < 0 {
-                        let impulse = -(1 + Self.tankRestitution) * relative / 2
-                        tanks[a].velocity += normal * impulse
-                        tanks[b].velocity -= normal * impulse
-                    }
-                } else {
+                if !tanks[b].isActive {
                     tanks[a].position += normal * depth
-                    tanks[a].velocity = Self.reflect(tanks[a].velocity, normal: normal, restitution: Self.wallRestitution)
+                    tanks[a].velocity = Self.reflect(tanks[a].velocity, normal: normal, restitution: Self.obstacleRestitution)
+                    continue
+                }
+                if b < a { continue } // each live pair once
+                tanks[a].position += normal * (depth / 2)
+                tanks[b].position -= normal * (depth / 2)
+                let relative = (tanks[a].velocity - tanks[b].velocity).dot(normal)
+                if relative < 0 {
+                    let impulse = -(1 + Self.tankRestitution) * relative / 2
+                    tanks[a].velocity += normal * impulse
+                    tanks[b].velocity -= normal * impulse
                 }
             }
         }
@@ -538,11 +656,12 @@ public struct HouseTanksWorld: Sendable {
             if bounds.maxY > frame.maxY { shift.y = frame.maxY - bounds.maxY }
             if shift != .zero {
                 obstacles[c].position += shift
-                obstacles[c].velocity = Self.reflect(obstacles[c].velocity, normal: shift.normalized, restitution: 0.05)
+                obstacles[c].velocity = Self.reflect(obstacles[c].velocity, normal: shift.normalized,
+                                                     restitution: Self.crateRestitution)
             }
-            let radius = obstacles[c].radius * 1.05
+            let crateRadius = obstacles[c].radius * 1.05
             for o in obstacles.indices where o != c && !obstacles[o].isDestroyed {
-                guard let contact = Self.circleContact(center: obstacles[c].position, radius: radius,
+                guard let contact = Self.circleContact(center: obstacles[c].position, radius: crateRadius,
                                                        obstacle: obstacles[o]) else { continue }
                 if obstacles[o].isMovable {
                     guard o > c else { continue }
@@ -550,13 +669,14 @@ public struct HouseTanksWorld: Sendable {
                     obstacles[o].position -= contact.normal * (contact.depth / 2)
                 } else {
                     obstacles[c].position += contact.normal * contact.depth
-                    obstacles[c].velocity = Self.reflect(obstacles[c].velocity, normal: contact.normal, restitution: 0.05)
+                    obstacles[c].velocity = Self.reflect(obstacles[c].velocity, normal: contact.normal,
+                                                         restitution: Self.crateRestitution)
                 }
             }
             for tank in tanks where !tank.isActive {
                 let offset = obstacles[c].position - tank.position
                 let distance = offset.length
-                let minimum = radius + bodyRadius
+                let minimum = crateRadius + radius
                 guard distance < minimum, distance > 0.0001 else { continue }
                 obstacles[c].position += offset * ((minimum - distance) / distance)
             }
@@ -584,7 +704,7 @@ public struct HouseTanksWorld: Sendable {
         obstacles[o].position -= normal * (depth * inverseCrate / total)
         let relative = (tanks[a].velocity - obstacles[o].velocity).dot(normal)
         guard relative < 0 else { return }
-        let impulse = -(1 + 0.05) * relative / total
+        let impulse = -(1 + Self.crateRestitution) * relative / total
         tanks[a].velocity += normal * (impulse * inverseTank)
         obstacles[o].velocity -= normal * (impulse * inverseCrate)
     }
@@ -593,12 +713,6 @@ public struct HouseTanksWorld: Sendable {
 
     mutating func debugSet(tank index: Int, _ change: (inout Tank) -> Void) {
         change(&tanks[index])
-    }
-
-    mutating func debugGrant(_ kind: HouseTanksPowerUp, to playerID: UUID) {
-        powerUps.removeToken()
-        powerUps.spawn(kind: kind, at: .zero)
-        powerUps.collect(playerID: playerID)
     }
 
     // MARK: Geometry
@@ -641,7 +755,7 @@ public struct HouseTanksWorld: Sendable {
         return (normal.rotated(by: obstacle.rotation), min(pushX, pushY) + radius)
     }
 
-    /// Fraction along the segment where it first enters the circle.
+    /// Fraction along the segment where it first enters the circle, 0 when it starts inside.
     static func segmentCircle(from start: HouseTanksVector, to end: HouseTanksVector,
                               center: HouseTanksVector, radius: Double) -> Double? {
         let direction = end - start

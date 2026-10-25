@@ -1,24 +1,24 @@
 import Foundation
 
 /// Hands out jokers from a shuffled bag: every kind appears once per bag, in a fresh order,
-/// and a new bag never starts with the kind the previous one ended on.
+/// and a new bag never starts with the kind the previous one ended on. It carries across
+/// the rounds of a match. The draws follow the backend's `JokerBag` exactly.
 public struct HouseTanksJokerBag: Codable, Equatable, Sendable {
-    private var queue: [HouseTanksPowerUp] = []
+    public private(set) var queue: [HouseTanksPowerUp] = []
     public private(set) var last: HouseTanksPowerUp?
 
     public init() {}
 
-    public mutating func next() -> HouseTanksPowerUp {
-        var generator = SystemRandomNumberGenerator()
-        return next(using: &generator)
-    }
-
-    public mutating func next<Generator: RandomNumberGenerator>(using generator: inout Generator) -> HouseTanksPowerUp {
+    public mutating func next(using random: inout HouseTanksRandom) -> HouseTanksPowerUp {
         if queue.isEmpty {
-            queue = HouseTanksPowerUp.allCases.shuffled(using: &generator)
-            if queue.first == last, queue.count > 1 {
-                queue.swapAt(0, Int.random(in: 1..<queue.count, using: &generator))
+            var fresh = HouseTanksPowerUp.allCases
+            for index in stride(from: fresh.count - 1, to: 0, by: -1) {
+                fresh.swapAt(index, random.below(index + 1))
             }
+            if fresh[0] == last {
+                fresh.swapAt(0, 1 + random.below(fresh.count - 1))
+            }
+            queue = fresh
         }
         let kind = queue.removeFirst()
         last = kind
@@ -26,67 +26,53 @@ public struct HouseTanksJokerBag: Codable, Equatable, Sendable {
     }
 }
 
-/// Gameplay time is advanced only while playing, so pause/countdown cannot spend a joker.
-public struct HouseTanksPowerUpRules: Codable, Equatable, Sendable {
-    public static let duration = 8.0
-    public static let tokenLifetime = 12.0
-    public static let spawnInterval: ClosedRange<Double> = 7...11
-    public static let rapidFireCooldown = 0.16
+/// A world's joker dealer. The generator and the bag belong to the match and move to the
+/// next round's world; the due tick is per round.
+public struct HouseTanksJokerSchedule: Codable, Equatable, Sendable {
+    public var random: HouseTanksRandom
+    public var bag: HouseTanksJokerBag
+    public var nextTokenTick: Int
+
+    public init(random: HouseTanksRandom, bag: HouseTanksJokerBag, nextTokenTick: Int) {
+        self.random = random
+        self.bag = bag
+        self.nextTokenTick = nextTokenTick
+    }
+}
+
+/// Joker contract of `houseTanks.v2`. Timers are whole physics ticks (1/120 s).
+public enum HouseTanksPowerUpRules {
+    public static let durationTicks = 960
+    public static let tokenLifetimeTicks = 1_440
+    public static let minimumIntervalTicks = 840
+    public static let maximumIntervalTicks = 1_320
+    public static let retryTicks = 120
+    public static let spawnAttempts = 80
+    public static let rapidFireCooldownTicks = 20
     public static let spreadAngles: [Double] = [-0.28, -0.14, 0, 0.14, 0.28]
 
-    public struct Token: Codable, Equatable, Sendable {
-        public let kind: HouseTanksPowerUp
-        public let position: HouseTanksVector
-        public let expiresAt: Double
+    /// The same timers in seconds, for countdown rings.
+    public static let duration = Double(durationTicks) * HouseTanksWorld.fixedStep
+    public static let tokenLifetime = Double(tokenLifetimeTicks) * HouseTanksWorld.fixedStep
+
+    /// Where tokens may appear: clear of the walls and the top HUD row. It does not shrink
+    /// with the map scale.
+    public static let area = HouseTanksRect(x: 48, y: 44, width: HouseTanksWorld.arenaSize.width - 96,
+                                            height: HouseTanksWorld.arenaSize.height - 44 - 80)
+
+    /// Uniform over 7…11 s in whole ticks.
+    static func spawnInterval(using random: inout HouseTanksRandom) -> Int {
+        minimumIntervalTicks + random.below(maximumIntervalTicks - minimumIntervalTicks + 1)
     }
 
-    private struct Effect: Codable, Equatable, Sendable {
-        let kind: HouseTanksPowerUp
-        let expiresAt: Double
-    }
-
-    public private(set) var time = 0.0
-    public private(set) var token: Token?
-    private var effects: [UUID: Effect] = [:]
-
-    public init() {}
-
-    public mutating func advance(by delta: Double) {
-        time += max(0, delta)
-        if let token, time >= token.expiresAt { self.token = nil }
-        effects = effects.filter { time < $0.value.expiresAt }
-    }
-
-    @discardableResult
-    public mutating func spawn(kind: HouseTanksPowerUp, at position: HouseTanksVector) -> Bool {
-        guard token == nil else { return false }
-        token = Token(kind: kind, position: position, expiresAt: time + Self.tokenLifetime)
-        return true
-    }
-
-    @discardableResult
-    public mutating func collect(playerID: UUID) -> HouseTanksPowerUp? {
-        guard let token, time < token.expiresAt else { return nil }
-        self.token = nil
-        effects[playerID] = Effect(kind: token.kind, expiresAt: time + Self.duration)
-        return token.kind
-    }
-
-    public func status(for playerID: UUID) -> HouseTanksPowerUpStatus? {
-        guard let effect = effects[playerID], effect.expiresAt > time else { return nil }
-        return .init(kind: effect.kind, remaining: effect.expiresAt - time)
-    }
-
-    public mutating func remove(playerID: UUID) { effects[playerID] = nil }
-    public mutating func removeToken() { token = nil }
-
-    /// Rejection sampling uses the actual, possibly moved crate bounds, not the authored layout.
-    public static func isValidSpawn(_ point: HouseTanksVector, arena: HouseTanksRect, starts: [HouseTanksVector],
-                                    tanks: [HouseTanksVector], obstacles: [HouseTanksRect]) -> Bool {
-        guard arena.contains(point) else { return false }
-        let startClearance = max(80, arena.height * 0.22)
+    /// Keeps a token away from the spawn points, live tanks and the current bounds of cover
+    /// (moved crates and wrecks included).
+    public static func isValidSpawn(_ point: HouseTanksVector, starts: [HouseTanksVector],
+                                    tanks: [HouseTanksVector], cover: [HouseTanksRect]) -> Bool {
+        guard area.contains(point) else { return false }
+        let startClearance = max(80, area.height * 0.22)
         guard starts.allSatisfy({ $0.distance(to: point) >= startClearance }),
               tanks.allSatisfy({ $0.distance(to: point) >= 50 }) else { return false }
-        return obstacles.allSatisfy { !$0.insetBy(dx: -26, dy: -26).contains(point) }
+        return cover.allSatisfy { !$0.insetBy(dx: -26, dy: -26).contains(point) }
     }
 }

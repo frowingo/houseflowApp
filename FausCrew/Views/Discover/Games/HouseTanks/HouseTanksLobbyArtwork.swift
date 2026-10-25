@@ -384,14 +384,15 @@ struct HouseTanksMapPreview: View {
                 piece.stroke(shape, with: .color(palette.ink.opacity(0.35)), lineWidth: 0.5)
             }
 
-            for spawn in definition.spawnPoints {
+            // The demo's seats: four on standard maps.
+            for spawn in definition.spawnPoints.prefix(definition.demoPlayerCounts.upperBound) {
                 let center = point(spawn)
                 context.fill(Path(ellipseIn: CGRect(x: center.x - 2.5, y: center.y - 2.5, width: 5, height: 5)),
                              with: .color(palette.steel))
             }
             context.stroke(Path(rect.insetBy(dx: 0.5, dy: 0.5)), with: .color(palette.slate.opacity(0.4)), lineWidth: 1)
         }
-        .aspectRatio(1_180 / 640, contentMode: .fit)
+        .aspectRatio(872 / 400, contentMode: .fit)
         .accessibilityHidden(true)
     }
 }

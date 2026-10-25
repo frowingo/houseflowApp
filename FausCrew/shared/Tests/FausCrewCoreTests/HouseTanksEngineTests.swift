@@ -3,8 +3,6 @@ import XCTest
 @testable import FausCrewCore
 
 final class HouseTanksEngineTests: XCTestCase {
-    private let arena = HouseTanksSize(width: 844, height: 390)
-
     // MARK: - Maps and navigation
 
     func testMapCatalogMapsAreValidAndSeatEveryPlayer() {
@@ -15,14 +13,13 @@ final class HouseTanksEngineTests: XCTestCase {
             XCTAssertGreaterThanOrEqual(map.spawnPoints.count, map.maxPlayers)
             XCTAssertTrue(map.obstacles.contains(where: \.isMovable))
             XCTAssertTrue(map.obstacles.contains(where: { !$0.isMovable }))
-            for size in [HouseTanksSize.reference, HouseTanksSize(width: 844, height: 390), HouseTanksSize(width: 667, height: 320)] {
-                XCTAssertTrue(HouseTanksMapCatalog.validationIssues(for: map, arenaSize: size).isEmpty, "\(mapID) at \(size)")
-            }
+            XCTAssertEqual(HouseTanksMapCatalog.validationIssues(for: map), [], "\(mapID)")
         }
     }
 
     func testBotRoutesReachEveryOtherSpawnWithoutClippingCover() {
-        for size in [HouseTanksSize(width: 667, height: 320), HouseTanksSize.reference] {
+        do {
+            let size = HouseTanksWorld.arenaSize
             for id in HouseTanksMapID.allCases {
                 let map = HouseTanksMapCatalog.definition(for: id)
                 let starts = map.spawnPoints.map { $0.point(in: size) }
@@ -61,21 +58,18 @@ final class HouseTanksEngineTests: XCTestCase {
     // MARK: - Jokers
 
     func testJokerLastsEightSecondsAndTokenTwelve() {
-        var rules = HouseTanksPowerUpRules()
-        let player = UUID()
-        XCTAssertTrue(rules.spawn(kind: .shield, at: .zero))
-        rules.advance(by: 11.5)
-        XCTAssertNotNil(rules.token)
-        XCTAssertEqual(rules.collect(playerID: player), .shield)
-        XCTAssertNil(rules.collect(playerID: UUID()))
-        rules.advance(by: 7)
-        XCTAssertEqual(rules.status(for: player)?.remaining ?? 0, 1, accuracy: 0.0001)
-        rules.advance(by: 1)
-        XCTAssertNil(rules.status(for: player))
-
-        rules.spawn(kind: .rocket, at: .zero)
-        rules.advance(by: 12)
-        XCTAssertNil(rules.token)
+        var world = makeWorld(.livingRoom)
+        let id = world.tanks[0].id
+        XCTAssertTrue(world.grant(.shield, to: id))
+        XCTAssertTrue(world.placeToken(.rocket, at: HouseTanksVector(x: 590, y: 320)))
+        XCTAssertFalse(world.placeToken(.aim, at: HouseTanksVector(x: 600, y: 320)), "one token at a time")
+        steps(&world, 7 * 120)
+        XCTAssertEqual(world.powerUpStatus(for: id)?.remaining ?? 0, 1, accuracy: 0.0001)
+        steps(&world, 120)
+        XCTAssertNil(world.powerUpStatus(for: id))
+        XCTAssertNotNil(world.token)
+        steps(&world, 4 * 120)
+        XCTAssertNil(world.token)
     }
 
     func testJokerBagShufflesEveryKindAndNeverRepeatsBackToBack() {
@@ -92,8 +86,8 @@ final class HouseTanksEngineTests: XCTestCase {
     // MARK: - Bots and rules
 
     func testBotsTargetNearestTankUnlessFocused() {
-        let human = UUID()
-        let bot = UUID()
+        let human = "human"
+        let bot = "bot"
         let origin = HouseTanksVector(x: 100, y: 100)
         let nearBot = (id: bot, position: HouseTanksVector(x: 120, y: 100))
         let farHuman = (id: human, position: HouseTanksVector(x: 700, y: 300))
@@ -130,44 +124,46 @@ final class HouseTanksEngineTests: XCTestCase {
     func testPressFiresOnceAndDrivesAlongTheBarrel() {
         var world = makeWorld(.livingRoom)
         let human = world.tanks[0]
-        XCTAssertTrue(world.beginPress(playerID: human.id))
+        XCTAssertTrue(world.press(human.id))
         XCTAssertEqual(world.projectiles.count, 1)
         let start = world.tank(human.id)!.position
         run(&world, seconds: 0.3)
         let moved = world.tank(human.id)!.position - start
         XCTAssertGreaterThan(moved.length, 5)
         XCTAssertLessThan(abs(HouseTanksMath.normalizedAngle(moved.angle - human.rotation)), 0.3)
-        XCTAssertFalse(world.beginPress(playerID: human.id), "a held press does not fire again")
-        world.endPress(playerID: human.id)
+        XCTAssertFalse(world.press(human.id), "a held press does not fire again")
+        world.release(human.id)
         XCTAssertEqual(world.tank(human.id)!.rotationDirection, -human.rotationDirection)
     }
 
     func testIdleTanksSweepAtTheConfiguredRate() {
         var world = makeWorld(.livingRoom)
         let before = world.tanks[0].rotation
-        world.step(by: 0.05)
-        world.step(by: 0.05)
+        steps(&world, 12)
         XCTAssertEqual(world.tanks[0].rotation - before, HouseTanksWorld.rotationSpeed * 0.1 * world.tanks[0].rotationDirection,
-                       accuracy: 0.02)
+                       accuracy: 1e-9)
     }
 
     func testShellBreaksACrateAndHitsATank() {
         var world = makeWorld(.livingRoom, obstacles: [Self.crate(at: 0.5, 0.36), Self.divider(at: 0.5, 0.8)])
         let crateIndex = 0
         aim(&world, tank: 0, at: world.obstacles[crateIndex].position)
-        world.beginPress(playerID: world.tanks[0].id)
-        world.endPress(playerID: world.tanks[0].id)
-        let broken = run(&world) { world, _, _ in world.obstacles[crateIndex].isDestroyed }
+        world.press(world.tanks[0].id)
+        world.release(world.tanks[0].id)
+        let broken = run(&world) { world, _ in world.obstacles[crateIndex].isDestroyed }
         XCTAssertTrue(world.obstacles[crateIndex].isDestroyed)
-        XCTAssertTrue(broken.events.contains { if case .crateBroken(crateIndex, _) = $0 { return true }; return false })
+        XCTAssertTrue(broken.contains { $0.kind == .crateBroken && $0.crateIndex == crateIndex })
 
         var duel = makeWorld(.livingRoom, clearCover: true)
         aim(&duel, tank: 0, at: duel.tanks[1].position)
-        duel.beginPress(playerID: duel.tanks[0].id)
-        duel.endPress(playerID: duel.tanks[0].id)
-        let hits = run(&duel) { _, hits, _ in !hits.isEmpty }.hits
-        XCTAssertEqual(hits.first?.targetID, duel.tanks[1].id)
-        XCTAssertEqual(hits.first?.isLethal, false)
+        duel.press(duel.tanks[0].id)
+        duel.release(duel.tanks[0].id)
+        let hit = run(&duel) { _, events in events.contains { $0.kind == .hit } }.first { $0.kind == .hit }
+        XCTAssertEqual(hit?.playerID, duel.tanks[1].id)
+        XCTAssertEqual(hit?.sourceID, duel.tanks[0].id)
+        XCTAssertEqual(hit?.armor, 4)
+        XCTAssertEqual(hit?.lethal, false)
+        XCTAssertEqual(duel.tanks[1].armor, 4)
     }
 
     func testTanksPushCratesButNotFurniture() {
@@ -177,8 +173,8 @@ final class HouseTanksEngineTests: XCTestCase {
         place(&world, tank: 0, at: crate.position - HouseTanksVector(x: crate.radius + HouseTanksWorld.tankRadius + 2, y: 0))
         aimAngle(&world, tank: 0, 0)
         // Hold fire (cooling down) so the tank drives into the crate instead of shooting it.
-        world.debugSet(tank: 0) { $0.lastFireTime = 0 }
-        world.beginPress(playerID: world.tanks[0].id)
+        world.debugSet(tank: 0) { $0.hasFired = true }
+        world.press(world.tanks[0].id)
         XCTAssertTrue(world.projectiles.isEmpty)
         run(&world, seconds: 0.5)
         XCTAssertGreaterThan(world.obstacles[crateIndex].position.x, crate.position.x + 4)
@@ -190,20 +186,20 @@ final class HouseTanksEngineTests: XCTestCase {
         var world = makeWorld(.livingRoom, clearCover: true)
         grant(&world, .rocket, to: 0)
         aim(&world, tank: 0, at: world.tanks[1].position)
-        world.beginPress(playerID: world.tanks[0].id)
+        world.press(world.tanks[0].id)
         XCTAssertTrue(world.projectiles.first?.isRocket == true)
-        let rocketHits = run(&world) { _, hits, _ in !hits.isEmpty }.hits
-        XCTAssertEqual(rocketHits.first?.isLethal, true)
+        let rocket = run(&world) { _, events in events.contains { $0.kind == .eliminated } }
+        XCTAssertEqual(rocket.first { $0.kind == .hit }?.lethal, true)
+        XCTAssertFalse(world.tanks[1].isActive, "a rocket destroys a full-armor tank")
 
         var shielded = makeWorld(.livingRoom, clearCover: true)
         grant(&shielded, .shield, to: 1)
         aim(&shielded, tank: 0, at: shielded.tanks[1].position)
-        shielded.beginPress(playerID: shielded.tanks[0].id)
-        let outcome = run(&shielded) { world, _, events in
-            events.contains { if case .shielded = $0 { return true }; return false }
-        }
-        XCTAssertTrue(outcome.hits.isEmpty)
-        XCTAssertTrue(outcome.events.contains { if case .shielded = $0 { return true }; return false })
+        shielded.press(shielded.tanks[0].id)
+        let outcome = run(&shielded) { _, events in events.contains { $0.kind == .shielded } }
+        XCTAssertFalse(outcome.contains { $0.kind == .hit })
+        XCTAssertEqual(outcome.first { $0.kind == .shielded }?.sourceID, shielded.tanks[0].id)
+        XCTAssertEqual(shielded.tanks[1].armor, 5)
     }
 
     func testAimJokerHoldsHeadingUntilTheShotLandsAndStillFires() {
@@ -211,17 +207,17 @@ final class HouseTanksEngineTests: XCTestCase {
         grant(&world, .aim, to: 0)
         XCTAssertNotNil(world.aimLength(for: world.tanks[0].id))
         let id = world.tanks[0].id
-        world.beginPress(playerID: id)
-        world.endPress(playerID: id)
+        world.press(id)
+        world.release(id)
         let locked = world.tank(id)!.rotation
         run(&world, seconds: 0.2)
         XCTAssertEqual(world.tank(id)!.aimLocks, 1)
         XCTAssertEqual(world.tank(id)!.rotation, locked, accuracy: 0.0001)
         // Firing again at the normal cadence while locked.
         run(&world, seconds: 0.4)
-        XCTAssertTrue(world.beginPress(playerID: id))
-        world.endPress(playerID: id)
-        run(&world) { world, _, _ in world.tank(id)!.aimLocks == 0 && world.projectiles.isEmpty }
+        XCTAssertTrue(world.press(id))
+        world.release(id)
+        run(&world) { world, _ in world.tank(id)!.aimLocks == 0 && world.projectiles.isEmpty }
         let free = world.tank(id)!.rotation
         run(&world, seconds: 0.2)
         XCTAssertNotEqual(world.tank(id)!.rotation, free)
@@ -229,13 +225,12 @@ final class HouseTanksEngineTests: XCTestCase {
 
     func testSameSeedReplaysTheSameJokers() {
         func tokens(seed: UInt64) -> [HouseTanksPowerUp] {
-            var world = HouseTanksWorld(map: HouseTanksMapCatalog.definition(for: .courtyard), size: arena,
-                                        players: makePlayers(), random: HouseTanksRandom(seed: seed))
-            world.setEnabled(true)
+            var world = HouseTanksWorld(map: HouseTanksMapCatalog.courtyard, playerIDs: ["a", "b", "c", "d"])
+            world.startJokers(random: HouseTanksRandom(seed: seed), bag: HouseTanksJokerBag())
             var kinds: [HouseTanksPowerUp] = []
-            for _ in 0..<(60 * 60) {
-                world.step(by: 1 / 60)
-                if let kind = world.powerUps.token?.kind, kinds.last != kind { kinds.append(kind) }
+            for _ in 0..<(120 * 60) {
+                world.step()
+                if let kind = world.token?.kind, kinds.last != kind { kinds.append(kind) }
             }
             return kinds
         }
@@ -247,7 +242,6 @@ final class HouseTanksEngineTests: XCTestCase {
 
     func testMatchFieldsOneHumanAndThreeDistinctBotsAndCountsDown() {
         var match = HouseTanksBotMatch(seed: 1)
-        match.setViewport(arena)
         match.start(configuration: .init(difficulty: .hard, humanColor: .olive, mapID: .warehouse))
         let snapshot = match.snapshot!
         XCTAssertEqual(snapshot.players.count, 4)
@@ -259,12 +253,11 @@ final class HouseTanksEngineTests: XCTestCase {
         XCTAssertFalse(match.advanceCountdown())
         XCTAssertTrue(match.advanceCountdown())
         XCTAssertEqual(match.snapshot?.phase, .playing)
-        XCTAssertTrue(match.world?.isEnabled == true)
+        XCTAssertNotNil(match.world?.jokers, "jokers are dealt once the round plays")
     }
 
     func testBotsPlayARoundToItsEndAndTheNextRoundRestoresCrates() {
         var match = HouseTanksBotMatch(seed: 3)
-        match.setViewport(arena)
         match.start(configuration: .init(difficulty: .hard, humanColor: .plum, mapID: .courtyard))
         while match.advanceCountdown() == false {}
         let crates = match.world!.obstacles.filter(\.isMovable).count
@@ -289,7 +282,6 @@ final class HouseTanksEngineTests: XCTestCase {
         XCTAssertGreaterThan(basement.obstacles.count, HouseTanksMapCatalog.definition(for: .livingRoom).obstacles.count)
 
         var match = HouseTanksBotMatch(seed: 8)
-        match.setViewport(HouseTanksSize.reference)
         match.start(configuration: .init(difficulty: .normal, humanColor: .sky, mapID: .basement, playerCount: 8))
         let players = match.snapshot!.players
         XCTAssertEqual(players.count, 8)
@@ -299,7 +291,7 @@ final class HouseTanksEngineTests: XCTestCase {
         XCTAssertEqual(world.bodyRadius, HouseTanksWorld.tankRadius * basement.scale, accuracy: 1e-9)
         XCTAssertEqual(world.tanks.count, 8)
 
-        // Out-of-range counts are clamped to the map; standard maps stay at four.
+        // Out-of-range counts are clamped to the map's demo range; standard maps stay at four.
         XCTAssertEqual(HouseTanksMatchConfiguration(difficulty: .easy, humanColor: .plum, mapID: .basement, playerCount: 3).playerCount, 6)
         XCTAssertEqual(HouseTanksMatchConfiguration(difficulty: .easy, humanColor: .plum, mapID: .basement, playerCount: 12).playerCount, 8)
         XCTAssertEqual(HouseTanksMatchConfiguration(difficulty: .easy, humanColor: .plum, mapID: .warehouse, playerCount: 8).playerCount, 4)
@@ -307,7 +299,6 @@ final class HouseTanksEngineTests: XCTestCase {
 
     func testBotsResolveACrowdedBasementRound() {
         var match = HouseTanksBotMatch(seed: 21)
-        match.setViewport(HouseTanksSize(width: 844, height: 390))
         match.start(configuration: .init(difficulty: .hard, humanColor: .crimson, mapID: .basement, playerCount: 7))
         while match.advanceCountdown() == false {}
         for _ in 0..<(60 * 300) where match.snapshot?.phase == .playing { match.advance(by: 1 / 60) }
@@ -352,11 +343,10 @@ final class HouseTanksEngineTests: XCTestCase {
         if clearCover || obstacles != nil {
             definition = HouseTanksMapDefinition(id: definition.id, version: definition.version,
                                                  spawnPoints: definition.spawnPoints, obstacles: obstacles ?? [],
-                                                 floorLines: [], floorMarkers: [])
+                                                 floorLines: [], floorMarkers: [], scale: definition.scale,
+                                                 minPlayers: definition.minPlayers, maxPlayers: definition.maxPlayers)
         }
-        var world = HouseTanksWorld(map: definition, size: arena, players: makePlayers(), random: HouseTanksRandom(seed: 9))
-        world.setEnabled(true)
-        return world
+        return HouseTanksWorld(map: definition, playerIDs: (0..<4).map { "seat\($0)" })
     }
 
     private func aim(_ world: inout HouseTanksWorld, tank index: Int, at point: HouseTanksVector) {
@@ -372,25 +362,28 @@ final class HouseTanksEngineTests: XCTestCase {
     }
 
     private func grant(_ world: inout HouseTanksWorld, _ kind: HouseTanksPowerUp, to index: Int) {
-        world.debugGrant(kind, to: world.tanks[index].id)
+        XCTAssertTrue(world.grant(kind, to: world.tanks[index].id))
     }
 
-    /// Steps at 60 fps (frames longer than 1/20 s are clamped by the world) until `done`.
+    /// Steps tick by tick (five seconds at most) until `done`; returns the events on the way.
     @discardableResult
-    private func run(_ world: inout HouseTanksWorld, frames: Int = 600,
-                     until done: (HouseTanksWorld, [HouseTanksWorld.Hit], [HouseTanksWorld.Event]) -> Bool = { _, _, _ in false })
-    -> (hits: [HouseTanksWorld.Hit], events: [HouseTanksWorld.Event]) {
-        var hits: [HouseTanksWorld.Hit] = []
-        var events: [HouseTanksWorld.Event] = []
-        for _ in 0..<frames {
-            hits += world.step(by: 1 / 60)
+    private func run(_ world: inout HouseTanksWorld, ticks: Int = 600,
+                     until done: (HouseTanksWorld, [HouseTanksWorld.Event]) -> Bool = { _, _ in false })
+    -> [HouseTanksWorld.Event] {
+        var events = world.drainEvents()
+        for _ in 0..<ticks {
+            world.step()
             events += world.drainEvents()
-            if done(world, hits, events) { break }
+            if done(world, events) { break }
         }
-        return (hits, events)
+        return events
     }
 
     private func run(_ world: inout HouseTanksWorld, seconds: Double) {
-        run(&world, frames: Int((seconds * 60).rounded()))
+        run(&world, ticks: Int((seconds * 120).rounded()))
+    }
+
+    private func steps(_ world: inout HouseTanksWorld, _ count: Int) {
+        for _ in 0..<count { world.step() }
     }
 }

@@ -120,12 +120,12 @@ extension HouseTanksColor {
 
 /// Draws a FauseTanks world from the shared engine (FausCrewCore). It owns no rules and no
 /// physics: every frame it reports the real delta through `onFrame`, the session advances
-/// the engine, and `render(_:roundKey:events:)` mirrors the result onto nodes.
+/// the engine, and `render(_:roundKey:events:localPlayerID:)` mirrors the result onto nodes.
+/// The arena is the fixed 872×400 of the online contract. The scene fills the whole view
+/// edge to edge; a camera fits the arena inside it and the map backdrop shows around it.
 final class HouseTanksScene: SKScene {
     /// Once per display frame with the real delta (capped like the engine).
     var onFrame: ((TimeInterval) -> Void)?
-    /// The drawing surface changed; the engine follows it.
-    var onResize: ((CGSize) -> Void)?
 
     private var lastUpdateTime: TimeInterval = 0
     private var reduceMotion = false
@@ -133,8 +133,9 @@ final class HouseTanksScene: SKScene {
     /// Crowded-match maps draw every actor smaller, matching the engine's scale.
     private var mapScale: CGFloat { CGFloat(currentMap.scale) }
     private var arenaKey: String?
-    private var tankNodes: [UUID: SKNode] = [:]
-    private var destroyedTanks = Set<UUID>()
+    private var localPlayerID: String?
+    private var tankNodes: [String: SKNode] = [:]
+    private var destroyedTanks = Set<String>()
     private var crateNodes: [Int: SKNode] = [:]
     private var projectileNodes: [Int: SKNode] = [:]
     private var tokenNode: SKNode?
@@ -146,15 +147,37 @@ final class HouseTanksScene: SKScene {
     private let projectileSize = CGSize(width: 9, height: 3.5)
     private let rocketSize = CGSize(width: 22, height: 8)
 
-    override func didMove(to view: SKView) {
+    /// The arena in scene points; every node is placed in these coordinates.
+    private let arena = CGSize(width: HouseTanksWorld.arenaSize.width, height: HouseTanksWorld.arenaSize.height)
+    private let arenaCamera = SKCameraNode()
+
+    override init() {
+        super.init(size: CGSize(width: HouseTanksWorld.arenaSize.width, height: HouseTanksWorld.arenaSize.height))
+        // `aspectFit` would letterbox the spare edges in opaque black; a resizing scene stays
+        // transparent there and the camera does the fitting instead.
         scaleMode = .resizeFill
         backgroundColor = .clear
+        addChild(arenaCamera)
+        camera = arenaCamera
+        fitArena()
     }
 
     override func didChangeSize(_ oldSize: CGSize) {
         super.didChangeSize(oldSize)
+        fitArena()
+    }
+
+    /// Shows the whole arena as large as the view allows, centred.
+    private func fitArena() {
         guard size.width > 0, size.height > 0 else { return }
-        onResize?(size)
+        let fit = min(size.width / arena.width, size.height / arena.height)
+        arenaCamera.setScale(1 / fit)
+        arenaCamera.position = CGPoint(x: arena.width / 2, y: arena.height / 2)
+    }
+
+    @available(*, unavailable)
+    required init?(coder aDecoder: NSCoder) {
+        fatalError("init(coder:) has not been implemented")
     }
 
     override func update(_ currentTime: TimeInterval) {
@@ -175,6 +198,7 @@ final class HouseTanksScene: SKScene {
     /// Removes everything; the next `render` rebuilds the arena.
     func stopMatch() {
         removeAllChildren()
+        addChild(arenaCamera)
         arenaKey = nil
         tankNodes.removeAll()
         destroyedTanks.removeAll()
@@ -185,12 +209,11 @@ final class HouseTanksScene: SKScene {
     }
 
     /// Mirrors the engine onto nodes. `roundKey` changes with every new round (a fresh arena).
-    func render(_ world: HouseTanksWorld, roundKey: String, events: [HouseTanksWorld.Event]) {
-        let key = "\(roundKey)|\(world.size.width)x\(world.size.height)"
-        if key != arenaKey {
-            let sameRound = arenaKey?.hasPrefix(roundKey + "|") == true
-            arenaKey = key
-            buildArena(world, keepActors: sameRound)
+    func render(_ world: HouseTanksWorld, roundKey: String, events: [HouseTanksWorld.Event], localPlayerID: String?) {
+        self.localPlayerID = localPlayerID
+        if roundKey != arenaKey {
+            arenaKey = roundKey
+            buildArena(world)
         }
         syncTanks(world)
         syncCrates(world)
@@ -201,22 +224,20 @@ final class HouseTanksScene: SKScene {
 
     // MARK: - Arena
 
-    private func buildArena(_ world: HouseTanksWorld, keepActors: Bool) {
+    private func buildArena(_ world: HouseTanksWorld) {
         currentMap = world.map
         children.filter { $0.name == "arena" || $0.name == "crate" || $0.name == "effect" }.forEach { $0.removeFromParent() }
         crateNodes.removeAll()
-        if !keepActors {
-            tankNodes.values.forEach { $0.removeFromParent() }
-            tankNodes.removeAll()
-            destroyedTanks.removeAll()
-            projectileNodes.values.forEach { $0.removeFromParent() }
-            projectileNodes.removeAll()
-            tokenNode?.removeFromParent()
-            tokenNode = nil
-            tokenKind = nil
-        }
+        tankNodes.values.forEach { $0.removeFromParent() }
+        tankNodes.removeAll()
+        destroyedTanks.removeAll()
+        projectileNodes.values.forEach { $0.removeFromParent() }
+        projectileNodes.removeAll()
+        tokenNode?.removeFromParent()
+        tokenNode = nil
+        tokenKind = nil
 
-        let mat = SKShapeNode(rect: CGRect(origin: .zero, size: size), cornerRadius: 0)
+        let mat = SKShapeNode(rect: CGRect(origin: .zero, size: arena), cornerRadius: 0)
         mat.name = "arena"
         mat.fillColor = floorTint
         mat.strokeColor = .clear
@@ -316,7 +337,7 @@ final class HouseTanksScene: SKScene {
     }
 
     private func syncToken(_ world: HouseTanksWorld) {
-        guard let token = world.powerUps.token else {
+        guard let token = world.token else {
             tokenNode?.removeFromParent()
             tokenNode = nil
             tokenKind = nil
@@ -338,21 +359,24 @@ final class HouseTanksScene: SKScene {
         }
         guard let tokenNode else { return }
         tokenNode.position = point(token.position)
-        updateTimerArc(on: tokenNode, fraction: (token.expiresAt - world.time) / HouseTanksPowerUpRules.tokenLifetime,
-                       radius: 17)
+        updateTimerArc(on: tokenNode, fraction: world.tokenFraction, radius: 17)
     }
 
+    /// Armor loss flashes the hull through `showHit`, driven by the snapshot, not by `hit` events.
     private func play(_ event: HouseTanksWorld.Event) {
-        switch event {
-        case .fired(let playerID, _):
-            if let tank = tankNodes[playerID] { addMuzzleFlash(to: tank, colorName: tank.userData?["color"] as? String) }
-        case .shielded(let playerID):
-            showHit(playerID: playerID)
-        case .crateBroken(_, let position):
+        let position = event.position ?? .zero
+        switch event.kind {
+        case .fired:
+            if let id = event.playerID, let tank = tankNodes[id] {
+                addMuzzleFlash(to: tank, colorName: tank.userData?["color"] as? String)
+            }
+        case .shielded:
+            if let id = event.playerID { showHit(playerID: id) }
+        case .crateBroken:
             addCrateFragments(at: point(position))
-        case .explosion(let position), .eliminated(_, let position):
+        case .explosion, .eliminated:
             addExplosion(at: point(position))
-        case .jokerCollected:
+        case .hit, .jokerCollected:
             break
         }
     }
@@ -402,7 +426,7 @@ final class HouseTanksScene: SKScene {
     }
 
     private func scenePoint(_ point: HouseTanksNormalizedPoint) -> CGPoint {
-        CGPoint(x: size.width * CGFloat(point.x), y: size.height * CGFloat(point.y))
+        CGPoint(x: arena.width * CGFloat(point.x), y: arena.height * CGFloat(point.y))
     }
 
     private func color(for color: HouseTanksColor) -> UIColor {
@@ -418,7 +442,7 @@ final class HouseTanksScene: SKScene {
             path.addLine(to: scenePoint(line.end))
         }
 
-        let lineWidth = max(2, size.height * 0.004)
+        let lineWidth = max(2, arena.height * 0.004)
         let lines = SKShapeNode(path: path.copy(dashingWithPhase: 0, lengths: [lineWidth * 3, lineWidth * 2.5]))
         lines.name = "arena"
         lines.strokeColor = floorAccent.withAlphaComponent(0.38)
@@ -427,7 +451,7 @@ final class HouseTanksScene: SKScene {
         lines.zPosition = -15
         addChild(lines)
 
-        let radius = max(5, size.height * 0.011)
+        let radius = max(5, arena.height * 0.011)
         for point in currentMap.floorMarkers {
             let cross = CGMutablePath()
             cross.move(to: CGPoint(x: -radius * 1.7, y: 0))
@@ -446,13 +470,13 @@ final class HouseTanksScene: SKScene {
     }
 
     private func addArenaBoundary() {
-        let inset = max(16, size.height * 0.035)
-        let frame = CGRect(x: inset, y: inset, width: size.width - inset * 2, height: size.height - inset * 2)
+        let inset = max(16, arena.height * 0.035)
+        let frame = CGRect(x: inset, y: inset, width: arena.width - inset * 2, height: arena.height - inset * 2)
         // A double neatline with corner brackets frames the arena like a map sheet.
         let boundary = SKShapeNode(rect: frame, cornerRadius: 4)
         boundary.name = "arena"
         boundary.strokeColor = FieldInk.ink.withAlphaComponent(0.62)
-        boundary.lineWidth = max(2.5, size.height * 0.006)
+        boundary.lineWidth = max(2.5, arena.height * 0.006)
         boundary.fillColor = .clear
         boundary.zPosition = -10
         addChild(boundary)
@@ -467,7 +491,7 @@ final class HouseTanksScene: SKScene {
         addChild(inner)
 
         let bracket = CGMutablePath()
-        let length = max(14, size.height * 0.04)
+        let length = max(14, arena.height * 0.04)
         for (corner, dx, dy) in [(CGPoint(x: innerFrame.minX, y: innerFrame.minY), CGFloat(1), CGFloat(1)),
                                  (CGPoint(x: innerFrame.maxX, y: innerFrame.minY), -1, 1),
                                  (CGPoint(x: innerFrame.minX, y: innerFrame.maxY), 1, -1),
@@ -623,9 +647,10 @@ final class HouseTanksScene: SKScene {
         let tint = color(for: player.color)
         let aura = SKShapeNode(ellipseOf: CGSize(width: 72, height: 60))
         aura.name = "aura"
-        aura.fillColor = tint.withAlphaComponent(player.role == .human ? 0.18 : 0.07)
-        aura.strokeColor = tint.withAlphaComponent(player.role == .human ? 0.72 : 0.26)
-        aura.lineWidth = player.role == .human ? 3 : 1.5
+        let isLocal = player.id == localPlayerID
+        aura.fillColor = tint.withAlphaComponent(isLocal ? 0.18 : 0.07)
+        aura.strokeColor = tint.withAlphaComponent(isLocal ? 0.72 : 0.26)
+        aura.lineWidth = isLocal ? 3 : 1.5
         aura.zPosition = -2
         artwork.addChild(aura)
 
@@ -775,7 +800,7 @@ final class HouseTanksScene: SKScene {
         }
     }
 
-    func showHit(playerID: UUID) {
+    func showHit(playerID: String) {
         guard let tank = tankNodes[playerID],
               let artwork = tank.childNode(withName: "artwork"),
               let hull = artwork.childNode(withName: "hull") else { return }

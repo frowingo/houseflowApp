@@ -46,7 +46,7 @@ final class HouseTanksViewModel: ObservableObject {
     }
 
     var needsPlayerCount: Bool {
-        selectedMode != .online && mapID.map { HouseTanksMapCatalog.definition(for: $0).hasPlayerChoice } == true
+        selectedMode != .online && mapID.map { HouseTanksMapCatalog.definition(for: $0).hasDemoPlayerChoice } == true
     }
 
     func isComplete(_ step: HouseTanksSetupStep) -> Bool {

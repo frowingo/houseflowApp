@@ -9,7 +9,7 @@ import org.junit.Test
 class TanksFrameParserTest {
     private val withArena = """
         {"ok":true,"started":false,"matchId":"m1","roundKey":"m1-1","revision":2,"phase":"countdown","countdown":3,
-         "roundNumber":1,"roundWinnerId":null,"championId":null,"width":844,"height":390,"time":0,
+         "roundNumber":1,"roundWinnerId":null,"championId":null,"width":872,"height":400,"time":0,
          "players":[
            {"id":"h","nameKey":"house_tanks_you","role":"human","color":"olive","armor":5,"roundsWon":0,"alive":true},
            {"id":"b1","nameKey":"house_tanks_bot_one","role":"bot","color":"plum","armor":4,"roundsWon":1,"alive":true}],
