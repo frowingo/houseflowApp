@@ -21,11 +21,27 @@ public enum GameRealtimeCodec {
         return decoder
     }
 
-    public static func decode(_ data: Data) throws -> GameRealtimeServerMessage {
-        try makeDecoder().decode(GameRealtimeServerMessage.self, from: data)
+    /// Writes dates as RFC 3339 UTC with milliseconds, the form the server reads.
+    public static func makeEncoder() -> JSONEncoder {
+        let encoder = JSONEncoder()
+        encoder.dateEncodingStrategy = .custom { date, values in
+            let formatter = ISO8601DateFormatter()
+            formatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+            var container = values.singleValueContainer()
+            try container.encode(formatter.string(from: date))
+        }
+        return encoder
     }
 
-    public static func encode(_ message: GameRealtimeClientMessage) throws -> Data {
+    public static func decode(_ data: Data) throws -> GameRealtimeServerMessage {
+        try decode(data, as: HouseRocketsRealtime.self)
+    }
+
+    public static func decode<Game: GameRealtimeGame>(_ data: Data, as game: Game.Type) throws -> GameRealtimeServerMessageOf<Game> {
+        try makeDecoder().decode(GameRealtimeServerMessageOf<Game>.self, from: data)
+    }
+
+    public static func encode<Game: GameRealtimeGame>(_ message: GameRealtimeClientMessageOf<Game>) throws -> Data {
         let data = try JSONEncoder().encode(message)
         guard data.count <= maximumClientMessageBytes else { throw GameRealtimeError.messageTooLarge }
         return data
@@ -38,6 +54,15 @@ public enum GameRealtimeCodec {
         }
     }
 
+    /// `gameSession.snapshot` and HTTP sessions: the shared envelope version and this game.
+    public static func validateSession(_ session: GameSessionDTO, gameKey: String) throws {
+        guard session.protocolVersion == GameRoute.realtimeProtocolVersion else {
+            throw GameRealtimeError.unsupportedProtocol(session.protocolVersion)
+        }
+        guard session.gameKey == gameKey else { throw GameRealtimeError.invalidResponse }
+    }
+
+    /// House Rockets: protocol 2, course 1.
     public static func validateCompatibility(protocolVersion: Int = 2, courseVersion: Int = 1,
                                       gameKey: String) throws {
         guard protocolVersion == 2 else { throw GameRealtimeError.unsupportedProtocol(protocolVersion) }

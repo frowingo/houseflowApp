@@ -1,6 +1,7 @@
 package com.fauscrew.platform
 
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
@@ -66,5 +67,43 @@ class OnlineOutputParserTest {
         assertNull(retryAfterSeconds("-1"))
         assertNull(retryAfterSeconds(null))
         assertEquals(10.0, retryAfterSeconds("Thu, 01 Jan 1970 00:00:10 GMT", nowMillis = 0)!!, 0.0)
+    }
+
+    @Test fun parsesTheTanksRoomExtrasAndPreviewChanges() {
+        val lobby = """
+            "lobby":{"connection":"failed","isSynced":false,"isLobby":false,"isTerminal":false,"isLeaving":false,
+               "isForeground":true,"controlTransferred":false,"hasGame":true,"sessionState":"countdown",
+               "statusKey":"house_tanks_online_update_title","detailKey":"house_tanks_online_update_required","showsProgress":false,
+               "issueKey":"house_tanks_online_update_required","connectionTitleKey":"house_tanks_online_update_title",
+               "connectionDetailKey":"house_tanks_online_update_required","minimumPlayers":2,"retryNotBefore":null,
+               "canRetry":false,"requiresAuthentication":false,"requiresUpdate":true,"canChangeReady":false,
+               "canCancel":false,"localReady":false,"readyCount":0,
+               "participants":[{"playerId":"u","statusKey":"house_tanks_online_playing_badge","ready":false,"isLocal":true,
+                                "name":"Deniz","color":"plum"}],
+               "deadlineKind":"countdown","deadlineUptime":3.5,"flightCountdownUptime":3.5}
+        """.trimIndent()
+        val drawn = OnlineOutputParser.parse("""
+            {"ok":true,"closed":false,"rematchExcludedSessionId":null,"effects":[],$lobby,
+             "preview":{"mapId":"livingRoom","seats":[
+               {"playerId":"u","x":0.1,"y":0.36,"rotation":0.19,"color":"plum"},
+               {"playerId":"v","x":0.88,"y":0.22,"rotation":2.76,"color":"neon"}]}}
+        """.trimIndent())
+        val room = drawn.lobby!!
+        assertTrue(room.requiresUpdate)
+        assertEquals(OnlineParticipant("u", "house_tanks_online_playing_badge", false, true, "Deniz", "plum"),
+            room.participants.single())
+        assertTrue(drawn.previewChanged)
+        val preview = drawn.preview!!
+        assertEquals(TanksMap.LIVING_ROOM, preview.map)
+        assertEquals("An unknown color is dropped", listOf(TanksOnlineSeat("u", 0.1, 0.36, 0.19, TanksColor.PLUM)), preview.seats)
+
+        val cleared = OnlineOutputParser.parse("""{"ok":true,"closed":false,"rematchExcludedSessionId":null,"effects":[],"preview":null}""")
+        assertTrue(cleared.previewChanged)
+        assertNull(cleared.preview)
+        val unchanged = OnlineOutputParser.parse("""{"ok":true,"closed":false,"rematchExcludedSessionId":null,"effects":[]}""")
+        assertFalse(unchanged.previewChanged)
+        val rocketsLobby = OnlineOutputParser.parse("""{"ok":true,"closed":false,"rematchExcludedSessionId":null,"effects":[],
+            ${lobby.replace("\"requiresUpdate\":true,", "")}}""")
+        assertFalse("House Rockets omits the flag", rocketsLobby.lobby!!.requiresUpdate)
     }
 }

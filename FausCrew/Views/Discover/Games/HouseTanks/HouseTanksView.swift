@@ -16,15 +16,17 @@ struct HouseTanksView: View {
     /// Stopping a match closes the service stream; a new id subscribes again.
     @State private var observationID = UUID()
 
-    init(service: (any HouseTanksGameServicing)? = nil) {
+    init(service: (any HouseTanksGameServicing)? = nil, onlineFactory: HouseTanksOnlineFactory = .unavailable) {
         let resolved = service ?? DemoHouseTanksGameSession()
-        _model = StateObject(wrappedValue: HouseTanksViewModel(service: resolved))
+        _model = StateObject(wrappedValue: HouseTanksViewModel(service: resolved, onlineFactory: onlineFactory))
     }
 
     var body: some View {
         GeometryReader { geometry in
             ZStack {
-                if let snapshot = model.snapshot {
+                if model.isOnlineMatchVisible {
+                    HouseTanksOnlineMatchView(model: model, onExit: exitOnlineMatch)
+                } else if let snapshot = model.snapshot {
                     HouseTanksMapBackdrop()
                         .ignoresSafeArea()
                     SpriteView(scene: model.scene, options: [.allowsTransparency])
@@ -51,20 +53,41 @@ struct HouseTanksView: View {
         }
         .environment(\.colorScheme, .light)
         .navigationBarTitleDisplayMode(.inline)
-        .toolbar(model.snapshot == nil ? .visible : .hidden, for: .navigationBar)
+        .toolbar(model.snapshot == nil && !model.isOnlineMatchVisible ? .visible : .hidden, for: .navigationBar)
         .task(id: observationID) { await model.observe() }
         .onAppear { model.setReduceMotion(reduceMotion) }
         .onChange(of: reduceMotion) { _, enabled in
             model.setReduceMotion(enabled)
         }
         .onChange(of: scenePhase) { _, phase in
+            model.setOnlineForeground(phase == .active)
             guard phase != .active else { return }
             model.pause()
+        }
+        .onChange(of: model.isOnlineMatchVisible) { _, visible in
+            // The room is portrait; the server's first round countdown turns the screen.
+            if visible {
+                GameOrientationController.lockToLandscape { orientationRequestFailed = true }
+            } else {
+                GameOrientationController.returnToPortrait()
+            }
         }
         .onChange(of: model.snapshot?.phase) { _, phase in
             guard phase != .playing else { return }
             isPlayfieldPressed = false
             model.endPress()
+        }
+        .onChange(of: appViewModel.currentHouseDetails?.id) { _, houseID in
+            model.onlineIdentityChanged(houseID: houseID, userID: appViewModel.currentUserId)
+        }
+        .onChange(of: appViewModel.currentUserId) { _, userID in
+            model.onlineIdentityChanged(houseID: appViewModel.currentHouseDetails?.id, userID: userID)
+        }
+        .onChange(of: appViewModel.isAuthenticated) { _, authenticated in
+            if !authenticated { model.stop(); GameOrientationController.returnToPortrait() }
+        }
+        .onChange(of: model.requiresOnlineSignIn) { _, required in
+            if required { model.stop(); appViewModel.logout(); GameOrientationController.returnToPortrait() }
         }
         .onDisappear {
             model.stop()
@@ -474,6 +497,7 @@ struct HouseTanksView: View {
     private func handleViewportSize(_ size: CGSize) {
         let landscape = size.width > size.height
         isLandscapeLayout = landscape
+        model.setOnlineLandscape(landscape)
         guard landscape, isWaitingForLandscape, model.snapshot == nil else { return }
         isWaitingForLandscape = false
         Task { await model.startMatch() }
@@ -486,6 +510,11 @@ struct HouseTanksView: View {
         hasShownTapHint = true
         model.returnToDemoSetup()
         observationID = UUID()
+        GameOrientationController.returnToPortrait()
+    }
+
+    private func exitOnlineMatch() {
+        model.leaveOnlineMatch()
         GameOrientationController.returnToPortrait()
     }
 

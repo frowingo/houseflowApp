@@ -11,6 +11,13 @@ public enum HouseTanksMapCatalog {
     /// Every tank keeps this far from cover and from other spawns, scaled with the map.
     public static let spawnClearance = 28.0
 
+    /// The demo's maps: four tanks each. Crowded-match maps (six to eight seats) are online only.
+    public static var demoMapIDs: [HouseTanksMapID] {
+        HouseTanksMapID.allCases.filter {
+            definition(for: $0).minPlayers <= HouseTanksMapDefinition.demoStandardPlayerCount
+        }
+    }
+
     public static func definition(for id: HouseTanksMapID) -> HouseTanksMapDefinition {
         switch id {
         case .livingRoom: livingRoom

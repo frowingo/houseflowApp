@@ -11,6 +11,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.State
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -34,10 +35,13 @@ import com.fauscrew.platform.LocalizedText
 import com.fauscrew.platform.TanksMap
 import com.fauscrew.platform.TanksMapPreview
 import com.fauscrew.ui.games.rockets.rememberReduceMotion
+import com.fauscrew.platform.OnlineLobbyUi
 import com.fauscrew.viewmodel.HouseTanksViewModel
+import com.fauscrew.viewmodel.HouseTanksViewModelFactory
 import com.fauscrew.viewmodel.TanksHaptic
 import com.fauscrew.viewmodel.TanksMode
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.MutableStateFlow
 
 /**
  * `HouseTanksView`: the portrait lobby, then a landscape match against three bots. The
@@ -53,11 +57,23 @@ internal fun HouseTanksScreen(
     members: List<Pair<String, String>> = emptyList(),
     bundledCopy: (String?) -> Map<String, String> = HouseTanksNative::copy,
     maps: () -> Map<TanksMap, TanksMapPreview> = { HouseTanksNative.maps },
-    model: HouseTanksViewModel = viewModel(),
+    houseOwnerId: String? = null,
+    /** The server no longer accepts this sign-in (HTTP 401); the app signs out, like House Rockets. */
+    onRequireSignIn: () -> Unit = {},
+    model: HouseTanksViewModel = viewModel(factory = HouseTanksViewModelFactory(LocalContext.current)),
 ) {
+    LaunchedEffect(houseId, userId, houseOwnerId) { model.updateContext(houseId, userId, houseOwnerId) }
     val state by model.state.collectAsStateWithLifecycle()
+    val onlineSession by model.onlineSession.collectAsStateWithLifecycle()
+    val onlineLobby: State<OnlineLobbyUi?> = (onlineSession?.lobby ?: NoLobby).collectAsStateWithLifecycle()
+    val onlinePreview = (onlineSession?.preview ?: NoPreview).collectAsStateWithLifecycle()
     val frameState = model.frame.collectAsStateWithLifecycle()
     val hasMatch = frameState.value != null
+    val onlineFrameState = model.onlineFrame.collectAsStateWithLifecycle()
+    val onlineMatch by model.onlineMatch.collectAsStateWithLifecycle()
+    val isOnlineMatch = state.isOnlineMatchVisible
+    val memberNames = remember(members) { members.toMap() }
+    val onlineFps by model.onlineFps.collectAsStateWithLifecycle()
     val copy = remember(strings) { TanksCopy(strings, bundledCopy(strings.prefix)) }
     val mapPreviews = remember { maps() }
     val renderer = remember { HouseTanksArenaRenderer() }
@@ -71,6 +87,8 @@ internal fun HouseTanksScreen(
     var orientationRequest by rememberSaveable { mutableStateOf(0) }
     var isForeground by remember { mutableStateOf(true) }
     var canvasSize by remember { mutableStateOf(IntSize.Zero) }
+    var isConfirmingOnlineLeave by remember { mutableStateOf(false) }
+    var wasOnlineMatch by remember { mutableStateOf(false) }
 
     fun returnToPortrait() {
         activity?.requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_PORTRAIT
@@ -118,6 +136,7 @@ internal fun HouseTanksScreen(
     LaunchedEffect(canvasSize) {
         if (canvasSize == IntSize.Zero) return@LaunchedEffect
         isLandscapeLayout = canvasSize.width > canvasSize.height
+        model.setOnlineLandscape(isLandscapeLayout)
         if (isLandscapeLayout && isWaitingForLandscape && !hasMatch && isForeground && !orientationFailed) {
             isWaitingForLandscape = false
             orientationRequest = 0
@@ -125,13 +144,30 @@ internal fun HouseTanksScreen(
         }
     }
 
+    // The online match turns to landscape when the server starts it (not on a button) and
+    // back to portrait when the player leaves or the room closes.
+    LaunchedEffect(isOnlineMatch) {
+        if (isOnlineMatch) {
+            activity?.requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_SENSOR_LANDSCAPE
+        } else if (wasOnlineMatch) {
+            isConfirmingOnlineLeave = false
+            returnToPortrait()
+        }
+        wasOnlineMatch = isOnlineMatch
+    }
+    LaunchedEffect(reduceMotion, onlineSession) { model.setOnlineReduceMotion(reduceMotion) }
+
     val lifecycle = LocalLifecycleOwner.current.lifecycle
     DisposableEffect(lifecycle) {
         val observer = LifecycleEventObserver { _, event ->
             when (event) {
-                Lifecycle.Event.ON_START -> isForeground = true
+                Lifecycle.Event.ON_START -> {
+                    isForeground = true
+                    model.setForeground(true)
+                }
                 Lifecycle.Event.ON_STOP -> {
                     isForeground = false
+                    model.setForeground(false)
                     if (isWaitingForLandscape) {
                         isWaitingForLandscape = false
                         orientationRequest = 0
@@ -147,10 +183,11 @@ internal fun HouseTanksScreen(
     }
 
     // The match is immersive; the lobby keeps the status bar like the iOS navigation stack.
-    DisposableEffect(hasMatch, activity) {
+    val isImmersive = hasMatch || isOnlineMatch
+    DisposableEffect(isImmersive, activity) {
         activity?.window?.let { window ->
             val controller = WindowCompat.getInsetsController(window, view)
-            if (hasMatch) {
+            if (isImmersive) {
                 controller.systemBarsBehavior = WindowInsetsControllerCompat.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE
                 controller.hide(WindowInsetsCompat.Type.systemBars())
             } else {
@@ -180,8 +217,23 @@ internal fun HouseTanksScreen(
     }
     LaunchedEffect(model) { model.hits.collect(renderer::flash) }
 
+    val onlineResult = onlineMatch?.result
+    LaunchedEffect(onlineLobby.value?.requiresAuthentication, onlineResult?.detailKey) {
+        if (onlineLobby.value?.requiresAuthentication == true ||
+            (onlineResult?.isFailed == true && onlineResult.detailKey == "house_tanks_online_sign_in")) {
+            model.stop()
+            returnToPortrait()
+            onRequireSignIn()
+        }
+    }
+
     BackHandler {
         when {
+            isOnlineMatch -> if (onlineMatch?.isFinished == true || (state.isOnlineRematchRoom && onlineMatch?.showsResult != true)) {
+                model.leaveOnlineMatch()
+            } else {
+                isConfirmingOnlineLeave = true
+            }
             hasMatch -> model.pause()
             state.selectedMode != null -> model.returnToModeSelection()
             else -> exitGame()
@@ -190,7 +242,22 @@ internal fun HouseTanksScreen(
 
     Box(Modifier.fillMaxSize().onSizeChanged { canvasSize = it }) {
         HouseTanksMapBackdrop(Modifier.fillMaxSize())
-        if (hasMatch) {
+        if (isOnlineMatch) {
+            HouseTanksOnlineGameLayer(
+                frameState = onlineFrameState, match = onlineMatch, copy = copy, renderer = renderer,
+                reduceMotion = reduceMotion, isForeground = isForeground,
+                isConfirmingLeave = isConfirmingOnlineLeave, onConfirmingLeaveChange = { isConfirmingOnlineLeave = it },
+                onFrame = model::onOnlineFrame, onPressStart = { model.onlinePress() },
+                onPressEnd = { model.onlineRelease() }, onRetry = { model.retryOnline() },
+                onReclaim = { model.reclaimOnlineControl() }, onExit = model::leaveOnlineMatch,
+                onVote = { model.setOnlineRoundReady(it) }, onRetryResult = { model.retryOnlineResult() },
+                onRematch = model::rematchOnline,
+                rematchLobby = onlineLobby.value.takeIf { state.isOnlineRematchRoom && onlineSession != null },
+                members = memberNames, uptime = { onlineSession?.uptime() ?: 0.0 },
+                onSetReady = { model.setOnlineReady(it) }, onCancel = { model.cancelOnlineMatch() },
+                fps = onlineFps,
+            )
+        } else if (hasMatch) {
             HouseTanksGameLayer(
                 frameState = frameState, copy = copy, renderer = renderer, reduceMotion = reduceMotion,
                 isForeground = isForeground, onFrame = model::onFrame, onPressStart = model::beginPress,
@@ -205,15 +272,21 @@ internal fun HouseTanksScreen(
                 orientationFailed = orientationFailed, onBack = ::exitGame,
                 onSelectMode = { mode: TanksMode -> model.selectMode(mode) },
                 onChangeMode = model::returnToModeSelection, onSelectMap = model::selectMap,
-                onSelectPlayerCount = model::selectPlayerCount,
                 onSelectColor = model::selectColor, onSelectDifficulty = model::selectDifficulty,
                 onStart = ::requestLandscape,
+                online = TanksOnlineRoomUi(onlineLobby.value.takeIf { onlineSession != null }, onlinePreview.value,
+                    uptime = { onlineSession?.uptime() ?: 0.0 }),
+                onOnlineReady = model::setOnlineReady,
+                onOnlineRetry = model::retryOnline,
+                onOnlineCancel = model::cancelOnlineMatch,
             )
         }
     }
 }
 
 private const val LandscapeTimeoutMillis = 2_500L
+private val NoLobby = MutableStateFlow<OnlineLobbyUi?>(null)
+private val NoPreview = MutableStateFlow<com.fauscrew.platform.TanksOnlinePreview?>(null)
 
 private tailrec fun Context.findActivity(): Activity? = when (this) {
     is Activity -> this

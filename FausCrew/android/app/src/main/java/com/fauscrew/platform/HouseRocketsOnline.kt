@@ -12,8 +12,11 @@ import okhttp3.WebSocketListener
 import org.json.JSONArray
 import org.json.JSONObject
 
-/** A lobby participant as the online lobby card shows it. */
-internal data class OnlineParticipant(val playerId: String, val statusKey: String, val isReady: Boolean, val isLocal: Boolean)
+/** A lobby participant as the online lobby card shows it; FauseTanks adds the seated name and color. */
+internal data class OnlineParticipant(
+    val playerId: String, val statusKey: String, val isReady: Boolean, val isLocal: Boolean,
+    val name: String? = null, val color: String? = null,
+)
 
 /** Screen-ready lobby state from Core (`HouseRocketsOnlineLobbyState` + copy rules). */
 internal data class OnlineLobbyUi(
@@ -37,6 +40,8 @@ internal data class OnlineLobbyUi(
     val retryNotBefore: Double? = null,
     val canRetry: Boolean = false,
     val requiresAuthentication: Boolean = false,
+    /** The server speaks a contract, version or map this build cannot play. */
+    val requiresUpdate: Boolean = false,
     val canChangeReady: Boolean = false,
     val canCancel: Boolean = false,
     val localReady: Boolean = false,
@@ -46,6 +51,8 @@ internal data class OnlineLobbyUi(
     val deadlineKind: String? = null,
     val deadlineUptime: Double? = null,
     val flightCountdownUptime: Double? = null,
+    /** FauseTanks only: the snapshot's core phase (`countdown`, `playing`, …), null before one. */
+    val gamePhase: String? = null,
 ) {
     val isFailed: Boolean get() = connection == "failed"
     val isReconnecting: Boolean get() = connection == "reconnecting"
@@ -99,6 +106,9 @@ internal data class OnlineOutput(
     val result: OnlineResultUi?,
     val closed: Boolean,
     val rematchExcludedSessionId: String?,
+    /** FauseTanks: true when [preview] replaces the previous arena (null clears it). */
+    val previewChanged: Boolean = false,
+    val preview: TanksOnlinePreview? = null,
 )
 
 /** How a host-side failure is reported to the engine. */
@@ -110,15 +120,19 @@ internal sealed interface OnlineFailure {
 }
 
 /**
- * The shared online engine (FausCrewCore) behind a handle. Every call returns the effects
+ * A game's online engine (FausCrewCore) behind a handle. Every call returns the effects
  * to perform; `now` is always [OnlineClock.now].
  */
-internal interface HouseRocketsOnlineEngine {
+internal interface OnlineGameEngine {
     fun event(type: String, now: Double, fields: Map<String, Any?> = emptyMap()): OnlineOutput
     fun receive(text: String, connection: Int, now: Double): OnlineOutput
+    fun close()
+}
+
+/** House Rockets adds the interpolated flight, sampled once per rendered frame. */
+internal interface HouseRocketsOnlineEngine : OnlineGameEngine {
     fun viewport(width: Float, height: Float, hudWidth: Float, hudHeight: Float)
     fun frame(now: Double): Pair<RocketsFrame, OnlineFlightUi>?
-    fun close()
 }
 
 /** Monotonic seconds shared by the engine, deadlines and frames. */
@@ -173,13 +187,15 @@ private class NativeOnlineEngine(private val handle: Int) : HouseRocketsOnlineEn
 internal object OnlineOutputParser {
     fun parse(json: String): OnlineOutput {
         val root = JSONObject(json)
-        check(root.optBoolean("ok", false)) { root.optString("message", "House Rockets online bridge failed") }
+        check(root.optBoolean("ok", false)) { root.optString("message", "Online bridge failed") }
         return OnlineOutput(
             effects = root.optJSONArray("effects").objects().map(::effect),
             lobby = root.optJSONObject("lobby")?.let(::lobby),
             result = root.optJSONObject("result")?.let(::result),
             closed = root.optBoolean("closed", false),
             rematchExcludedSessionId = root.optNullableString("rematchExcludedSessionId"),
+            previewChanged = root.has("preview"),
+            preview = root.optJSONObject("preview")?.let(::preview),
         )
     }
 
@@ -228,16 +244,19 @@ internal object OnlineOutputParser {
         retryNotBefore = json.optNullableDouble("retryNotBefore"),
         canRetry = json.getBoolean("canRetry"),
         requiresAuthentication = json.getBoolean("requiresAuthentication"),
+        requiresUpdate = json.optBoolean("requiresUpdate", false),
         canChangeReady = json.getBoolean("canChangeReady"),
         canCancel = json.getBoolean("canCancel"),
         localReady = json.getBoolean("localReady"),
         readyCount = json.getInt("readyCount"),
         participants = json.optJSONArray("participants").objects().map {
-            OnlineParticipant(it.getString("playerId"), it.getString("statusKey"), it.getBoolean("ready"), it.getBoolean("isLocal"))
+            OnlineParticipant(it.getString("playerId"), it.getString("statusKey"), it.getBoolean("ready"), it.getBoolean("isLocal"),
+                name = it.optNullableString("name"), color = it.optNullableString("color"))
         },
         deadlineKind = json.optNullableString("deadlineKind"),
         deadlineUptime = json.optNullableDouble("deadlineUptime"),
         flightCountdownUptime = json.optNullableDouble("flightCountdownUptime"),
+        gamePhase = json.optNullableString("gamePhase"),
     )
 
     private fun result(json: JSONObject) = OnlineResultUi(
@@ -260,6 +279,16 @@ internal object OnlineOutputParser {
                 color = it.optNullableString("color")?.let { color -> RocketsColor.valueOf(color.uppercase()) },
                 isLocal = it.getBoolean("isLocal"),
             )
+        },
+    )
+
+    /** Unknown maps or colors are dropped: the engine already flagged an update. */
+    private fun preview(json: JSONObject) = TanksOnlinePreview(
+        map = TanksMap.entries.firstOrNull { it.raw == json.getString("mapId") },
+        seats = json.optJSONArray("seats").objects().mapNotNull { seat ->
+            val color = TanksColor.entries.firstOrNull { it.raw == seat.getString("color") } ?: return@mapNotNull null
+            TanksOnlineSeat(seat.getString("playerId"), seat.getDouble("x"), seat.getDouble("y"),
+                seat.getDouble("rotation"), color)
         },
     )
 

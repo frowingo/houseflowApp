@@ -63,28 +63,28 @@ final class HouseTanksTests: XCTestCase {
         model.stop()
     }
 
-    func testBasementAsksForThePlayerCountBeforeColor() {
+    func testDemoIsFourTanksOnStandardMapsOnly() {
         let model = HouseTanksViewModel(service: DemoHouseTanksGameSession())
         model.selectMode(.demo)
-        model.mapID = .warehouse
         XCTAssertEqual(model.setupSteps, [.map, .color, .difficulty])
-        model.mapID = .basement
-        XCTAssertEqual(model.setupSteps, [.map, .players, .color, .difficulty])
-        XCTAssertEqual(model.pendingSetupStep, .players)
-        model.playerCount = 7
+        XCTAssertFalse(HouseTanksMapCatalog.demoMapIDs.contains(.basement), "Crowded-match maps are online only")
+        model.mapID = .warehouse
         model.humanColor = .ivory
         model.difficulty = .easy
         XCTAssertNil(model.pendingSetupStep)
-        XCTAssertEqual(model.completedSetupSteps, 4)
+        XCTAssertEqual(model.completedSetupSteps, 3)
     }
 
-    func testOnlineRoomDrawsItsMap() {
+    func testOnlineRoomWaitsForTheServersMap() {
         let model = HouseTanksViewModel(service: DemoHouseTanksGameSession())
         model.selectMode(.online)
-        XCTAssertNotNil(model.onlineMapID)
-        XCTAssertEqual(model.matchMapID, model.onlineMapID)
+        XCTAssertFalse(model.isOnlineServiceAvailable)
+        model.enterOnlineRoom(context: GameLaunchContext(houseID: "house", localPlayerID: "player"))
+        XCTAssertNil(model.onlineMapID, "The map is drawn by the server at the match countdown")
+        XCTAssertNil(model.matchMapID)
+        XCTAssertEqual(model.onlineState.connection, .idle)
         model.returnToModeSelection()
-        XCTAssertNil(model.onlineMapID)
+        XCTAssertNil(model.selectedMode)
     }
 
     func testEveryJokerHasATemplateGlyph() {

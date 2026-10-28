@@ -1,39 +1,22 @@
 import Foundation
 
-/// What the online engine asks its platform host to do. The host performs I/O only
-/// and reports back; every rule, deadline and retry decision stays in the engine.
-public enum HouseRocketsOnlineEffect: Equatable, Sendable {
-    /// `PUT /game/houseRockets/session`; answer with `sessionResponse` or `connectionFailed`.
-    case ensureSession(houseID: String, connection: Int)
-    /// Open `GameRoute.realtime(sessionId:)` with the current token; answer with
-    /// `socketOpened`, `received` and finally `connectionFailed`.
-    case openSocket(sessionID: String, connection: Int)
-    /// Close the current socket; events tagged with older connections are ignored.
-    case closeSocket
-    /// One JSON text frame on the socket opened for `connection`.
-    case send(text: String, connection: Int)
-    /// `GET /game/sessions/{id}/result`; answer with `resultResponse` or `resultFailed`.
-    case fetchResult(sessionID: String, request: Int)
-    case haptic(HouseRocketsOnlineHaptic)
-}
+/// Lobby commands, authoritative sync, reconnect and application heartbeat of one
+/// realtime game, without tasks: the host feeds results and a periodic `tick`, and
+/// sends complete as soon as the host has written them.
+final class GameOnlineLobbyMachine<Game: GameRealtimeGame> {
+    typealias State = GameOnlineLobbyState<Game>
+    typealias ClientMessage = GameRealtimeClientMessageOf<Game>
+    typealias ClientAction = GameRealtimeClientActionOf<Game>
 
-public enum HouseRocketsOnlineHaptic: String, Equatable, Sendable {
-    case success, warning
-}
-
-/// Lobby commands, authoritative sync, reconnect and application heartbeat
-/// (`HouseRocketsOnlineLobby` on iOS) without tasks: the host feeds results and a
-/// periodic `tick`, and sends complete as soon as the host has written them.
-final class HouseRocketsOnlineLobbyMachine {
-    var onStateChange: ((HouseRocketsOnlineLobbyState) -> Void)?
+    var onStateChange: ((State) -> Void)?
     var onGameplayRejected: ((String?, GameRealtimeRejection) -> Void)?
-    private(set) var state = HouseRocketsOnlineLobbyState()
+    private(set) var state = State()
     private(set) var isClosed = false
-    private let context: HouseRocketsLaunchContext
+    private let context: GameLaunchContext
     private let excludingSessionID: String?
-    private let policy: HouseRocketsReconnectPolicy
+    private let policy: GameReconnectPolicy
     private let makeID: () -> String
-    private let emit: (HouseRocketsOnlineEffect) -> Void
+    private let emit: (GameOnlineEffect) -> Void
 
     private var connection = 0
     private var connectInFlight = false
@@ -55,15 +38,17 @@ final class HouseRocketsOnlineLobbyMachine {
     private var nextPingAt: TimeInterval = 0
     private var pendingPing: (id: String, uptime: TimeInterval)?
     private var bestRTT = TimeInterval.infinity
+    /// The latest ping → pong round trip, for debug diagnostics.
+    private(set) var lastRTT: TimeInterval?
+    /// Game snapshots that arrived older than (or equal to) the one held and were dropped.
+    private(set) var lateSnapshots = 0
     private var pendingSyncID: String?
     private var syncDeadline: TimeInterval?
     private var lastPongAt: TimeInterval = 0
     private var now: TimeInterval = 0
 
-    static let maximumIncomingBytes = 1_048_576
-
-    init(context: HouseRocketsLaunchContext, excludingSessionID: String?, policy: HouseRocketsReconnectPolicy,
-         makeID: @escaping () -> String, emit: @escaping (HouseRocketsOnlineEffect) -> Void) {
+    init(context: GameLaunchContext, excludingSessionID: String?, policy: GameReconnectPolicy,
+         makeID: @escaping () -> String, emit: @escaping (GameOnlineEffect) -> Void) {
         self.context = context
         self.excludingSessionID = excludingSessionID
         self.policy = policy
@@ -92,11 +77,11 @@ final class HouseRocketsOnlineLobbyMachine {
         guard !isClosed, tag == connection, connectInFlight else { return }
         let session: GameSessionDTO
         do {
-            session = try HouseRocketsOnlineWire.session(from: response, houseID: context.houseID ?? "")
+            session = try GameOnlineWire.session(from: response, houseID: context.houseID ?? "", gameKey: Game.gameKey)
             guard session.state != .finished, session.state != .cancelled,
                   session.sessionId != excludingSessionID else { throw GameRealtimeError.unexpectedSession }
         } catch {
-            failConnect(HouseRocketsOnlineWire.failure(from: error, retryAfter: retryAfter))
+            failConnect(GameOnlineWire.failure(from: error, retryAfter: retryAfter))
             return
         }
         pinned = session // Pin the ID even if the upgrade fails.
@@ -122,16 +107,16 @@ final class HouseRocketsOnlineLobbyMachine {
     func received(text: String, connection tag: Int, now: TimeInterval) {
         self.now = now
         guard !isClosed, tag == connection, socketActive else { return }
-        let message: GameRealtimeServerMessage
+        let message: GameRealtimeServerMessageOf<Game>
         do {
-            guard text.utf8.count <= Self.maximumIncomingBytes else { throw GameRealtimeError.messageTooLarge }
-            message = try GameRealtimeCodec.decode(Data(text.utf8))
+            guard text.utf8.count <= gameOnlineMaximumIncomingBytes else { throw GameRealtimeError.messageTooLarge }
+            message = try GameRealtimeCodec.decode(Data(text.utf8), as: Game.self)
             try validateSession(message)
         } catch {
-            failConnect(HouseRocketsOnlineWire.failure(from: error, retryAfter: nil))
+            failConnect(GameOnlineWire.failure(from: error, retryAfter: nil))
             return
         }
-        receive(GameRealtimeReceivedMessage(message: message, receivedAt: Date(), receivedUptime: now,
+        receive(GameRealtimeReceivedMessageOf(message: message, receivedAt: Date(), receivedUptime: now,
                                             generation: UUID()))
     }
 
@@ -192,7 +177,7 @@ final class HouseRocketsOnlineLobbyMachine {
             beginAttempt(isRetry: false)
         } else if state.connection == .reconnecting || state.connection == .failed {
             if !state.isTerminal, !state.controlTransferred,
-               HouseRocketsReconnectPolicy.automaticallyRetries(state.issue ?? .timeout) {
+               GameReconnectPolicy.automaticallyRetries(state.issue ?? .timeout) {
                 reconnectDeadline = nil
                 state.reconnectAttempt = 0
                 scheduleReconnect()
@@ -212,7 +197,8 @@ final class HouseRocketsOnlineLobbyMachine {
 
     func setReady(_ ready: Bool, now: TimeInterval) {
         self.now = now
-        guard state.canChangeReady(playerID: context.localPlayerID), !ready || state.isLandscape else { return }
+        guard state.canChangeReady(playerID: context.localPlayerID),
+              !ready || state.isLandscape || !Game.readyRequiresLandscape else { return }
         guard (state.localPlayer(context.localPlayerID)?.state == .ready) != ready else { return }
         withdrawReady = false
         sendLifecycle(.setReady(ready))
@@ -257,20 +243,21 @@ final class HouseRocketsOnlineLobbyMachine {
         guard !isClosed else { return }
         isClosed = true
         closeConnection()
-        state = HouseRocketsOnlineLobbyState()
+        state = State()
         publish()
         onStateChange = nil
         onGameplayRejected = nil
     }
 
-    // MARK: Flight hooks
+    // MARK: Gameplay hooks
 
-    /// The steer gate of iOS `sendSteering`: returns false when the grant is stale.
-    func sendSteering(_ message: GameRealtimeClientMessage, grant: HouseRocketsControlGrantDTO, now: TimeInterval) -> Bool {
+    /// The gameplay gate: returns false when the grant is stale or the intent is
+    /// bound to another control generation.
+    func sendGameplay(_ message: ClientMessage, grant: GameRealtimeControlGrantDTO, now: TimeInterval) -> Bool {
         self.now = now
         guard !isClosed, state.validControl(playerID: context.localPlayerID) == grant,
-              case .steer(let controlGeneration, _, _) = message.action,
-              controlGeneration == grant.controlGeneration else { return false }
+              case .gameplay(let intent) = message.action,
+              Game.controlGeneration(of: intent) == grant.controlGeneration else { return false }
         return send(message)
     }
 
@@ -392,7 +379,7 @@ final class HouseRocketsOnlineLobbyMachine {
         fail(.connection(failure))
     }
 
-    private func validateSession(_ message: GameRealtimeServerMessage) throws {
+    private func validateSession(_ message: GameRealtimeServerMessageOf<Game>) throws {
         guard let expected = pinned?.sessionId else { throw GameRealtimeError.unexpectedSession }
         let sessionID: String?
         switch message.payload {
@@ -414,7 +401,7 @@ final class HouseRocketsOnlineLobbyMachine {
 
     // MARK: Messages
 
-    private func receive(_ received: GameRealtimeReceivedMessage) {
+    private func receive(_ received: GameRealtimeReceivedMessageOf<Game>) {
         let message = received.message
         if state.serverClock == nil {
             state.serverClock = .init(serverTime: message.sentAt, localUptime: received.receivedUptime)
@@ -454,7 +441,7 @@ final class HouseRocketsOnlineLobbyMachine {
             }
             guard let pending = state.pendingCommand, pending.message.messageId == message.messageId else {
                 if let syncID = pendingSyncID, message.messageId == syncID {
-                    if HouseRocketsReconnectPolicy.automaticallyRetries(.rejected(rejection)) {
+                    if GameReconnectPolicy.automaticallyRetries(.rejected(rejection)) {
                         fail(.rejected(rejection))
                     } else {
                         fail(.connection(.invalidPayload))
@@ -462,7 +449,7 @@ final class HouseRocketsOnlineLobbyMachine {
                     return
                 }
                 if let ping = pendingPing, message.messageId == ping.id,
-                   rejection.code == "houseRockets.error.stale_control" { controlLost() }
+                   rejection.code == Game.staleControlCode { controlLost() }
                 onGameplayRejected?(message.messageId, rejection)
                 return
             }
@@ -477,6 +464,7 @@ final class HouseRocketsOnlineLobbyMachine {
         case .pong(let pong):
             guard let ping = pendingPing, pong.pingId == ping.id else { return }
             let rtt = max(0, received.receivedUptime - ping.uptime)
+            lastRTT = rtt
             if rtt <= bestRTT {
                 bestRTT = rtt
                 state.serverClock = .init(serverTime: pong.serverTime, localUptime: ping.uptime + rtt / 2)
@@ -499,17 +487,20 @@ final class HouseRocketsOnlineLobbyMachine {
                 guard snapshot.runtimeEpoch > current.runtimeEpoch ||
                     (snapshot.runtimeEpoch == current.runtimeEpoch &&
                      (snapshot.stateSequence > current.stateSequence ||
-                      (snapshot.stateSequence == current.stateSequence && (correlated || !gameSynced)))) else { return }
-                let eliminated = Set(current.players.filter { !$0.isAlive }.map(\.playerId))
-                guard !snapshot.players.contains(where: { $0.isAlive && eliminated.contains($0.playerId) }) else {
+                      (snapshot.stateSequence == current.stateSequence && (correlated || !gameSynced)))) else {
+                    lateSnapshots += 1
+                    return
+                }
+                guard Game.isValidSuccessor(snapshot, of: current) else {
                     fail(.connection(.invalidPayload))
                     return
                 }
                 if snapshot.runtimeEpoch == current.runtimeEpoch, !state.controlTransferred,
                    state.connection == .connected, pendingSyncID == nil,
                    let grant = state.controlGrant, grant.runtimeEpoch == snapshot.runtimeEpoch,
-                   let local = snapshot.players.first(where: { $0.playerId == context.localPlayerID && $0.isAlive }),
-                   current.players.first(where: { $0.playerId == context.localPlayerID })?.controlGeneration == grant.controlGeneration,
+                   let localID = context.localPlayerID,
+                   let local = snapshot.controlSeat(of: localID), local.canHoldControl,
+                   current.controlSeat(of: localID)?.controlGeneration == grant.controlGeneration,
                    local.controlGeneration == nil {
                     state.controlTransferred = true
                     state.controlGrant = nil
@@ -590,7 +581,7 @@ final class HouseRocketsOnlineLobbyMachine {
         }
     }
 
-    private func sendLifecycle(_ action: GameRealtimeClientAction) {
+    private func sendLifecycle(_ action: ClientAction) {
         guard state.pendingCommand == nil,
               state.connection == .connected || (action == .leave && state.connection == .syncing),
               let version = state.session?.version else { return }
@@ -631,7 +622,7 @@ final class HouseRocketsOnlineLobbyMachine {
     }
 
     @discardableResult
-    private func send(_ message: GameRealtimeClientMessage) -> Bool {
+    private func send(_ message: ClientMessage) -> Bool {
         guard socketActive else {
             fail(.connection(.protocolFailure(.notConnected)))
             return false
@@ -641,12 +632,12 @@ final class HouseRocketsOnlineLobbyMachine {
             emit(.send(text: String(decoding: data, as: UTF8.self), connection: connection))
             return true
         } catch {
-            fail(.connection(HouseRocketsOnlineWire.failure(from: error, retryAfter: nil)))
+            fail(.connection(GameOnlineWire.failure(from: error, retryAfter: nil)))
             return false
         }
     }
 
-    private func fail(_ issue: HouseRocketsOnlineLobbyIssue) {
+    private func fail(_ issue: GameOnlineLobbyIssue) {
         guard !isClosed else { return }
         stopConnectionWork()
         suspendConnection()
@@ -664,7 +655,7 @@ final class HouseRocketsOnlineLobbyMachine {
             state.retryNotBefore = now + retryAfter
         }
         if !state.isLeaving, !state.isTerminal, !state.controlTransferred, state.game?.phase != .finalizing,
-           HouseRocketsReconnectPolicy.automaticallyRetries(issue) {
+           GameReconnectPolicy.automaticallyRetries(issue) {
             scheduleReconnect()
         } else { publish() }
         finishLeaveIfDone()
@@ -676,7 +667,7 @@ final class HouseRocketsOnlineLobbyMachine {
         guard state.isForeground else { publish(); return }
         if reconnectDeadline == nil {
             let grace = state.game == nil ? policy.initialBudget
-                : (state.runtimeSettings ?? .releaseDefaults).reconnectGrace
+                : (state.runtimeSettings ?? Game.Settings.releaseDefaults).reconnectGrace
             reconnectDeadline = now + max(0.5, min(20, grace))
         }
         let nextAttempt = state.reconnectAttempt + 1
@@ -728,17 +719,22 @@ final class HouseRocketsOnlineLobbyMachine {
     }
 }
 
-/// HTTP/wire decoding shared by the engine and its hosts.
-public enum HouseRocketsOnlineWire {
-    public static func session(from response: HTTPResponse, houseID: String) throws -> GameSessionDTO {
+/// Largest server text frame an engine accepts.
+let gameOnlineMaximumIncomingBytes = 1_048_576
+
+/// HTTP/wire decoding shared by the engines and their hosts.
+public enum GameOnlineWire {
+    public static func session(from response: HTTPResponse, houseID: String, gameKey: String) throws -> GameSessionDTO {
         let session: GameSessionDTO = try value(from: response)
-        try GameRealtimeCodec.validateCompatibility(protocolVersion: session.protocolVersion, gameKey: session.gameKey)
+        try GameRealtimeCodec.validateSession(session, gameKey: gameKey)
         guard session.houseId == houseID, !session.sessionId.isEmpty else { throw GameRealtimeError.unexpectedSession }
         return session
     }
 
-    public static func result(from response: HTTPResponse, sessionID: String, houseID: String) throws -> HouseRocketsResultDTO {
-        let result: HouseRocketsResultDTO = try value(from: response)
+    public static func result<Game: GameRealtimeGame>(from response: HTTPResponse, sessionID: String, houseID: String,
+                                                       as game: Game.Type) throws -> Game.Result {
+        let result: Game.Result = try value(from: response)
+        try Game.checkCompatibility(result)
         try result.validate(sessionID: sessionID, houseID: houseID)
         return result
     }

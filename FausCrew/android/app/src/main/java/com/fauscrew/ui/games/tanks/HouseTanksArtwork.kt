@@ -59,6 +59,7 @@ import com.fauscrew.platform.TanksColor
 import com.fauscrew.platform.TanksJoker
 import com.fauscrew.platform.TanksMapPreview
 import com.fauscrew.platform.TanksObstacleStyle
+import com.fauscrew.platform.TanksOnlineSeat
 import com.fauscrew.ui.theme.Radius
 import kotlin.math.cos
 import kotlin.math.hypot
@@ -326,7 +327,11 @@ internal fun RaisedButton(
 
 /** `HouseTanksMapPreview`: a small survey sheet of a real arena from its definition. */
 @Composable
-internal fun HouseTanksMapPreview(preview: TanksMapPreview?, selected: Boolean, modifier: Modifier = Modifier) {
+internal fun HouseTanksMapPreview(
+    preview: TanksMapPreview?, selected: Boolean, modifier: Modifier = Modifier,
+    /** The online room's seated tanks; null marks the demo's spawn points instead. */
+    seats: List<TanksOnlineSeat>? = null,
+) {
     Canvas(modifier.fillMaxWidth().aspectRatio(872f / 400f)) {
         val palette = HouseTanksPalette
         drawRect(if (selected) palette.paper else palette.sand.copy(alpha = .45f))
@@ -377,7 +382,27 @@ internal fun HouseTanksMapPreview(preview: TanksMapPreview?, selected: Boolean, 
                 }
             }
         }
-        preview.spawns.forEach { spawn -> drawCircle(palette.steel, 2.5.dp.toPx(), point(spawn[0], spawn[1])) }
+        if (seats == null) {
+            preview.spawns.forEach { spawn -> drawCircle(palette.steel, 2.5.dp.toPx(), point(spawn[0], spawn[1])) }
+        } else {
+            // Hull and barrel, sized like the arena's tank (20 points long) against the map.
+            val length = (20.0 * preview.scale * size.width / 872.0).toFloat()
+            seats.forEach { seat ->
+                val center = point(seat.x, seat.y)
+                withTransform({
+                    translate(center.x, center.y)
+                    rotate(-Math.toDegrees(seat.rotation).toFloat(), Offset.Zero)
+                }) {
+                    val topLeft = Offset(-length / 2, -length * .36f)
+                    val hull = Size(length, length * .72f)
+                    drawRoundRect(seat.color.ink, topLeft, hull, CornerRadius(length * .12f))
+                    drawRoundRect(palette.ink.copy(alpha = .55f), topLeft, hull, CornerRadius(length * .12f),
+                        style = Stroke(.8.dp.toPx()))
+                    drawLine(palette.ink.copy(alpha = .8f), Offset.Zero, Offset(length * .78f, 0f),
+                        strokeWidth = maxOf(1.2.dp.toPx(), length * .14f))
+                }
+            }
+        }
         drawRect(palette.slate.copy(alpha = .4f), style = Stroke(1.dp.toPx()))
     }
 }

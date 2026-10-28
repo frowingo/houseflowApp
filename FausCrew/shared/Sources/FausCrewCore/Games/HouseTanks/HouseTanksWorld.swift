@@ -806,3 +806,86 @@ public struct HouseTanksWorld: Codable, Sendable {
         return max(0, fraction)
     }
 }
+
+// MARK: - Server state
+
+extension HouseTanksWorld {
+    /// The server's arena at `snapshot.tick`, for drawing only: an online client never
+    /// steps it. Seats, colors, armor and jokers come from the players; bodies, crates,
+    /// shots and the token from the snapshot. Nil when this build lacks the map.
+    public init?(server snapshot: HouseTanksSnapshotDTO) {
+        guard let map = snapshot.map, let tick = Int(exactly: snapshot.tick), tick >= 0 else { return nil }
+        let bodies = Dictionary(snapshot.tanks.map { ($0.playerId, $0) }, uniquingKeysWith: { first, _ in first })
+        let colors = Dictionary(snapshot.players.map { ($0.playerId, $0.color) }, uniquingKeysWith: { first, _ in first })
+        self.map = map
+        self.tick = tick
+        tanks = snapshot.players.sorted { $0.seat < $1.seat }.compactMap { player in
+            guard let body = bodies[player.playerId] else { return nil }
+            var tank = Tank(id: player.playerId, seat: player.seat, color: player.color,
+                            position: HouseTanksVector(x: body.x, y: body.y), rotation: body.rotation,
+                            rotationDirection: Double(body.rotationDirection))
+            tank.velocity = HouseTanksVector(x: body.vx, y: body.vy)
+            tank.isActive = player.isAlive
+            tank.isControllable = body.controllable
+            tank.isDriving = body.isDriving
+            // The wire has no drive direction; a driving tank drives along its locked barrel.
+            if body.isDriving { tank.driveDirection = HouseTanksVector(angle: body.rotation) }
+            tank.aimLocks = body.aimLocks
+            tank.armor = player.armor
+            if let kind = player.powerUp, let expires = player.powerUpExpiresAtTick.flatMap({ Int(exactly: $0) }) {
+                tank.powerUp = PowerUpEffect(kind: kind, expiresAtTick: expires)
+            }
+            return tank
+        }
+        let crates = Dictionary(snapshot.crates.map { ($0.index, $0) }, uniquingKeysWith: { first, _ in first })
+        obstacles = map.obstacles.enumerated().map { index, definition in
+            var obstacle = Obstacle(index: index, definition: definition,
+                                    size: definition.renderedSize(mapScale: map.scale), position: definition.center.point())
+            if definition.isMovable, let crate = crates[index] {
+                obstacle.position = HouseTanksVector(x: crate.x, y: crate.y)
+                obstacle.isDestroyed = crate.destroyed
+            }
+            return obstacle
+        }
+        projectiles = snapshot.projectiles.compactMap { shot in
+            guard let id = Int(exactly: shot.id), let spawnTick = Int(exactly: shot.spawnTick) else { return nil }
+            var projectile = Projectile(
+                id: id, ownerID: shot.ownerId, color: colors[shot.ownerId] ?? .plum,
+                position: HouseTanksVector(x: shot.x, y: shot.y), velocity: HouseTanksVector(x: shot.vx, y: shot.vy),
+                isRocket: shot.rocket, holdsAim: false,
+                radius: (shot.rocket ? Self.rocketRadius : Self.shellRadius) * map.scale, spawnTick: spawnTick
+            )
+            projectile.age = max(0, tick - spawnTick)
+            return projectile
+        }
+        token = snapshot.token.flatMap { token in
+            Int(exactly: token.expiresAtTick).map {
+                Token(kind: token.kind, position: HouseTanksVector(x: token.x, y: token.y), expiresAtTick: $0)
+            }
+        }
+    }
+}
+
+extension HouseTanksWorld {
+    /// A display copy of an online frame: the presentation places interpolated bodies,
+    /// crates and advanced shots at a (fractional) display tick. Never stepped afterwards.
+    func placed(tick: Int, tanks: [Tank], obstacles: [Obstacle], projectiles: [Projectile]) -> HouseTanksWorld {
+        var world = self
+        world.tick = max(0, tick)
+        world.tanks = tanks
+        world.obstacles = obstacles
+        world.projectiles = projectiles
+        return world
+    }
+
+    /// The same frame without shots or queued hits, so stepping it predicts only motion:
+    /// hits, deaths and crates come from the server.
+    var withoutShots: HouseTanksWorld {
+        var world = self
+        world.projectiles.removeAll()
+        world.pendingHits.removeAll()
+        world.token = nil
+        world.jokers = nil
+        return world
+    }
+}

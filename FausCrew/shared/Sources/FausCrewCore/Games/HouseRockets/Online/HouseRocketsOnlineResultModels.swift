@@ -11,31 +11,7 @@ public struct HouseRocketsResultPlayerIdentity: Equatable, Sendable {
     }
 }
 
-/// Persistence state, independent of the flight frame and socket lifetime.
-public struct HouseRocketsOnlineResultState: Equatable, Sendable {
-    public enum Phase: Equatable, Sendable { case idle, waiting, available, cancelledWithoutRecord, failed }
-    public var phase: Phase = .idle
-    public var sessionID: String?
-    public var result: HouseRocketsResultDTO?
-    public var identities: [String: HouseRocketsResultPlayerIdentity] = [:]
-    public var endReason: HouseRocketsEndReason?
-    public var failure: GameRealtimeSessionFailure?
-    public var retryNotBefore: TimeInterval = 0
-    public var terminalConfirmed = false
-
-    public var isVisible: Bool { phase != .idle }
-    public var canRematch: Bool { terminalConfirmed && (phase == .available || phase == .cancelledWithoutRecord) }
-    public func canRetry(at uptime: TimeInterval) -> Bool {
-        guard phase == .failed, uptime >= retryNotBefore else { return false }
-        switch failure {
-        case .http(let status, _): return ![401, 403].contains(status)
-        case .invalidPayload, .protocolFailure: return false
-        default: return true
-        }
-    }
-
-    public init() {}
-}
+public typealias HouseRocketsOnlineResultState = GameOnlineResultState<HouseRocketsRealtime>
 
 extension HouseRocketsResultDTO {
     /// A final snapshot's winner or distances never substitute for this contract.

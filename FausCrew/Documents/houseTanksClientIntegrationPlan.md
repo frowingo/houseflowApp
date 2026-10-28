@@ -168,6 +168,288 @@ devam eder.
 5. **Sıkıştırma (K3):** Android'de doğrulanır; iOS'ta canlıda ölçülür.
 6. **Çıkış:** Fixture testleri; HTTP 401/403/404/409/429/503 ve iptal testleri.
 
+**Durum (F1 çekirdek tarafı tamamlandı, 25 Ekim 2026):**
+
+- **Ortak katman (K4)** `Games/Realtime/` altında (plandaki `Games/Online/` yerine mevcut
+  klasör kullanıldı):
+  - `GameRealtimeGame` adaptör protokolü: welcome, snapshot, sonuç, intent'ler,
+    uyumluluk kontrolleri, kontrol koltuğu.
+  - Genel zarf ve istemci mesajı: `GameRealtimeServerMessageOf<Game>` ve
+    `GameRealtimeClientMessageOf<Game>`.
+  - Genel lobi ve sonuç makineleri: `GameOnlineLobbyMachine<Game>` ve
+    `GameOnlineResultMachine<Game>`.
+  - Oyundan bağımsız tipler: `GameOnlineEffect`, `GameLaunchContext`,
+    `GameReconnectPolicy`.
+- **House Rockets:** `HouseRocketsRealtime` adaptörüne bağlandı. Herkese açık adlar
+  typealias olarak kaldı. House Rockets testlerinde tek satır değişmedi:
+  - Çekirdek (135) ve köprü (19) testleri geçiyor.
+  - Android birim testleri geçiyor.
+  - iOS uygulaması ve testleri derleniyor (simülatörde çalıştırılmadı).
+- **FauseTanks wire tipleri** `Games/HouseTanks/Online/` altında: welcome ve ayarlar,
+  oyun anlık görüntüsü (oyuncu, tank, kasa, joker, mermi, olay) ve sonuç.
+  - Boş (null) alanlar null olarak yazılır, olay alanları yalnız varken yazılır.
+  - İstemci intent'leri `press` ve `roundReady`. Sunucunun reddedeceği değerler
+    (sıra < 1, negatif tick, sonsuz açı, boş nesil) kodlanmadan reddedilir.
+  - Katalog `houseTanks` ayarlarını çözer. `GameKey.houseTanks` eklendi.
+- **Uyumluluk:** Aşağıdakiler `requiresUpdate` verir ve otomatik yeniden bağlanmayı
+  durdurur:
+  - Farklı `contractRevision` ya da `mapCatalogVersion`.
+  - Farklı fizik hızı, arena, zırh ya da tur kuralı.
+  - Katalogda olmayan `mapId` + `mapVersion`.
+- **Testler:**
+  - `HouseTanksWireContractTests`: 14 sunucu örneği aynı JSON'a döner, 11 istemci
+    örneği birebir üretilir, 25 geçersiz örneğin hiçbiri üretilemez. Ayrıca kurallar,
+    uyumluluk, sonuç kuralları ve katalog.
+  - `HouseTanksOnlineLobbyTests`: Ortak lobi makinesi FauseTanks ile çalışıyor:
+    - Bağlanma ve join.
+    - Güncelleme isteği.
+    - HTTP 401, 403, 404, 409, 429 ve 503.
+    - İptal.
+    - Kontrol kapısı ve devralma.
+    - Ayrılan oyuncunun geri dönememesi.
+- **Sıkıştırma (K3):** Android'de `RealtimeCompressionTest`, OkHttp'nin
+  `permessage-deflate` teklif ettiğini ve sıkıştırılmış kareyi okuduğunu doğruluyor. iOS
+  ölçümü canlı sunucuyla yapılacak.
+- **F2'ye kalanlar:**
+  - Sonuç makinesinin FauseTanks maçına bağlanması.
+  - Online maç makinesi ve render modeli.
+  - Platform host'ları (iOS `HouseTanksOnlineHost`, Android köprüsü).
+
+### F2 durumu (25 Ekim 2026)
+
+- **Çekirdek:**
+  - `HouseTanksOnlineEngine` (`Games/HouseTanks/Online/`), House Rockets'in effect
+    modelinde. Ortak lobi ve sonuç makinesini FauseTanks'e bağlıyor.
+  - Akış: `PUT` → soket → welcome + oturum → join → hazır.
+  - Ping 2 sn'de bir. `controlHeartbeatMilliseconds` welcome ayarından okunuyor.
+  - `arena`: her anlık görüntüden sunucunun dünyası. Yeni `HouseTanksWorld(server:)` ile
+    kuruluyor: tanklar, kasalar, mermiler ve joker. `phase = countdown` iken önizleme
+    olarak çiziliyor.
+  - `roomCountdown(at:)`: hazır penceresi, maç geri sayımı ve tur geri sayımı.
+  - Harita katalogda yoksa ya da sözleşme uyuşmazsa `requiresUpdate` doğru oluyor ve
+    otomatik yeniden bağlanma yapılmıyor.
+  - `HouseTanksOnlineCopyKeys` hangi durumda hangi metnin görüneceğini belirliyor.
+    TR/EN metinler `HouseTanksLocalization`'a eklendi.
+- **Ortak katman değişikliği:** "Hazırım" yalnız yatay ekranda sayılıyordu (House
+  Rockets kuralı). Artık bu oyuna göre seçiliyor: `GameRealtimeGame.readyRequiresLandscape`.
+  FauseTanks'in odası dikey; ekran maç başında döner.
+- **iOS:**
+  - House Rockets host'u genel `GameOnlineHost<Engine>` oldu
+    (`Services/Games/General/GameOnlineHost.swift`). House Rockets aynı adları
+    typealias ile koruyor.
+  - `HouseTanksOnlineHost` ve `HouseTanksOnlineFactory` uygulama bağımlılıklarına
+    eklendi.
+  - Online oda gerçek oturuma bağlı:
+    - Durum kartı ve tekrar deneme.
+    - Güncelleme uyarısı.
+    - Kadro: hazır durumu, sunucunun verdiği ad ve renk.
+    - Hazırım / Hazır değilim düğmesi ve pencere sayacı.
+    - Kurucu için iptal.
+    - Geri sayımda tankları yerleşmiş harita önizlemesi ve sayaç.
+  - Katalogda `houseTanks` yoksa oda kapalı gösteriliyor. Odadan çıkışta `leave`
+    gönderiliyor.
+- **Android:**
+  - `HouseTanksOnlineBridge.swift` (köprü API 13, 62 JNI metodu).
+  - `HouseRocketsOnlineSession`'ın genel kısmı `GameOnlineSession`'a taşındı; üstüne
+    `HouseTanksOnlineSession` eklendi.
+  - Oda ekranı iOS ile aynı.
+- **Testler:**
+  - Çekirdek: 156/156. Yeni `HouseTanksOnlineEngineTests` (6 test): oda akışı ve geri
+    sayım önizlemesi, ping aralığı, bilinmeyen harita, koltukların katalogla eşleşmesi,
+    sunucu arenası, odadan çıkış.
+  - Köprü: 21/21.
+  - Android: 67 test, 0 hata.
+  - iOS: uygulama ve test hedefi derleniyor; simülatörde çalıştırılmadı.
+- **Canlı kabul:** Yapılmadı (ortam engelli). Mock testi canlı kabul sayılmaz. Gereken:
+  aynı evde iki hesap, iki cihaz, odaya gir, ikisi de hazır. İkisi de geri sayımı ve
+  aynı haritayı görmeli.
+- **Bilerek F3'e bırakılanlar:**
+  - Maç başlayınca oda "Maç sürüyor" diyor; oyun ekranı yok.
+  - Düğme, girdi ve tur akışı yok.
+
+### F3 durumu (25 Ekim 2026)
+
+- **Çekirdek:**
+  - `HouseTanksOnlinePlayMachine` (`Games/HouseTanks/Online/`), `HouseTanksOnlineEngine`
+    içinde. Ayarlar `HouseTanksPlayConfiguration`'da. Bunlar sunum bütçeleri, oyun kuralı
+    değil:
+    - 100 ms gecikme
+    - 150 ms ileri tahmin
+    - 8 kare tampon
+    - 350 ms'de "eşitleniyor"
+  - **Düğme:** Yalnız `validControl` doğruysa açılıyor. Bunun için grant, eşleşen
+    `runtimeEpoch`, kendi `controlGeneration`, yatay ekran, ön plan, oynanan tur ve canlı
+    tank gerekiyor.
+    - Basma ve bırakma yalnız durum değişince gidiyor. `inputSequence` her nesilde
+      sunucunun ACK'inden devam ediyor.
+    - `clientTick` ve `heading` çizilen son kareden alınıyor.
+    - Gönderim kendi sınırıyla 30/sn'yi geçmiyor.
+  - **Çizim:**
+    - Diğer tanklar ve kasalar iki kare arasında aradeğerleniyor. Mermiler ileri
+      taşınıyor.
+    - Kendi tankın dönüşü, onaylanmamış basışlarla ortak motordan tahmin ediliyor.
+      Sunucu karesi gelince fark 80 ms'de eritiliyor; 40 px / 0,6 rad'dan büyükse
+      doğrudan atlanıyor.
+    - Eski ve tekrar eden kareler atılıyor. Tick geri giderse eşitleme yeniden kuruluyor.
+  - **Olaylar:** `(runtimeEpoch, sequence)` ile bir kez gösteriliyor. Yeni bir zaman
+    çizelgesinde geçmiş olaylar tekrar oynatılmıyor.
+  - **Reddedilen mesajlar:**
+    - `stale_control` → kontrol temizleniyor, bir kez resync.
+    - `player_eliminated` → "bu turda öldün".
+    - `rate_limited` / `unavailable` → kısa bekleme, sonra tutulan durum yeniden
+      gönderiliyor.
+  - **Ekran durumu:** Enkazlar, joker göstergeleri, bağlantısı kopan tank (soluk + işaret)
+    ve 8 koltuklu durum çubuğu `HouseTanksOnlinePresentation`'da.
+  - **Afiş:** Hangi afişin görüneceğini `HouseTanksOnlineCopyKeys.matchNotice` seçiyor:
+    çıkış, güncelleme, sonlanıyor, bitti, yeniden bağlanıyor, hata, kontrol taşındı,
+    kurtarılıyor, eşitleniyor, öldün ve tur bitti.
+- **iOS:** `HouseTanksOnlineMatchView`.
+  - Sunucu arenası yatayda ve tüm alan tek düğme.
+  - Koltuk çubuğu, tur sayacı, afiş (tekrar dene, kontrolü geri al, çık) ve çıkış onayı.
+  - Sahne bağlantısı kopan tankı soluk ve `wifi.slash` işaretiyle çiziyor.
+- **Android:**
+  - Köprü API 14 (63 JNI metodu). Yeni `houseTanksOnlineFrame(handle, now)` her karede
+    arenayı ve çubukları veriyor.
+  - `HouseTanksOnlineGameLayer` iOS ile aynı. Ekran maç başlayınca yataya dönüyor ve
+    tam ekran oluyor. Geri tuşu çıkış onayını açıyor.
+  - APK: `~/Downloads/FausCrew-F3-Oynanis-debug.apk`.
+- **Testler:**
+  - Çekirdek: 174/174. Yeni `HouseTanksOnlinePlayTests` (18 test):
+    - düğme kapısı ve dikey ekran
+    - değişimde basma/bırakma ve ACK
+    - geç ve tekrar eden kareler
+    - aradeğerleme ve mermiler
+    - tahmin ve yumuşak düzeltme
+    - olay tekrarı
+    - enkaz
+    - red kodları
+    - bağlantısı kopan tank
+    - aynı nesle yeniden bağlanınca sıranın sürmesi
+    - yeni tura basılı giren parmak
+    - kare boşluğunda kaydırmama
+  - Köprü: 22/22.
+  - Android: 67 test, 0 hata. Bağlama denetimi geçti.
+  - iOS: uygulama ve test hedefi derleniyor; simülatörde çalıştırılmadı.
+- **Canlı kabul:** Yapılmadı (kullanıcı sonra yapacak). Kontrol edilecekler:
+  - İki cihaz aynı turu görüyor.
+  - Basınca dönme/ateş gecikmesi hissediliyor mu? Gerekirse 100 ms gecikme ayarlanacak.
+  - Bir cihaz uçağa alınınca öbüründe soluk tank ve işaret çıkıyor mu?
+  - Ölünce "bu turda öldün" görünüyor mu?
+- **Gözden geçirme düzeltmeleri (25 Ekim 2026):** Backend'in `press` kurallarıyla
+  (`runtime.go`) karşılaştırıldı:
+  - **Sıra numarası:** Sunucu, kabul ettiği en yüksek sıranın altını ve kendisini
+    `stale_control` ile reddediyor. Bu sınır ACK'in üstünde olabilir; örneğin süresi geçen
+    girdiler işlenmiş sayılmıyor. Aynı nesle yeniden bağlanınca (yatay → dikey → yatay,
+    resync) istemci ACK'ten başlıyordu ve düğme kalıcı olarak ölebiliyordu. Artık nesil
+    başına gönderilen en yüksek sıra tutuluyor ve oradan devam ediliyor.
+  - **Bırakma:** `canPress` kısa bir an kapanınca (geç kare) arayüz bırakma
+    gönderiyordu. Tank duruyor; iOS'ta parmak kıpırdayınca yeniden basılıp fazladan ateş
+    ediliyordu. Artık bas/bırak yalnız parmak inip kalkınca gidiyor; iptal edilen dokunuş
+    da bırakma sayılıyor. Yeni tura basılı girilen parmağı çekirdek zaten yok sayıyor.
+  - **Kare boşluğu:** Yeniden bağlanma ya da kayıp kareden sonra tanklar eski kareden
+    yenisine kayıyordu. Artık 350 ms'den uzun boşlukta tampon sıfırlanıyor ve yeni kare
+    tutuluyor.
+  - **Eski ya da eşit kare:** Erken dönüş, aynı yayındaki grant'i atlıyordu. Artık yalnız
+    çizim atlanıyor.
+- **Bilerek F4'e bırakılanlar (F4'te yapıldı):** `roundReady` sırasında yalnız "tur bitti /
+  kazanan" afişi vardı. Oylama paneli, sonuç ekranı ve rövanş F4'te eklendi.
+
+### F4 durumu (25 Ekim 2026)
+
+- **Tur oylaması (çekirdek, `HouseTanksOnlinePlayMachine`):**
+  - `houseTanks.roundReady {controlGeneration, ready}` yalnız `roundReady` sırasında,
+    kontrol oyuncudayken ve izleyici değilken gönderiliyor. Tankı ölen oyuncu da oy veriyor.
+  - Oy hemen gösteriliyor (bekleyen oy), anlık görüntü aynı değeri gösterince, tur ya da
+    epoch değişince, faz `roundReady`'den çıkınca ya da 2 sn içinde yanıt gelmezse
+    düşüyor. Reddedilen oy anlık görüntüye döner; `stale_control` kontrolü bırakıp resync
+    istiyor.
+  - Panel: tur başlığı (berabere / sen kazandın / X kazandı), 30 sn pencere sayacı
+    (`roundReadyWindowEndsAt`'ten), pencere yoksa "en az iki oy" açıklaması, bağlı
+    oyuncular içinde hazır sayısı ve hazır/vazgeç düğmesi. Koltuk çiplerinde oy işareti.
+  - Tur geri sayımı maç başındaki `phase = countdown` sırasında da gösteriliyor.
+- **Sonuç (ortak `GameOnlineResultMachine`):** Socket sonucu, kaybolursa HTTP, `sessionId`
+  ile tekilleştirme. Şampiyon yalnız tamamlanmış sonuçta (`phase = ended`, `championId`).
+  Panel: "sonuç kaydediliyor", şampiyon (sen / X), iptal nedenleri, sıralama (eşitler aynı
+  sırada, iptalde sırasız), tur galibiyetleri, yeniden dene, çık ve rövanş.
+- **Rövanş:** Biten oturum dışlanarak yeni oturum açılıyor; oyun ekranı kalıyor ve ilk
+  anlık görüntüye kadar ekranda rövanş odası (üyeler, hazır, pencere sayacı, iptal)
+  gösteriliyor. Lobi ekranına dönülmüyor.
+- **Çıkış:** Sonuç ya da rövanş odası açıkken çıkış onaysız. Biten motor kendini "kapandı"
+  saymadığı için çıkışta oturum doğrudan kapatılıyor (iki platform).
+- **Android:** Köprü JSON'una oy, panel ve sonuç alanları eklendi; yeni JNI yöntemi yok
+  (sürüm 14 kaldı). Çıkış onayındaki "kal" düğmesi yanlış metin anahtarını kullanıyordu,
+  düzeltildi.
+- **Doğrulama:**
+  - Çekirdek: 180/180 (24 oynanış testi; 6'sı F4).
+  - Köprü: 22/22 (oy, panel ve sonuç JSON'u dahil).
+  - Android: 67 test, 0 hata. Bağlama denetimi geçti.
+  - iOS: uygulama ve test hedefi derleniyor; simülatörde çalıştırılmadı.
+  - APK: `~/Downloads/FausCrew-F4-TurSonuc-debug.apk`.
+- **Canlı kabul:** Yapılmadı. Kontrol edilecekler:
+  - İki oy 30 sn pencereyi açıyor mu, herkes hazır olunca tur hemen başlıyor mu?
+  - Ölen oyuncunun oyu sayılıyor mu?
+  - Maç sonunda şampiyon ve sıralama iki cihazda aynı mı?
+  - Rövanş yeni oturumu açıyor ve iki cihaz aynı odaya düşüyor mu?
+
+### F5 durumu (25 Ekim 2026)
+
+- **Önceden hazır olanlar (F1–F3'ten, ortak lobi makinesi):**
+  - Kopmada aynı maça sınırlı backoff ile yeniden bağlanma. Bekleme süresi
+    `reconnectGraceMilliseconds`'tan alınıyor; yeni `PUT` atılmıyor.
+  - İkinci cihaz devrinin anlık görüntüden anlaşılması ve "kontrolü geri al".
+  - Yeni epoch'ta eski grant, sıra sayacı, tahmin ve olay geçmişinin düşmesi.
+  - `recovering` afişi.
+  - Arka planda ping kesiliyor; ön plana dönünce resync atılıyor.
+  - Açık çıkış (`leave`) ve ekran kapanınca temizlik.
+- **F5'te düzeltilenler (çekirdek):**
+  - **Devir yarışı:** `stale_control` gelince istemci hemen resync istiyordu. Backend'de
+    resync bağlantıyı yeniden bind ediyor (`gatewayV2.go`, `needBind`). Yeni cihazın
+    bind'i, onu gösteren kareden önce red olarak gelirse eski cihaz tankı geri alıyordu;
+    iki cihaz arasında döngü oluşabiliyordu. Artık önce sonraki kareler bekleniyor
+    (0,5 sn): devir görünürse resync yok, yalnız "kontrolü geri al" bind ediyor. Grant
+    hâlâ geçerli görünüyorsa tek bir resync gidiyor.
+  - **Bırakma:** Arka plana geçerken ya da dikeye dönerken basılı düğme, grant hâlâ
+    gönderebilirken bırakılıyor. Önceden tank, sunucu kontrolü düşürene kadar (6 sn)
+    sürmeye devam edebiliyordu.
+  - **Hareketsiz hedef bildirimi:** Kendi tankın canlıyken grant 0,5 sn'den uzun gelmezse
+    (yeniden bağlanma, yeni epoch) "Tankın bağlanıyor…" afişi çıkıyor. Tank zaten soluk
+    ve işaretli çiziliyor. Daha kısa beklemeler (tur başı, rebind) sessiz geçiyor.
+  - **İzleyici:** Oyuncu snapshot'ta yoksa, ayrılmışsa ya da `control_unavailable`
+    aldıysa "İzliyorsun" afişi ve çık düğmesi çıkıyor; "bu turda öldün" ve oy paneli
+    gösterilmiyor.
+- **Platformlar:**
+  - **Oturum düşmesi (401):** Lobi ya da sonuç 401 alınca House Rockets'teki gibi oyun
+    kapanıyor ve uygulama çıkış yapıyor (iOS ve Android).
+  - **iOS:**
+    - Maç sırasında ev ya da hesap değişince oda kapanıyor; lobi yeni evin odasını açıyor.
+    - Uygulamadan çıkış yapılınca oyun duruyor.
+  - **Android:** Ev sahibi değişince sürmekte olan maçtan çıkılıyordu; artık yalnız
+    kurucu bilgisi güncelleniyor. Ev ya da hesap değişince çıkılıyor.
+  - Köprüye `isSpectating` alanı eklendi; JNI değişmedi (sürüm 14).
+- **Doğrulama:**
+  - Çekirdek: 189/189. 9 yeni test, 1 test güncellendi:
+    - devirle kavga etmeme
+    - kopma, yeniden açılma ve yeni nesille dönüş
+    - `recovering` ve yeni epoch
+    - yeni epoch'ta oyun düşmesi
+    - arka plan
+    - dikey ekran
+    - grant bekleme afişi
+    - izleyici
+    - ekran kapanınca temizlik
+    - güncellenen: `stale_control` sonrası tek resync
+  - Köprü: 22/22.
+  - Android: 67 test, 0 hata. Bağlama denetimi geçti.
+  - iOS: uygulama ve test hedefi derleniyor; simülatörde çalıştırılmadı.
+  - APK: `~/Downloads/FausCrew-F5-Dayaniklilik-debug.apk`.
+- **Canlı kabul:** Yapılmadı. Sahip kaybı ancak staging'de backend ile birlikte
+  denenebilir. Kontrol edilecekler:
+  - Uçak modu 2–5 sn: aynı maça dönüş, kısa "Tankın bağlanıyor…", sonra kontrol.
+  - Aynı hesapla ikinci cihaz: eski cihazda "Kontrol başka cihazda", geri al çalışıyor
+    ve cihazlar birbirinden kontrolü kapmıyor.
+  - Arka plana al ve geri dön: tank durmuş, dönüşte düğme çalışıyor.
+  - Backend'in sahip instance'ını düşürmesi: "Arena yeniden kuruluyor", sonra oyun sürüyor.
+
 ## 5. F2–F5 — Online maç
 
 ### 5.1. Çekirdek: online maç makinesi
@@ -226,6 +508,154 @@ devam eder.
 İki (ideal olarak 4–8) gerçek cihazla tam maç; 100/200/400 ms gecikme, oynama ve kısa
 kopmalar; iPhone ve Android. Senin talimatın gereği simülatör ya da emülatörle test
 yapılmaz; cihaz testlerini sen yaparsın. Yayın kararı backend ile ortaktır.
+
+### F6 hazırlığı (25 Ekim 2026)
+
+> **26 Ekim 2026:** Ağ paneli ve uygulama içi gecikme seçimi ilk cihaz denemesinden sonra
+> kaldırıldı; yerlerine her derlemede görünen FPS çipi geldi (aşağıda "Cihaz geri bildirimi
+> revizyonu"). Bu bölüm o zamanki hâli anlatıyor.
+
+F6 cihaz kabulüdür; istemcide ürün özelliği eklenmedi. Cihaz testini ölçülebilir kılmak
+için **yalnız debug derlemelerde** iki araç eklendi.
+
+- **Ağ paneli:**
+  - Maç ekranında kapat düğmesinin yanında anten düğmesi var (iOS `#if DEBUG`, Android
+    `FLAG_DEBUGGABLE`). Satırlar çekirdekten geliyor, iki platformda aynı
+    (`HouseTanksOnlineDiagnostics.lines`).
+  - Gösterdikleri:
+    - bağlantı ve epoch
+    - RTT (son ping → pong)
+    - snapshot aralığı ± sapma ve son karenin yaşı
+    - basış → ACK süresi (hissedilen gecikme) ve bekleyen basış
+    - çizim gecikmesi, FPS ve KB/s (açılmış metin; deflate ile kablodaki daha az)
+    - geç kare, boşluk sıfırlaması, yumuşak düzeltme ve atlama sayısı
+    - `stale_control`, `rate_limited` ve yeniden bağlanma sayısı
+- **Gecikme benzetimi:**
+  - Aynı panelde RTT +0/100/200/400 ms ve jitter ±0/30/60 ms seçiliyor.
+  - Çekirdekte, soket mesajlarını iki yönde RTT/2 ± jitter tutuyor; sıra korunuyor (TCP
+    gibi). Soket kapanınca bekleyen gönderimler düşüyor.
+  - Seçim, uygulama kapanana kadar odalar ve rövanşlar boyunca kalıyor.
+  - Sınırlar: HTTP (oturum, sonuç) geciktirilmiyor; gerçek radyo kaybının yerine
+    geçmez. iOS'ta gerçekçi ağ için ayrıca Ayarlar → Geliştirici → Network Link
+    Conditioner kullanılabilir.
+- **Release:** iOS Release derlemesi panelsiz derleniyor (doğrulandı). Android release'te
+  düğme görünmüyor.
+- **Doğrulama:**
+  - Çekirdek: 191/191. Yeni testler: benzetimin iki yönde ve sırayla tutması, kapanan
+    soketin bekleyenleri düşürmesi, kapatınca hepsini göndermesi; ölçümlerin (RTT,
+    aralık, yaş, ACK, geç kare, FPS) doğru çıkması.
+  - Köprü: 22/22 (panel açıkken kare satırları taşıyor).
+  - Android: 67 test, 0 hata. Bağlama denetimi geçti; JNI sürüm 14 kaldı.
+  - iOS: Debug ve Release derleniyor; simülatörde çalıştırılmadı.
+  - APK: `~/Downloads/FausCrew-F6-CihazKabul-debug.apk`.
+
+### Cihaz geri bildirimi revizyonu (26 Ekim 2026)
+
+Bir iPhone ve bir Android ile oynanan ilk maçtan sonra gelen dört revizyon:
+
+- **Başlangıç sayacı:**
+  - Lobide harita çekilmeden önce "Kura haritası" kartının yerinde, harita önizlemesi
+    boyutunda (872:400) bir "Başlangıç sayacı" kartı var.
+  - Hazır penceresi açıkken büyük saniye gösteriliyor (son 5 sn kırmızı), altında hazır
+    sayısı. Pencere açılmadan önce "en az {minimum} kişi hazır olunca başlar" yazıyor.
+  - Alt çubuktaki küçük saniye etiketi kaldırıldı. Harita çekilince (maç geri sayımı)
+    kart yine haritayı ve üstündeki sayacı gösteriyor.
+- **FPS çipi:**
+  - Ağ paneli (anten düğmesi, satırlar, RTT/jitter seçimi) iki platformdan kaldırıldı.
+  - Sol üstte kapat düğmesinin yanında her derlemede sade bir FPS çipi var; açılır
+    değil, dokunulmaz.
+  - Değer çekirdekten geliyor (`HouseTanksOnlineEngine.displayFramesPerSecond`, son 1 sn'de
+    çizilen sunum); saniyede iki kez yenileniyor.
+  - Renk `HouseTanksFrameRate.quality`: 20 fps ve altı kırmızı, 55 fps ve üstü yeşil,
+    arası tondan tona.
+  - Çekirdekteki ölçüm ve gecikme benzetimi testlerde kaldı; uygulamadan erişilmiyor.
+  - Köprü: kare JSON'unda `fps` var; `setDiagnostics` ve `setLatencySimulation`
+    olayları kaldırıldı.
+- **Ortalanmış oyun sonu menüsü:**
+  - Maç bittiği anda açılıyor: `finalizing`, `ended`, `cancelled`, `matchEnded` ya da
+    terminal oda (`HouseTanksOnlineCopyKeys.isMatchOver`). Sonucun gelmesi beklenmiyor.
+  - Ekran ortasında; çıkış ve rövanş düğmeleri, gerekirse sonucu yeniden deneme var.
+  - Alttaki "Maç bitti" ve "Sonuç kaydediliyor" afişleri artık çıkmıyor.
+  - Oyun sonunda ve rövanş odasında sol üstteki kapat düğmesi ve FPS çipi gizli.
+- **Sonuçlar herkese:**
+  - Menü sıralamayı hep gösteriyor (`HouseTanksOnlineCopyKeys.standings`).
+  - Kalıcı sonuç gelmeden önce son koltuklar tur galibiyetine göre geçici ve sırasız
+    listeleniyor, "kalıcı sonuç gelince netleşir" notuyla. Sonuç gelince kayıtlı sıralar
+    yerini alıyor.
+  - Böylece erken çıkan oyuncu da çıkmadan önce sonucu görüyor.
+  - Sonuç gelmeden başlık "Sonuç kaydediliyor" (`idle` artık `waiting` gibi).
+- **Doğrulama:**
+  - Çekirdek: 192/192 (yeni: maç sonu algısı, geçici ve kayıtlı sıralama, FPS).
+  - Köprü: 22/22 (karede `fps`; kaldırılan olay reddediliyor).
+  - Android: 67 test, 0 hata; bağlama denetimi geçti, JNI sürüm 14 kaldı.
+  - iOS: Debug derleniyor; simülatörde çalıştırılmadı.
+  - APK: `~/Downloads/FausCrew-Revize1-debug.apk`. Canlı kabul henüz yapılmadı.
+
+### Cihaz geri bildirimi revizyonu 2 (26 Ekim 2026)
+
+İlk revizyonda oyun sonu menüsü ortalanmamıştı ve tur arası paneli alttaydı.
+
+- **Neden:**
+  - Kart görünümü (`houseTanksFieldCard`) kendini sunulan tüm genişliğe yayıp içeriği
+    sola yaslıyor.
+  - 460 pt sınırı kartın içine uygulandığı için kart ekran boyu genişliyor, içerik de
+    solda kalıyordu.
+- **Oyun sonu menüsü ve rövanş odası (iOS):**
+  - Genişlik sınırı kartın dışında; menü yatayda ve dikeyde ortada.
+  - Yükseklik satırlar kadar; sığmazsa kaydırılıyor (`ViewThatFits`).
+- **Tur arası paneli (iki platform):**
+  - Ekranın ortasında, hafif karartmalı bir popup (en fazla 460 genişlik).
+  - Turu kimin aldığı, pencere süresi ve hazır sayısı her cihazda gösteriliyor.
+  - İzleyici de paneli görüyor: `roundReady`'de "İzliyorsun" afişi artık çıkmıyor.
+  - "Maçtan çık" ve "Hazırım" yan yana. Çıkış onay sorusuyla, çünkü maçın ortasında
+    kalıcı ayrılık.
+- **Sol üstteki X:** Yalnız aktif turda görünüyor. Tur arasında, oyun sonunda ve
+  rövanş odasında gizli. FPS çipi tur arasında kalıyor.
+- **Doğrulama:**
+  - Çekirdek 192/192 (izleyicinin tur arasında afiş görmemesi dahil), köprü 22/22.
+  - iOS Debug derleniyor.
+  - Android: 67 test, 0 hata; bağlama denetimi geçti (JNI 14).
+  - APK: `~/Downloads/FausCrew-Revize2-debug.apk`. Cihazda henüz denenmedi.
+
+### F6 kabul protokolü
+
+> Uygulama içi benzetim kaldırıldı. "Benzetim" sütunundaki gecikmeler iOS'ta Ayarlar →
+> Geliştirici → Network Link Conditioner ile, Android'de ağ tarafında (ör. yönlendirici ya
+> da paylaşılan hotspot üzerinden) verilir. Ekranda yalnız FPS okunur; diğer ölçüler
+> göz testi ve backend log'larıyla not edilir.
+
+- **Ön koşullar:**
+  - Backend deploy edilmiş, oyun test evinde açık (`GET /game/catalog`).
+  - Aynı evde en az iki test hesabı. Production açılmaz; token ya da secret not edilmez.
+- **Cihazlar:** En az bir iPhone ve bir Android. Varsa iPad (uygulama iPad'i destekliyor),
+  120 Hz bir cihaz ve 4–8 kişilik bir tur.
+- **Her senaryoda not edilecekler:** FPS çipindeki değer ve rengi. Göz testi: tank
+  kayıyor ya da zıplıyor mu, basış geç mi hissediliyor?
+
+| # | Senaryo | Benzetim | Beklenen |
+|---|---|---|---|
+| 1 | Tam maç (3 galibiyet) → sonuç → rövanş | 0 | Maç bitince iki cihazda ortada menü ve sıralama; aynı şampiyon; rövanş aynı odaya |
+| 2 | Tam maç | RTT 100 | Dönüş tepkisi anında; diğer tanklar akıcı; atlama ≈ 0 |
+| 3 | Tam maç | RTT 200 ± 30 | Oynanabilir; düzeltmeler küçük; ateş geç ama tutarlı |
+| 4 | 2–3 tur | RTT 400 ± 60 | Bozulma kabul edilebilir mi? Atlama sayısı ve "eşitleniyor" sıklığı not edilir |
+| 5 | Uçak modu 2–5 sn, tur ortasında | 0 | "Yeniden bağlanıyor" → kısa "Tankın bağlanıyor…" → kontrol; maçtan düşmeme |
+| 6 | Uçak modu > 10 sn | 0 | Bağlantı hatası ve "Tekrar dene"; rakipte tank hareketsiz hedef |
+| 7 | Aynı hesap ikinci cihazda | 0 | Eskisinde "Kontrol başka cihazda"; geri al çalışıyor; kapışma yok |
+| 8 | Basılıyken arka plana al, 5 sn sonra dön | 0 | Tank durmuş; dönüşte kısa eşitleme, sonra düğme çalışıyor |
+| 9 | Ölünce oy ver; iki oy → 30 sn pencere; herkes hazır | 0 | Ölen oyuncu oy veriyor; herkes hazır olunca tur hemen başlıyor |
+| 10 | Maç ortasında "Çık" | 0 | Rakipte tank kalıyor (hareketsiz); 1 oyuncu kalırsa iptal sonucu |
+| 11 | Sahip instance kaybı (backend ile, staging) | 0 | "Arena yeniden kuruluyor", sonra aynı skorla devam; oylar sıfırlanmış |
+| 12 | 8 oyuncu ağır atış | 0 | FPS not edilir; çip sarı ya da kırmızıya düşüyor mu? |
+
+- **Ayar kararı:** Senaryo 2–4'te diğer tanklar takılıyorsa çizim gecikmesi
+  (`interpolationDelay`, şu an 100 ms) yükseltilir. Basış hissi kötüyse ileri tahmin
+  sınırına bakılır. Değerler yalnız sunum bütçesidir, wire kuralı değil.
+- **Backend'e iletilecek:**
+  - Senaryo 11 için zamanlama koordinasyonu.
+  - K3: iOS'un `permessage-deflate` teklif edip etmediği, gateway'in el sıkışma
+    log'undan doğrulanabilir mi?
+- **Raporlama:** Her senaryo için cihaz, sürüm, benzetim, ölçüler, geçti/kaldı ve not.
+  Mock testi canlı kabul sayılmaz.
 
 ## 7. Test ve raporlama
 

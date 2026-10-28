@@ -50,6 +50,12 @@ grep -Eq 'public static java\.lang\.String houseRocketsOnlineEvent\(int handle, 
 grep -Eq 'public static java\.lang\.String houseRocketsOnlineReceive\(int handle, java\.lang\.String text, int connection, double now\)' "$java_file"
 grep -Eq 'public static boolean houseRocketsOnlineViewport\(int handle, double width, double height, double hudWidth, double hudHeight\)' "$java_file"
 grep -Eq 'public static java\.lang\.String houseRocketsOnlineFrame\(int handle, double now\)' "$java_file"
+grep -Eq 'public static int houseTanksOnlineCreate\(java\.lang\.String houseId, java\.lang\.String playerId, java\.lang\.String houseOwnerId, java\.lang\.String excludingSessionId\)' "$java_file"
+grep -Eq 'public static boolean houseTanksOnlineDestroy\(int handle\)' "$java_file"
+grep -Eq 'public static java\.lang\.String houseTanksOnlineEvent\(int handle, java\.lang\.String eventJSON\)' "$java_file"
+grep -Eq 'public static java\.lang\.String houseTanksOnlineReceive\(int handle, java\.lang\.String text, int connection, double now\)' "$java_file"
+grep -Eq 'public static java\.lang\.String houseTanksOnlineFrame\(int handle, double now\)' "$java_file"
+grep -Eq 'public static java\.lang\.String houseTanksCatalogResponse\(java\.lang\.String houseId, int status, java\.lang\.String body\)' "$java_file"
 grep -Eq 'public static java\.lang\.String gameCatalogResponse\(java\.lang\.String houseId, int status, java\.lang\.String body\)' "$java_file"
 grep -Eq 'public static int appEventsCreate\(\)' "$java_file"
 grep -Eq 'public static boolean appEventsDestroy\(int handle\)' "$java_file"
@@ -62,9 +68,9 @@ grep -Eq 'public static java\.lang\.String socialResponse\(java\.lang\.String ac
 grep -Fq 'SwiftLibraries.loadLibraryWithFallbacks(LIB_NAME);' "$java_file"
 
 public_methods=$(grep -Ec '^[[:space:]]*public static .*\(' "$java_file")
-if [ "$public_methods" -ne 57 ]; then
-    echo "Expected exactly fifty-seven public JNI methods, found ${public_methods}" >&2
+if [ "$public_methods" -ne 63 ]; then
+    echo "Expected exactly sixty-three public JNI methods, found ${public_methods}" >&2
     exit 1
 fi
 
-echo 'Generated JNI API matches the version-12 Kotlin boundary.'
+echo 'Generated JNI API matches the version-14 Kotlin boundary.'

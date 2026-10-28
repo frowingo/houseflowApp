@@ -124,7 +124,7 @@ struct GamesHubView: View {
         case 3: SkylineDashView()
         case 4: RockPaperScissorsView()
         case 5: HouseSwitchView()
-        case 6: HouseTanksView()
+        case 6: HouseTanksView(onlineFactory: appViewModel.houseTanksOnlineFactory)
         case 7:
             HouseRocketsView(
                 sessionFactory: houseRocketsSessionFactory,

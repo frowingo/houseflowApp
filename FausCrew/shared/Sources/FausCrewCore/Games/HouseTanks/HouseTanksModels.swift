@@ -19,8 +19,6 @@ public enum HouseTanksMode: String, CaseIterable, Identifiable, Sendable {
 /// Demo picks the player must make before a match; nothing is preselected.
 public enum HouseTanksSetupStep: Int, CaseIterable, Identifiable, Sendable {
     case map
-    /// Only on maps with a player range (the crowded-match Basement).
-    case players
     case color
     case difficulty
 
@@ -204,16 +202,15 @@ public struct HouseTanksMapDefinition: Codable, Equatable, Sendable {
     /// Seats online play may fill on this map.
     public var playerCounts: ClosedRange<Int> { minPlayers...maxPlayers }
 
-    /// Demo matches keep their own rule: standard maps always seat four tanks, only the
-    /// crowded-match maps (above four seats) let the player pick how many take part.
+    /// Bot matches seat four tanks on the standard maps and the map's range on the
+    /// crowded-match ones. The demo lists only standard maps (`HouseTanksMapCatalog.demoMapIDs`);
+    /// the crowded range is kept for engine tests against the server's eight-tank rules.
     public static let demoStandardPlayerCount = 4
     public var demoPlayerCounts: ClosedRange<Int> {
         minPlayers > Self.demoStandardPlayerCount
             ? playerCounts : Self.demoStandardPlayerCount...Self.demoStandardPlayerCount
     }
 
-    /// A map whose demo setup asks how many tanks take part.
-    public var hasDemoPlayerChoice: Bool { demoPlayerCounts.count > 1 }
 }
 
 public struct HouseTanksPlayer: Identifiable, Codable, Equatable, Sendable {
@@ -346,6 +343,9 @@ public enum HouseTanksRoundResolution: Equatable, Sendable {
 }
 
 public enum HouseTanksMatchRules {
+    /// Round wins that decide the champion (contract houseTanks.v2).
+    public static let roundWinsNeeded = 3
+
     public static func applyingDamage(to players: [HouseTanksPlayer], targetID: UUID,
                                       amount: Int = 1) -> [HouseTanksPlayer] {
         players.map { player in

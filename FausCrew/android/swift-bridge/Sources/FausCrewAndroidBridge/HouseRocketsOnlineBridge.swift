@@ -76,13 +76,13 @@ public func houseRocketsOnlineEvent(_ handle: Int32, _ eventJSON: String) -> Str
             engine.start(isForeground: event["foreground"] as? Bool ?? true,
                          isLandscape: event["landscape"] as? Bool ?? false, now: now)
         case "sessionResponse":
-            engine.sessionResponse(response(event), retryAfter: event["retryAfter"] as? Double,
+            engine.sessionResponse(onlineHTTPResponse(event), retryAfter: event["retryAfter"] as? Double,
                                    connection: connection, now: now)
         case "socketOpened": engine.socketOpened(connection: connection, now: now)
-        case "connectionFailed": engine.connectionFailed(failure(event), connection: connection, now: now)
-        case "sendFailed": engine.sendFailed(failure(event), connection: connection, now: now)
+        case "connectionFailed": engine.connectionFailed(onlineFailure(event), connection: connection, now: now)
+        case "sendFailed": engine.sendFailed(onlineFailure(event), connection: connection, now: now)
         case "resultResponse":
-            engine.resultResponse(response(event), retryAfter: event["retryAfter"] as? Double,
+            engine.resultResponse(onlineHTTPResponse(event), retryAfter: event["retryAfter"] as? Double,
                                   request: request, now: now)
         case "resultFailed": engine.resultFailed(request: request, now: now)
         case "tick": engine.tick(now: now)
@@ -151,7 +151,7 @@ private func onlineOutput(_ handle: Int32, _ action: (OnlineMatchRegistry.Entry)
     let result = OnlineMatchRegistry.shared.with(handle) { entry -> [String: Any] in
         guard action(entry) else { return ["ok": false, "message": "Unsupported event"] }
         let engine = entry.engine
-        var object: [String: Any] = ["ok": true, "effects": engine.drainEffects().map(effectObject)]
+        var object: [String: Any] = ["ok": true, "effects": engine.drainEffects().map { onlineEffectObject($0, gameKey: GameKey.houseRockets) }]
         // Deadlines are sent as host uptimes, so countdown labels need no refresh here.
         if engine.lobby != entry.lastLobby {
             entry.lastLobby = engine.lobby
@@ -168,13 +168,13 @@ private func onlineOutput(_ handle: Int32, _ action: (OnlineMatchRegistry.Entry)
     return bridgeJSON(result ?? ["ok": false, "message": "Unknown match handle"])
 }
 
-private func response(_ event: [String: Any]) -> HTTPResponse {
+func onlineHTTPResponse(_ event: [String: Any]) -> HTTPResponse {
     HTTPResponse(statusCode: event["status"] as? Int ?? 0, headers: [:],
                  body: Data((event["body"] as? String ?? "").utf8))
 }
 
 /// `{"failure": "transport" | "forbidden" | "http" | "authenticationRequired", "status": Int, "retryAfter": Double}`.
-private func failure(_ event: [String: Any]) -> GameRealtimeSessionFailure {
+func onlineFailure(_ event: [String: Any]) -> GameRealtimeSessionFailure {
     switch event["failure"] as? String {
     case "http": return .http(statusCode: event["status"] as? Int ?? 0, retryAfterSeconds: event["retryAfter"] as? Double)
     case "forbidden": return .http(statusCode: 403, retryAfterSeconds: nil)
@@ -185,10 +185,11 @@ private func failure(_ event: [String: Any]) -> GameRealtimeSessionFailure {
     }
 }
 
-private func effectObject(_ effect: HouseRocketsOnlineEffect) -> [String: Any] {
+/// One engine effect in the shape `OnlineOutputParser` reads; shared by every online game.
+func onlineEffectObject(_ effect: GameOnlineEffect, gameKey: String) -> [String: Any] {
     switch effect {
     case .ensureSession(let houseID, let connection):
-        let route = GameRoute.ensureSession(gameKey: GameKey.houseRockets)
+        let route = GameRoute.ensureSession(gameKey: gameKey)
         return ["type": "ensureSession", "connection": connection, "path": route.path, "method": route.method,
                 "body": (try? GameWireContract.ensureSessionBody(houseId: houseID))
                     .map { String(decoding: $0, as: UTF8.self) } ?? "{}"]

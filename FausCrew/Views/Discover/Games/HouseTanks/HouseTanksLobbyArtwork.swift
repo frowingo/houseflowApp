@@ -328,8 +328,18 @@ struct HouseTanksArenaTank: View {
 
 /// Small survey sheet of a real arena, drawn from the same map definition as the scene.
 struct HouseTanksMapPreview: View {
+    /// A tank seated by the server, in normalized arena coordinates (y up).
+    struct Seat: Equatable {
+        let x: Double
+        let y: Double
+        let rotation: Double
+        let color: HouseTanksColor
+    }
+
     let mapID: HouseTanksMapID
     var isSelected = false
+    /// The online room's seated tanks; nil marks the demo's spawn points instead.
+    var seats: [Seat]? = nil
 
     var body: some View {
         Canvas { context, size in
@@ -384,11 +394,30 @@ struct HouseTanksMapPreview: View {
                 piece.stroke(shape, with: .color(palette.ink.opacity(0.35)), lineWidth: 0.5)
             }
 
-            // The demo's seats: four on standard maps.
-            for spawn in definition.spawnPoints.prefix(definition.demoPlayerCounts.upperBound) {
-                let center = point(spawn)
-                context.fill(Path(ellipseIn: CGRect(x: center.x - 2.5, y: center.y - 2.5, width: 5, height: 5)),
-                             with: .color(palette.steel))
+            if let seats {
+                // Hull and barrel, sized like the arena's tank against the map.
+                let length = HouseTanksWorld.tankLength * definition.scale * size.width / HouseTanksWorld.arenaSize.width
+                for seat in seats {
+                    var tank = context
+                    tank.translateBy(x: seat.x * size.width, y: (1 - seat.y) * size.height)
+                    tank.rotate(by: .radians(-seat.rotation))
+                    let hull = CGRect(x: -length / 2, y: -length * 0.36, width: length, height: length * 0.72)
+                    let tint = Color(uiColor: seat.color.uiColor)
+                    tank.fill(Path(roundedRect: hull, cornerRadius: length * 0.12), with: .color(tint))
+                    tank.stroke(Path(roundedRect: hull, cornerRadius: length * 0.12),
+                                with: .color(palette.ink.opacity(0.55)), lineWidth: 0.8)
+                    var barrel = Path()
+                    barrel.move(to: .zero)
+                    barrel.addLine(to: CGPoint(x: length * 0.78, y: 0))
+                    tank.stroke(barrel, with: .color(palette.ink.opacity(0.8)), lineWidth: max(1.2, length * 0.14))
+                }
+            } else {
+                // The demo's seats: four on standard maps.
+                for spawn in definition.spawnPoints.prefix(definition.demoPlayerCounts.upperBound) {
+                    let center = point(spawn)
+                    context.fill(Path(ellipseIn: CGRect(x: center.x - 2.5, y: center.y - 2.5, width: 5, height: 5)),
+                                 with: .color(palette.steel))
+                }
             }
             context.stroke(Path(rect.insetBy(dx: 0.5, dy: 0.5)), with: .color(palette.slate.opacity(0.4)), lineWidth: 1)
         }

@@ -4,6 +4,7 @@ import Foundation
 /// kept as plain strings so a newer server never breaks an older client.
 public enum GameKey {
     public static let houseRockets = "houseRockets"
+    public static let houseTanks = "houseTanks"
 }
 
 /// Release 1 (backend v38) game routes, relative to `/api/v1`. The legacy
@@ -103,8 +104,8 @@ public struct GameRulesDTO: Codable, Equatable, Sendable {
     }
 }
 
-/// One game the house can start right now. `settings` is game specific; only
-/// House Rockets settings are decoded today. Catalog values describe the
+/// One game the house can start right now. `settings` is game specific and
+/// decoded for the games this client plays. Catalog values describe the
 /// *next* session — a running match always follows its own `welcome.settings`.
 public struct GameCatalogEntryDTO: Decodable, Equatable, Sendable {
     public let gameKey: String
@@ -113,15 +114,18 @@ public struct GameCatalogEntryDTO: Decodable, Equatable, Sendable {
     public let configVersion: Int
     public let rules: GameRulesDTO
     public let houseRocketsSettings: HouseRocketsRuntimeSettingsDTO?
+    public let houseTanksSettings: HouseTanksRuntimeSettingsDTO?
 
     public init(gameKey: String, protocolVersion: Int, mode: String, configVersion: Int,
-                rules: GameRulesDTO, houseRocketsSettings: HouseRocketsRuntimeSettingsDTO?) {
+                rules: GameRulesDTO, houseRocketsSettings: HouseRocketsRuntimeSettingsDTO?,
+                houseTanksSettings: HouseTanksRuntimeSettingsDTO? = nil) {
         self.gameKey = gameKey
         self.protocolVersion = protocolVersion
         self.mode = mode
         self.configVersion = configVersion
         self.rules = rules
         self.houseRocketsSettings = houseRocketsSettings
+        self.houseTanksSettings = houseTanksSettings
     }
 
     private enum CodingKeys: String, CodingKey {
@@ -137,6 +141,9 @@ public struct GameCatalogEntryDTO: Decodable, Equatable, Sendable {
         rules = try values.decode(GameRulesDTO.self, forKey: .rules)
         houseRocketsSettings = gameKey == GameKey.houseRockets
             ? try values.decodeIfPresent(HouseRocketsRuntimeSettingsDTO.self, forKey: .settings)
+            : nil
+        houseTanksSettings = gameKey == GameKey.houseTanks
+            ? try values.decodeIfPresent(HouseTanksRuntimeSettingsDTO.self, forKey: .settings)
             : nil
     }
 }
@@ -157,8 +164,17 @@ public struct GameCatalog: Equatable, Sendable {
     }
 
     /// The client can only offer a game it speaks the protocol of.
-    public var houseRockets: GameCatalogEntryDTO? {
-        guard let entry = entry(for: GameKey.houseRockets),
+    public var houseRockets: GameCatalogEntryDTO? { realtimeEntry(for: GameKey.houseRockets) }
+
+    /// FauseTanks is offered only with its settings; a running match still
+    /// follows its own `welcome.settings` and contract checks.
+    public var houseTanks: GameCatalogEntryDTO? {
+        guard let entry = realtimeEntry(for: GameKey.houseTanks), entry.houseTanksSettings != nil else { return nil }
+        return entry
+    }
+
+    private func realtimeEntry(for gameKey: String) -> GameCatalogEntryDTO? {
+        guard let entry = entry(for: gameKey),
               entry.protocolVersion == GameRoute.realtimeProtocolVersion,
               entry.mode == "realtime" else { return nil }
         return entry

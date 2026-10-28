@@ -72,6 +72,8 @@ internal data class TanksTank(
     val powerFraction: Double,
     /** The aim joker's sight line length, or null without it. */
     val aimLength: Double?,
+    /** Online only: a live tank whose player has no control, drawn faded with a mark. */
+    val isOffline: Boolean = false,
 )
 
 internal data class TanksObstacle(
@@ -101,6 +103,8 @@ internal sealed interface TanksEvent {
     data class CrateBroken(val x: Double, val y: Double) : TanksEvent
     data class Explosion(val x: Double, val y: Double) : TanksEvent
     data class Eliminated(val playerId: String, val x: Double, val y: Double) : TanksEvent
+    /** Online only: the server's hit; demo frames flash on armor loss instead. */
+    data class Hit(val playerId: String) : TanksEvent
 }
 
 /** The static arena of a round: furniture, crate shapes and floor plan, in arena dp. */
@@ -155,13 +159,13 @@ internal data class TanksMapPreview(
     /** `obstacleBaseScale × gameplayScale`: rendered size = arena size × normalized size × scale × map scale. */
     val obstacleScale: Double,
     val scale: Double,
-    /** The demo's seats: four on standard maps, the full range on crowded-match maps. */
+    /** Core's bot-match seats: four on standard maps, the full range on crowded-match maps. */
     val minPlayers: Int,
     val maxPlayers: Int,
 ) {
     val playerCounts: IntRange get() = minPlayers..maxPlayers
-    /** A map whose demo setup asks how many tanks take part. */
-    val hasPlayerChoice: Boolean get() = minPlayers != maxPlayers
+    /** `HouseTanksMapCatalog.demoMapIDs`: four-tank maps; crowded-match maps are online only. */
+    val isDemoMap: Boolean get() = maxPlayers <= 4
 }
 
 /**
@@ -289,6 +293,7 @@ internal class TanksFrameParser {
                     power = tank.optNullableString("power")?.let(::joker),
                     powerFraction = tank.getDouble("powerFraction"),
                     aimLength = if (tank.isNull("aimLength")) null else tank.getDouble("aimLength"),
+                    isOffline = tank.optBoolean("offline", false),
                 )
             },
             crates = root.getJSONArray("crates").objects { crate ->
@@ -342,6 +347,7 @@ internal class TanksFrameParser {
             "crateBroken" -> TanksEvent.CrateBroken(json.getDouble("x"), json.getDouble("y"))
             "explosion" -> TanksEvent.Explosion(json.getDouble("x"), json.getDouble("y"))
             "eliminated" -> TanksEvent.Eliminated(json.getString("playerId"), json.getDouble("x"), json.getDouble("y"))
+            "hit" -> TanksEvent.Hit(json.getString("playerId"))
             else -> null
         }
 

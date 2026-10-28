@@ -17,6 +17,7 @@ struct AppDependencies {
     let userDefaults: any PreferencesStore
     let localizationCache: any LocalizationCacheStore
     let houseRocketsSessionFactory: HouseRocketsSessionFactory
+    var houseTanksOnlineFactory = HouseTanksOnlineFactory.unavailable
     /// The `/api/v1/events` refresh channel; nil in tests that do not need it.
     var appEvents: AppEventsService? = nil
 
@@ -49,6 +50,7 @@ struct AppDependencies {
             userDefaults: UserDefaults.standard,
             localizationCache: LocalizationDiskCache(),
             houseRocketsSessionFactory: .live(network: gameNetwork, keychain: keychain, baseURL: gameURL),
+            houseTanksOnlineFactory: .live(network: gameNetwork, keychain: keychain, baseURL: gameURL),
             appEvents: AppEventsService(baseURL: AppEnvironment.current.baseURL, keychain: keychain)
         )
     }

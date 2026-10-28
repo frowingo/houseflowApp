@@ -278,6 +278,8 @@ final class HouseTanksEngineTests: XCTestCase {
     func testBasementSeatsSixToEightTanksAtASmallerScale() {
         let basement = HouseTanksMapCatalog.definition(for: .basement)
         XCTAssertEqual(basement.playerCounts, 6...8)
+        XCTAssertEqual(HouseTanksMapCatalog.demoMapIDs, [.livingRoom, .corridors, .warehouse, .courtyard],
+                       "Crowded-match maps are online only")
         XCTAssertLessThan(basement.scale, 1)
         XCTAssertGreaterThan(basement.obstacles.count, HouseTanksMapCatalog.definition(for: .livingRoom).obstacles.count)
 

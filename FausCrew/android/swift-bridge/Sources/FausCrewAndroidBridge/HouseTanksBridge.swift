@@ -188,7 +188,8 @@ enum HouseTanksFrameJSON {
     static func object(snapshot: HouseTanksSnapshot, world: HouseTanksWorld, roundKey: String,
                        events: [HouseTanksWorld.Event], includeArena: Bool) -> [String: Any] {
         let roles = Dictionary(uniqueKeysWithValues: snapshot.players.map { (HouseTanksBotMatch.tankID($0.id), $0.role) })
-        var object: [String: Any] = [
+        var object = arenaObject(world: world, roles: roles, events: events, includeArena: includeArena)
+        object.merge([
             "matchId": snapshot.matchID.uuidString,
             "roundKey": roundKey,
             "revision": snapshot.revision,
@@ -202,6 +203,15 @@ enum HouseTanksFrameJSON {
                 "color": player.color.rawValue, "armor": player.armor, "roundsWon": player.roundsWon,
                 "alive": player.isAlive,
             ] },
+        ]) { _, new in new }
+        return object
+    }
+
+    /// The drawn world: bodies, crates, shots, token and events, plus the static arena when a
+    /// round starts. Online frames add `offline` tanks (faded, with a mark) and `hit` events.
+    static func arenaObject(world: HouseTanksWorld, roles: [String: HouseTanksPlayerRole], events: [HouseTanksWorld.Event],
+                            includeArena: Bool, offline: Set<String> = [], includeHits: Bool = false) -> [String: Any] {
+        var object: [String: Any] = [
             "width": world.size.width,
             "height": world.size.height,
             "time": world.time,
@@ -213,6 +223,7 @@ enum HouseTanksFrameJSON {
                     "power": power?.kind.rawValue ?? NSNull(),
                     "powerFraction": power.map { $0.remaining / HouseTanksPowerUpRules.duration } ?? 0,
                     "aimLength": world.aimLength(for: tank.id) ?? NSNull(),
+                    "offline": tank.isActive && offline.contains(tank.id),
                 ]
             },
             "crates": world.obstacles.filter(\.isMovable).map { crate -> [String: Any] in [
@@ -226,7 +237,7 @@ enum HouseTanksFrameJSON {
                 "kind": token.kind.rawValue, "x": token.position.x, "y": token.position.y,
                 "fraction": world.tokenFraction,
             ] } ?? NSNull(),
-            "events": events.compactMap(eventObject),
+            "events": events.compactMap { eventObject($0, includeHits: includeHits) },
         ]
         if includeArena {
             let frame = world.arenaFrame
@@ -255,7 +266,7 @@ enum HouseTanksFrameJSON {
     }
 
     /// Effects the canvas animates; armor changes reach it through the players instead.
-    private static func eventObject(_ event: HouseTanksWorld.Event) -> [String: Any]? {
+    private static func eventObject(_ event: HouseTanksWorld.Event, includeHits: Bool) -> [String: Any]? {
         let position = event.position ?? .zero
         switch event.kind {
         case .fired:
@@ -271,7 +282,8 @@ enum HouseTanksFrameJSON {
         case .jokerCollected:
             return ["type": "jokerCollected", "playerId": event.playerID ?? "", "kind": event.powerUp?.rawValue ?? ""]
         case .hit:
-            return nil
+            // Demo frames flash on armor loss instead; online frames flash on the server's hit.
+            return includeHits ? ["type": "hit", "playerId": event.playerID ?? ""] : nil
         }
     }
 }

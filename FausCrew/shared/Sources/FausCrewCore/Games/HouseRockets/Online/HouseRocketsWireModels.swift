@@ -2,9 +2,7 @@ import Foundation
 
 
 // Dedicated v2 wire DTOs. Nullable game fields must exist, even when their value is null.
-public enum HouseRocketsWirePhase: String, Decodable, Sendable {
-    case countdown, playing, recovering, finalizing, ended, cancelled
-}
+public typealias HouseRocketsWirePhase = GameRuntimePhase
 
 public enum HouseRocketsEliminationReason: String, Decodable, Sendable {
     case behindCamera, forfeit, connectionExpired, membershipRevoked
@@ -47,19 +45,7 @@ public struct HouseRocketsWelcomeDTO: Decodable, Equatable, Sendable {
     }
 }
 
-public struct HouseRocketsControlGrantDTO: Decodable, Equatable, Sendable {
-    public let sessionId: String
-    public let playerId: String
-    public let runtimeEpoch: Int64
-    public let controlGeneration: String
-
-    public init(sessionId: String, playerId: String, runtimeEpoch: Int64, controlGeneration: String) {
-        self.sessionId = sessionId
-        self.playerId = playerId
-        self.runtimeEpoch = runtimeEpoch
-        self.controlGeneration = controlGeneration
-    }
-}
+public typealias HouseRocketsControlGrantDTO = GameRealtimeControlGrantDTO
 
 public struct HouseRocketsPlayerDTO: Decodable, Equatable, Sendable {
     public let playerId: String

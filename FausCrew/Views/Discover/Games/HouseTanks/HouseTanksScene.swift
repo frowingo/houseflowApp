@@ -209,13 +209,15 @@ final class HouseTanksScene: SKScene {
     }
 
     /// Mirrors the engine onto nodes. `roundKey` changes with every new round (a fresh arena).
-    func render(_ world: HouseTanksWorld, roundKey: String, events: [HouseTanksWorld.Event], localPlayerID: String?) {
+    /// `offlinePlayerIDs` (online only) are live tanks without control: faded, with a mark.
+    func render(_ world: HouseTanksWorld, roundKey: String, events: [HouseTanksWorld.Event], localPlayerID: String?,
+                offlinePlayerIDs: Set<String> = []) {
         self.localPlayerID = localPlayerID
         if roundKey != arenaKey {
             arenaKey = roundKey
             buildArena(world)
         }
-        syncTanks(world)
+        syncTanks(world, offline: offlinePlayerIDs)
         syncCrates(world)
         syncProjectiles(world)
         syncToken(world)
@@ -278,7 +280,7 @@ final class HouseTanksScene: SKScene {
 
     // MARK: - Sync
 
-    private func syncTanks(_ world: HouseTanksWorld) {
+    private func syncTanks(_ world: HouseTanksWorld, offline: Set<String>) {
         for tank in world.tanks {
             let node: SKNode
             if let existing = tankNodes[tank.id] {
@@ -299,7 +301,43 @@ final class HouseTanksScene: SKScene {
             }
             updatePowerIndicator(tank.isActive ? world.powerUpStatus(for: tank.id) : nil, on: node)
             updateAimLine(on: node, length: world.aimLength(for: tank.id))
+            updateOfflineMark(on: node, rotation: tank.rotation, isOffline: tank.isActive && offline.contains(tank.id))
         }
+    }
+
+    /// A stationary target whose player lost control: the tank fades and a connection mark
+    /// floats upright above it.
+    private func updateOfflineMark(on tank: SKNode, rotation: Double, isOffline: Bool) {
+        tank.childNode(withName: "artwork")?.alpha = isOffline ? 0.45 : 1
+        guard isOffline else {
+            tank.childNode(withName: "offline-mark")?.removeFromParent()
+            return
+        }
+        let mark: SKNode
+        if let existing = tank.childNode(withName: "offline-mark") {
+            mark = existing
+        } else {
+            mark = SKNode()
+            mark.name = "offline-mark"
+            mark.zPosition = 12
+            let badge = SKShapeNode(circleOfRadius: 8)
+            badge.fillColor = FieldInk.paper
+            badge.strokeColor = FieldInk.ink
+            badge.lineWidth = 1.2
+            mark.addChild(badge)
+            let configuration = UIImage.SymbolConfiguration(pointSize: 18, weight: .bold)
+            if let image = UIImage(systemName: "wifi.slash", withConfiguration: configuration)?
+                .withTintColor(FieldInk.signalRed, renderingMode: .alwaysOriginal) {
+                let icon = SKSpriteNode(texture: SKTexture(image: image))
+                icon.size = CGSize(width: 10, height: 10 * image.size.height / max(1, image.size.width))
+                mark.addChild(icon)
+            }
+            tank.addChild(mark)
+        }
+        // The parent turns with the barrel; the mark stays upright, 16 points above the hull.
+        let lift = 16 * mapScale
+        mark.zRotation = -CGFloat(rotation)
+        mark.position = CGPoint(x: lift * CGFloat(sin(rotation)), y: lift * CGFloat(cos(rotation)))
     }
 
     private func syncCrates(_ world: HouseTanksWorld) {

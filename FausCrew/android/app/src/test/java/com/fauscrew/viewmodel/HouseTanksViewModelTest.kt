@@ -20,6 +20,7 @@ import kotlinx.coroutines.test.runTest
 import kotlinx.coroutines.test.setMain
 import org.junit.After
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
@@ -73,8 +74,7 @@ class HouseTanksViewModelTest {
         override fun close() { closed = true }
     }
 
-    private fun model(engine: FakeEngine) = HouseTanksViewModel({ engine }, { 720L }, { TanksMap.WAREHOUSE },
-        { map -> if (map == TanksMap.BASEMENT) 6..8 else 4..4 })
+    private fun model(engine: FakeEngine) = HouseTanksViewModel({ engine }, { 720L }, null)
 
     @Test fun demoSetupStartsEmptyAndWillNotStartUntilEveryPickIsMade() {
         val engine = FakeEngine()
@@ -97,30 +97,28 @@ class HouseTanksViewModelTest {
         assertNotNull(model.frame.value)
     }
 
-    @Test fun basementAsksForThePlayerCountAndStartsWithIt() {
+    @Test fun demoIsAlwaysFourTanksWithoutAPlayerStep() {
         val engine = FakeEngine()
         val model = model(engine)
         model.selectMode(TanksMode.DEMO)
         model.selectMap(TanksMap.WAREHOUSE)
         assertEquals(listOf(TanksSetupStep.MAP, TanksSetupStep.COLOR, TanksSetupStep.DIFFICULTY), model.state.value.setupSteps)
-        model.selectMap(TanksMap.BASEMENT)
-        assertEquals(TanksSetupStep.PLAYERS, model.state.value.pendingSetupStep)
-        assertEquals(6, model.state.value.rosterSize)
-        model.selectPlayerCount(8)
         model.selectColor(TanksColor.IVORY)
         model.selectDifficulty(TanksDifficulty.EASY)
-        assertEquals(4, model.state.value.completedSetupSteps)
         model.startMatch()
-        assertEquals(8, engine.lastPlayerCount)
+        assertEquals(4, engine.lastPlayerCount)
     }
 
-    @Test fun onlineRoomDrawsItsMap() {
+    @Test fun onlineRoomWaitsForTheServersMap() {
         val model = model(FakeEngine())
+        model.updateContext("house", "player")
         model.selectMode(TanksMode.ONLINE)
-        assertEquals(TanksMap.WAREHOUSE, model.state.value.onlineMap)
-        assertEquals(TanksMap.WAREHOUSE, model.state.value.matchMap)
+        assertFalse("No live dependencies in this build", model.state.value.onlineServiceAvailable)
+        assertNull("The server draws the map at the match countdown", model.state.value.onlineMap)
+        assertNull(model.state.value.matchMap)
+        assertNull(model.onlineSession.value)
         model.returnToModeSelection()
-        assertNull(model.state.value.onlineMap)
+        assertNull(model.state.value.selectedMode)
     }
 
     @Test fun countdownStepsEvery720msThenFramesAdvanceTheArena() = runTest(dispatcher) {

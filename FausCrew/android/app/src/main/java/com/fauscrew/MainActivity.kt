@@ -260,8 +260,13 @@ class MainActivity : ComponentActivity() {
                             if (showsHouseTanks) {
                                 HouseTanksScreen(text, houseState.details?.id, state.profile?.userId,
                                     onExit = { showsHouseTanks = false },
+                                    houseOwnerId = houseState.details?.ownerId?.ifBlank { null },
                                     members = houseState.details?.members.orEmpty()
-                                        .filter { it.name.isNotBlank() }.map { it.id to it.name })
+                                        .filter { it.name.isNotBlank() }.map { it.id to it.name },
+                                    onRequireSignIn = {
+                                        showsHouseTanks = false
+                                        model.logout()
+                                    })
                             } else if (showsHouseRockets) {
                                 HouseRocketsScreen(text, houseState.details?.id, state.profile?.userId,
                                     onExit = { showsHouseRockets = false },

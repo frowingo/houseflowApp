@@ -3,7 +3,7 @@ import XCTest
 
 final class InviteCodeBridgeTests: XCTestCase {
     func testVersionAndCoreRule() {
-        XCTAssertEqual(bridgeVersion(), 12)
+        XCTAssertEqual(bridgeVersion(), 14)
         XCTAssertEqual(normalizeInviteCode("ab-12 cd34xyz"), "AB12CD34")
         XCTAssertEqual(normalizeInviteCode(""), "")
         XCTAssertEqual(normalizeInviteCode("１２３４５６７８ 12345678"), "12345678")

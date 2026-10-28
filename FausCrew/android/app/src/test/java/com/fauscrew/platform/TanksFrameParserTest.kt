@@ -80,7 +80,7 @@ class TanksFrameParserTest {
         assertEquals(4, courtyard.spawns.size)
         assertTrue(courtyard.obstacles.single().style.isRound)
         assertEquals(0.36, courtyard.obstacleScale, 0.0)
-        assertEquals(false, courtyard.hasPlayerChoice)
+        assertEquals(true, courtyard.isDemoMap)
     }
 
     private fun assertNull(value: Any?, message: String) = org.junit.Assert.assertNull(message, value)

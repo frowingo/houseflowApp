@@ -2,12 +2,15 @@ package com.fauscrew.ui.games.tanks
 
 import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.Paint
 import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.PathEffect
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.drawscope.DrawScope
+import androidx.compose.ui.graphics.drawscope.drawIntoCanvas
 import androidx.compose.ui.graphics.drawscope.Fill
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.drawscope.rotate
@@ -63,6 +66,7 @@ internal class HouseTanksArenaRenderer {
                     is TanksEvent.CrateBroken -> effects += Splinters(event.x, event.y, now)
                     is TanksEvent.Explosion -> effects += Burst(event.x, event.y, now)
                     is TanksEvent.Eliminated -> effects += Burst(event.x, event.y, now)
+                    is TanksEvent.Hit -> effects += HullFlash(event.playerId, now)
                 }
             }
         }
@@ -123,7 +127,10 @@ internal class HouseTanksArenaRenderer {
                 withTransform({ translate(center.x, center.y); rotate(-Math.toDegrees(tank.rotation).toFloat(), Offset.Zero) }) {
                     tank.aimLength?.let { length -> drawAimLine(length.toFloat(), 16f * actor) }
                     scale(.38f * actor, .38f * actor, Offset.Zero) {
+                        // A stationary target without its player fades like the iOS scene.
+                        if (tank.isOffline) drawIntoCanvas { it.saveLayer(Rect(-48f, -48f, 48f, 48f), Paint().apply { alpha = .45f }) }
                         drawTankArtwork(tank.color.ink, tank.role == TanksRole.HUMAN, !tank.isActive, hullAlpha)
+                        if (tank.isOffline) drawIntoCanvas { it.restore() }
                     }
                     effects.filterIsInstance<Muzzle>().lastOrNull { it.playerId == tank.id }?.let { muzzle ->
                         val progress = ((now - muzzle.start) / 80_000_000f).coerceIn(0f, 1f)
@@ -133,6 +140,7 @@ internal class HouseTanksArenaRenderer {
                         drawCircle(HouseTanksPalette.paper.copy(alpha = fade), radius, Offset(13f * actor, 0f), style = Stroke(1f))
                     }
                 }
+                if (tank.isOffline) drawOfflineMark(Offset(center.x, center.y - 16f * actor))
                 if (tank.isActive) tank.power?.let { power ->
                     withTransform({ translate(center.x, center.y); scale(actor, actor, Offset.Zero) }) {
                         drawPowerIndicator(Offset.Zero, power, tank.powerFraction, painters)
@@ -149,6 +157,18 @@ internal class HouseTanksArenaRenderer {
                 }
             }
         }
+    }
+
+    /** The lost-connection mark that floats upright above a stationary target. */
+    private fun DrawScope.drawOfflineMark(center: Offset) {
+        drawCircle(HouseTanksPalette.paper, 8f, center)
+        drawCircle(HouseTanksPalette.ink, 8f, center, style = Stroke(1.2f))
+        for (radius in floatArrayOf(5f, 2.8f)) {
+            drawArc(HouseTanksPalette.ink, 225f, 90f, false, Offset(center.x - radius, center.y + 2f - radius),
+                Size(radius * 2, radius * 2), style = Stroke(1.2f, cap = StrokeCap.Round))
+        }
+        drawCircle(HouseTanksPalette.ink, .9f, Offset(center.x, center.y + 2f))
+        drawLine(HouseTanksPalette.signalRed, Offset(center.x - 4.5f, center.y - 4.5f), Offset(center.x + 4.5f, center.y + 4.5f), 1.6f, StrokeCap.Round)
     }
 
     private fun hullFlashAlpha(elapsed: Long): Float {

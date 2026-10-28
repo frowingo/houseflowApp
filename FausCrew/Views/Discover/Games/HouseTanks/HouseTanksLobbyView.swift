@@ -51,6 +51,8 @@ struct HouseTanksLobbyView: View {
 
             if model.selectedMode == .demo {
                 startButton(proxy: proxy)
+            } else if showsOnlineActionBar {
+                onlineActionBar
             }
         }
         }
@@ -183,23 +185,18 @@ struct HouseTanksLobbyView: View {
         VStack(alignment: .leading, spacing: 28) {
             setupStep(.map) {
                 // An eager two-column grid: a lazy grid under-measures its last row while
-                // scrolling, letting the odd fifth tile slide under the next section.
+                // scrolling, letting an odd last tile slide under the next section. Crowded-match
+                // maps are online only.
+                let maps = HouseTanksMapCatalog.demoMapIDs
                 VStack(spacing: AppDesign.Spacing.md) {
-                    ForEach(Array(stride(from: 0, to: HouseTanksMapID.allCases.count, by: 2)), id: \.self) { start in
-                        let row = Array(HouseTanksMapID.allCases[start..<min(start + 2, HouseTanksMapID.allCases.count)])
+                    ForEach(Array(stride(from: 0, to: maps.count, by: 2)), id: \.self) { start in
+                        let row = Array(maps[start..<min(start + 2, maps.count)])
                         HStack(alignment: .top, spacing: AppDesign.Spacing.md) {
                             ForEach(row) { mapID in mapTile(mapID) }
                             if row.count == 1 { Color.clear.frame(maxWidth: .infinity) }
                         }
                         .fixedSize(horizontal: false, vertical: true)
                     }
-                }
-            }
-
-            if model.needsPlayerCount {
-                setupStep(.players) {
-                    playerCountPicker
-                        .houseTanksFieldCard()
                 }
             }
 
@@ -270,7 +267,6 @@ struct HouseTanksLobbyView: View {
     private func stepTitleKey(_ step: HouseTanksSetupStep) -> String {
         switch step {
         case .map: "house_tanks_map_pick"
-        case .players: "house_tanks_step_players"
         case .color: "house_tanks_step_color"
         case .difficulty: "house_tanks_step_difficulty"
         }
@@ -282,20 +278,6 @@ struct HouseTanksLobbyView: View {
             VStack(alignment: .leading, spacing: AppDesign.Spacing.sm) {
                 HouseTanksMapPreview(mapID: mapID, isSelected: selected)
                     .clipShape(RoundedRectangle(cornerRadius: AppDesign.CornerRadius.xs, style: .continuous))
-                    .overlay(alignment: .topLeading) {
-                        // On the sheet rather than beside the title, so long map names never break.
-                        if HouseTanksMapCatalog.definition(for: mapID).hasDemoPlayerChoice {
-                            Text(copy("house_tanks_map_crowd_badge"))
-                                .font(.system(size: 9, weight: .heavy, design: .monospaced))
-                                .foregroundStyle(HouseTanksMapPalette.paper)
-                                .padding(.horizontal, 5)
-                                .padding(.vertical, 2)
-                                .background(HouseTanksMapPalette.umber, in: Capsule())
-                                .lineLimit(1)
-                                .fixedSize()
-                                .padding(4)
-                        }
-                    }
                 HStack(spacing: AppDesign.Spacing.xs) {
                     Text(copy(mapID.titleKey))
                         .font(.headline)
@@ -404,36 +386,13 @@ struct HouseTanksLobbyView: View {
                 HouseTanksColor.allCases.filter { $0 != human }
             } ?? Array(repeating: nil, count: HouseTanksMatchConfiguration.botNameKeys.count)
             let entries = [("house_tanks_you", "house_tanks_human_role", model.humanColor)]
-                + zip(HouseTanksMatchConfiguration.botNameKeys.prefix(rosterSize - 1), botColors)
+                + zip(HouseTanksMatchConfiguration.botNameKeys.prefix(HouseTanksMapDefinition.demoStandardPlayerCount - 1), botColors)
                     .map { ($0, "house_tanks_bot_role", $1) }
             LazyVGrid(columns: [GridItem(.flexible(), spacing: AppDesign.Spacing.sm),
                                 GridItem(.flexible(), spacing: AppDesign.Spacing.sm)],
                       spacing: AppDesign.Spacing.sm) {
                 ForEach(entries, id: \.0) { rosterChip(nameKey: $0.0, roleKey: $0.1, color: $0.2) }
             }
-        }
-    }
-
-    /// Four tanks on the standard maps; the chosen (or smallest) count on crowded-match maps.
-    private var rosterSize: Int {
-        guard let mapID = model.mapID else { return 4 }
-        let seats = HouseTanksMapCatalog.definition(for: mapID).demoPlayerCounts
-        return min(max(model.playerCount ?? seats.lowerBound, seats.lowerBound), seats.upperBound)
-    }
-
-    private var playerCountPicker: some View {
-        let range = model.mapID.map { HouseTanksMapCatalog.definition(for: $0).demoPlayerCounts } ?? 6...8
-        return VStack(alignment: .leading, spacing: AppDesign.Spacing.sm) {
-            Picker(copy("house_tanks_step_players"), selection: $model.playerCount) {
-                ForEach(Array(range), id: \.self) { count in
-                    Text(copy("house_tanks_players_count", replacements: ["count": "\(count)"])).tag(Optional(count))
-                }
-            }
-            .pickerStyle(.segmented)
-            Text(copy("house_tanks_players_detail", replacements: ["bots": "\(rosterSize - 1)"]))
-                .font(.caption)
-                .foregroundStyle(HouseTanksFieldTheme.muted)
-                .fixedSize(horizontal: false, vertical: true)
         }
     }
 
@@ -538,81 +497,269 @@ struct HouseTanksLobbyView: View {
     @ViewBuilder
     private var onlineRoom: some View {
         if let blockerKey = onlineBlockerKey {
-            VStack(alignment: .leading, spacing: AppDesign.Spacing.md) {
-                Label(copy("house_tanks_online_unavailable"), systemImage: "wifi.exclamationmark")
-                    .font(.headline)
-                    .foregroundStyle(HouseTanksFieldTheme.ink)
-                Text(copy(blockerKey))
-                    .font(.subheadline)
-                    .foregroundStyle(HouseTanksFieldTheme.muted)
-                    .fixedSize(horizontal: false, vertical: true)
-            }
-            .houseTanksFieldCard(padding: AppDesign.Spacing.xl)
+            onlineNotice(title: "house_tanks_online_unavailable", detail: blockerKey, symbol: "wifi.exclamationmark")
+        } else if model.onlineCatalog == .unavailable {
+            onlineNotice(title: "house_tanks_online_closed", detail: "house_tanks_online_closed_detail", symbol: "lock.fill")
         } else {
             VStack(alignment: .leading, spacing: 28) {
+                onlineStatus
                 drawnMap
                 onlineRoster
-                onlineReady
+            }
+            .task(id: roomContext) {
+                guard let context = roomContext, let houseID = context.houseID else { return }
+                await model.refreshOnlineCatalog(houseID: houseID)
+                guard !Task.isCancelled else { return }
+                model.enterOnlineRoom(context: context)
             }
         }
+    }
+
+    /// The house and player the room belongs to; a change reopens it.
+    private var roomContext: GameLaunchContext? {
+        guard let userID = appViewModel.currentUserId, let house = appViewModel.currentHouseDetails else { return nil }
+        return GameLaunchContext(houseID: house.id, localPlayerID: userID, houseOwnerID: house.ownerId)
     }
 
     private var onlineBlockerKey: String? {
         guard let userID = appViewModel.currentUserId, !userID.isEmpty else { return "house_tanks_online_sign_in" }
         guard appViewModel.currentHouseDetails != nil else { return "house_tanks_online_house_required" }
+        guard model.isOnlineServiceAvailable else { return "house_tanks_online_soon_detail" }
         return nil
     }
 
-    private var drawnMap: some View {
+    private func onlineNotice(title: String, detail: String, symbol: String) -> some View {
         VStack(alignment: .leading, spacing: AppDesign.Spacing.md) {
-            sectionHeader(code: "01", key: "house_tanks_online_map_title")
+            Label(copy(title), systemImage: symbol)
+                .font(.headline)
+                .foregroundStyle(HouseTanksFieldTheme.ink)
+            Text(copy(detail))
+                .font(.subheadline)
+                .foregroundStyle(HouseTanksFieldTheme.muted)
+                .fixedSize(horizontal: false, vertical: true)
+        }
+        .houseTanksFieldCard(padding: AppDesign.Spacing.xl)
+    }
+
+    private var onlineStatus: some View {
+        let state = model.onlineState
+        let minimum = state.session?.rules.minimumPlayers ?? 2
+        let warns = state.requiresUpdate || state.connection == .failed
+        return VStack(alignment: .leading, spacing: AppDesign.Spacing.md) {
+            HStack(alignment: .top, spacing: AppDesign.Spacing.md) {
+                Group {
+                    if HouseTanksOnlineCopyKeys.showsProgress(state) {
+                        ProgressView().tint(HouseTanksMapPalette.steel)
+                    } else {
+                        Image(systemName: onlineStatusSymbol(state))
+                            .foregroundStyle(warns ? HouseTanksFieldTheme.danger : HouseTanksMapPalette.steel)
+                    }
+                }
+                .font(.title3.weight(.bold))
+                .frame(width: 28, height: 28)
+
+                VStack(alignment: .leading, spacing: AppDesign.Spacing.xs) {
+                    Text(copy(HouseTanksOnlineCopyKeys.roomStatus(state)))
+                        .font(.headline)
+                        .foregroundStyle(warns ? HouseTanksFieldTheme.danger : HouseTanksFieldTheme.ink)
+                    Text(copy(HouseTanksOnlineCopyKeys.roomDetail(state), replacements: ["minimum": "\(minimum)"]))
+                        .font(.subheadline)
+                        .foregroundStyle(HouseTanksFieldTheme.muted)
+                        .fixedSize(horizontal: false, vertical: true)
+                    // A rejected command or timeout while the room stays connected.
+                    if state.connection == .connected, let issue = state.issue {
+                        Text(copy(HouseTanksOnlineCopyKeys.issue(issue)))
+                            .font(.caption.weight(.semibold))
+                            .foregroundStyle(HouseTanksFieldTheme.danger)
+                            .fixedSize(horizontal: false, vertical: true)
+                    }
+                }
+                Spacer(minLength: 0)
+            }
+            .accessibilityElement(children: .combine)
+
+            if state.connection == .failed, state.canReconnect(at: .infinity) {
+                Button(action: model.retryOnline) {
+                    Label(copy("house_tanks_online_retry"), systemImage: "arrow.clockwise")
+                        .font(.subheadline.weight(.bold))
+                        .foregroundStyle(HouseTanksMapPalette.paper)
+                        .padding(.horizontal, AppDesign.Spacing.lg)
+                        .frame(minHeight: AppDesign.Size.buttonHeightSmall)
+                        .background(HouseTanksMapPalette.steel,
+                                    in: RoundedRectangle(cornerRadius: AppDesign.CornerRadius.sm, style: .continuous))
+                }
+                .buttonStyle(ScaleButtonStyle())
+            }
+        }
+        .houseTanksFieldCard()
+    }
+
+    private func onlineStatusSymbol(_ state: HouseTanksOnlineLobbyState) -> String {
+        if state.requiresUpdate { return "arrow.down.app.fill" }
+        if state.connection == .failed { return "wifi.exclamationmark" }
+        if state.isTerminal { return "flag.checkered" }
+        return "dot.radiowaves.left.and.right"
+    }
+
+    /// Before the draw the card counts down to the match; once the server draws the arena
+    /// it shows the map (with the match countdown over it).
+    @ViewBuilder
+    private var drawnMap: some View {
+        if let arena = model.onlineArena {
             VStack(alignment: .leading, spacing: AppDesign.Spacing.md) {
-                if let mapID = model.onlineMapID {
-                    HouseTanksMapPreview(mapID: mapID, isSelected: true)
-                        .clipShape(RoundedRectangle(cornerRadius: AppDesign.CornerRadius.xs, style: .continuous))
-                        .overlay(alignment: .topTrailing) {
-                            Text(copy("house_tanks_random_stamp"))
-                                .font(.system(.caption, design: .monospaced).weight(.heavy))
-                                .tracking(1.6)
-                                .foregroundStyle(HouseTanksMapPalette.umber)
-                                .padding(.horizontal, AppDesign.Spacing.sm)
-                                .padding(.vertical, 3)
-                                .overlay(Rectangle().stroke(HouseTanksMapPalette.umber, lineWidth: 1.5))
-                                .background(HouseTanksMapPalette.paper.opacity(0.8))
-                                .rotationEffect(.degrees(-8))
-                                .padding(AppDesign.Spacing.md)
-                        }
+                sectionHeader(code: "01", key: "house_tanks_online_map_title")
+                VStack(alignment: .leading, spacing: AppDesign.Spacing.md) {
+                    HouseTanksMapPreview(mapID: arena.map.id, isSelected: true, seats: arena.tanks.map {
+                        .init(x: $0.position.x / HouseTanksWorld.arenaSize.width,
+                              y: $0.position.y / HouseTanksWorld.arenaSize.height,
+                              rotation: $0.rotation, color: $0.color)
+                    })
+                    .clipShape(RoundedRectangle(cornerRadius: AppDesign.CornerRadius.xs, style: .continuous))
+                    .overlay { countdownStamp }
+                    .overlay(alignment: .topTrailing) { randomStamp }
                     HStack(alignment: .firstTextBaseline, spacing: AppDesign.Spacing.sm) {
                         Image(systemName: "dice.fill")
                             .foregroundStyle(HouseTanksMapPalette.umber)
                         VStack(alignment: .leading, spacing: 2) {
-                            Text(copy(mapID.titleKey))
+                            Text(copy(arena.map.id.titleKey))
                                 .font(.headline)
                                 .foregroundStyle(HouseTanksFieldTheme.ink)
-                            Text(copy(mapID.detailKey))
+                            Text(copy(arena.map.id.detailKey))
                                 .font(.caption)
                                 .foregroundStyle(HouseTanksFieldTheme.muted)
                         }
                     }
                     .accessibilityElement(children: .combine)
+                    Text(copy("house_tanks_online_map_detail"))
+                        .font(.caption)
+                        .foregroundStyle(HouseTanksFieldTheme.muted)
+                        .fixedSize(horizontal: false, vertical: true)
                 }
-                Text(copy("house_tanks_online_map_detail"))
-                    .font(.caption)
-                    .foregroundStyle(HouseTanksFieldTheme.muted)
-                    .fixedSize(horizontal: false, vertical: true)
+                .houseTanksFieldCard()
             }
-            .houseTanksFieldCard()
+        } else {
+            VStack(alignment: .leading, spacing: AppDesign.Spacing.md) {
+                sectionHeader(code: "01", key: "house_tanks_online_start_title")
+                VStack(alignment: .leading, spacing: AppDesign.Spacing.md) {
+                    startCountdown
+                    Text(copy("house_tanks_online_map_pending"))
+                        .font(.caption)
+                        .foregroundStyle(HouseTanksFieldTheme.muted)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+                .houseTanksFieldCard()
+            }
+        }
+    }
+
+    /// The ready window's seconds as large as the map that replaces them; before the window
+    /// opens, how many ready players start it.
+    private var startCountdown: some View {
+        let state = model.onlineState
+        return TimelineView(.periodic(from: .now, by: 0.25)) { _ in
+            let seconds = state.session?.state == .readyWindow || state.session?.state == .countdown
+                ? model.onlineCountdown() : nil
+            VStack(spacing: AppDesign.Spacing.xs) {
+                if let seconds {
+                    Text(copy("house_tanks_online_start_until"))
+                        .font(HouseTanksFieldTheme.stencil)
+                        .foregroundStyle(HouseTanksFieldTheme.muted)
+                    HStack(alignment: .firstTextBaseline, spacing: AppDesign.Spacing.xs) {
+                        Text(verbatim: "\(seconds)")
+                            .font(.system(size: 88, weight: .black, design: .rounded))
+                            .monospacedDigit()
+                            .contentTransition(.numericText(countsDown: true))
+                            .foregroundStyle(seconds <= 5 ? HouseTanksFieldTheme.danger : HouseTanksFieldTheme.ink)
+                        Text(copy("house_tanks_online_seconds_unit"))
+                            .font(.title3.weight(.heavy))
+                            .foregroundStyle(HouseTanksFieldTheme.muted)
+                    }
+                    .animation(.snappy, value: seconds)
+                } else {
+                    Image(systemName: "hourglass")
+                        .font(.system(size: 40, weight: .bold))
+                        .foregroundStyle(HouseTanksMapPalette.umber)
+                    Text(copy("house_tanks_online_start_waiting"))
+                        .font(.headline)
+                        .foregroundStyle(HouseTanksFieldTheme.ink)
+                    Text(copy("house_tanks_online_start_waiting_detail",
+                              replacements: ["minimum": "\(state.session?.rules.minimumPlayers ?? 2)"]))
+                        .font(.caption)
+                        .foregroundStyle(HouseTanksFieldTheme.muted)
+                        .multilineTextAlignment(.center)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+                if state.session != nil {
+                    Text(copy("house_tanks_online_ready_count",
+                              replacements: ["ready": "\(state.readyCount)", "total": "\(state.participants.count)"]))
+                        .font(HouseTanksFieldTheme.stencil)
+                        .foregroundStyle(HouseTanksMapPalette.steel)
+                }
+            }
+            .padding(AppDesign.Spacing.md)
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
+            .accessibilityElement(children: .combine)
+        }
+        .aspectRatio(872 / 400, contentMode: .fit)
+        .frame(maxWidth: .infinity)
+        .background(HouseTanksMapPalette.sand.opacity(0.45),
+                    in: RoundedRectangle(cornerRadius: AppDesign.CornerRadius.xs, style: .continuous))
+        .overlay(RoundedRectangle(cornerRadius: AppDesign.CornerRadius.xs, style: .continuous)
+            .stroke(HouseTanksMapPalette.slate.opacity(0.4), style: StrokeStyle(lineWidth: 1, dash: [4, 4])))
+    }
+
+    private var randomStamp: some View {
+        Text(copy("house_tanks_random_stamp"))
+            .font(.system(.caption, design: .monospaced).weight(.heavy))
+            .tracking(1.6)
+            .foregroundStyle(HouseTanksMapPalette.umber)
+            .padding(.horizontal, AppDesign.Spacing.sm)
+            .padding(.vertical, 3)
+            .overlay(Rectangle().stroke(HouseTanksMapPalette.umber, lineWidth: 1.5))
+            .background(HouseTanksMapPalette.paper.opacity(0.8))
+            .rotationEffect(.degrees(-8))
+            .padding(AppDesign.Spacing.md)
+    }
+
+    /// The match countdown over the drawn map, from the server's deadline.
+    private var countdownStamp: some View {
+        TimelineView(.periodic(from: .now, by: 0.25)) { _ in
+            if model.onlineState.game?.phase == .countdown, let seconds = model.onlineCountdown() {
+                Text(verbatim: "\(max(1, seconds))")
+                    .font(.system(size: 56, weight: .black, design: .rounded))
+                    .monospacedDigit()
+                    .foregroundStyle(HouseTanksMapPalette.paper)
+                    .frame(width: 92, height: 92)
+                    .background(HouseTanksMapPalette.ink.opacity(0.72), in: Circle())
+                    .accessibilityLabel(copy("house_tanks_online_seconds", replacements: ["seconds": "\(seconds)"]))
+            }
         }
     }
 
     private var onlineRoster: some View {
-        VStack(alignment: .leading, spacing: AppDesign.Spacing.md) {
-            sectionHeader(code: "02", key: "house_tanks_online_roster")
+        let state = model.onlineState
+        return VStack(alignment: .leading, spacing: AppDesign.Spacing.md) {
+            HStack(alignment: .firstTextBaseline) {
+                sectionHeader(code: "02", key: "house_tanks_online_roster")
+                Spacer(minLength: AppDesign.Spacing.sm)
+                if state.session != nil {
+                    Text(copy("house_tanks_online_ready_count",
+                              replacements: ["ready": "\(state.readyCount)", "total": "\(state.participants.count)"]))
+                        .font(HouseTanksFieldTheme.stencil)
+                        .foregroundStyle(HouseTanksFieldTheme.muted)
+                }
+            }
             VStack(spacing: AppDesign.Spacing.md) {
-                ForEach(Array(onlineMembers.enumerated()), id: \.element.id) { index, member in
+                if onlineMembers.isEmpty {
+                    Text(copy("house_tanks_online_syncing"))
+                        .font(.subheadline)
+                        .foregroundStyle(HouseTanksFieldTheme.muted)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                }
+                ForEach(onlineMembers) { member in
                     HStack(spacing: AppDesign.Spacing.sm) {
                         Circle()
-                            .fill(rosterTints[index % rosterTints.count])
+                            .fill(member.color.map(swatch) ?? HouseTanksMapPalette.slate.opacity(0.5))
                             .frame(width: 10, height: 10)
                         Text(verbatim: member.name)
                             .font(.subheadline.weight(.semibold))
@@ -624,9 +771,10 @@ struct HouseTanksLobbyView: View {
                                 .foregroundStyle(HouseTanksFieldTheme.muted)
                         }
                         Spacer(minLength: AppDesign.Spacing.sm)
-                        Label(copy("house_tanks_online_waiting"), systemImage: "clock")
+                        Label(copy(HouseTanksOnlineCopyKeys.playerStatus(member.state)),
+                              systemImage: member.state == .ready ? "checkmark.seal.fill" : "clock")
                             .font(HouseTanksFieldTheme.stencil)
-                            .foregroundStyle(HouseTanksFieldTheme.muted)
+                            .foregroundStyle(member.state == .ready ? HouseTanksMapPalette.steel : HouseTanksFieldTheme.muted)
                     }
                     .accessibilityElement(children: .combine)
                 }
@@ -635,54 +783,69 @@ struct HouseTanksLobbyView: View {
         }
     }
 
-    private var onlineReady: some View {
-        VStack(alignment: .leading, spacing: AppDesign.Spacing.sm) {
-            HStack(spacing: AppDesign.Spacing.sm) {
-                Image(systemName: "rectangle.landscape.rotate")
-                Text(copy("house_tanks_online_ready"))
-                Text(copy("house_tanks_soon"))
-                    .font(.caption2.weight(.black))
-                    .foregroundStyle(HouseTanksFieldTheme.ink)
-                    .padding(.horizontal, 7)
-                    .padding(.vertical, 3)
-                    .background(HouseTanksMapPalette.khaki.opacity(0.55), in: Capsule())
+    /// Ready toggle and the creator's cancel, pinned under the room; the window counts down in the room.
+    private var onlineActionBar: some View {
+        let state = model.onlineState
+        let localID = appViewModel.currentUserId
+        let isReady = state.localPlayer(localID)?.state == .ready
+        return VStack(spacing: AppDesign.Spacing.sm) {
+            Button { model.setOnlineReady(!isReady) } label: {
+                HStack(spacing: AppDesign.Spacing.sm) {
+                    Image(systemName: isReady ? "xmark.circle" : "checkmark.circle.fill")
+                    Text(copy(isReady ? "house_tanks_online_not_ready" : "house_tanks_online_ready"))
+                }
+                .font(.headline)
+                .foregroundStyle(HouseTanksMapPalette.paper)
+                .frame(maxWidth: .infinity, minHeight: AppDesign.Size.buttonHeightLarge)
+                .background(isReady ? HouseTanksMapPalette.umber : HouseTanksMapPalette.steel,
+                            in: RoundedRectangle(cornerRadius: AppDesign.CornerRadius.md, style: .continuous))
             }
-            .font(.headline)
-            .foregroundStyle(HouseTanksMapPalette.paper)
-            .frame(maxWidth: .infinity, minHeight: AppDesign.Size.buttonHeightLarge)
-            .background(HouseTanksMapPalette.slate,
-                        in: RoundedRectangle(cornerRadius: AppDesign.CornerRadius.md, style: .continuous))
-            .accessibilityElement(children: .combine)
-            .accessibilityAddTraits(.isStaticText)
-            Text(copy("house_tanks_online_soon_detail"))
-                .font(.caption)
-                .foregroundStyle(HouseTanksFieldTheme.muted)
-                .fixedSize(horizontal: false, vertical: true)
+            .buttonStyle(ScaleButtonStyle())
+            .disabled(!state.canChangeReady(playerID: localID))
+            .opacity(state.canChangeReady(playerID: localID) ? 1 : 0.5)
+
+            if model.onlineState.canCancel(context: roomContext ?? GameLaunchContext(houseID: nil, localPlayerID: nil)) {
+                Button(copy("house_tanks_online_cancel"), role: .destructive, action: model.cancelOnlineMatch)
+                    .font(.subheadline.weight(.semibold))
+                    .foregroundStyle(HouseTanksFieldTheme.danger)
+            }
         }
+        .padding(.horizontal, AppDesign.Spacing.xl)
+        .padding(.vertical, AppDesign.Spacing.lg)
+        .frame(maxWidth: 620)
+        .frame(maxWidth: .infinity)
+        .background(HouseTanksMapPalette.paper.opacity(0.94))
+        .overlay(alignment: .top) { HouseTanksFieldTheme.hairline.frame(height: 1) }
+    }
+
+    private var showsOnlineActionBar: Bool {
+        model.selectedMode == .online && onlineBlockerKey == nil && model.onlineCatalog != .unavailable
+            && model.onlineState.session != nil && model.onlineState.isLobby && !model.onlineState.isTerminal
     }
 
     private struct OnlineMember: Identifiable {
         let id: String
         let name: String
         let isLocal: Bool
+        let state: GameSessionPlayerState
+        let color: HouseTanksColor?
     }
 
-    /// The local player leads the list, as in the House-Rockets room.
+    /// The session's players, the local one first, named from the house roster and
+    /// colored once the server seats them.
     private var onlineMembers: [OnlineMember] {
         let localID = appViewModel.currentUserId
-        let members = (appViewModel.currentHouseDetails?.members ?? []).map {
-            OnlineMember(id: $0.id, name: $0.fullName, isLocal: $0.id == localID)
+        let names = Dictionary((appViewModel.currentHouseDetails?.members ?? []).map { ($0.id, $0.fullName) },
+                               uniquingKeysWith: { first, _ in first })
+        let seated = Dictionary((model.onlineState.game?.players ?? []).map { ($0.playerId, $0) },
+                                uniquingKeysWith: { first, _ in first })
+        let members = model.onlineState.participants.map { player in
+            OnlineMember(id: player.playerId,
+                         name: seated[player.playerId]?.displayName ?? names[player.playerId] ?? copy("house_tanks_online_player"),
+                         isLocal: player.playerId == localID, state: player.state,
+                         color: seated[player.playerId]?.color)
         }
-        let list = members.filter(\.isLocal) + members.filter { !$0.isLocal }
-        if list.isEmpty, let localID {
-            return [OnlineMember(id: localID, name: copy("house_tanks_you"), isLocal: false)]
-        }
-        return list
-    }
-
-    private var rosterTints: [Color] {
-        [HouseTanksMapPalette.steel, HouseTanksMapPalette.khaki, HouseTanksMapPalette.olive,
-         HouseTanksMapPalette.rust, HouseTanksMapPalette.slate]
+        return members.filter(\.isLocal) + members.filter { !$0.isLocal }
     }
 
     // MARK: - Field manual
