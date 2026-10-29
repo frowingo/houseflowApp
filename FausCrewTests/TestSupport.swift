@@ -200,6 +200,17 @@ final class FakeChoreService: ChoreServicing {
     var reviewChoreHandler: (String, Bool) async throws -> ChoreResponse = { _, _ in
         throw TestError.unimplemented
     }
+    var updateStatusWithReviewPhotoHandler: (String, String, ChoreReviewPhotoUpload) async throws -> [ChoreResponse] = { _, _, _ in
+        throw TestError.unimplemented
+    }
+    var fetchReviewPhotoURLHandler: (String, Int) async throws -> ChoreReviewPhotoURLResponse = { _, _ in
+        throw TestError.unimplemented
+    }
+    var downloadReviewPhotoHandler: (URL) async throws -> Data = { _ in
+        throw TestError.unimplemented
+    }
+    private(set) var updateStatusCallCount = 0
+    private(set) var updateStatusWithReviewPhotoCallCount = 0
 
     func createChore(
         assignedTo: String,
@@ -227,11 +238,29 @@ final class FakeChoreService: ChoreServicing {
         houseId: String,
         chores: [ChoreStatusUpdateItem]
     ) async throws -> [ChoreResponse] {
-        try await updateStatusHandler(houseId, chores)
+        updateStatusCallCount += 1
+        return try await updateStatusHandler(houseId, chores)
+    }
+
+    func updateChoreStatusWithReviewPhoto(
+        houseId: String,
+        choreId: String,
+        photo: ChoreReviewPhotoUpload
+    ) async throws -> [ChoreResponse] {
+        updateStatusWithReviewPhotoCallCount += 1
+        return try await updateStatusWithReviewPhotoHandler(houseId, choreId, photo)
     }
 
     func reviewChore(choreId: String, isApproved: Bool) async throws -> ChoreResponse {
         try await reviewChoreHandler(choreId, isApproved)
+    }
+
+    func fetchReviewPhotoURL(choreId: String, round: Int) async throws -> ChoreReviewPhotoURLResponse {
+        try await fetchReviewPhotoURLHandler(choreId, round)
+    }
+
+    func downloadReviewPhoto(from url: URL) async throws -> Data {
+        try await downloadReviewPhotoHandler(url)
     }
 }
 
@@ -424,7 +453,8 @@ enum TestFixture {
                 profileImage: "",
                 userId: "user-1"
             )
-        ]
+        ],
+        isChoreReviewPhotoRequired: Bool = false
     ) -> HouseInfoData {
         HouseInfoData(
             houseMemberCount: members.count,
@@ -432,7 +462,8 @@ enum TestFixture {
             houseMembers: members,
             houseName: name,
             houseProfileImage: profileImage,
-            houseType: 1
+            houseType: 1,
+            isChoreReviewPhotoRequired: isChoreReviewPhotoRequired
         )
     }
 

@@ -219,7 +219,8 @@ final class HouseSessionStore: ObservableObject {
             updatedOn: details.updatedOn,
             members: details.members,
             chores: details.chores,
-            announcements: details.announcements
+            announcements: details.announcements,
+            isChoreReviewPhotoRequired: info.isChoreReviewPhotoRequired
         )
         applyHouseDetails(updatedDetails)
     }
@@ -238,7 +239,8 @@ private extension HouseDetailsResponse {
             updatedOn: updatedOn,
             members: members.filter { $0.id != userId },
             chores: chores,
-            announcements: announcements
+            announcements: announcements,
+            isChoreReviewPhotoRequired: isChoreReviewPhotoRequired
         )
     }
 }

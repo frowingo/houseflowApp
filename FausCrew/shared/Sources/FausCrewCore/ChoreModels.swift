@@ -138,6 +138,37 @@ public struct ChoreResponse: Decodable, Identifiable, Equatable, Sendable {
     public let statusHistories: [ChoreStatusHistoryResponse]
     public let reviewRound: Int
     public let reviewVotes: [ChoreReviewVote]
+    /// Review rounds that carry a photo. Object keys are never sent to clients.
+    public let reviewPhotoRounds: [Int]
+
+    private enum CodingKeys: String, CodingKey {
+        case id, title, description, houseId, houseOwnerId, assignedTo, dueDate
+        case isCompleted, isRecurring, level, recurringInterval, status, createdOn
+        case completedAt, completedBy, statusHistories, reviewRound, reviewVotes, reviewPhotoRounds
+    }
+
+    public init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        id = try container.decode(String.self, forKey: .id)
+        title = try container.decode(String.self, forKey: .title)
+        description = try container.decode(String.self, forKey: .description)
+        houseId = try container.decode(String.self, forKey: .houseId)
+        houseOwnerId = try container.decode(String.self, forKey: .houseOwnerId)
+        assignedTo = try container.decode(String.self, forKey: .assignedTo)
+        dueDate = try container.decode(String.self, forKey: .dueDate)
+        isCompleted = try container.decode(Bool.self, forKey: .isCompleted)
+        isRecurring = try container.decode(Bool.self, forKey: .isRecurring)
+        level = try container.decode(Int.self, forKey: .level)
+        recurringInterval = try container.decode(Int.self, forKey: .recurringInterval)
+        status = try container.decode(Int.self, forKey: .status)
+        createdOn = try container.decode(String.self, forKey: .createdOn)
+        completedAt = try container.decodeIfPresent(String.self, forKey: .completedAt)
+        completedBy = try container.decodeIfPresent(String.self, forKey: .completedBy)
+        statusHistories = try container.decode([ChoreStatusHistoryResponse].self, forKey: .statusHistories)
+        reviewRound = try container.decode(Int.self, forKey: .reviewRound)
+        reviewVotes = try container.decode([ChoreReviewVote].self, forKey: .reviewVotes)
+        reviewPhotoRounds = try container.decodeIfPresent([Int].self, forKey: .reviewPhotoRounds) ?? []
+    }
 }
 
 public struct ChoreStatusHistoryResponse: Decodable, Identifiable, Equatable, Sendable {
@@ -171,6 +202,7 @@ public struct Chore: Identifiable, Codable, Equatable, Sendable {
     public let level: Int
     public let reviewRound: Int
     public let reviewVotes: [ChoreReviewVote]
+    public let reviewPhotoRounds: [Int]
 
     public init(
         id: String? = nil,
@@ -186,7 +218,8 @@ public struct Chore: Identifiable, Codable, Equatable, Sendable {
         status: Int = 0,
         level: Int = 10,
         reviewRound: Int = 0,
-        reviewVotes: [ChoreReviewVote] = []
+        reviewVotes: [ChoreReviewVote] = [],
+        reviewPhotoRounds: [Int] = []
     ) {
         self.id = choreApiId ?? id ?? UUID().uuidString
         self.choreApiId = choreApiId
@@ -202,5 +235,88 @@ public struct Chore: Identifiable, Codable, Equatable, Sendable {
         self.level = level
         self.reviewRound = reviewRound
         self.reviewVotes = reviewVotes
+        self.reviewPhotoRounds = reviewPhotoRounds
+    }
+}
+
+// MARK: - Review photo
+
+/// Client-side gate for the `PUT chore/status` multipart path. The backend
+/// rejects a JSON InTest request with 400 while the house requires a photo.
+public enum ChoreReviewPhotoRules: Sendable {
+    /// Backend limit: 3 MB.
+    public static let maxByteCount = 3 * 1024 * 1024
+    public static let supportedMimeTypes = ["image/jpeg", "image/png", "image/webp"]
+
+    /// Only a single Progress → InTest transition carries a photo.
+    public static func requiresPhoto(isChoreReviewPhotoRequired: Bool, targetStatus: ChoreStatus) -> Bool {
+        isChoreReviewPhotoRequired && targetStatus == .inTest
+    }
+
+    /// Detects the format from magic bytes so a renamed file cannot pass.
+    public static func mimeType(of data: Data) -> String? {
+        let bytes = [UInt8](data.prefix(12))
+        if bytes.starts(with: [0xFF, 0xD8, 0xFF]) { return "image/jpeg" }
+        if bytes.starts(with: [0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A]) { return "image/png" }
+        if bytes.count == 12,
+           bytes[0..<4].elementsEqual([0x52, 0x49, 0x46, 0x46]),
+           bytes[8..<12].elementsEqual([0x57, 0x45, 0x42, 0x50]) {
+            return "image/webp"
+        }
+        return nil
+    }
+}
+
+public enum ChoreReviewPhotoError: Error, Equatable, Sendable {
+    case missing
+    case unsupportedFormat
+    case tooLarge
+}
+
+/// A validated review photo ready for the `file` multipart field.
+public struct ChoreReviewPhotoUpload: Equatable, Sendable {
+    public let data: Data
+    public let mimeType: String
+
+    public init(data: Data) throws(ChoreReviewPhotoError) {
+        guard !data.isEmpty else { throw .missing }
+        guard let mimeType = ChoreReviewPhotoRules.mimeType(of: data) else { throw .unsupportedFormat }
+        guard data.count <= ChoreReviewPhotoRules.maxByteCount else { throw .tooLarge }
+        self.data = data
+        self.mimeType = mimeType
+    }
+
+    public var fileName: String {
+        switch mimeType {
+        case "image/png": return "review-photo.png"
+        case "image/webp": return "review-photo.webp"
+        default: return "review-photo.jpg"
+        }
+    }
+}
+
+/// `GET chore/{choreId}/review-photo/{round}`. The URL is short-lived and must
+/// never be persisted, logged or used as a disk cache key.
+public struct ChoreReviewPhotoURLResponse: Decodable, Equatable, Sendable {
+    public let url: String
+    public let expiresAt: String
+
+    public init(url: String, expiresAt: String) {
+        self.url = url
+        self.expiresAt = expiresAt
+    }
+
+    public var expiresAtDate: Date? {
+        let formatter = ISO8601DateFormatter()
+        formatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+        if let date = formatter.date(from: expiresAt) { return date }
+        formatter.formatOptions = [.withInternetDateTime]
+        return formatter.date(from: expiresAt)
+    }
+
+    /// An unparseable expiry is left to the storage host's 403.
+    public func isExpired(at now: Date, leeway: TimeInterval = 5) -> Bool {
+        guard let expiresAtDate else { return false }
+        return now.addingTimeInterval(leeway) >= expiresAtDate
     }
 }

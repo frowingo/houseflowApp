@@ -39,7 +39,8 @@ final class ChoreStore: ObservableObject {
             status: c.isDone ? 0 : 3,
             level: c.level,
             reviewRound: c.reviewRound,
-            reviewVotes: c.reviewVotes
+            reviewVotes: c.reviewVotes,
+            reviewPhotoRounds: c.reviewPhotoRounds
         )
         setChores(updatedChores)
     }
@@ -72,7 +73,8 @@ final class ChoreStore: ObservableObject {
             updatedOn: details.updatedOn,
             members: details.members,
             chores: mergedChores,
-            announcements: details.announcements
+            announcements: details.announcements,
+            isChoreReviewPhotoRequired: details.isChoreReviewPhotoRequired
         )
     }
 
@@ -105,13 +107,29 @@ final class ChoreStore: ObservableObject {
         choreApiId: String,
         houseId: String,
         status: ChoreStatus,
+        isReviewPhotoRequired: Bool = false,
+        reviewPhoto: Data? = nil,
         currentHouseDetails: HouseDetailsResponse?,
         dashboardMembers: [User]
     ) async throws -> (didUpdate: Bool, updatedDetails: HouseDetailsResponse?) {
-        let updatedChores = try await choreService.updateChoreStatus(
-            houseId: houseId,
-            chores: [ChoreStatusUpdateItem(choreId: choreApiId, status: status.rawValue)]
-        )
+        let updatedChores: [ChoreResponse]
+        if ChoreReviewPhotoRules.requiresPhoto(
+            isChoreReviewPhotoRequired: isReviewPhotoRequired,
+            targetStatus: status
+        ) {
+            // Validate before any request: the backend rejects JSON InTest with 400.
+            guard let reviewPhoto else { throw ChoreReviewPhotoError.missing }
+            updatedChores = try await choreService.updateChoreStatusWithReviewPhoto(
+                houseId: houseId,
+                choreId: choreApiId,
+                photo: try ChoreReviewPhotoUpload(data: reviewPhoto)
+            )
+        } else {
+            updatedChores = try await choreService.updateChoreStatus(
+                houseId: houseId,
+                chores: [ChoreStatusUpdateItem(choreId: choreApiId, status: status.rawValue)]
+            )
+        }
         guard !updatedChores.isEmpty else {
             return (false, nil)
         }
@@ -140,6 +158,31 @@ final class ChoreStore: ObservableObject {
         return apply(response: updatedChore, currentHouseDetails: currentHouseDetails, dashboardMembers: dashboardMembers)
     }
 
+    /// Asks for a fresh signed URL each time; the URL never leaves this call.
+    /// An already-expired URL or a storage 403 gets exactly one refresh.
+    func loadReviewPhoto(choreApiId: String, round: Int, now: () -> Date = Date.init) async throws -> Data {
+        var canRefresh = true
+        var signed = try await choreService.fetchReviewPhotoURL(choreId: choreApiId, round: round)
+        if signed.isExpired(at: now()) {
+            canRefresh = false
+            signed = try await choreService.fetchReviewPhotoURL(choreId: choreApiId, round: round)
+        }
+
+        do {
+            return try await choreService.downloadReviewPhoto(from: try reviewPhotoURL(signed))
+        } catch NetworkError.unknown(let statusCode) where statusCode == 403 && canRefresh {
+            signed = try await choreService.fetchReviewPhotoURL(choreId: choreApiId, round: round)
+            return try await choreService.downloadReviewPhoto(from: try reviewPhotoURL(signed))
+        }
+    }
+
+    private func reviewPhotoURL(_ response: ChoreReviewPhotoURLResponse) throws -> URL {
+        guard let url = URL(string: response.url), url.scheme == "https" else {
+            throw NetworkError.invalidURL
+        }
+        return url
+    }
+
     private func chore(from response: ChoreResponse, dashboardMembers: [User]) -> Chore {
         let assignedUser = dashboardMembers.first(where: { $0.apiId == response.assignedTo })
             ?? User(id: response.assignedTo, name: response.assignedTo.isEmpty ? "Unassigned" : response.assignedTo)
@@ -156,7 +199,8 @@ final class ChoreStore: ObservableObject {
             status: response.status,
             level: response.level,
             reviewRound: response.reviewRound,
-            reviewVotes: response.reviewVotes
+            reviewVotes: response.reviewVotes,
+            reviewPhotoRounds: response.reviewPhotoRounds
         )
     }
 }

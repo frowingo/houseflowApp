@@ -2,12 +2,25 @@ import Foundation
 import FausCrewCore
 
 final class ChoreService {
+    typealias PhotoExecutor = URLSessionHTTPClient.RequestExecutor
+
     private let network: any NetworkServicing
     private let keychain: any KeychainStoring
+    private let photoExecutor: PhotoExecutor
 
-    init(network: any NetworkServicing, keychain: any KeychainStoring) {
+    init(
+        network: any NetworkServicing,
+        keychain: any KeychainStoring,
+        photoExecutor: PhotoExecutor? = nil
+    ) {
         self.network = network
         self.keychain = keychain
+        if let photoExecutor {
+            self.photoExecutor = photoExecutor
+        } else {
+            let session = Self.makeReviewPhotoSession()
+            self.photoExecutor = { request in try await session.data(for: request) }
+        }
     }
 
     // MARK: - Create Chore
@@ -60,6 +73,67 @@ final class ChoreService {
             successType: [ChoreResponse].self,
             token: token
         )
+    }
+
+    // MARK: - Update Chore Status With Review Photo
+
+    /// PUT /chore/status as multipart — exactly one chore moving to InTest.
+    /// Fields: `houseId`, `chores` (JSON string) and `file`.
+    func updateChoreStatusWithReviewPhoto(
+        houseId: String,
+        choreId: String,
+        photo: ChoreReviewPhotoUpload
+    ) async throws -> [ChoreResponse] {
+        guard let token = keychain.authToken else {
+            throw NetworkError.serverError("Not authenticated.")
+        }
+        var form = MultipartFormData()
+        form.append(name: "houseId", value: houseId)
+        form.append(name: "chores", value: try DashboardWireContract.reviewPhotoChoresField(choreId: choreId))
+        form.append(name: "file", fileName: photo.fileName, mimeType: photo.mimeType, data: photo.data)
+        return try await network.authenticatedMultipartRequest(
+            path: "chore/status",
+            method: "PUT",
+            form: form,
+            successType: [ChoreResponse].self,
+            token: token
+        )
+    }
+
+    // MARK: - Review Photo
+
+    /// GET /chore/{id}/review-photo/{round} — requires Bearer token.
+    /// The signed URL lives ~5 minutes; callers must not persist or log it.
+    func fetchReviewPhotoURL(choreId: String, round: Int) async throws -> ChoreReviewPhotoURLResponse {
+        guard let token = keychain.authToken else {
+            throw NetworkError.serverError("Not authenticated.")
+        }
+        return try await network.get(
+            path: "chore/\(choreId)/review-photo/\(round)",
+            queryItems: [],
+            successType: ChoreReviewPhotoURLResponse.self,
+            token: token
+        )
+    }
+
+    /// Fetches the signed storage URL without a Bearer token or any cache.
+    /// A 403 surfaces as `NetworkError.unknown(403)` so the caller can refresh once.
+    func downloadReviewPhoto(from url: URL) async throws -> Data {
+        var request = URLRequest(url: url)
+        request.cachePolicy = .reloadIgnoringLocalAndRemoteCacheData
+        let (data, response) = try await photoExecutor(request)
+        guard let http = response as? HTTPURLResponse else { throw NetworkError.unknown(-1) }
+        guard (200..<300).contains(http.statusCode) else { throw NetworkError.unknown(http.statusCode) }
+        return data
+    }
+
+    private static func makeReviewPhotoSession() -> URLSession {
+        let configuration = URLSessionConfiguration.ephemeral
+        configuration.urlCache = nil
+        configuration.requestCachePolicy = .reloadIgnoringLocalAndRemoteCacheData
+        configuration.httpCookieStorage = nil
+        configuration.timeoutIntervalForRequest = 30
+        return URLSession(configuration: configuration)
     }
 
     // MARK: - Review Chore

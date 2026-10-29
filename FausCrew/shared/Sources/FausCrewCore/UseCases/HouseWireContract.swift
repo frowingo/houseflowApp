@@ -20,13 +20,15 @@ public enum HouseWireContract {
     }
 
     public static func profileBody(
-        name: String, type: Int, maxMemberCount: Int, profileImage: String
+        name: String, type: Int, maxMemberCount: Int, profileImage: String,
+        isChoreReviewPhotoRequired: Bool? = nil
     ) throws -> Data {
         try JSONEncoder().encode(UpdateHouseProfileRequest(
             houseMemberCountLimit: maxMemberCount,
             houseName: name,
             houseProfileImage: profileImage,
-            houseType: type
+            houseType: type,
+            isChoreReviewPhotoRequired: isChoreReviewPhotoRequired
         ))
     }
 

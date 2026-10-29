@@ -250,7 +250,8 @@ class MainActivity : ComponentActivity() {
                         dashboard = { onOverlayChange ->
                             DashboardScreen(houseState, text, houseModel::createAnnouncement, houseModel::createChore,
                                 houseModel::updateChoreStatus, houseModel::reviewChore,
-                                houseModel::clearMutationMessage, onOverlayChange)
+                                houseModel::clearMutationMessage, onOverlayChange,
+                                onLoadReviewPhoto = houseModel::reviewPhoto)
                         },
                         games = { onOverlayChange ->
                             // The game is a full-screen destination of the Games tab, so the

@@ -458,14 +458,16 @@ class AppViewModel: ObservableObject {
         name: String,
         memberCountLimit: Int,
         profileImage: String,
-        houseType: Int
+        houseType: Int,
+        isChoreReviewPhotoRequired: Bool? = nil
     ) async throws -> HouseInfoData {
         try await profileCoordinator.updateHouseProfile(
             houseId: houseId,
             name: name,
             memberCountLimit: memberCountLimit,
             profileImage: profileImage,
-            houseType: houseType
+            houseType: houseType,
+            isChoreReviewPhotoRequired: isChoreReviewPhotoRequired
         )
     }
 
@@ -569,12 +571,28 @@ class AppViewModel: ObservableObject {
     }
 
     /// Updates the status of a single chore via the API, then merges the returned chore.
-    func updateChoreStatus(choreApiId: String, houseId: String, status: ChoreStatus) async -> Bool {
+    /// `reviewPhoto` is sent (multipart) only for InTest while the house requires it.
+    func updateChoreStatus(
+        choreApiId: String,
+        houseId: String,
+        status: ChoreStatus,
+        reviewPhoto: Data? = nil
+    ) async -> Bool {
         await dashboardCoordinator.updateChoreStatus(
             choreApiId: choreApiId,
             houseId: houseId,
-            status: status
+            status: status,
+            reviewPhoto: reviewPhoto
         )
+    }
+
+    func isChoreReviewPhotoRequired(houseId: String?) -> Bool {
+        dashboardCoordinator.isChoreReviewPhotoRequired(houseId: houseId)
+    }
+
+    /// Lazily loads one round's review photo; nil after an error toast.
+    func loadChoreReviewPhoto(choreApiId: String, round: Int) async -> Data? {
+        await dashboardCoordinator.loadReviewPhoto(choreApiId: choreApiId, round: round)
     }
 
     /// Submits the current user's vote for an in-review chore.

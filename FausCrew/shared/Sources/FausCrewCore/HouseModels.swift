@@ -39,17 +39,22 @@ public struct UpdateHouseProfileRequest: Encodable, Equatable, Sendable {
     public let houseName: String
     public let houseProfileImage: String
     public let houseType: Int
+    /// Omitted from the body when nil. Re-sending the current value does not
+    /// consume the backend's two-changes-per-24h quota.
+    public let isChoreReviewPhotoRequired: Bool?
 
     public init(
         houseMemberCountLimit: Int,
         houseName: String,
         houseProfileImage: String,
-        houseType: Int
+        houseType: Int,
+        isChoreReviewPhotoRequired: Bool? = nil
     ) {
         self.houseMemberCountLimit = houseMemberCountLimit
         self.houseName = houseName
         self.houseProfileImage = houseProfileImage
         self.houseType = houseType
+        self.isChoreReviewPhotoRequired = isChoreReviewPhotoRequired
     }
 }
 
@@ -209,6 +214,7 @@ public struct HouseDetailsResponse: Decodable, Equatable, Sendable {
     public let members: [HouseMemberDTO]
     public let chores: [HouseChoreDTO]
     public var announcements: [HouseAnnouncementDTO]
+    public let isChoreReviewPhotoRequired: Bool
 
     public init(
         id: String,
@@ -221,7 +227,8 @@ public struct HouseDetailsResponse: Decodable, Equatable, Sendable {
         updatedOn: String,
         members: [HouseMemberDTO],
         chores: [HouseChoreDTO],
-        announcements: [HouseAnnouncementDTO] = []
+        announcements: [HouseAnnouncementDTO] = [],
+        isChoreReviewPhotoRequired: Bool = false
     ) {
         self.id = id
         self.name = name
@@ -234,11 +241,13 @@ public struct HouseDetailsResponse: Decodable, Equatable, Sendable {
         self.members = members
         self.chores = chores
         self.announcements = announcements
+        self.isChoreReviewPhotoRequired = isChoreReviewPhotoRequired
     }
 
     private enum CodingKeys: String, CodingKey {
         case id, name, maxMemberCount, ownerId, profileImage, type
         case createdOn, updatedOn, members, chores, announcements, activeAnnouncements
+        case isChoreReviewPhotoRequired
     }
 
     public init(from decoder: Decoder) throws {
@@ -260,6 +269,10 @@ public struct HouseDetailsResponse: Decodable, Equatable, Sendable {
             [HouseAnnouncementDTO].self,
             forKey: .activeAnnouncements
         ) ?? []
+        isChoreReviewPhotoRequired = try container.decodeIfPresent(
+            Bool.self,
+            forKey: .isChoreReviewPhotoRequired
+        ) ?? false
     }
 }
 
@@ -517,6 +530,7 @@ public struct HouseChoreDTO: Decodable, Identifiable, Equatable, Sendable {
     public let statusHistories: [ChoreStatusHistory]
     public let reviewRound: Int
     public let reviewVotes: [ChoreReviewVote]
+    public let reviewPhotoRounds: [Int]
 
     public init(
         id: String,
@@ -536,7 +550,8 @@ public struct HouseChoreDTO: Decodable, Identifiable, Equatable, Sendable {
         completedBy: String?,
         statusHistories: [ChoreStatusHistory],
         reviewRound: Int,
-        reviewVotes: [ChoreReviewVote]
+        reviewVotes: [ChoreReviewVote],
+        reviewPhotoRounds: [Int] = []
     ) {
         self.id = id
         self.title = title
@@ -556,13 +571,14 @@ public struct HouseChoreDTO: Decodable, Identifiable, Equatable, Sendable {
         self.statusHistories = statusHistories
         self.reviewRound = reviewRound
         self.reviewVotes = reviewVotes
+        self.reviewPhotoRounds = reviewPhotoRounds
     }
 
     private enum CodingKeys: String, CodingKey {
         case id, title, description, houseId, houseOwnerId, assignedTo
         case dueDate, isCompleted, isRecurring, level, recurringInterval
         case status, createdOn, completedAt, completedBy, statusHistories
-        case reviewRound, reviewVotes
+        case reviewRound, reviewVotes, reviewPhotoRounds
     }
 
     public init(from decoder: Decoder) throws {
@@ -585,6 +601,7 @@ public struct HouseChoreDTO: Decodable, Identifiable, Equatable, Sendable {
         statusHistories = try container.decode([ChoreStatusHistory].self, forKey: .statusHistories)
         reviewRound = try container.decode(Int.self, forKey: .reviewRound)
         reviewVotes = try container.decode([ChoreReviewVote].self, forKey: .reviewVotes)
+        reviewPhotoRounds = try container.decodeIfPresent([Int].self, forKey: .reviewPhotoRounds) ?? []
     }
 }
 
@@ -669,6 +686,7 @@ public struct HouseInfoData: Decodable, Equatable, Sendable {
     public let houseName: String
     public let houseProfileImage: String
     public let houseType: Int
+    public let isChoreReviewPhotoRequired: Bool
 
     public init(
         houseMemberCount: Int,
@@ -676,7 +694,8 @@ public struct HouseInfoData: Decodable, Equatable, Sendable {
         houseMembers: [HouseInfoMember],
         houseName: String,
         houseProfileImage: String,
-        houseType: Int
+        houseType: Int,
+        isChoreReviewPhotoRequired: Bool = false
     ) {
         self.houseMemberCount = houseMemberCount
         self.houseMemberCountLimit = houseMemberCountLimit
@@ -684,6 +703,26 @@ public struct HouseInfoData: Decodable, Equatable, Sendable {
         self.houseName = houseName
         self.houseProfileImage = houseProfileImage
         self.houseType = houseType
+        self.isChoreReviewPhotoRequired = isChoreReviewPhotoRequired
+    }
+
+    private enum CodingKeys: String, CodingKey {
+        case houseMemberCount, houseMemberCountLimit, houseMembers
+        case houseName, houseProfileImage, houseType, isChoreReviewPhotoRequired
+    }
+
+    public init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        houseMemberCount = try container.decode(Int.self, forKey: .houseMemberCount)
+        houseMemberCountLimit = try container.decode(Int.self, forKey: .houseMemberCountLimit)
+        houseMembers = try container.decode([HouseInfoMember].self, forKey: .houseMembers)
+        houseName = try container.decode(String.self, forKey: .houseName)
+        houseProfileImage = try container.decode(String.self, forKey: .houseProfileImage)
+        houseType = try container.decode(Int.self, forKey: .houseType)
+        isChoreReviewPhotoRequired = try container.decodeIfPresent(
+            Bool.self,
+            forKey: .isChoreReviewPhotoRequired
+        ) ?? false
     }
 
     public func isOwner(userId: String?) -> Bool {
@@ -699,7 +738,8 @@ public struct HouseInfoData: Decodable, Equatable, Sendable {
             houseMembers: remainingMembers,
             houseName: houseName,
             houseProfileImage: houseProfileImage,
-            houseType: houseType
+            houseType: houseType,
+            isChoreReviewPhotoRequired: isChoreReviewPhotoRequired
         )
     }
 }

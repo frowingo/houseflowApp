@@ -2,7 +2,7 @@ import Foundation
 import FausCrewCore
 
 /// Narrow, versioned JNI boundary. HTTP execution and secure storage stay on Android.
-public func bridgeVersion() -> Int32 { 14 }
+public func bridgeVersion() -> Int32 { 15 }
 
 public func normalizeInviteCode(_ input: String) -> String {
     InviteCodeRules.normalized(input)
@@ -160,7 +160,8 @@ public func houseResponse(_ action: String, _ status: Int32, _ body: String) -> 
 /// action: create, join, invite, exit, profile.
 public func houseRequestBody(
     _ action: String, _ houseId: String, _ userId: String, _ name: String,
-    _ inviteCode: String, _ type: Int32, _ maxMemberCount: Int32, _ profileImage: String
+    _ inviteCode: String, _ type: Int32, _ maxMemberCount: Int32, _ profileImage: String,
+    _ isChoreReviewPhotoRequired: Bool
 ) -> String {
     let data: Data?
     switch action {
@@ -174,7 +175,8 @@ public func houseRequestBody(
         data = try? HouseWireContract.exitBody(houseId: houseId, userId: userId)
     case "profile":
         data = try? HouseWireContract.profileBody(
-            name: name, type: Int(type), maxMemberCount: Int(maxMemberCount), profileImage: profileImage
+            name: name, type: Int(type), maxMemberCount: Int(maxMemberCount), profileImage: profileImage,
+            isChoreReviewPhotoRequired: isChoreReviewPhotoRequired
         )
     default:
         data = nil
@@ -182,7 +184,8 @@ public func houseRequestBody(
     return data.flatMap { String(data: $0, encoding: .utf8) } ?? "{}"
 }
 
-/// action: create, update, status, review, announcement.
+/// action: create, update, status, statusPhoto, review, announcement.
+/// `statusPhoto` returns the multipart `chores` field value, not a JSON body.
 public func dashboardRequestBody(
     _ action: String, _ houseId: String, _ choreId: String, _ assignedTo: String,
     _ title: String, _ description: String, _ dueDate: String, _ isRecurring: Bool,
@@ -204,6 +207,8 @@ public func dashboardRequestBody(
         )
     case "status":
         data = try? DashboardWireContract.statusBody(choreId: choreId, houseId: houseId, status: Int(status))
+    case "statusPhoto":
+        data = (try? DashboardWireContract.reviewPhotoChoresField(choreId: choreId)).map { Data($0.utf8) }
     case "review":
         data = try? DashboardWireContract.reviewBody(choreId: choreId, isApproved: isApproved)
     case "announcement":

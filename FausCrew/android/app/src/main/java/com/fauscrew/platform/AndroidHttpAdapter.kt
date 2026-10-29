@@ -9,6 +9,7 @@ import okhttp3.Call
 import okhttp3.Callback
 import okhttp3.HttpUrl
 import okhttp3.MediaType.Companion.toMediaType
+import okhttp3.MultipartBody
 import okhttp3.OkHttpClient
 import okhttp3.Request
 import okhttp3.Response
@@ -18,12 +19,22 @@ import okhttp3.HttpUrl.Companion.toHttpUrl
 /** Kotlin-side mirror of Core's raw HTTP port; status/body interpretation stays in Core. */
 internal data class PlatformHttpQueryItem(val name: String, val value: String?)
 
+/** One `multipart/form-data` part; a [fileName] marks a file part. */
+internal data class PlatformMultipartPart(
+    val name: String,
+    val value: ByteArray,
+    val fileName: String? = null,
+    val contentType: String? = null,
+)
+
 internal data class PlatformHttpRequest(
     val path: String,
     val method: String,
     val queryItems: List<PlatformHttpQueryItem> = emptyList(),
     val headers: Map<String, String> = emptyMap(),
     val body: ByteArray? = null,
+    /** When set, OkHttp builds the body and its boundary-carrying Content-Type. */
+    val multipart: List<PlatformMultipartPart>? = null,
 )
 
 internal data class PlatformHttpResponse(
@@ -77,17 +88,28 @@ internal class AndroidHttpAdapter private constructor(
             input.queryItems.forEach { addQueryParameter(it.name, it.value) }
         }.build()
 
+        val multipart = input.multipart?.let { parts ->
+            MultipartBody.Builder().setType(MultipartBody.FORM).apply {
+                parts.forEach { part ->
+                    if (part.fileName == null) addFormDataPart(part.name, part.value.decodeToString())
+                    else addFormDataPart(part.name, part.fileName, part.value.toRequestBody(part.contentType?.toMediaType()))
+                }
+            }.build()
+        }
         val contentType = input.headers.entries.firstOrNull {
             it.key.equals("Content-Type", ignoreCase = true)
         }?.value?.toMediaType()
-        val body = input.body?.toRequestBody(contentType)
+        val body = multipart ?: input.body?.toRequestBody(contentType)
             ?: if (input.method.uppercase() in setOf("POST", "PUT", "PATCH")) {
                 byteArrayOf().toRequestBody(contentType)
             } else null
         return Request.Builder().url(url).method(input.method, body).apply {
             // Server error text comes back in this language; callers may override it.
             header("Accept-Language", ApiLanguage.code)
-            input.headers.forEach { (name, value) -> header(name, value) }
+            input.headers.forEach { (name, value) ->
+                // A multipart Content-Type must come from OkHttp so it carries the boundary.
+                if (multipart == null || !name.equals("Content-Type", ignoreCase = true)) header(name, value)
+            }
         }.build()
     }
 

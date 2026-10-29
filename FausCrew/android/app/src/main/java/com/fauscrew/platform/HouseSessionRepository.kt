@@ -14,6 +14,7 @@ internal data class HouseDetails(
     val members: List<HouseMember> = emptyList(),
     val chores: List<HouseChore> = emptyList(),
     val announcements: List<HouseAnnouncement> = emptyList(),
+    val isChoreReviewPhotoRequired: Boolean = false,
 )
 internal data class HouseMember(val id: String, val firstName: String, val lastName: String, val imageUrl: String) {
     val name: String get() = listOf(firstName, lastName).filter(String::isNotBlank).joinToString(" ")
@@ -24,6 +25,8 @@ internal data class HouseChore(
     val assignedTo: String, val dueDate: String, val status: Int, val isCompleted: Boolean,
     val isRecurring: Boolean, val level: Int, val recurringInterval: Int,
     val reviewRound: Int, val reviewVotes: List<HouseVote>,
+    /** Review rounds that carry a photo; storage keys never reach the client. */
+    val reviewPhotoRounds: List<Int> = emptyList(),
 )
 internal data class HouseAnnouncement(
     val id: String, val houseId: String?, val title: String, val message: String,
@@ -39,6 +42,7 @@ internal data class HouseInfo(
     val houseMemberCount: Int = 0,
     val houseMemberCountLimit: Int = 2,
     val members: List<HouseInfoMember> = emptyList(),
+    val isChoreReviewPhotoRequired: Boolean = false,
 ) {
     val ownerId: String? get() = members.firstOrNull { it.isOwner }?.userId
 }
@@ -50,6 +54,7 @@ private fun JSONObject.toHouseInfo() = HouseInfo(
     members = optJSONArray("houseMembers").objects {
         HouseInfoMember(it.getString("userId"), it.getString("name"), it.optString("profileImage"), it.getBoolean("isOwner"))
     },
+    isChoreReviewPhotoRequired = optBoolean("isChoreReviewPhotoRequired", false),
 )
 
 internal class HouseRequestException(val serverMessage: String?) : IOException(serverMessage ?: "House request failed")
@@ -79,7 +84,8 @@ internal class HouseSessionRepository(
             data.optJSONArray("members").objects { it.toHouseMember() },
             data.optJSONArray("chores").objects { it.toHouseChore() },
             (data.optJSONArray("announcements") ?: data.optJSONArray("activeAnnouncements"))
-                .objects { it.toHouseAnnouncement() })
+                .objects { it.toHouseAnnouncement() },
+            data.optBoolean("isChoreReviewPhotoRequired", false))
     }
 
     suspend fun info(houseId: String): HouseInfo = withContext(Dispatchers.IO) {
@@ -95,12 +101,15 @@ internal class HouseSessionRepository(
         call("exit", "house/exit", "POST", body = wire.body("exit", houseId = houseId, userId = userId))
     }
 
-    suspend fun updateProfile(houseId: String, name: String, type: Int, maxMemberCount: Int, profileImage: String): HouseInfo =
-        withContext(Dispatchers.IO) {
-            call("profile", "house/profile", "PUT", queryHouse = houseId,
-                body = wire.body("profile", houseId = houseId, name = name, type = type,
-                    maxMemberCount = maxMemberCount, profileImage = profileImage)).toHouseInfo()
-        }
+    suspend fun updateProfile(
+        houseId: String, name: String, type: Int, maxMemberCount: Int, profileImage: String,
+        isChoreReviewPhotoRequired: Boolean,
+    ): HouseInfo = withContext(Dispatchers.IO) {
+        call("profile", "house/profile", "PUT", queryHouse = houseId,
+            body = wire.body("profile", houseId = houseId, name = name, type = type,
+                maxMemberCount = maxMemberCount, profileImage = profileImage,
+                isChoreReviewPhotoRequired = isChoreReviewPhotoRequired)).toHouseInfo()
+    }
 
     private suspend fun call(
         action: String, path: String, method: String, queryHouse: String? = null, body: String? = null,
@@ -145,6 +154,9 @@ internal fun JSONObject.toHouseChore() = HouseChore(
     reviewVotes = optJSONArray("reviewVotes").objects {
         HouseVote(it.optInt("reviewRound"), it.optString("reviewerId"), it.optBoolean("isApproved"))
     },
+    reviewPhotoRounds = optJSONArray("reviewPhotoRounds")?.let { rounds ->
+        (0 until rounds.length()).mapNotNull { index -> (rounds.opt(index) as? Number)?.toInt() }
+    }.orEmpty(),
 )
 
 internal fun JSONObject.toHouseAnnouncement() = HouseAnnouncement(
@@ -178,7 +190,8 @@ private fun JSONObject.apiTime(key: String): String = when (val value = opt(key)
 
 internal interface HouseWire {
     fun body(action: String, houseId: String = "", userId: String = "", name: String = "", inviteCode: String = "",
-        type: Int = 0, maxMemberCount: Int = 0, profileImage: String = ""): String
+        type: Int = 0, maxMemberCount: Int = 0, profileImage: String = "",
+        isChoreReviewPhotoRequired: Boolean = false): String
     fun response(action: String, status: Int, body: String): String
 }
 
@@ -186,10 +199,10 @@ private object NativeHouseWire : HouseWire {
     private val checked by lazy { check(FausCrewAndroidBridge.bridgeVersion() == InviteCodeBridge.API_VERSION) }
 
     override fun body(action: String, houseId: String, userId: String, name: String, inviteCode: String,
-        type: Int, maxMemberCount: Int, profileImage: String): String {
+        type: Int, maxMemberCount: Int, profileImage: String, isChoreReviewPhotoRequired: Boolean): String {
         checked
         return FausCrewAndroidBridge.houseRequestBody(action, houseId, userId, name, inviteCode,
-            type, maxMemberCount, profileImage)
+            type, maxMemberCount, profileImage, isChoreReviewPhotoRequired)
     }
 
     override fun response(action: String, status: Int, body: String): String {

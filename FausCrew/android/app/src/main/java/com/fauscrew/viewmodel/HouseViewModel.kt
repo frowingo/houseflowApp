@@ -18,6 +18,7 @@ import com.fauscrew.platform.HouseInvite
 import com.fauscrew.platform.HouseRequestException
 import com.fauscrew.platform.HouseSessionRepository
 import com.fauscrew.platform.HouseSummary
+import com.fauscrew.platform.ReviewPhoto
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -317,7 +318,9 @@ internal class HouseViewModel(
         }
     }
 
-    fun updateHouseProfile(houseId: String, name: String, maxMemberCount: Int, imageUrl: String) {
+    fun updateHouseProfile(
+        houseId: String, name: String, maxMemberCount: Int, imageUrl: String, isChoreReviewPhotoRequired: Boolean,
+    ) {
         val old = state.value.info ?: return
         if (state.value.infoHouseId != houseId || old.ownerId != state.value.userId ||
             state.value.profileActionBusy || name.isBlank() || maxMemberCount < maxOf(2, old.houseMemberCount)) return
@@ -325,13 +328,16 @@ internal class HouseViewModel(
         mutableState.value = state.value.copy(profileActionBusy = true, profileError = null)
         viewModelScope.launch {
             try {
-                val updated = repository.updateProfile(houseId, name.trim(), old.houseType, maxMemberCount, imageUrl)
+                val updated = repository.updateProfile(houseId, name.trim(), old.houseType, maxMemberCount, imageUrl,
+                    isChoreReviewPhotoRequired)
                 if (ticket != generation || state.value.infoHouseId != houseId) return@launch
+                // The server response is the source of truth, including the review-photo flag.
                 mutableState.value = state.value.copy(info = updated,
                     houses = state.value.houses.map { if (it.id == houseId) it.copy(name = updated.houseName,
                         profileImage = updated.houseProfileImage) else it },
                     details = state.value.details?.let {
-                        if (it.id == houseId) it.copy(name = updated.houseName) else it
+                        if (it.id == houseId) it.copy(name = updated.houseName,
+                            isChoreReviewPhotoRequired = updated.isChoreReviewPhotoRequired) else it
                     }, profileActionBusy = false,
                     profileActionSerial = state.value.profileActionSerial + 1, profileActionKind = "update")
             } catch (cancel: CancellationException) { throw cancel }
@@ -402,14 +408,40 @@ internal class HouseViewModel(
         }
     }
 
-    fun updateChoreStatus(choreId: String, status: Int) {
+    /** Progress → InTest goes multipart only while the house requires a review photo. */
+    fun updateChoreStatus(choreId: String, status: Int, photo: ReviewPhoto? = null) {
         val current = activeDetails() ?: return
         val chore = current.chores.firstOrNull { it.id == choreId } ?: return
         if (chore.assignedTo != state.value.userId || status != chore.status + 1 || status !in 1..2) return
+        val requiresPhoto = current.isChoreReviewPhotoRequired && status == 2
+        // The backend rejects a JSON InTest with 400 while a photo is required.
+        if (requiresPhoto && photo == null) return
         mutate(current.id, "chore_status_updated_toast") {
-            val updated = requireNotNull(dashboard).updateStatus(current.id, choreId, status)
+            val repository = requireNotNull(dashboard)
+            val updated = if (requiresPhoto) repository.updateStatusWithReviewPhoto(current.id, choreId, requireNotNull(photo))
+                else repository.updateStatus(current.id, choreId, status)
             require(updated.any { it.id == choreId })
             updated.fold(current) { details, item -> details.merge(item) }
+        }
+    }
+
+    /**
+     * Lazily loads one round's photo bytes; failures surface through the existing
+     * mutation error toast. The signed URL never reaches the UI state.
+     */
+    suspend fun reviewPhoto(choreId: String, round: Int): ByteArray? {
+        val houseId = state.value.details?.id ?: return null
+        val repository = dashboard ?: return null
+        val ticket = generation
+        return try {
+            repository.loadReviewPhoto(choreId, round)
+        } catch (cancel: CancellationException) { throw cancel }
+        catch (error: Exception) {
+            if (ticket == generation && state.value.details?.id == houseId) {
+                mutableState.value = state.value.copy(
+                    mutationError = (error as? HouseRequestException)?.serverMessage ?: "Request failed.")
+            }
+            null
         }
     }
 

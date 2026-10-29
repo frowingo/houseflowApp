@@ -36,9 +36,9 @@ class BridgeRoundtripTest {
     }
 
     @Test fun houseWireRunsThroughGeneratedJni() {
-        val create = org.json.JSONObject(FausCrewAndroidBridge.houseRequestBody("create", "", "", "Home", "", 2, 5, ""))
+        val create = org.json.JSONObject(FausCrewAndroidBridge.houseRequestBody("create", "", "", "Home", "", 2, 5, "", false))
         assertEquals("Home", create.getString("name"))
-        val join = org.json.JSONObject(FausCrewAndroidBridge.houseRequestBody("join", "", "", "", "ab-12 cd34", 0, 0, ""))
+        val join = org.json.JSONObject(FausCrewAndroidBridge.houseRequestBody("join", "", "", "", "ab-12 cd34", 0, 0, "", false))
         assertEquals("AB12CD34", join.getString("inviteCode"))
         val house = """{"success":true,"data":{"id":"h","name":"Home","inviteCode":null,"maxMemberCount":4,"memberIds":[],"ownerId":"u","profileImage":"","type":1,"createdOn":"2026-01-01","updatedOn":"2026-01-02"}}"""
         assertEquals("h", org.json.JSONObject(FausCrewAndroidBridge.houseResponse("create", 200, house))

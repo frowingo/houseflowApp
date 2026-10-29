@@ -1,6 +1,8 @@
 <?xml version="1.0" encoding="utf-8"?>
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
     <uses-permission android:name="android.permission.INTERNET" />
+    <!-- Lets the review photo viewer close itself when a screenshot is taken (Android 14+). -->
+    <uses-permission android:name="android.permission.DETECT_SCREEN_CAPTURE" />
     <!-- Lets the Facebook and Snapchat SDKs hand off to their apps when installed. -->
     <queries>
         <package android:name="com.facebook.katana" />
@@ -22,6 +24,17 @@
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
         </activity>
+
+        <!-- Hands the camera app a cache file to write the chore review photo into. -->
+        <provider
+            android:name="androidx.core.content.FileProvider"
+            android:authorities="${applicationId}.reviewphoto"
+            android:exported="false"
+            android:grantUriPermissions="true">
+            <meta-data
+                android:name="android.support.FILE_PROVIDER_PATHS"
+                android:resource="@xml/review_photo_paths" />
+        </provider>
 
         <!-- Facebook Login. IDs live in res/values/social.xml. Auto-init and event logging stay
              off so the SDK never reports with a placeholder ID or without consent. -->

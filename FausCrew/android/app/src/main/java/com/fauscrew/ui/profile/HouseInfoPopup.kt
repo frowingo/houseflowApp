@@ -32,6 +32,8 @@ import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
+import androidx.compose.material3.Switch
+import androidx.compose.material3.SwitchDefaults
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -51,6 +53,7 @@ import androidx.compose.ui.platform.LocalClipboardManager
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.semantics.Role
+import androidx.compose.foundation.selection.toggleable
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.selected
 import androidx.compose.ui.semantics.semantics
@@ -108,7 +111,7 @@ internal fun HouseInfoDialog(
     onRetry: (String) -> Unit,
     onInvite: (String) -> Unit,
     onLoadImages: (String) -> Unit,
-    onSave: (String, String, Int, String) -> Unit,
+    onSave: (String, String, Int, String, Boolean) -> Unit,
     onRemoveMember: (String, String) -> Unit,
     onLeave: (String) -> Unit,
 ) {
@@ -119,6 +122,7 @@ internal fun HouseInfoDialog(
     var name by remember(houseId) { mutableStateOf("") }
     var limit by remember(houseId) { mutableIntStateOf(2) }
     var image by remember(houseId) { mutableStateOf("") }
+    var reviewPhotoRequired by remember(houseId) { mutableStateOf(false) }
     var pendingRemoval by remember { mutableStateOf<HouseInfoMember?>(null) }
     var removingId by remember { mutableStateOf<String?>(null) }
     var leaveConfirmation by remember { mutableStateOf(false) }
@@ -127,6 +131,7 @@ internal fun HouseInfoDialog(
             name = info.houseName
             limit = maxOf(2, info.houseMemberCount, info.houseMemberCountLimit)
             image = info.houseProfileImage
+            reviewPhotoRequired = info.isChoreReviewPhotoRequired
         }
     }
     LaunchedEffect(isOwner) { if (isOwner) onLoadImages("house") }
@@ -134,7 +139,8 @@ internal fun HouseInfoDialog(
     val minimumLimit = maxOf(2, info?.houseMemberCount ?: 2)
     val maximumLimit = maxOf(8, minimumLimit)
     val canSave = info != null && isOwner && !busy && name.isNotBlank() &&
-        (name.trim() != info.houseName || limit != info.houseMemberCountLimit || image != info.houseProfileImage)
+        (name.trim() != info.houseName || limit != info.houseMemberCountLimit || image != info.houseProfileImage ||
+            reviewPhotoRequired != info.isChoreReviewPhotoRequired)
     val canLeave = info != null && !isOwner && info.members.any { it.userId == state.userId }
     val dismiss = { focus.clearFocus(); onDismiss() }
 
@@ -157,7 +163,7 @@ internal fun HouseInfoDialog(
                             enabled = canSave, busy = busy && removingId == null, modifier = Modifier.weight(1f),
                             brush = HouseJourneyBrushes.primaryButton,
                             disabledBrush = Brush.horizontalGradient(listOf(Color.Gray.copy(alpha = .42f), Color.Gray.copy(alpha = .32f))),
-                            onClick = { focus.clearFocus(); onSave(houseId, name.trim(), limit, image) },
+                            onClick = { focus.clearFocus(); onSave(houseId, name.trim(), limit, image, reviewPhotoRequired) },
                         )
                         canLeave -> PopupPrimaryButton(
                             strings.get(if (busy) "house_info_leaving" else "house_info_leave_button",
@@ -190,7 +196,8 @@ internal fun HouseInfoDialog(
             else -> {
                 Overview(info, isOwner, strings)
                 if (isOwner) {
-                    OwnerEditor(info, name, { name = it.take(NAME_LIMIT) }, limit, minimumLimit, maximumLimit, { limit = it }, strings)
+                    OwnerEditor(info, name, { name = it.take(NAME_LIMIT) }, limit, minimumLimit, maximumLimit, { limit = it },
+                        reviewPhotoRequired, !busy, { reviewPhotoRequired = it }, strings)
                     val summaryImage = state.houses.firstOrNull { it.id == houseId }?.profileImage
                     val choices = (listOfNotNull(info.houseProfileImage, summaryImage) + profile.images.map { it.url })
                         .map(String::trim).filter(String::isNotEmpty).distinct()
@@ -312,6 +319,9 @@ private fun OwnerEditor(
     minimum: Int,
     maximum: Int,
     onLimit: (Int) -> Unit,
+    reviewPhotoRequired: Boolean,
+    reviewPhotoEnabled: Boolean,
+    onReviewPhotoRequired: (Boolean) -> Unit,
     strings: LocalizedText,
 ) {
     val focus = LocalFocusManager.current
@@ -359,6 +369,22 @@ private fun OwnerEditor(
             Text(limit.toString(), Modifier.widthIn(min = 22.dp), style = FausCrewType.body, fontWeight = FontWeight.Bold,
                 color = FausCrewColors.textPrimary, textAlign = TextAlign.Center)
             LimitButton(FausCrewIcons.plus, limit < maximum, "+") { onLimit(limit + 1) }
+        }
+        Row(
+            Modifier.fillMaxWidth().clip(RoundedCornerShape(Radius.md)).background(FausCrewColors.cardBackground)
+                .toggleable(reviewPhotoRequired, enabled = reviewPhotoEnabled, role = Role.Switch,
+                    onValueChange = onReviewPhotoRequired)
+                .padding(Spacing.md),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(3.dp)) {
+                Text(strings.get("house_info_review_photo_label", "Review photo required"), style = FausCrewType.subheadline,
+                    fontWeight = FontWeight.SemiBold, color = FausCrewColors.textPrimary)
+                Text(strings.get("house_info_review_photo_hint", "Chores need a photo before they go to review."),
+                    style = FausCrewType.caption, color = FausCrewColors.textSecondary)
+            }
+            Switch(reviewPhotoRequired, onCheckedChange = null, enabled = reviewPhotoEnabled,
+                colors = SwitchDefaults.colors(checkedTrackColor = houseTint))
         }
     }
 }

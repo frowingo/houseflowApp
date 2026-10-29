@@ -75,13 +75,15 @@ final class ProfileCoordinator {
         name: String,
         memberCountLimit: Int,
         profileImage: String,
-        houseType: Int
+        houseType: Int,
+        isChoreReviewPhotoRequired: Bool? = nil
     ) async throws -> HouseInfoData {
         let request = UpdateHouseProfileRequest(
             houseMemberCountLimit: memberCountLimit,
             houseName: name,
             houseProfileImage: profileImage,
-            houseType: houseType
+            houseType: houseType,
+            isChoreReviewPhotoRequired: isChoreReviewPhotoRequired
         )
         let info = try await houseStore.updateHouseProfile(
             houseId: houseId,

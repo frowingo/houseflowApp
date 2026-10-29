@@ -31,6 +31,15 @@ protocol NetworkServicing: AnyObject {
     ) async throws -> Success
 
     @MainActor
+    func authenticatedMultipartRequest<Success: Decodable>(
+        path: String,
+        method: String,
+        form: MultipartFormData,
+        successType: Success.Type,
+        token: String
+    ) async throws -> Success
+
+    @MainActor
     func get<Success: Decodable>(
         path: String,
         queryItems: [URLQueryItem],
@@ -111,7 +120,14 @@ protocol ChoreServicing: AnyObject {
         houseId: String,
         chores: [ChoreStatusUpdateItem]
     ) async throws -> [ChoreResponse]
+    func updateChoreStatusWithReviewPhoto(
+        houseId: String,
+        choreId: String,
+        photo: ChoreReviewPhotoUpload
+    ) async throws -> [ChoreResponse]
     func reviewChore(choreId: String, isApproved: Bool) async throws -> ChoreResponse
+    func fetchReviewPhotoURL(choreId: String, round: Int) async throws -> ChoreReviewPhotoURLResponse
+    func downloadReviewPhoto(from url: URL) async throws -> Data
 }
 
 protocol LocalizationServicing: AnyObject {

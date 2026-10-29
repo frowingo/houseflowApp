@@ -397,6 +397,7 @@
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = FausCrewDebugInfo.plist;
 				INFOPLIST_KEY_CFBundleDisplayName = FausCrew;
+				INFOPLIST_KEY_NSCameraUsageDescription = "FausCrew uses the camera to take review photos for chores.";
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
 				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
 				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
@@ -435,6 +436,7 @@
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = FausCrewInfo.plist;
 				INFOPLIST_KEY_CFBundleDisplayName = FausCrew;
+				INFOPLIST_KEY_NSCameraUsageDescription = "FausCrew uses the camera to take review photos for chores.";
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
 				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
 				INFOPLIST_KEY_UILaunchScreen_Generation = YES;

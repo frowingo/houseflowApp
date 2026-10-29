@@ -41,6 +41,9 @@ internal class DashboardRepository(
     private val send: suspend (PlatformHttpRequest) -> PlatformHttpResponse,
     private val read: (SessionField) -> SessionReadResult,
     private val wire: DashboardWire = NativeDashboardWire,
+    /** Fetches a signed storage URL with no Bearer token and no cache. */
+    private val download: suspend (String) -> PlatformHttpResponse = { throw HouseRequestException(null) },
+    private val nowMillis: () -> Long = System::currentTimeMillis,
 ) {
     suspend fun createChore(input: ChoreInput): HouseChore = withContext(Dispatchers.IO) {
         choreCall("create", "chore", "POST", input)
@@ -63,6 +66,43 @@ internal class DashboardRepository(
         JSONArray(data).objects { it.toHouseChore() }
     }
 
+    /** Multipart `PUT chore/status`: exactly one chore moving to InTest with its photo. */
+    suspend fun updateStatusWithReviewPhoto(houseId: String, choreId: String, photo: ReviewPhoto): List<HouseChore> =
+        withContext(Dispatchers.IO) {
+            val chores = wire.body("statusPhoto", houseId, choreId, status = 2)
+            val data = call("statusPhoto", "chore/status", "PUT", multipart = listOf(
+                PlatformMultipartPart("houseId", houseId.toByteArray(Charsets.UTF_8)),
+                PlatformMultipartPart("chores", chores.toByteArray(Charsets.UTF_8)),
+                PlatformMultipartPart("file", photo.bytes, photo.fileName, photo.mimeType),
+            ))
+            JSONArray(data).objects { it.toHouseChore() }
+        }
+
+    /**
+     * Asks for a fresh signed URL each time; the URL never leaves this call. An already
+     * expired URL or a storage 403 gets exactly one refresh.
+     */
+    suspend fun loadReviewPhoto(choreId: String, round: Int): ByteArray = withContext(Dispatchers.IO) {
+        var canRefresh = true
+        var signed = reviewPhotoUrl(choreId, round)
+        if (signed.isExpired(nowMillis())) {
+            canRefresh = false
+            signed = reviewPhotoUrl(choreId, round)
+        }
+        var response = download(signed.url)
+        if (response.statusCode == 403 && canRefresh) {
+            signed = reviewPhotoUrl(choreId, round)
+            response = download(signed.url)
+        }
+        if (response.statusCode !in 200..299) throw HouseRequestException(null)
+        response.body
+    }
+
+    private suspend fun reviewPhotoUrl(choreId: String, round: Int): SignedReviewPhotoUrl {
+        val data = JSONObject(call("reviewPhoto", "chore/$choreId/review-photo/$round", "GET"))
+        return SignedReviewPhotoUrl(data.getString("url"), data.getString("expiresAt"))
+    }
+
     suspend fun review(choreId: String, isApproved: Boolean): HouseChore = withContext(Dispatchers.IO) {
         JSONObject(call("review", "chore/review", "PUT",
             wire.body("review", choreId = choreId, isApproved = isApproved))).toHouseChore()
@@ -74,12 +114,16 @@ internal class DashboardRepository(
         data.getJSONObject("data").toHouseAnnouncement()
     }
 
-    private suspend fun call(action: String, path: String, method: String, body: String): String = withContext(Dispatchers.IO) {
+    private suspend fun call(
+        action: String, path: String, method: String, body: String? = null,
+        multipart: List<PlatformMultipartPart>? = null,
+    ): String = withContext(Dispatchers.IO) {
         val token = (read(SessionField.AUTH_TOKEN) as? SessionReadResult.Value)?.value
             ?: throw HouseRequestException(null)
         val response = send(PlatformHttpRequest(path = path, method = method,
-            headers = mapOf("Authorization" to "Bearer $token", "Content-Type" to "application/json"),
-            body = body.toByteArray(Charsets.UTF_8)))
+            headers = mapOf("Authorization" to "Bearer $token") +
+                (if (body != null) mapOf("Content-Type" to "application/json") else emptyMap()),
+            body = body?.toByteArray(Charsets.UTF_8), multipart = multipart))
         val result = JSONObject(wire.response(action, response.statusCode, response.body.decodeToString()))
         if (!result.optBoolean("ok")) throw HouseRequestException(result.optString("message").ifBlank { null })
         result.getString("data")
@@ -88,7 +132,7 @@ internal class DashboardRepository(
     companion object {
         fun live(context: Context, http: AndroidHttpAdapter): DashboardRepository {
             val store = KeystoreSessionStore(context)
-            return DashboardRepository(http::send, store::read)
+            return DashboardRepository(http::send, store::read, download = RemoteImageLoader::fetchUncached)
         }
     }
 }

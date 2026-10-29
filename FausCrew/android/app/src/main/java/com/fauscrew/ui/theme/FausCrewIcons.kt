@@ -60,6 +60,8 @@ import androidx.compose.material.icons.rounded.Apartment
 import androidx.compose.material.icons.rounded.Group
 import androidx.compose.material.icons.rounded.Tune
 import androidx.compose.material.icons.rounded.Collections
+import androidx.compose.material.icons.rounded.Image
+import androidx.compose.material.icons.rounded.PhotoCamera
 import androidx.compose.material.icons.rounded.PersonRemove
 import androidx.compose.material.icons.rounded.PersonAddAlt
 import androidx.compose.material.icons.rounded.Key
@@ -153,6 +155,8 @@ internal object FausCrewIcons {
     val person2Fill: ImageVector = Icons.Rounded.Group
     val sliderHorizontal3: ImageVector = Icons.Rounded.Tune
     val photoOnRectangle: ImageVector = Icons.Rounded.Collections
+    val cameraFill: ImageVector = Icons.Rounded.PhotoCamera
+    val photoFill: ImageVector = Icons.Rounded.Image
     val personFillXmark: ImageVector = Icons.Rounded.PersonRemove
     val personBadgePlus: ImageVector = Icons.Rounded.PersonAddAlt
     val keyFill: ImageVector = Icons.Rounded.Key

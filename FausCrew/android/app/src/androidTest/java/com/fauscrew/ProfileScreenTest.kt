@@ -55,7 +55,7 @@ class ProfileScreenTest {
         compose.setContent { ProfileScreen(user, house, ProfileUiState(), strings,
             onLogout = {}, onUpdateProfile = {}, onLoadImages = {},
             onLoadLanguages = {}, onSaveLanguage = {}, onClearProfileError = {}, onJoin = {},
-            onOpenHouse = {}, onCloseHouse = {}, onInvite = {}, onUpdateHouse = { _, _, _, _ -> },
+            onOpenHouse = {}, onCloseHouse = {}, onInvite = {}, onUpdateHouse = { _, _, _, _, _ -> },
             onRemoveMember = { _, _ -> }, onLeave = {}, onClearHouseError = {}) }
         compose.onNodeWithText("Ada A").assertExists()
         compose.onNodeWithText("ada@example.com").assertExists()

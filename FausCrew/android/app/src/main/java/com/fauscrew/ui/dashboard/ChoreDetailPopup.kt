@@ -1,10 +1,15 @@
 package com.fauscrew.ui.dashboard
 
+import android.content.ActivityNotFoundException
+import android.graphics.Bitmap
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.expandVertically
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.shrinkVertically
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -18,22 +23,29 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.asImageBitmap
+import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
@@ -48,6 +60,11 @@ import com.fauscrew.platform.HouseChore
 import com.fauscrew.platform.HouseMember
 import com.fauscrew.platform.HouseVote
 import com.fauscrew.platform.LocalizedText
+import com.fauscrew.platform.RemoteImageLoader
+import com.fauscrew.platform.ReviewPhoto
+import com.fauscrew.platform.ReviewPhotoCapture
+import com.fauscrew.platform.ReviewPhotoEncoder
+import com.fauscrew.platform.ReviewPhotoException
 import com.fauscrew.ui.components.FausCrewPopup
 import com.fauscrew.ui.components.PopupBusyIndicator
 import com.fauscrew.ui.components.PopupCloseButton
@@ -58,6 +75,7 @@ import com.fauscrew.ui.components.PopupSecondaryButton
 import com.fauscrew.ui.components.PopupSectionLabel
 import com.fauscrew.ui.components.UserAvatar
 import com.fauscrew.ui.components.brandPopupHeaderBackground
+import com.fauscrew.ui.theme.FausCrewBrushes
 import com.fauscrew.ui.theme.FausCrewColors
 import com.fauscrew.ui.theme.FausCrewIcons
 import com.fauscrew.ui.theme.FausCrewType
@@ -65,6 +83,9 @@ import com.fauscrew.ui.theme.Motion
 import com.fauscrew.ui.theme.Radius
 import com.fauscrew.ui.theme.Sizes
 import com.fauscrew.ui.theme.Spacing
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 
 private val accentOrange = FausCrewColors.accentOrange
 
@@ -81,9 +102,11 @@ internal fun ChoreDetailPopup(
     busy: Boolean,
     reviewing: Boolean,
     error: String?,
+    isReviewPhotoRequired: Boolean = false,
     onDismiss: () -> Unit,
-    onStatus: (String, Int) -> Unit,
+    onStatus: (String, Int, ReviewPhoto?) -> Unit,
     onReview: (String, Boolean) -> Unit,
+    onLoadReviewPhoto: suspend (String, Int) -> ByteArray? = { _, _ -> null },
 ) {
     val status = ChoreStatusUi.of(chore.status)
     val isAssignee = userId.isNotBlank() && chore.assignedTo == userId
@@ -95,6 +118,73 @@ internal fun ChoreDetailPopup(
         .distinct().sortedDescending()
     val activeRound = chore.reviewRound.takeIf { status == ChoreStatusUi.IN_TEST && it > 0 }
     var expandedRounds by remember(chore.id) { mutableStateOf(emptySet<Int>()) }
+    val context = LocalContext.current
+    val scope = rememberCoroutineScope()
+    val requiresPhoto = isReviewPhotoRequired && nextStatus == ChoreStatusUi.IN_TEST
+    var photo by remember(chore.id) { mutableStateOf<ReviewPhoto?>(null) }
+    var preparingPhoto by remember(chore.id) { mutableStateOf(false) }
+    var photoError by remember(chore.id) { mutableStateOf<String?>(null) }
+    // Decoded images only; signed URLs never reach composition state.
+    var roundPhotos by remember(chore.id) { mutableStateOf(emptyMap<Int, Bitmap>()) }
+    var loadingRound by remember(chore.id) { mutableStateOf<Int?>(null) }
+    var viewedRound by remember(chore.id) { mutableStateOf<Int?>(null) }
+    var captureFile by remember(chore.id) { mutableStateOf<java.io.File?>(null) }
+    // Camera only: the system camera writes into our cache file, the gallery is never offered.
+    val camera = rememberLauncherForActivityResult(ActivityResultContracts.TakePicture()) { saved ->
+        val file = captureFile ?: return@rememberLauncherForActivityResult
+        captureFile = null
+        if (!saved) {
+            file.delete()
+            return@rememberLauncherForActivityResult
+        }
+        preparingPhoto = true
+        photoError = null
+        scope.launch {
+            val result = withContext(Dispatchers.Default) {
+                runCatching {
+                    try {
+                        ReviewPhoto.from(file.readBytes().takeIf { it.isNotEmpty() }?.let(ReviewPhotoEncoder::prepared))
+                    } finally {
+                        file.delete()
+                    }
+                }
+            }
+            preparingPhoto = false
+            photo = result.getOrNull()
+            photoError = result.exceptionOrNull()?.let { failure ->
+                val reason = (failure as? ReviewPhotoException)?.reason ?: ReviewPhotoException.Reason.UNSUPPORTED
+                strings.get(reason.key, reason.fallback)
+            }
+        }
+    }
+    val openCamera: () -> Unit = {
+        photoError = null
+        val (file, uri) = ReviewPhotoCapture.newTarget(context)
+        captureFile = file
+        try {
+            camera.launch(uri)
+        } catch (_: ActivityNotFoundException) {
+            file.delete()
+            captureFile = null
+            photoError = strings.get("chore_review_photo_camera_unavailable", "The camera is not available on this device.")
+        }
+    }
+    val showRoundPhoto: (Int) -> Unit = { round ->
+        if (round in roundPhotos) viewedRound = round
+        else if (loadingRound == null) {
+            loadingRound = round
+            scope.launch {
+                val bytes = onLoadReviewPhoto(chore.id, round)
+                val bitmap = bytes?.let { withContext(Dispatchers.Default) { RemoteImageLoader.decode(it, 2048) } }
+                if (bitmap != null) {
+                    roundPhotos = roundPhotos + (round to bitmap)
+                    viewedRound = round
+                } else if (bytes != null) photoError = strings.get("chore_review_photo_load_failed",
+                    "The review photo could not be loaded.")
+                loadingRound = null
+            }
+        }
+    }
 
     FausCrewPopup(
         onDismiss = onDismiss,
@@ -105,10 +195,18 @@ internal fun ChoreDetailPopup(
             { PopupBusyIndicator(strings.get(if (reviewing) "chore_detail_submitting_vote" else "chore_detail_updating")) }
         } else null,
     ) {
-        PopupError(error)
+        PopupError(error ?: photoError)
         StatusPipeline(status, strings)
         InfoSection(chore, members.firstOrNull { it.id == chore.assignedTo }, strings)
-        if (nextStatus != null) StatusUpdateSection(status, nextStatus, busy, strings) { onStatus(chore.id, nextStatus.raw) }
+        if (nextStatus != null) StatusUpdateSection(
+            status, nextStatus, busy, strings,
+            canSave = !busy && !preparingPhoto && (!requiresPhoto || photo != null),
+            photoPicker = if (requiresPhoto) {
+                {
+                    ReviewPhotoPicker(photo, preparingPhoto, !busy && !preparingPhoto, strings, openCamera)
+                }
+            } else null,
+        ) { onStatus(chore.id, nextStatus.raw, if (requiresPhoto) photo else null) }
         if (rounds.isNotEmpty()) {
             SectionCard(borderColor = status.color.copy(alpha = .2f)) {
                 PopupSectionLabel(FausCrewIcons.checkmarkSealFill, strings.get("chore_detail_review_rounds_label"))
@@ -118,7 +216,8 @@ internal fun ChoreDetailPopup(
                         round = round, active = active, expanded = active || round in expandedRounds,
                         votes = chore.reviewVotes.filter { it.reviewRound == round }, members = members,
                         assigneeId = chore.assignedTo, eligibleReviewers = eligibleReviewers, statusColor = status.color,
-                        strings = strings,
+                        strings = strings, hasPhoto = round in chore.reviewPhotoRounds,
+                        loadingPhoto = loadingRound == round, onShowPhoto = { showRoundPhoto(round) },
                         onToggle = { expandedRounds = if (round in expandedRounds) expandedRounds - round else expandedRounds + round },
                     ) {
                         ReviewActionArea(isAssignee, currentVote, canReview, busy, strings) { approved -> onReview(chore.id, approved) }
@@ -126,6 +225,18 @@ internal fun ChoreDetailPopup(
                 }
             }
         }
+    }
+    viewedRound?.let { roundPhotos[it] }?.let { bitmap ->
+        ReviewPhotoViewer(
+            photo = bitmap,
+            closeLabel = strings.get("common_close"),
+            onClose = { viewedRound = null },
+            onCaptureAttempt = {
+                viewedRound = null
+                photoError = strings.get("chore_review_photo_capture_blocked",
+                    "Screenshots and screen recordings are not allowed for review photos.")
+            },
+        )
     }
 }
 
@@ -251,6 +362,8 @@ private fun StatusUpdateSection(
     next: ChoreStatusUi,
     busy: Boolean,
     strings: LocalizedText,
+    canSave: Boolean = !busy,
+    photoPicker: (@Composable () -> Unit)? = null,
     onSave: () -> Unit,
 ) {
     SectionCard(borderColor = accentOrange.copy(alpha = .2f)) {
@@ -262,10 +375,42 @@ private fun StatusUpdateSection(
             Icon(FausCrewIcons.arrowRight, null, Modifier.size(16.dp), tint = FausCrewColors.textSecondary)
             StatusStage(next, strings, Modifier.weight(1f))
         }
+        photoPicker?.invoke()
         PopupPrimaryButton(
             strings.template("chore_detail_move_to_status_template", "status" to strings.get(next.key)),
-            enabled = !busy, onClick = onSave, modifier = Modifier.fillMaxWidth(),
+            enabled = canSave, onClick = onSave, modifier = Modifier.fillMaxWidth().alpha(if (canSave) 1f else .5f),
             icon = FausCrewIcons.arrowRightCircleFill, busy = busy,
+            // iOS dims the orange action instead of graying it out.
+            disabledBrush = FausCrewBrushes.orangeAction,
+        )
+    }
+}
+
+@Composable
+private fun ReviewPhotoPicker(
+    photo: ReviewPhoto?,
+    preparing: Boolean,
+    enabled: Boolean,
+    strings: LocalizedText,
+    onPick: () -> Unit,
+) {
+    val preview = remember(photo) { photo?.let { RemoteImageLoader.decode(it.bytes, 96) } }
+    Row(
+        Modifier.fillMaxWidth().height(Sizes.buttonHeightSmall).clip(RoundedCornerShape(Radius.md))
+            .background(accentOrange.copy(alpha = .1f)).clickable(enabled = enabled, onClick = onPick),
+        horizontalArrangement = Arrangement.spacedBy(Spacing.sm, Alignment.CenterHorizontally),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        when {
+            preparing -> CircularProgressIndicator(Modifier.size(16.dp), color = accentOrange, strokeWidth = 2.dp)
+            preview != null -> Image(preview.asImageBitmap(), null,
+                Modifier.size(28.dp).clip(RoundedCornerShape(Radius.sm)), contentScale = ContentScale.Crop)
+            else -> Icon(FausCrewIcons.cameraFill, null, Modifier.size(18.dp), tint = accentOrange)
+        }
+        Text(
+            strings.get(if (photo == null) "chore_review_photo_add" else "chore_review_photo_change",
+                if (photo == null) "Add review photo" else "Change photo"),
+            style = FausCrewType.headline, color = accentOrange, maxLines = 1,
         )
     }
 }
@@ -293,6 +438,9 @@ private fun ReviewRoundCard(
     eligibleReviewers: Int,
     statusColor: Color,
     strings: LocalizedText,
+    hasPhoto: Boolean,
+    loadingPhoto: Boolean,
+    onShowPhoto: () -> Unit,
     onToggle: () -> Unit,
     actions: @Composable () -> Unit,
 ) {
@@ -328,6 +476,7 @@ private fun ReviewRoundCard(
         AnimatedVisibility(expanded, enter = fadeIn(Motion.quick()) + expandVertically(Motion.quick()),
             exit = fadeOut(Motion.quick()) + shrinkVertically(Motion.quick())) {
             Column(verticalArrangement = Arrangement.spacedBy(Spacing.md)) {
+                if (hasPhoto) ReviewRoundPhoto(loadingPhoto, statusColor, strings, onShowPhoto)
                 ReviewProgressBar(approved, rejected, votes.size, eligibleReviewers, strings)
                 Row(horizontalArrangement = Arrangement.spacedBy(Spacing.sm)) {
                     SummaryPill(strings.get("chore_detail_review_approved"), approved, FausCrewColors.success, Modifier.weight(1f))
@@ -343,6 +492,21 @@ private fun ReviewRoundCard(
                 if (active) actions()
             }
         }
+    }
+}
+
+@Composable
+private fun ReviewRoundPhoto(loading: Boolean, color: Color, strings: LocalizedText, onShow: () -> Unit) {
+    Row(
+        Modifier.fillMaxWidth().clip(RoundedCornerShape(Radius.sm)).background(color.copy(alpha = .1f))
+            .clickable(enabled = !loading, onClick = onShow).padding(vertical = 9.dp),
+        horizontalArrangement = Arrangement.spacedBy(Spacing.sm, Alignment.CenterHorizontally),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        if (loading) CircularProgressIndicator(Modifier.size(14.dp), color = color, strokeWidth = 2.dp)
+        else Icon(FausCrewIcons.photoFill, null, Modifier.size(16.dp), tint = color)
+        Text(strings.get("chore_review_photo_view", "View review photo"), fontSize = 12.sp,
+            fontWeight = FontWeight.Bold, color = color)
     }
 }
 

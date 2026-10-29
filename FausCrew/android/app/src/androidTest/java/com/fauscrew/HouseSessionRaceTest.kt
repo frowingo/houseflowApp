@@ -43,7 +43,8 @@ class HouseSessionRaceTest {
             read = { SessionReadResult.Value("token") },
             wire = object : HouseWire {
                 override fun body(action: String, houseId: String, userId: String, name: String,
-                    inviteCode: String, type: Int, maxMemberCount: Int, profileImage: String) = "{}"
+                    inviteCode: String, type: Int, maxMemberCount: Int, profileImage: String,
+                    isChoreReviewPhotoRequired: Boolean) = "{}"
                 override fun response(action: String, status: Int, body: String) = body
             },
         )
@@ -96,7 +97,8 @@ class HouseSessionRaceTest {
             read = { SessionReadResult.Value("token") },
             wire = object : HouseWire {
                 override fun body(action: String, houseId: String, userId: String, name: String,
-                    inviteCode: String, type: Int, maxMemberCount: Int, profileImage: String) = "{}"
+                    inviteCode: String, type: Int, maxMemberCount: Int, profileImage: String,
+                    isChoreReviewPhotoRequired: Boolean) = "{}"
                 override fun response(action: String, status: Int, body: String) = body
             },
         )

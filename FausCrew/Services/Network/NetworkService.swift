@@ -106,6 +106,26 @@ final class NetworkService: NetworkServicing, HTTPRequestExecuting, HTTPClient {
         return try await send(request, successType: successType)
     }
 
+    // MARK: - Authenticated multipart request
+
+    /// The boundary comes from `form`, so Content-Type always carries it.
+    func authenticatedMultipartRequest<Success: Decodable>(
+        path: String,
+        method: String,
+        form: MultipartFormData,
+        successType: Success.Type,
+        token: String
+    ) async throws -> Success {
+        let request = makeRequest(
+            path: path,
+            method: method,
+            body: form.encoded(),
+            contentType: form.contentType,
+            token: token
+        )
+        return try await send(request, successType: successType)
+    }
+
     // MARK: - Authenticated GET with query parameters
 
     func get<Success: Decodable>(
@@ -141,10 +161,11 @@ final class NetworkService: NetworkServicing, HTTPRequestExecuting, HTTPClient {
         method: String,
         queryItems: [URLQueryItem] = [],
         body: Data? = nil,
+        contentType: String = "application/json",
         token: String? = nil
     ) -> HTTPRequest {
         var headers: [String: String] = ["Accept-Language": APILanguage.code]
-        if body != nil { headers["Content-Type"] = "application/json" }
+        if body != nil { headers["Content-Type"] = contentType }
         if let token { headers["Authorization"] = "Bearer \(token)" }
 
         return HTTPRequest(

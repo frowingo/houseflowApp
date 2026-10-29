@@ -46,7 +46,8 @@ extension ChoreResponse {
             completedBy: completedBy,
             statusHistories: statusHistories.map(\.houseStatusHistory),
             reviewRound: reviewRound,
-            reviewVotes: reviewVotes
+            reviewVotes: reviewVotes,
+            reviewPhotoRounds: reviewPhotoRounds
         )
     }
 }
@@ -60,6 +61,24 @@ private extension ChoreStatusHistoryResponse {
             updater: updater,
             dateTime: dateTime
         )
+    }
+}
+
+extension ChoreReviewPhotoError {
+    var localizationKey: String {
+        switch self {
+        case .missing: return "chore_review_photo_missing"
+        case .unsupportedFormat: return "chore_review_photo_unsupported"
+        case .tooLarge: return "chore_review_photo_too_large"
+        }
+    }
+
+    var fallbackMessage: String {
+        switch self {
+        case .missing: return "Add a photo before sending the chore to review."
+        case .unsupportedFormat: return "Only JPEG, PNG or WebP photos can be uploaded."
+        case .tooLarge: return "The photo must be 3 MB or smaller."
+        }
     }
 }
 

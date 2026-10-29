@@ -129,12 +129,24 @@ final class DashboardCoordinator {
         }
     }
 
-    func updateChoreStatus(choreApiId: String, houseId: String, status: ChoreStatus) async -> Bool {
+    func isChoreReviewPhotoRequired(houseId: String?) -> Bool {
+        guard let details = houseStore.currentHouseDetails, details.id == houseId else { return false }
+        return details.isChoreReviewPhotoRequired
+    }
+
+    func updateChoreStatus(
+        choreApiId: String,
+        houseId: String,
+        status: ChoreStatus,
+        reviewPhoto: Data? = nil
+    ) async -> Bool {
         do {
             let result = try await choreStore.updateStatus(
                 choreApiId: choreApiId,
                 houseId: houseId,
                 status: status,
+                isReviewPhotoRequired: isChoreReviewPhotoRequired(houseId: houseId),
+                reviewPhoto: reviewPhoto,
                 currentHouseDetails: houseStore.currentHouseDetails,
                 dashboardMembers: members
             )
@@ -145,10 +157,38 @@ final class DashboardCoordinator {
             applyHouseDetailsIfNeeded(result.updatedDetails)
             toastStore.show(message: localized("chore_status_updated_toast"), isError: false)
             return true
+        } catch let photoError as ChoreReviewPhotoError {
+            toastStore.show(
+                message: localizationStore.value(
+                    for: photoError.localizationKey,
+                    fallback: photoError.fallbackMessage
+                ),
+                isError: true
+            )
+            return false
         } catch {
             toastStore.show(message: error.localizedDescription, isError: true)
             return false
         }
+    }
+
+    /// Returns image bytes only; the signed URL is neither stored nor surfaced.
+    func loadReviewPhoto(choreApiId: String, round: Int) async -> Data? {
+        do {
+            return try await choreStore.loadReviewPhoto(choreApiId: choreApiId, round: round)
+        } catch NetworkError.serverError(let message) {
+            toastStore.show(message: message, isError: true)
+        } catch is CancellationError {
+        } catch {
+            toastStore.show(
+                message: localizationStore.value(
+                    for: "chore_review_photo_load_failed",
+                    fallback: "The review photo could not be loaded."
+                ),
+                isError: true
+            )
+        }
+        return nil
     }
 
     func reviewChore(choreApiId: String, isApproved: Bool) async -> Bool {

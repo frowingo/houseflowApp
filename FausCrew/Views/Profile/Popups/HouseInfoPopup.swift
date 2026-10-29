@@ -13,6 +13,7 @@ struct HouseInfoPopup: View {
     @State private var houseName = ""
     @State private var memberCountLimit = 2
     @State private var selectedImageURL = ""
+    @State private var isChoreReviewPhotoRequired = false
     @State private var isLoading = true
     @State private var isLoadingImages = false
     @State private var isSaving = false
@@ -388,6 +389,33 @@ struct HouseInfoPopup: View {
                     }
                 }
             }
+            .padding(AppDesign.Spacing.md)
+            .background(AppDesign.Colors.cardBackground)
+            .clipShape(RoundedRectangle(cornerRadius: AppDesign.CornerRadius.md))
+
+            Toggle(isOn: $isChoreReviewPhotoRequired) {
+                VStack(alignment: .leading, spacing: 3) {
+                    Text(
+                        appViewModel.localized(
+                            "house_info_review_photo_label",
+                            fallback: "Review photo required"
+                        )
+                    )
+                    .font(AppDesign.Typography.subheadline.weight(.semibold))
+                    .foregroundStyle(AppDesign.Colors.textPrimary)
+
+                    Text(
+                        appViewModel.localized(
+                            "house_info_review_photo_hint",
+                            fallback: "Chores need a photo before they go to review."
+                        )
+                    )
+                    .font(AppDesign.Typography.caption)
+                    .foregroundStyle(AppDesign.Colors.textSecondary)
+                }
+            }
+            .tint(houseTint)
+            .disabled(isBusy)
             .padding(AppDesign.Spacing.md)
             .background(AppDesign.Colors.cardBackground)
             .clipShape(RoundedRectangle(cornerRadius: AppDesign.CornerRadius.md))
@@ -812,6 +840,7 @@ struct HouseInfoPopup: View {
         return normalizedHouseName != info.houseName
             || memberCountLimit != info.houseMemberCountLimit
             || selectedImageURL != info.houseProfileImage
+            || isChoreReviewPhotoRequired != info.isChoreReviewPhotoRequired
     }
 
     private var normalizedHouseName: String {
@@ -944,6 +973,7 @@ struct HouseInfoPopup: View {
         let submittedMemberCountLimit = memberCountLimit
         let submittedImageURL = selectedImageURL
         let submittedHouseType = info.houseType
+        let submittedReviewPhotoRequired = isChoreReviewPhotoRequired
 
         isNameFocused = false
         isSaving = true
@@ -954,7 +984,8 @@ struct HouseInfoPopup: View {
                 name: submittedName,
                 memberCountLimit: submittedMemberCountLimit,
                 profileImage: submittedImageURL,
-                houseType: submittedHouseType
+                houseType: submittedHouseType,
+                isChoreReviewPhotoRequired: submittedReviewPhotoRequired
             )
             self.info = updatedInfo
             applyDraft(from: updatedInfo)
@@ -1016,6 +1047,7 @@ struct HouseInfoPopup: View {
         houseName = info.houseName
         memberCountLimit = max(2, max(info.houseMemberCount, info.houseMemberCountLimit))
         selectedImageURL = info.houseProfileImage
+        isChoreReviewPhotoRequired = info.isChoreReviewPhotoRequired
     }
 
     private func requestDismiss() {

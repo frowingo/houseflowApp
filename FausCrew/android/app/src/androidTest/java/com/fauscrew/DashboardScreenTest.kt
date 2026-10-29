@@ -40,7 +40,7 @@ class DashboardScreenTest {
 
     @Test fun realEmptyHouseRendersNoDemoChoresAndOpensExistingAnnouncementPopup() {
         var publishes = 0
-        compose.setContent { DashboardScreen(state, text, { _, _ -> publishes++ }, {}, { _, _ -> }, { _, _ -> }, {}) }
+        compose.setContent { DashboardScreen(state, text, { _, _ -> publishes++ }, {}, { _, _, _ -> }, { _, _ -> }, {}) }
         compose.onNodeWithText("Ada's home").assertExists()
         compose.onNodeWithText("All Done!").assertExists()
         compose.onNodeWithText("House Members").assertExists()
@@ -50,7 +50,7 @@ class DashboardScreenTest {
     }
 
     @Test fun fabKeepsIosTwoTapFlow() {
-        compose.setContent { DashboardScreen(state, text, { _, _ -> }, {}, { _, _ -> }, { _, _ -> }, {}) }
+        compose.setContent { DashboardScreen(state, text, { _, _ -> }, {}, { _, _, _ -> }, { _, _ -> }, {}) }
         compose.onNodeWithText("New Chore").assertDoesNotExist()
         compose.onNodeWithContentDescription("New Chore").performClick()
         compose.onNodeWithText("New Chore").assertExists()
@@ -58,7 +58,7 @@ class DashboardScreenTest {
 
     @Test fun dashboardReportsPopupAsOverlaySoTheTabBarHides() {
         var overlay = false
-        compose.setContent { DashboardScreen(state, text, { _, _ -> }, {}, { _, _ -> }, { _, _ -> }, {},
+        compose.setContent { DashboardScreen(state, text, { _, _ -> }, {}, { _, _, _ -> }, { _, _ -> }, {},
             onOverlayChange = { overlay = it }) }
         compose.onNodeWithContentDescription("Create announcement").performClick()
         compose.runOnIdle { assertEquals(true, overlay) }

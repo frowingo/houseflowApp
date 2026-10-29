@@ -3,7 +3,7 @@ import XCTest
 
 final class InviteCodeBridgeTests: XCTestCase {
     func testVersionAndCoreRule() {
-        XCTAssertEqual(bridgeVersion(), 14)
+        XCTAssertEqual(bridgeVersion(), 15)
         XCTAssertEqual(normalizeInviteCode("ab-12 cd34xyz"), "AB12CD34")
         XCTAssertEqual(normalizeInviteCode(""), "")
         XCTAssertEqual(normalizeInviteCode("１２３４５６７８ 12345678"), "12345678")
@@ -39,11 +39,11 @@ final class InviteCodeBridgeTests: XCTestCase {
 
     func testHouseFacadeValidatesCreateAndDetailsBeforeAndroidRoute() throws {
         let create = try XCTUnwrap(JSONSerialization.jsonObject(with: Data(
-            houseRequestBody("create", "", "", "Home", "", 2, 5, "").utf8
+            houseRequestBody("create", "", "", "Home", "", 2, 5, "", false).utf8
         )) as? [String: Any])
         XCTAssertEqual(create["name"] as? String, "Home")
         let join = try XCTUnwrap(JSONSerialization.jsonObject(with: Data(
-            houseRequestBody("join", "", "", "", "ab-12 cd34", 0, 0, "").utf8
+            houseRequestBody("join", "", "", "", "ab-12 cd34", 0, 0, "", false).utf8
         )) as? [String: Any])
         XCTAssertEqual(join["inviteCode"] as? String, "AB12CD34")
         let validHouse = #"{"success":true,"data":{"id":"h","name":"Home","inviteCode":null,"maxMemberCount":4,"memberIds":[],"ownerId":"u","profileImage":"","type":1,"createdOn":"2026-01-01","updatedOn":"2026-01-02"}}"#
@@ -65,6 +65,25 @@ final class InviteCodeBridgeTests: XCTestCase {
         ).utf8)) as? [String: Any])
         XCTAssertEqual(denied["ok"] as? Bool, false)
         XCTAssertEqual(denied["message"] as? String, "Denied")
+    }
+
+    func testReviewPhotoFacadeSharesCoreWireRules() throws {
+        let profile = try XCTUnwrap(JSONSerialization.jsonObject(with: Data(
+            houseRequestBody("profile", "h", "", "Home", "", 1, 4, "", true).utf8
+        )) as? [String: Any])
+        XCTAssertEqual(profile["isChoreReviewPhotoRequired"] as? Bool, true)
+        XCTAssertEqual(
+            dashboardRequestBody("statusPhoto", "h", "c", "", "", "", "", false, 0, 0, 2, false),
+            #"[{"choreId":"c","status":2}]"#
+        )
+        let signed = #"{"url":"https://signed.example/p","expiresAt":"2026-10-29T10:20:00Z"}"#
+        let ok = try XCTUnwrap(JSONSerialization.jsonObject(with: Data(dashboardResponse("reviewPhoto", 200, signed).utf8)) as? [String: Any])
+        XCTAssertEqual(ok["ok"] as? Bool, true)
+        let missing = try XCTUnwrap(JSONSerialization.jsonObject(with: Data(dashboardResponse(
+            "reviewPhoto", 404, #"{"success":false,"error":"No photo"}"#
+        ).utf8)) as? [String: Any])
+        XCTAssertEqual(missing["ok"] as? Bool, false)
+        XCTAssertEqual(missing["message"] as? String, "No photo")
     }
 
     func testProfileFacadeUsesOptionalFieldsAndRejectsMissingPayload() throws {

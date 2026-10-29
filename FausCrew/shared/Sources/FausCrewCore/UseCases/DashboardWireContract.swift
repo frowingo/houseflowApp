@@ -31,6 +31,15 @@ public enum DashboardWireContract {
         ))
     }
 
+    /// Value of the multipart `chores` form field: exactly one chore moving to
+    /// InTest. Bulk updates and other transitions keep the JSON `statusBody`.
+    public static func reviewPhotoChoresField(choreId: String) throws -> String {
+        let encoder = JSONEncoder()
+        encoder.outputFormatting = [.sortedKeys, .withoutEscapingSlashes]
+        let data = try encoder.encode([ChoreStatusUpdateItem(choreId: choreId, status: ChoreStatus.inTest.rawValue)])
+        return String(decoding: data, as: UTF8.self)
+    }
+
     public static func reviewBody(choreId: String, isApproved: Bool) throws -> Data {
         try JSONEncoder().encode(ReviewChoreRequest(choreId: choreId, isApproved: isApproved))
     }
@@ -48,9 +57,11 @@ public enum DashboardWireContract {
         switch action {
         case "create", "update", "review":
             _ = try decoder.decode(ChoreResponse.self, from: response.body)
-        case "status":
+        case "status", "statusPhoto":
             let chores = try decoder.decode([ChoreResponse].self, from: response.body)
             guard !chores.isEmpty else { throw DashboardWireError.emptyStatusResult }
+        case "reviewPhoto":
+            _ = try decoder.decode(ChoreReviewPhotoURLResponse.self, from: response.body)
         case "announcement":
             let result = try decoder.decode(HouseAPIResponse<HouseAnnouncementDTO>.self, from: response.body)
             guard result.success, result.data != nil else { throw DashboardWireError.rejected(result.error) }

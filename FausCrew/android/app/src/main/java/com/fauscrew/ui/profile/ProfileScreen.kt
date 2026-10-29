@@ -110,7 +110,7 @@ internal fun ProfileScreen(
     onLoadLanguages: () -> Unit, onSaveLanguage: (String) -> Unit,
     onClearProfileError: () -> Unit, onJoin: (String) -> Unit,
     onOpenHouse: (String) -> Unit, onCloseHouse: () -> Unit,
-    onInvite: (String) -> Unit, onUpdateHouse: (String, String, Int, String) -> Unit,
+    onInvite: (String) -> Unit, onUpdateHouse: (String, String, Int, String, Boolean) -> Unit,
     onRemoveMember: (String, String) -> Unit, onLeave: (String) -> Unit,
     onClearHouseError: () -> Unit,
     onOverlayChange: (Boolean) -> Unit = {},

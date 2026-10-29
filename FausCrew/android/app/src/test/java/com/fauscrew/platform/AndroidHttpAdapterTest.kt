@@ -86,6 +86,29 @@ class AndroidHttpAdapterTest {
         }
     }
 
+    @Test fun multipartLetsOkHttpOwnTheBoundary() = runBlocking {
+        server.enqueue(MockResponse().setResponseCode(200).setBody("[]"))
+        adapter().send(PlatformHttpRequest(
+            path = "chore/status", method = "PUT",
+            headers = mapOf("Authorization" to "Bearer token", "Content-Type" to "multipart/form-data"),
+            multipart = listOf(
+                PlatformMultipartPart("houseId", "h".toByteArray()),
+                PlatformMultipartPart("chores", """[{"choreId":"c","status":2}]""".toByteArray()),
+                PlatformMultipartPart("file", byteArrayOf(0xFF.toByte(), 0xD8.toByte(), 0xFF.toByte()), "review-photo.jpg", "image/jpeg"),
+            ),
+        ))
+
+        val recorded = requireNotNull(server.takeRequest(2, TimeUnit.SECONDS))
+        val contentType = requireNotNull(recorded.getHeader("Content-Type"))
+        assertTrue(contentType.startsWith("multipart/form-data; boundary="))
+        assertEquals("Bearer token", recorded.getHeader("Authorization"))
+        val body = recorded.body.readUtf8()
+        assertTrue(body.contains("name=\"houseId\""))
+        assertTrue(body.contains("""[{"choreId":"c","status":2}]"""))
+        assertTrue(body.contains("name=\"file\"; filename=\"review-photo.jpg\""))
+        assertTrue(body.contains("Content-Type: image/jpeg"))
+    }
+
     private fun adapter() = AndroidHttpAdapter.forTesting(
         server.url("/api/v1/"),
         OkHttpClient.Builder().callTimeout(2, TimeUnit.SECONDS).build(),

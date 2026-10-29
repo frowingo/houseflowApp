@@ -46,6 +46,27 @@ internal object RemoteImageLoader {
         catch (_: Exception) { null }
     }
 
+    /**
+     * Signed review photos: no shared cache, no Authorization header and the raw status
+     * so the caller can refresh an expired signature once. The URL is never logged.
+     */
+    suspend fun fetchUncached(url: String): PlatformHttpResponse = withContext(Dispatchers.IO) {
+        val request = Request.Builder().url(url).cacheControl(okhttp3.CacheControl.FORCE_NETWORK).build()
+        client.newCall(request).execute().use { response ->
+            val bytes = if (response.isSuccessful) response.body?.byteStream()?.use(::readLimited) else null
+            PlatformHttpResponse(response.code, emptyMap(), bytes ?: byteArrayOf())
+        }
+    }
+
+    /** Bounded decode for an in-memory photo; nothing is cached. */
+    fun decode(bytes: ByteArray, maxDimension: Int = 1024): Bitmap? {
+        val bounds = BitmapFactory.Options().apply { inJustDecodeBounds = true }
+        BitmapFactory.decodeByteArray(bytes, 0, bytes.size, bounds)
+        var sample = 1
+        while (bounds.outWidth / sample > maxDimension || bounds.outHeight / sample > maxDimension) sample *= 2
+        return BitmapFactory.decodeByteArray(bytes, 0, bytes.size, BitmapFactory.Options().apply { inSampleSize = sample })
+    }
+
     private fun readLimited(stream: InputStream): ByteArray? {
         val output = ByteArrayOutputStream()
         val chunk = ByteArray(8192)

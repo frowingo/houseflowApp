@@ -15,6 +15,13 @@ struct ChoreDetailPopup: View {
     @State private var isUpdating: Bool = false
     @State private var isReviewing: Bool = false
     @State private var expandedReviewRounds: Set<Int> = []
+    @State private var isShowingReviewCamera = false
+    @State private var reviewPhotoData: Data?
+    @State private var isPreparingReviewPhoto = false
+    /// Decoded images only; signed URLs are never kept in view state.
+    @State private var reviewPhotos: [Int: UIImage] = [:]
+    @State private var loadingReviewPhotoRound: Int?
+    @State private var viewedReviewPhoto: ViewedReviewPhoto?
 
     init(chore: Chore, appViewModel: AppViewModel, onDismiss: @escaping () -> Void) {
         self.chore = chore
@@ -48,6 +55,18 @@ struct ChoreDetailPopup: View {
         case .progress: return .inTest
         case .inTest, .completed: return nil
         }
+    }
+
+    private var requiresReviewPhoto: Bool {
+        guard let nextStatus else { return false }
+        return ChoreReviewPhotoRules.requiresPhoto(
+            isChoreReviewPhotoRequired: appViewModel.isChoreReviewPhotoRequired(houseId: displayedChore.houseId),
+            targetStatus: nextStatus
+        )
+    }
+
+    private var canSaveStatus: Bool {
+        !isBusy && !isPreparingReviewPhoto && (!requiresReviewPhoto || reviewPhotoData != nil)
     }
 
     private var currentRoundVotes: [ChoreReviewVote] {
@@ -133,6 +152,32 @@ struct ChoreDetailPopup: View {
             }
         }
         .animation(AppDesign.Animation.standard, value: isBusy)
+        .fullScreenCover(isPresented: $isShowingReviewCamera) {
+            ChoreReviewCamera(
+                onCapture: { image in
+                    isShowingReviewCamera = false
+                    prepareReviewPhoto(image)
+                },
+                onCancel: { isShowingReviewCamera = false }
+            )
+            .ignoresSafeArea()
+        }
+        .fullScreenCover(item: $viewedReviewPhoto) { photo in
+            ChoreReviewPhotoViewer(
+                image: photo.image,
+                closeLabel: appViewModel.localized("common_close"),
+                blockedTitle: appViewModel.localized(
+                    "chore_review_photo_capture_blocked_title",
+                    fallback: "Screenshots aren't allowed"
+                ),
+                blockedMessage: appViewModel.localized(
+                    "chore_review_photo_capture_blocked_message",
+                    fallback: "Review photos are protected and can't be captured."
+                ),
+                onClose: { viewedReviewPhoto = nil },
+                onCaptureAttempt: closeReviewPhotoAfterCaptureAttempt
+            )
+        }
     }
 
     // MARK: - Top Bar
@@ -298,6 +343,10 @@ struct ChoreDetailPopup: View {
                     statusStage(nextStatus)
                 }
 
+                if requiresReviewPhoto {
+                    reviewPhotoPicker
+                }
+
                 Button(action: saveStatus) {
                     HStack(spacing: AppDesign.Spacing.sm) {
                         if isUpdating {
@@ -325,8 +374,9 @@ struct ChoreDetailPopup: View {
                         )
                     )
                     .cornerRadius(AppDesign.CornerRadius.md)
+                    .opacity(canSaveStatus ? 1 : 0.5)
                 }
-                .disabled(isBusy)
+                .disabled(!canSaveStatus)
             }
         }
         .padding(AppDesign.Spacing.lg)
@@ -338,6 +388,36 @@ struct ChoreDetailPopup: View {
                         .stroke(accentOrange.opacity(0.2), lineWidth: 1)
                 )
         )
+    }
+
+    private var reviewPhotoPicker: some View {
+        Button(action: openReviewCamera) {
+            HStack(spacing: AppDesign.Spacing.sm) {
+                if isPreparingReviewPhoto {
+                    ProgressView().scaleEffect(0.8)
+                } else if let reviewPhotoData, let preview = UIImage(data: reviewPhotoData) {
+                    Image(uiImage: preview)
+                        .resizable()
+                        .scaledToFill()
+                        .frame(width: 28, height: 28)
+                        .clipShape(RoundedRectangle(cornerRadius: AppDesign.CornerRadius.sm))
+                } else {
+                    Image(systemName: "camera.fill")
+                        .font(.system(size: 14, weight: .semibold))
+                }
+                Text(appViewModel.localized(
+                    reviewPhotoData == nil ? "chore_review_photo_add" : "chore_review_photo_change",
+                    fallback: reviewPhotoData == nil ? "Add review photo" : "Change photo"
+                ))
+                .font(AppDesign.Typography.bodyBold)
+            }
+            .foregroundColor(accentOrange)
+            .frame(maxWidth: .infinity)
+            .frame(height: AppDesign.Size.buttonHeightSmall)
+            .background(accentOrange.opacity(0.1))
+            .cornerRadius(AppDesign.CornerRadius.md)
+        }
+        .disabled(isBusy || isPreparingReviewPhoto)
     }
 
     // MARK: - Review Section
@@ -417,6 +497,9 @@ struct ChoreDetailPopup: View {
             .buttonStyle(.plain)
 
             if isExpanded {
+                if displayedChore.reviewPhotoRounds.contains(round) {
+                    reviewPhotoArea(for: round)
+                }
                 reviewProgressBar(for: round)
                 reviewSummaryRow(for: round)
                 reviewMemberList(for: round)
@@ -429,6 +512,28 @@ struct ChoreDetailPopup: View {
         .padding(AppDesign.Spacing.md)
         .background(AppDesign.Colors.background.opacity(0.68))
         .cornerRadius(AppDesign.CornerRadius.md)
+    }
+
+    private func reviewPhotoArea(for round: Int) -> some View {
+        Button { showReviewPhoto(round: round) } label: {
+            HStack(spacing: AppDesign.Spacing.sm) {
+                if loadingReviewPhotoRound == round {
+                    ProgressView().scaleEffect(0.8)
+                } else {
+                    Image(systemName: "photo.fill")
+                        .font(.system(size: 13, weight: .semibold))
+                }
+                Text(appViewModel.localized("chore_review_photo_view", fallback: "View review photo"))
+                    .font(.system(size: 12, weight: .semibold))
+            }
+            .foregroundColor(currentStatus.color)
+            .frame(maxWidth: .infinity)
+            .padding(.vertical, 9)
+            .background(currentStatus.color.opacity(0.1))
+            .cornerRadius(AppDesign.CornerRadius.sm)
+        }
+        .buttonStyle(.plain)
+        .disabled(loadingReviewPhotoRound != nil)
     }
 
     private var reviewActionArea: some View {
@@ -536,19 +641,92 @@ struct ChoreDetailPopup: View {
     private func saveStatus() {
         guard let choreApiId = displayedChore.choreApiId,
               let houseId = displayedChore.houseId,
-              let nextStatus else { return }
+              let nextStatus,
+              canSaveStatus else { return }
+        let reviewPhoto = requiresReviewPhoto ? reviewPhotoData : nil
         isUpdating = true
         Task {
             let didUpdate = await appViewModel.updateChoreStatus(
                 choreApiId: choreApiId,
                 houseId: houseId,
-                status: nextStatus
+                status: nextStatus,
+                reviewPhoto: reviewPhoto
             )
             isUpdating = false
             if didUpdate {
                 requestDismiss()
             }
         }
+    }
+
+    private func openReviewCamera() {
+        guard ChoreReviewCamera.isAvailable else {
+            appViewModel.showToast(message: appViewModel.localized(
+                "chore_review_photo_camera_unavailable",
+                fallback: "The camera is not available on this device."
+            ))
+            return
+        }
+        Task {
+            if await ChoreReviewCamera.requestAccess() {
+                isShowingReviewCamera = true
+            } else {
+                appViewModel.showToast(message: appViewModel.localized(
+                    "chore_review_photo_camera_denied",
+                    fallback: "Allow camera access in Settings to take a review photo."
+                ))
+            }
+        }
+    }
+
+    private func prepareReviewPhoto(_ image: UIImage) {
+        isPreparingReviewPhoto = true
+        Task {
+            let prepared = await Task.detached(priority: .userInitiated) {
+                ChoreReviewPhotoEncoder.prepared(from: image)
+            }.value
+            if let prepared {
+                reviewPhotoData = prepared
+            } else {
+                appViewModel.showToast(message: appViewModel.localized(
+                    "chore_review_photo_too_large",
+                    fallback: "The photo must be 3 MB or smaller."
+                ))
+            }
+            isPreparingReviewPhoto = false
+        }
+    }
+
+    private func showReviewPhoto(round: Int) {
+        if let image = reviewPhotos[round] {
+            viewedReviewPhoto = ViewedReviewPhoto(round: round, image: image)
+            return
+        }
+        guard let choreApiId = displayedChore.choreApiId, loadingReviewPhotoRound == nil else { return }
+        loadingReviewPhotoRound = round
+        Task {
+            if let data = await appViewModel.loadChoreReviewPhoto(choreApiId: choreApiId, round: round) {
+                if let image = UIImage(data: data) {
+                    reviewPhotos[round] = image
+                    viewedReviewPhoto = ViewedReviewPhoto(round: round, image: image)
+                } else {
+                    appViewModel.showToast(message: appViewModel.localized(
+                        "chore_review_photo_load_failed",
+                        fallback: "The review photo could not be loaded."
+                    ))
+                }
+            }
+            loadingReviewPhotoRound = nil
+        }
+    }
+
+    private func closeReviewPhotoAfterCaptureAttempt() {
+        guard viewedReviewPhoto != nil else { return }
+        viewedReviewPhoto = nil
+        appViewModel.showToast(message: appViewModel.localized(
+            "chore_review_photo_capture_blocked",
+            fallback: "Screenshots and screen recordings are not allowed for review photos."
+        ))
     }
 
     private func requestDismiss() {
@@ -737,6 +915,13 @@ struct ChoreDetailPopup: View {
                 .fill(AppDesign.Colors.secondaryBackground)
         )
     }
+}
+
+/// A decoded review photo open in the full-screen viewer.
+private struct ViewedReviewPhoto: Identifiable {
+    let round: Int
+    let image: UIImage
+    var id: Int { round }
 }
 
 // MARK: - ChoreStatus UI Helpers

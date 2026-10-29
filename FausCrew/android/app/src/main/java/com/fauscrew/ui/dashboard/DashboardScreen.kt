@@ -55,6 +55,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.fauscrew.platform.ChoreInput
 import com.fauscrew.platform.LocalizedText
+import com.fauscrew.platform.ReviewPhoto
 import com.fauscrew.ui.components.BrandHeroCard
 import com.fauscrew.ui.components.FausCrewToast
 import com.fauscrew.ui.components.FausHouseIcon
@@ -83,10 +84,11 @@ internal fun DashboardScreen(
     strings: LocalizedText,
     onAnnouncement: (String, String) -> Unit,
     onCreateChore: (ChoreInput) -> Unit,
-    onStatus: (String, Int) -> Unit,
+    onStatus: (String, Int, ReviewPhoto?) -> Unit,
     onReview: (String, Boolean) -> Unit,
     onClearMessage: () -> Unit,
     onOverlayChange: (Boolean) -> Unit = {},
+    onLoadReviewPhoto: suspend (String, Int) -> ByteArray? = { _, _ -> null },
 ) {
     val details = state.details ?: return
     var announcementsExpanded by remember { mutableStateOf(false) }
@@ -167,9 +169,11 @@ internal fun DashboardScreen(
             ChoreDetailPopup(
                 chore = chore, members = details.members, userId = state.userId, strings = strings,
                 busy = state.mutationBusy, reviewing = reviewing, error = state.mutationError,
+                isReviewPhotoRequired = details.isChoreReviewPhotoRequired,
                 onDismiss = { popup = null },
-                onStatus = { id, status -> reviewing = false; onStatus(id, status) },
+                onStatus = { id, status, photo -> reviewing = false; onStatus(id, status, photo) },
                 onReview = { id, approved -> reviewing = true; onReview(id, approved) },
+                onLoadReviewPhoto = onLoadReviewPhoto,
             )
         }
         null -> Unit
