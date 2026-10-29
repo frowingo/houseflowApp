@@ -95,6 +95,32 @@ public enum InviteCodeRules: Sendable {
     }
 }
 
+// MARK: - House creation rule
+
+public enum HouseCreationRules: Sendable {
+    /// Join / Create are offered only while the user is in fewer houses than this.
+    public static let maximumHouseCount = 3
+    public static let nameMaxLength = 30
+    public static let memberCountRange = 2...8
+    public static let houseTypes = [1, 2, 3]
+
+    public static func canAddHouse(currentHouseCount: Int) -> Bool {
+        currentHouseCount < maximumHouseCount
+    }
+
+    public static func normalizedName(_ value: String) -> String {
+        value.trimmingCharacters(in: .whitespacesAndNewlines)
+    }
+
+    public static func isValid(name: String, type: Int?, memberCount: Int?) -> Bool {
+        let name = normalizedName(name)
+        guard !name.isEmpty, name.count <= nameMaxLength,
+              let type, houseTypes.contains(type),
+              let memberCount, memberCountRange.contains(memberCount) else { return false }
+        return true
+    }
+}
+
 // MARK: - Response envelope and wire time
 
 public struct HouseAPIResponse<Payload: Decodable>: Decodable {

@@ -11,6 +11,7 @@ import com.fauscrew.platform.ChoreInput
 import com.fauscrew.platform.DashboardRepository
 import com.fauscrew.platform.HouseAnnouncement
 import com.fauscrew.platform.HouseChore
+import com.fauscrew.platform.HouseCreationRules
 import com.fauscrew.platform.HouseDetails
 import com.fauscrew.platform.HouseInfo
 import com.fauscrew.platform.HouseInvite
@@ -249,6 +250,25 @@ internal class HouseViewModel(
                     houses = state.value.houses.filterNot { it.id == joined.id } + joined,
                     profileActionBusy = false, profileActionSerial = state.value.profileActionSerial + 1,
                     profileActionKind = "join",
+                )
+            } catch (cancel: CancellationException) { throw cancel }
+            catch (error: Exception) { if (ticket == generation) profileFail(error) }
+        }
+    }
+
+    fun createFromProfile(name: String, type: Int, maxMemberCount: Int) {
+        if (state.value.profileActionBusy || state.value.busy || state.value.route != HouseRoute.DASHBOARD ||
+            !HouseCreationRules.isValid(name, type, maxMemberCount)) return
+        val ticket = generation
+        mutableState.value = state.value.copy(profileActionBusy = true, profileError = null)
+        viewModelScope.launch {
+            try {
+                val created = repository.create(name.trim(), type, maxMemberCount)
+                if (ticket != generation) return@launch
+                mutableState.value = state.value.copy(
+                    houses = state.value.houses.filterNot { it.id == created.id } + created,
+                    profileActionBusy = false, profileActionSerial = state.value.profileActionSerial + 1,
+                    profileActionKind = "create",
                 )
             } catch (cancel: CancellationException) { throw cancel }
             catch (error: Exception) { if (ticket == generation) profileFail(error) }

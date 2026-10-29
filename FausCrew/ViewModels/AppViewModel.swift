@@ -445,6 +445,14 @@ class AppViewModel: ObservableObject {
         try await profileCoordinator.joinHouse(inviteCode: inviteCode)
     }
 
+    func createHouseFromProfile(name: String, type: Int, maxMemberCount: Int) async throws -> HouseResponse {
+        try await profileCoordinator.createHouse(name: name, type: type, maxMemberCount: maxMemberCount)
+    }
+
+    var canAddHouse: Bool {
+        HouseCreationRules.canAddHouse(currentHouseCount: availableHouses.count)
+    }
+
     func updateHouseProfile(
         houseId: String,
         name: String,

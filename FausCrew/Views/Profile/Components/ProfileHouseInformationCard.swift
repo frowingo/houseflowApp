@@ -10,11 +10,17 @@ struct ProfileHouseInformationCard: View {
     let detailsButtonTitle: String
     let joinButtonTitle: String
     let joinButtonSubtitle: String
+    let createButtonTitle: String
+    let createButtonSubtitle: String
+    /// Join / Create rows are only offered while the user can still add a house.
+    let showsAddHouseOptions: Bool
     let onSelect: (AuthHouseSummary) -> Void
     let onJoin: () -> Void
+    let onCreate: () -> Void
 
     private let houseTint = Color(red: 0.42, green: 0.27, blue: 0.67)
     private let joinTint = Color(red: 0.12, green: 0.55, blue: 0.54)
+    private let createTint = Color(red: 0.90, green: 0.38, blue: 0.06)
 
     var body: some View {
         ProfileModernCard(
@@ -86,38 +92,76 @@ struct ProfileHouseInformationCard: View {
                     }
                 }
 
-                ProfileCardDivider()
+                if showsAddHouseOptions {
+                    ProfileCardDivider()
 
-                Button(action: onJoin) {
-                    HStack(spacing: AppDesign.Spacing.md) {
+                    actionRow(
+                        title: joinButtonTitle,
+                        subtitle: joinButtonSubtitle,
+                        tint: joinTint,
+                        trailingIcon: "chevron.right",
+                        action: onJoin
+                    ) {
                         ProfileRowIcon(icon: "person.2.badge.plus", tint: joinTint)
-
-                        VStack(alignment: .leading, spacing: 2) {
-                            Text(joinButtonTitle)
-                                .font(AppDesign.Typography.subheadline.weight(.semibold))
-                                .foregroundStyle(AppDesign.Colors.textPrimary)
-                            Text(joinButtonSubtitle)
-                                .font(AppDesign.Typography.caption)
-                                .foregroundStyle(AppDesign.Colors.textSecondary)
-                                .lineLimit(dynamicTypeSize.isAccessibilitySize ? nil : 2)
-                        }
-
-                        Spacer(minLength: AppDesign.Spacing.sm)
-
-                        Image(systemName: "chevron.right")
-                            .font(.system(size: 12, weight: .bold))
-                            .foregroundStyle(joinTint)
-                            .frame(width: 32, height: 32)
-                            .background(joinTint.opacity(0.11))
-                            .clipShape(Circle())
                     }
-                    .padding(.horizontal, AppDesign.Spacing.lg)
-                    .padding(.vertical, 12)
-                    .contentShape(Rectangle())
+
+                    ProfileCardDivider()
+
+                    actionRow(
+                        title: createButtonTitle,
+                        subtitle: createButtonSubtitle,
+                        tint: createTint,
+                        trailingIcon: "plus",
+                        action: onCreate
+                    ) {
+                        ZStack {
+                            RoundedRectangle(cornerRadius: 8)
+                                .fill(createTint.opacity(0.13))
+                                .frame(width: 34, height: 34)
+                            FausHouseIcon(size: 19, fill: .color(createTint))
+                        }
+                    }
                 }
-                .buttonStyle(.plain)
             }
         }
+    }
+
+    private func actionRow<Icon: View>(
+        title: String,
+        subtitle: String,
+        tint: Color,
+        trailingIcon: String,
+        action: @escaping () -> Void,
+        @ViewBuilder icon: () -> Icon
+    ) -> some View {
+        Button(action: action) {
+            HStack(spacing: AppDesign.Spacing.md) {
+                icon()
+
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(title)
+                        .font(AppDesign.Typography.subheadline.weight(.semibold))
+                        .foregroundStyle(AppDesign.Colors.textPrimary)
+                    Text(subtitle)
+                        .font(AppDesign.Typography.caption)
+                        .foregroundStyle(AppDesign.Colors.textSecondary)
+                        .lineLimit(dynamicTypeSize.isAccessibilitySize ? nil : 2)
+                }
+
+                Spacer(minLength: AppDesign.Spacing.sm)
+
+                Image(systemName: trailingIcon)
+                    .font(.system(size: 12, weight: .bold))
+                    .foregroundStyle(tint)
+                    .frame(width: 32, height: 32)
+                    .background(tint.opacity(0.11))
+                    .clipShape(Circle())
+            }
+            .padding(.horizontal, AppDesign.Spacing.lg)
+            .padding(.vertical, 12)
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
     }
 }
 

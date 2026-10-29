@@ -47,6 +47,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.fauscrew.platform.HouseSummary
 import com.fauscrew.ui.components.BrandHeroCard
+import com.fauscrew.ui.components.FausHouseIcon
 import com.fauscrew.ui.components.HouseThumbnail
 import com.fauscrew.ui.components.RemoteImage
 import com.fauscrew.ui.theme.FausCrewColors
@@ -67,6 +68,7 @@ internal object ProfileTints {
     val personalSlate = Color(0xFF5C7A9C)
     val house = Color(0xFF6B45AB)
     val join = Color(0xFF1F8C8A)
+    val create = Color(0xFFE5620F)
     val notifications = Color(0xFFF2731A)
     val privacy = Color(0xFF598CE0)
 }
@@ -81,7 +83,7 @@ internal fun ProfileHeroSection(
     onAvatarTap: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    BrandHeroCard(modifier.fillMaxWidth().height(138.dp), contentAlignment = Alignment.CenterStart) {
+    BrandHeroCard(modifier.fillMaxWidth().height(112.dp), contentAlignment = Alignment.CenterStart) {
         Row(Modifier.padding(horizontal = Spacing.xl), verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(Spacing.lg)) {
             ProfileHeroAvatar(imageUrl, initials, avatarDescription, onAvatarTap)
@@ -229,7 +231,7 @@ internal fun ProfileSettingsRow(icon: ImageVector, tint: Color, label: String, o
     }
 }
 
-/** `ProfileHouseInformationCard`: one row per house with a View pill, then Join a house. */
+/** `ProfileHouseInformationCard`: one row per house with a View pill, then Join / Create a house. */
 @Composable
 internal fun ProfileHouseInformationCard(
     title: String,
@@ -238,8 +240,12 @@ internal fun ProfileHouseInformationCard(
     viewTitle: String,
     joinTitle: String,
     joinSubtitle: String,
+    createTitle: String,
+    createSubtitle: String,
+    showsAddHouseOptions: Boolean,
     onSelect: (HouseSummary) -> Unit,
     onJoin: () -> Unit,
+    onCreate: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     val tint = ProfileTints.house
@@ -273,22 +279,45 @@ internal fun ProfileHouseInformationCard(
             }
             if (index < houses.lastIndex) ProfileCardDivider()
         }
-        ProfileCardDivider()
-        Row(
-            Modifier.fillMaxWidth().clickable(role = Role.Button, onClick = onJoin)
-                .padding(horizontal = Spacing.lg, vertical = Spacing.md),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(Spacing.md),
-        ) {
-            ProfileRowIcon(FausCrewIcons.person2BadgePlus, ProfileTints.join)
-            Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
-                Text(joinTitle, style = FausCrewType.subheadline, fontWeight = FontWeight.SemiBold, color = FausCrewColors.textPrimary)
-                Text(joinSubtitle, style = FausCrewType.caption, color = FausCrewColors.textSecondary, maxLines = 2)
+        if (showsAddHouseOptions) {
+            ProfileCardDivider()
+            HouseActionRow(joinTitle, joinSubtitle, ProfileTints.join, FausCrewIcons.chevronRight, onJoin) {
+                ProfileRowIcon(FausCrewIcons.person2BadgePlus, ProfileTints.join)
             }
-            Spacer(Modifier.width(Spacing.sm))
-            Box(Modifier.size(32.dp).background(ProfileTints.join.copy(alpha = .11f), CircleShape), contentAlignment = Alignment.Center) {
-                Icon(FausCrewIcons.chevronRight, null, Modifier.size(18.dp), tint = ProfileTints.join)
+            ProfileCardDivider()
+            HouseActionRow(createTitle, createSubtitle, ProfileTints.create, FausCrewIcons.plus, onCreate) {
+                Box(Modifier.size(34.dp).background(ProfileTints.create.copy(alpha = .13f), RoundedCornerShape(8.dp)),
+                    contentAlignment = Alignment.Center) {
+                    FausHouseIcon(19.dp, color = ProfileTints.create)
+                }
             }
+        }
+    }
+}
+
+@Composable
+private fun HouseActionRow(
+    title: String,
+    subtitle: String,
+    tint: Color,
+    trailingIcon: ImageVector,
+    onClick: () -> Unit,
+    icon: @Composable () -> Unit,
+) {
+    Row(
+        Modifier.fillMaxWidth().clickable(role = Role.Button, onClick = onClick)
+            .padding(horizontal = Spacing.lg, vertical = Spacing.md),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(Spacing.md),
+    ) {
+        icon()
+        Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+            Text(title, style = FausCrewType.subheadline, fontWeight = FontWeight.SemiBold, color = FausCrewColors.textPrimary)
+            Text(subtitle, style = FausCrewType.caption, color = FausCrewColors.textSecondary, maxLines = 2)
+        }
+        Spacer(Modifier.width(Spacing.sm))
+        Box(Modifier.size(32.dp).background(tint.copy(alpha = .11f), CircleShape), contentAlignment = Alignment.Center) {
+            Icon(trailingIcon, null, Modifier.size(18.dp), tint = tint)
         }
     }
 }

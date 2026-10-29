@@ -52,7 +52,7 @@ struct ProfileHeroSection: View {
             }
             .padding(.horizontal, AppDesign.Spacing.xl)
         }
-        .frame(height: 138)
+        .frame(height: 112)
         .padding(.horizontal, AppDesign.Spacing.lg)
         .opacity(isVisible ? 1 : 0)
         .offset(y: isVisible ? 0 : 12)

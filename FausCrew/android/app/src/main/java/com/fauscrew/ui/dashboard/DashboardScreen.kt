@@ -57,6 +57,8 @@ import com.fauscrew.platform.ChoreInput
 import com.fauscrew.platform.LocalizedText
 import com.fauscrew.ui.components.BrandHeroCard
 import com.fauscrew.ui.components.FausCrewToast
+import com.fauscrew.ui.components.FausHouseIcon
+import com.fauscrew.ui.components.RemoteImage
 import com.fauscrew.ui.components.mainScreenBackground
 import com.fauscrew.ui.main.TabBarClearance
 import com.fauscrew.ui.theme.FausCrewColors
@@ -188,31 +190,55 @@ private fun DashboardHeader(
     modifier: Modifier,
     onAnnouncement: () -> Unit,
 ) {
+    val houseImage = state.houses.firstOrNull { it.id == state.details?.id }?.profileImage
     BrandHeroCard(
-        modifier.padding(start = Spacing.xl, end = Spacing.xl, top = Spacing.xl, bottom = Spacing.sm)
-            .fillMaxWidth().height(112.dp),
+        modifier.padding(start = Spacing.xl, end = Spacing.xl, top = Spacing.xl, bottom = Spacing.sm).fillMaxWidth(),
     ) {
-        Row(Modifier.fillMaxSize().padding(Spacing.xl), verticalAlignment = Alignment.CenterVertically) {
-            Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(Spacing.xs)) {
-                BasicText(
+        Row(
+            Modifier.fillMaxWidth().padding(horizontal = Spacing.lg, vertical = Spacing.xl),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(Spacing.md),
+        ) {
+            DashboardHouseImage(houseImage)
+            Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                Text(
                     strings.template("dashboard_greeting_template",
                         "first_name" to state.firstName.ifBlank { strings.get("common_user_fallback") }),
-                    style = TextStyle(color = Color.White, fontSize = 23.sp, fontWeight = FontWeight.Bold),
-                    maxLines = 1,
-                    autoSize = TextAutoSize.StepBased(minFontSize = 16.sp, maxFontSize = 23.sp),
+                    color = Color.White.copy(alpha = .88f), fontSize = 14.sp, fontWeight = FontWeight.Medium,
+                    maxLines = 1, overflow = TextOverflow.Ellipsis,
                 )
-                Text(houseName, style = FausCrewType.subheadline, color = Color.White.copy(alpha = .82f),
-                    maxLines = 1, overflow = TextOverflow.Ellipsis)
+                BasicText(
+                    houseName,
+                    style = TextStyle(color = Color.White, fontSize = 24.sp, fontWeight = FontWeight.Bold),
+                    maxLines = 1,
+                    autoSize = TextAutoSize.StepBased(minFontSize = 17.sp, maxFontSize = 24.sp),
+                )
             }
             val description = strings.get("new_announcement_action_accessibility_label", "Create announcement")
             Box(
-                Modifier.clip(CircleShape).background(Color.White.copy(alpha = .18f))
+                Modifier.size(40.dp).clip(CircleShape).background(Color.White.copy(alpha = .18f))
                     .clickable(role = Role.Button, onClick = onAnnouncement)
-                    .semantics { contentDescription = description }
-                    .padding(10.dp),
+                    .semantics { contentDescription = description },
+                contentAlignment = Alignment.Center,
             ) {
                 Icon(FausCrewIcons.megaphoneFill, null, Modifier.size(Sizes.iconMedium + 2.dp),
-                    tint = Color.White.copy(alpha = .85f))
+                    tint = Color.White.copy(alpha = .9f))
+            }
+        }
+    }
+}
+
+/** House artwork in a white frame; falls back to the brand house icon. */
+@Composable
+private fun DashboardHouseImage(url: String?) {
+    val shape = RoundedCornerShape(20.dp)
+    Box(
+        Modifier.softShadow(Color(0xFF3A0A1E).copy(alpha = .3f), 7.dp, y = 5.dp, shape = shape)
+            .clip(shape).background(Color.White.copy(alpha = .95f)).padding(3.dp),
+    ) {
+        RemoteImage(url, Modifier.size(66.dp).clip(RoundedCornerShape(17.dp))) {
+            Box(Modifier.fillMaxSize().background(Color(0xFFFFF2E8)), contentAlignment = Alignment.Center) {
+                FausHouseIcon(32.dp)
             }
         }
     }

@@ -24,6 +24,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
 import com.fauscrew.platform.AuthProfile
+import com.fauscrew.platform.HouseCreationRules
 import com.fauscrew.platform.LocalizedText
 import com.fauscrew.platform.ProfileChange
 import com.fauscrew.platform.SocialProvider
@@ -81,6 +82,9 @@ private val PROFILE_FALLBACKS = mapOf(
     "profile_house_join_row_subtitle" to "Enter an 8-character invite code",
     "profile_house_join_subtitle" to "Use an invitation code",
     "profile_house_join_title" to "Join a house",
+    "profile_house_create_title" to "Create a house",
+    "profile_house_create_subtitle" to "Set up a new home for your crew",
+    "profile_house_create_member_hint" to "Up to",
 )
 
 private sealed interface ProfilePopup {
@@ -93,6 +97,7 @@ private sealed interface ProfilePopup {
     data object LoginMethods : ProfilePopup
     data object DeleteAccount : ProfilePopup
     data object Join : ProfilePopup
+    data object Create : ProfilePopup
     data class House(val id: String) : ProfilePopup
 }
 
@@ -109,6 +114,7 @@ internal fun ProfileScreen(
     onRemoveMember: (String, String) -> Unit, onLeave: (String) -> Unit,
     onClearHouseError: () -> Unit,
     onOverlayChange: (Boolean) -> Unit = {},
+    onCreateHouse: (String, Int, Int) -> Unit = { _, _, _ -> },
     accountState: AccountUiState = AccountUiState(),
     socialProviders: List<SocialProvider> = emptyList(),
     onOpenAccount: () -> Unit = {},
@@ -144,7 +150,7 @@ internal fun ProfileScreen(
     LaunchedEffect(house.profileActionSerial) {
         if (house.profileActionSerial > houseOpenedAt) {
             when (popup) {
-                ProfilePopup.Join -> close()
+                ProfilePopup.Join, ProfilePopup.Create -> close()
                 is ProfilePopup.House -> if (house.profileActionKind == "update") close()
                     else houseOpenedAt = house.profileActionSerial
                 else -> Unit
@@ -200,8 +206,12 @@ internal fun ProfileScreen(
                     viewTitle = strings.profileValue("profile_house_information_view_button"),
                     joinTitle = strings.profileValue("profile_house_join_title"),
                     joinSubtitle = strings.profileValue("profile_house_join_row_subtitle"),
+                    createTitle = strings.profileValue("profile_house_create_title"),
+                    createSubtitle = strings.profileValue("profile_house_create_subtitle"),
+                    showsAddHouseOptions = HouseCreationRules.canAddHouse(house.houses.size),
                     onSelect = { open(ProfilePopup.House(it.id)) },
                     onJoin = { open(ProfilePopup.Join) },
+                    onCreate = { open(ProfilePopup.Create) },
                     modifier = Modifier.entrance(houses, 24.dp),
                 )
                 ProfileModernCard(
@@ -267,6 +277,7 @@ internal fun ProfileScreen(
             onLinkProvider, onUnlinkProvider, onRequestPasswordCode, onSetPassword)
         ProfilePopup.DeleteAccount -> DeleteAccountDialog(accountState, strings, ::close, onDeleteAccount)
         ProfilePopup.Join -> JoinHouseDialog(house, strings, ::close, onJoin)
+        ProfilePopup.Create -> CreateHouseDialog(house, strings, ::close, onCreateHouse)
         is ProfilePopup.House -> HouseInfoDialog(shown.id, house, profile, strings, ::close,
             onOpenHouse, onInvite, onLoadImages, onUpdateHouse, onRemoveMember, onLeave)
         null -> Unit

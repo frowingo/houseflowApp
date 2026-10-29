@@ -8,6 +8,7 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.offset
@@ -83,15 +84,15 @@ internal fun GamesHubScreen(
             verticalArrangement = Arrangement.spacedBy(Spacing.xl),
         ) {
             BrandHeroCard(
-                Modifier.padding(top = Spacing.xl).fillMaxWidth().height(138.dp).entrance(header, 12.dp),
+                Modifier.padding(top = Spacing.xl).fillMaxWidth().height(112.dp).entrance(header, 12.dp),
                 contentAlignment = Alignment.BottomStart,
             ) {
                 Icon(FausCrewIcons.gameControllerFill, null,
                     Modifier.offset(x = 230.dp, y = (-28).dp).size(58.dp).rotate(-8f),
                     tint = Color.White.copy(alpha = .16f))
                 Column(
-                    Modifier.padding(start = Spacing.xl, end = Spacing.xl, bottom = Spacing.xl),
-                    verticalArrangement = Arrangement.spacedBy(Spacing.xs),
+                    Modifier.fillMaxHeight().padding(horizontal = Spacing.xl),
+                    verticalArrangement = Arrangement.spacedBy(Spacing.xs, Alignment.CenterVertically),
                 ) {
                     Text(strings.get("games_hub_title"),
                         style = TextStyle(fontSize = 23.sp, fontWeight = FontWeight.Bold), color = Color.White)

@@ -114,6 +114,10 @@ final class HouseSessionStore: ObservableObject {
         try await houseService.removeMember(houseId: houseId, userId: userId)
     }
 
+    func createHouse(name: String, type: Int, maxMemberCount: Int) async throws -> HouseResponse {
+        try await houseService.createHouse(name: name, type: type, maxMemberCount: maxMemberCount)
+    }
+
     func joinHouse(inviteCode: String) async throws -> HouseResponse {
         try await houseService.joinHouse(inviteCode: inviteCode)
     }
@@ -130,7 +134,7 @@ final class HouseSessionStore: ObservableObject {
         maxMemberCount: Int,
         onDetailsLoading: (HouseResponse) -> Void
     ) async throws -> (house: HouseResponse, details: HouseDetailsResponse) {
-        let house = try await houseService.createHouse(name: name, type: type, maxMemberCount: maxMemberCount)
+        let house = try await createHouse(name: name, type: type, maxMemberCount: maxMemberCount)
         onDetailsLoading(house)
         let details = try await loadHouseDetails(houseId: house.id, forceRefresh: true)
         return (house, details)

@@ -56,6 +56,20 @@ final class ProfileCoordinator {
         return house
     }
 
+    func createHouse(name: String, type: Int, maxMemberCount: Int) async throws -> HouseResponse {
+        guard HouseCreationRules.isValid(name: name, type: type, memberCount: maxMemberCount) else {
+            throw NetworkError.serverError("Enter a house name, a house type and a member count.")
+        }
+
+        let house = try await houseStore.createHouse(
+            name: HouseCreationRules.normalizedName(name),
+            type: type,
+            maxMemberCount: maxMemberCount
+        )
+        authStore.addOrUpdateHouse(house)
+        return house
+    }
+
     func updateHouseProfile(
         houseId: String,
         name: String,

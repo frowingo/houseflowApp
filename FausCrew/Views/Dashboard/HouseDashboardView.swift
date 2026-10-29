@@ -57,7 +57,6 @@ struct HouseDashboardView: View {
             .overlay(floatingActionButton, alignment: .bottomTrailing)
             .overlay(popupsOverlay)
         }
-        .navigationBarHidden(true)
         .onAppear {
             withAnimation(.spring(response: 0.6, dampingFraction: 0.78).delay(0.05)) {
                 appeared = true
@@ -74,9 +73,11 @@ struct HouseDashboardView: View {
         ZStack(alignment: .leading) {
             BrandHeroCardBackground()
 
-            // Text + announcement action
-            HStack(alignment: .bottom) {
-                VStack(alignment: .leading, spacing: AppDesign.Spacing.xs) {
+            // House image + greeting/name + announcement action
+            HStack(alignment: .center, spacing: AppDesign.Spacing.md) {
+                houseImage
+
+                VStack(alignment: .leading, spacing: 2) {
                     Text(appViewModel.localized(
                         "dashboard_greeting_template",
                         replacements: [
@@ -84,17 +85,16 @@ struct HouseDashboardView: View {
                                 ?? appViewModel.localized("common_user_fallback")
                         ]
                     ))
-                        .font(.system(size: 23, weight: .bold, design: .rounded))
+                        .font(.system(size: 14, weight: .medium, design: .rounded))
+                        .foregroundStyle(Color.white.opacity(0.88))
+                        .lineLimit(1)
+                    Text(appViewModel.currentHouseDetails?.name ?? appViewModel.houseName)
+                        .font(.system(size: 24, weight: .bold, design: .rounded))
                         .foregroundStyle(.white)
                         .lineLimit(1)
                         .minimumScaleFactor(0.72)
-                    Text(appViewModel.currentHouseDetails?.name ?? appViewModel.houseName)
-                        .font(AppDesign.Typography.subheadline)
-                        .foregroundStyle(Color.white.opacity(0.82))
-                        .lineLimit(1)
                 }
-
-                Spacer()
+                .frame(maxWidth: .infinity, alignment: .leading)
 
                 Button {
                     withAnimation(AppDesign.Animation.standard) {
@@ -103,8 +103,8 @@ struct HouseDashboardView: View {
                 } label: {
                     Image(systemName: "megaphone.fill")
                         .font(.system(size: AppDesign.Size.iconMedium))
-                        .foregroundStyle(Color.white.opacity(0.85))
-                        .padding(10)
+                        .foregroundStyle(Color.white.opacity(0.9))
+                        .frame(width: 40, height: 40)
                         .background(Color.white.opacity(0.18))
                         .clipShape(Circle())
                 }
@@ -113,17 +113,47 @@ struct HouseDashboardView: View {
                     fallback: "Create announcement"
                 ))
             }
-            .padding(.horizontal, AppDesign.Spacing.xl)
+            .padding(.horizontal, AppDesign.Spacing.lg)
             .padding(.vertical, AppDesign.Spacing.xl)
         }
-        .frame(height: 112)
         .padding(.horizontal, AppDesign.Spacing.xl)
-        .padding(.top, AppDesign.Spacing.xs)
+        .padding(.top, AppDesign.Spacing.xl)
         .padding(.bottom, AppDesign.Spacing.sm)
         .opacity(appeared ? 1 : 0)
         .offset(y: appeared ? 0 : 12)
     }
-    
+
+    private var houseImageURL: URL? {
+        let value = (appViewModel.currentHouseDetails?.profileImage
+            ?? appViewModel.currentHouse?.profileImage
+            ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
+        return value.isEmpty ? nil : URL(string: value)
+    }
+
+    private var houseImage: some View {
+        let shape = RoundedRectangle(cornerRadius: 20, style: .continuous)
+        return CachedRemoteImage(url: houseImageURL) { image in
+            image.resizable().scaledToFill()
+        } placeholder: {
+            houseImagePlaceholder
+        } failure: {
+            houseImagePlaceholder
+        }
+        .frame(width: 66, height: 66)
+        .clipShape(shape)
+        .padding(3)
+        .background(shape.fill(Color.white.opacity(0.95)))
+        .shadow(color: Color(red: 0.23, green: 0.04, blue: 0.12).opacity(0.3), radius: 7, x: 0, y: 5)
+        .accessibilityHidden(true)
+    }
+
+    private var houseImagePlaceholder: some View {
+        ZStack {
+            Color(red: 1.0, green: 0.95, blue: 0.91)
+            FausHouseIcon(size: 32)
+        }
+    }
+
     // MARK: - Floating Action Button
     
     private var floatingActionButton: some View {

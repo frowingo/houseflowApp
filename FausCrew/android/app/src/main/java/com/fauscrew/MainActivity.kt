@@ -236,6 +236,7 @@ class MainActivity : ComponentActivity() {
                                     houseModel::loadInfo, houseModel::clearInfo, houseModel::createInvite,
                                     houseModel::updateHouseProfile, houseModel::removeMember,
                                     houseModel::leaveHouse, houseModel::clearProfileError, onOverlayChange,
+                                    onCreateHouse = houseModel::createFromProfile,
                                     accountState = accountState,
                                     socialProviders = state.socialProviders,
                                     onOpenAccount = { model.clearAccountMessage(); model.refreshProfile() },

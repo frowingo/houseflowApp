@@ -13,6 +13,7 @@ struct ProfileView: View {
     @State private var showLoginMethods = false
     @State private var showDeleteAccount = false
     @State private var showJoinHouse = false
+    @State private var showCreateHouse = false
     @State private var selectedHouseForInfo: AuthHouseSummary?
     @State private var appeared = false
     @AccessibilityFocusState private var houseInformationAccessibilityFocused: Bool
@@ -30,6 +31,7 @@ struct ProfileView: View {
         .animation(AppDesign.Animation.standard, value: showPhoneManagement)
         .animation(AppDesign.Animation.standard, value: showLogoutConfirmation)
         .animation(AppDesign.Animation.standard, value: showJoinHouse)
+        .animation(AppDesign.Animation.standard, value: showCreateHouse)
         .animation(AppDesign.Animation.standard, value: selectedHouseForInfo)
         .onChange(of: showAvatarPicker) { _, _ in syncOverlayPresentation() }
         .onChange(of: showEditSheet) { _, _ in syncOverlayPresentation() }
@@ -38,6 +40,7 @@ struct ProfileView: View {
         .onChange(of: showPhoneManagement) { _, _ in syncOverlayPresentation() }
         .onChange(of: showLogoutConfirmation) { _, _ in syncOverlayPresentation() }
         .onChange(of: showJoinHouse) { _, _ in syncOverlayPresentation() }
+        .onChange(of: showCreateHouse) { _, _ in syncOverlayPresentation() }
         .onChange(of: selectedHouseForInfo) { _, _ in syncOverlayPresentation() }
         .sheet(isPresented: $showLoginMethods) {
             LoginMethodsView().environmentObject(appViewModel)
@@ -179,6 +182,15 @@ struct ProfileView: View {
                 "profile_house_join_row_subtitle",
                 fallback: "Enter an 8-character invite code"
             ),
+            createButtonTitle: appViewModel.localized(
+                "profile_house_create_title",
+                fallback: "Create a house"
+            ),
+            createButtonSubtitle: appViewModel.localized(
+                "profile_house_create_subtitle",
+                fallback: "Set up a new home for your crew"
+            ),
+            showsAddHouseOptions: appViewModel.canAddHouse,
             onSelect: { house in
                 withAnimation(AppDesign.Animation.standard) {
                     selectedHouseForInfo = house
@@ -187,6 +199,11 @@ struct ProfileView: View {
             onJoin: {
                 withAnimation(AppDesign.Animation.standard) {
                     showJoinHouse = true
+                }
+            },
+            onCreate: {
+                withAnimation(AppDesign.Animation.standard) {
+                    showCreateHouse = true
                 }
             }
         )
@@ -228,6 +245,13 @@ struct ProfileView: View {
     private var overlays: some View {
         if showJoinHouse {
             JoinHousePopup(onDismiss: dismissJoinHouse)
+                .environmentObject(appViewModel)
+                .transition(.opacity.combined(with: .scale(scale: 0.96)))
+                .zIndex(17)
+        }
+
+        if showCreateHouse {
+            CreateHousePopup(onDismiss: dismissCreateHouse)
                 .environmentObject(appViewModel)
                 .transition(.opacity.combined(with: .scale(scale: 0.96)))
                 .zIndex(17)
@@ -353,6 +377,14 @@ struct ProfileView: View {
         restoreHouseInformationFocus()
     }
 
+    private func dismissCreateHouse() {
+        hideKeyboard()
+        dismissWithoutAnimation {
+            showCreateHouse = false
+        }
+        restoreHouseInformationFocus()
+    }
+
     private func dismissWithoutAnimation(_ action: @escaping () -> Void) {
         DispatchQueue.main.async {
             var transaction = Transaction()
@@ -382,6 +414,7 @@ struct ProfileView: View {
             || showPhoneManagement
             || showLogoutConfirmation
             || showJoinHouse
+            || showCreateHouse
             || selectedHouseForInfo != nil
     }
 

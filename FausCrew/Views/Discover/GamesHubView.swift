@@ -90,9 +90,9 @@ struct GamesHubView: View {
                     .foregroundStyle(Color.white.opacity(0.82))
             }
             .padding(.horizontal, AppDesign.Spacing.xl)
-            .padding(.bottom, AppDesign.Spacing.xl)
+            .frame(maxHeight: .infinity)
         }
-        .frame(height: 138)
+        .frame(height: 112)
         .padding(.top, AppDesign.Spacing.xl)
         .opacity(appeared ? 1 : 0)
         .offset(y: appeared ? 0 : 12)
