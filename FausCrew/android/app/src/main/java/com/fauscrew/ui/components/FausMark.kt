@@ -21,16 +21,19 @@ import androidx.compose.ui.graphics.drawscope.DrawScope
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
+import androidx.compose.runtime.ReadOnlyComposable
 import com.fauscrew.ui.theme.FausCrewColors
+import com.fauscrew.ui.theme.LocalFausTheme
 import kotlin.math.PI
 import kotlin.math.exp
 import kotlin.math.hypot
 import kotlin.math.min
 import kotlin.math.sin
 
-private val MarkBerry = Color(0xFF8A2440)
-private val SpinnerRed = Color(0xFFFF5F2E)
-private val SpinnerBerry = Color(0xFFA3244A)
+/** Roof-F colors of the active theme, roof → stem foot; capture before drawing. */
+internal val FausMarkColors: List<Color>
+    @Composable @ReadOnlyComposable
+    get() = listOf(FausCrewColors.brandLight, FausCrewColors.brandOrange, FausCrewColors.markBerry)
 
 /**
  * The roof-shaped "F" of the FausCrew icon on a 1024 grid
@@ -76,41 +79,47 @@ internal fun DrawScope.drawFausMark(brush: Brush, progress: Float = 1f, dotScale
 internal fun FausFramedMark(
     size: Dp,
     modifier: Modifier = Modifier,
-    fill: Color = FausCrewColors.background,
+    fill: Color? = null,
     progress: Float = 1f,
     dotScale: Float = 1f,
 ) {
+    val decor = LocalFausTheme.current.decor
+    val disc = fill ?: decor.framedMarkFill
+    val markColors = FausMarkColors
     Canvas(modifier.size(size)) {
         val unit = this.size.minDimension / 1024f
-        drawCircle(fill, radius = 470f * unit)
-        drawCircle(FausCrewColors.brandOrange.copy(alpha = .55f), radius = 470f * unit,
+        if (decor.framedMarkGlow.alpha > 0f) {
+            drawCircle(Brush.radialGradient(listOf(decor.framedMarkGlow, decor.framedMarkGlow.copy(alpha = 0f)),
+                radius = 470f * unit + 17.dp.toPx()), radius = 470f * unit + 17.dp.toPx())
+        }
+        drawCircle(disc, radius = 470f * unit)
+        if (decor.framedMarkGlow.alpha > 0f) {
+            drawCircle(Brush.radialGradient(listOf(decor.framedMarkGlow.copy(alpha = decor.framedMarkGlow.alpha * .5f), Color.Transparent),
+                radius = 470f * unit), radius = 470f * unit)
+        }
+        drawCircle(decor.framedMarkRing, radius = 470f * unit,
             style = Stroke(width = maxOf(1.dp.toPx(), 7f * unit)))
-        drawFausMark(fausMarkBrush(unit), progress, dotScale)
+        drawFausMark(fausMarkBrush(unit, markColors), progress, dotScale)
     }
 }
 
 /** The roof-F gradient (orange at the roof, berry at the foot), for a mark drawn at [unit] px per grid step. */
-internal fun fausMarkBrush(unit: Float) = Brush.linearGradient(
-    0f to FausCrewColors.brandLight,
-    .35f to FausCrewColors.brandOrange,
-    1f to MarkBerry,
+internal fun fausMarkBrush(unit: Float, colors: List<Color>) = Brush.linearGradient(
+    0f to colors[0],
+    .35f to colors[1],
+    1f to colors[2],
     start = Offset(332f * unit, 246f * unit),
     end = Offset(692f * unit, 778f * unit),
 )
 
 /** Primary call-to-action gradient. */
-internal val FausButtonGradient = Brush.horizontalGradient(
-    0f to FausCrewColors.brandLight,
-    .35f to FausCrewColors.brandOrange,
-    1f to MarkBerry,
-)
-
-/** Hero surfaces (auth header): the `BrandHeroCard` orange → berry diagonal. */
-internal val FausHeroGradient = Brush.linearGradient(
-    0f to FausCrewColors.brandLight,
-    .4f to FausCrewColors.brandOrange,
-    1f to FausCrewColors.deepBerry,
-)
+internal val FausButtonGradient: Brush
+    @Composable @ReadOnlyComposable
+    get() = Brush.horizontalGradient(
+        0f to FausCrewColors.brandLight,
+        .35f to FausCrewColors.brandOrange,
+        1f to FausCrewColors.markBerry,
+    )
 
 /**
  * `FausSpinner`: rounded arc pieces orbit clockwise, bunching into one long arc on the right and
@@ -127,15 +136,16 @@ internal fun FausSpinner(size: Dp = 46.dp, modifier: Modifier = Modifier) {
         val start = withFrameNanos { it } - (seconds * 1_000_000_000f).toLong()
         while (true) withFrameNanos { seconds = (it - start) / 1_000_000_000f }
     }
+    val spinnerColors = listOf(FausCrewColors.brandLight, FausCrewColors.spinnerRed, FausCrewColors.spinnerBerry)
     Canvas(modifier.size(size)) {
         val unit = this.size.minDimension / 48f
         val radius = 17f * unit
         val sweep = (12.5f / 17f) * 180f / PI.toFloat()
         val cycle = seconds / SpinnerPeriod
         val brush = Brush.linearGradient(
-            0f to FausCrewColors.brandLight,
-            .5f to SpinnerRed,
-            1f to SpinnerBerry,
+            0f to spinnerColors[0],
+            .5f to spinnerColors[1],
+            1f to spinnerColors[2],
             start = Offset(7f * unit, 7f * unit),
             end = Offset(41f * unit, 41f * unit),
         )
@@ -148,7 +158,7 @@ internal fun FausSpinner(size: Dp = 46.dp, modifier: Modifier = Modifier) {
         // Soft colored shadow under the pieces, then the pieces themselves.
         val shadowStroke = Stroke(width = 7f * unit, cap = StrokeCap.Round)
         angles.forEach { start ->
-            drawArc(SpinnerRed.copy(alpha = .14f), start, sweep, false,
+            drawArc(spinnerColors[1].copy(alpha = .14f), start, sweep, false,
                 topLeft = arcTopLeft + Offset(0f, 3f * unit), size = arcSize, style = shadowStroke)
         }
         val pieceStroke = Stroke(width = 4.6f * unit, cap = StrokeCap.Round)

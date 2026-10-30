@@ -44,6 +44,7 @@ import androidx.compose.material.icons.rounded.Star
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.ReadOnlyComposable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
@@ -74,13 +75,14 @@ import com.fauscrew.ui.components.FausHouseIcon
 import com.fauscrew.ui.components.FausIconGradient
 import com.fauscrew.ui.components.drawFausMark
 import com.fauscrew.ui.components.fausMarkBrush
+import com.fauscrew.ui.components.FausMarkColors
 import com.fauscrew.ui.components.mainScreenBackground
 import com.fauscrew.ui.theme.FausCrewColors
 import com.fauscrew.ui.theme.FausCrewIcons
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
-private val ink = Color(0xFF1C1C1E)
+private val ink: Color @Composable @ReadOnlyComposable get() = FausCrewColors.textPrimary
 private val muted = Color(0xFF6B6B70)
 private val markBerry = Color(0xFF8A2440)
 
@@ -174,14 +176,14 @@ internal fun OnboardingScreen(strings: LocalizedText, busy: Boolean, onComplete:
 private fun Header(modifier: Modifier) {
     Column(modifier, horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(8.dp)) {
         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            Canvas(Modifier.size(36.dp)) { drawFausMark(fausMarkBrush(size.minDimension / 1024f)) }
+            run { val markColors = FausMarkColors; Canvas(Modifier.size(36.dp)) { drawFausMark(fausMarkBrush(size.minDimension / 1024f, markColors)) } }
             // Brand wordmark stays fixed across languages.
             Row(Modifier.semantics(mergeDescendants = true) { contentDescription = "FausCrew" }) {
                 Text("Faus", style = TextStyle(brush = FausButtonGradient, fontSize = 28.sp, fontWeight = FontWeight.ExtraBold))
                 Text("Crew", color = FausCrewColors.deepBerry, fontSize = 28.sp, fontWeight = FontWeight.Normal)
             }
         }
-        Text("Make living together fun", color = Color(0xFF8E8E93), fontSize = 14.sp)
+        Text("Make living together fun", color = FausCrewColors.textTertiary, fontSize = 14.sp)
     }
 }
 
@@ -230,10 +232,11 @@ private fun Art(art: OnboardingArt, disc: Float, icon: Float, chips: List<Float>
     val wobble by loop.animateFloat(-8f, 8f, infiniteRepeatable(tween(700, easing = FastOutSlowInEasing), RepeatMode.Reverse), label = "wobble")
 
     Box(Modifier.size(200.dp), contentAlignment = Alignment.Center) {
-        Box(Modifier.size(192.dp).background(Color.White, CircleShape)
+        Box(Modifier.size(192.dp).background(FausCrewColors.surface, CircleShape)
             .border(1.2.dp, FausCrewColors.brandOrange.copy(alpha = .35f), CircleShape))
+        val dashColor = FausCrewColors.deepBerry.copy(alpha = .12f)
         Canvas(Modifier.size(156.dp).graphicsLayer { rotationZ = ring }) {
-            drawCircle(FausCrewColors.deepBerry.copy(alpha = .12f), style = Stroke(1.dp.toPx(),
+            drawCircle(dashColor, style = Stroke(1.dp.toPx(),
                 pathEffect = PathEffect.dashPathEffect(floatArrayOf(3.dp.toPx(), 6.dp.toPx()))))
         }
         OrbitDot(12.dp, FausCrewColors.brandLight.copy(alpha = .75f), 92.dp, -90f + orbitFast)
@@ -286,7 +289,7 @@ private fun GameChip(icon: ImageVector, x: Dp, y: Dp, progress: Float) {
         Modifier.offset(x, y).graphicsLayer {
             scaleX = progress; scaleY = progress; alpha = progress.coerceIn(0f, 1f)
             translationY = (1 - progress) * 10.dp.toPx()
-        }.size(32.dp).shadow(5.dp, CircleShape, spotColor = FausCrewColors.deepBerry).background(Color.White, CircleShape),
+        }.size(32.dp).shadow(5.dp, CircleShape, spotColor = FausCrewColors.deepBerry).background(FausCrewColors.surface, CircleShape),
         contentAlignment = Alignment.Center,
     ) {
         Icon(icon, null, Modifier.size(17.dp), tint = FausCrewColors.brandOrange)

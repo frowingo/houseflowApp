@@ -2,8 +2,7 @@ import SwiftUI
 
 /// Shared brand treatment for the prominent cards shown at the top of main tabs.
 struct BrandHeroCardBackground: View {
-    private let brandOrange = Color(red: 1.0, green: 0.48, blue: 0.15)
-    private let deepBerry = Color(red: 0.38, green: 0.10, blue: 0.22)
+    @Environment(\.fausTheme) private var theme
 
     var body: some View {
         GeometryReader { proxy in
@@ -11,15 +10,13 @@ struct BrandHeroCardBackground: View {
                 RoundedRectangle(cornerRadius: AppDesign.CornerRadius.xl)
                     .fill(
                         LinearGradient(
-                            colors: [
-                                Color(red: 1.0, green: 0.57, blue: 0.22),
-                                brandOrange,
-                                deepBerry
-                            ],
+                            stops: theme.decor.heroStops,
                             startPoint: .topLeading,
                             endPoint: .bottomTrailing
                         )
                     )
+
+                FausHeroGlow(color: theme.decor.heroGlow)
 
                 decorativeGeometry
             }
@@ -30,36 +27,36 @@ struct BrandHeroCardBackground: View {
             RoundedRectangle(cornerRadius: AppDesign.CornerRadius.xl)
                 .strokeBorder(
                     LinearGradient(
-                        colors: [Color.white.opacity(0.42), Color.white.opacity(0.06)],
+                        colors: theme.decor.heroBorder,
                         startPoint: .topLeading,
                         endPoint: .bottomTrailing
                     ),
                     lineWidth: 1
                 )
         }
-        .shadow(color: deepBerry.opacity(0.28), radius: 18, x: 0, y: 8)
+        .shadow(color: theme.decor.heroShadow, radius: 18, x: 0, y: 8)
         .allowsHitTesting(false)
     }
 
     private var decorativeGeometry: some View {
         ZStack {
             Circle()
-                .fill(Color.white.opacity(0.08))
+                .fill(theme.decor.heroOrnament.opacity(0.08))
                 .frame(width: 158, height: 158)
                 .offset(x: 145, y: -62)
 
             Circle()
-                .stroke(Color.white.opacity(0.16), lineWidth: 1)
+                .stroke(theme.decor.heroOrnament.opacity(0.16), lineWidth: 1)
                 .frame(width: 118, height: 118)
                 .offset(x: 136, y: -54)
 
             Circle()
-                .stroke(Color.white.opacity(0.10), lineWidth: 1)
+                .stroke(theme.decor.heroOrnament.opacity(0.10), lineWidth: 1)
                 .frame(width: 82, height: 82)
                 .offset(x: 130, y: -48)
 
             Capsule()
-                .fill(Color.white.opacity(0.08))
+                .fill(theme.decor.heroOrnament.opacity(0.08))
                 .frame(width: 180, height: 24)
                 .rotationEffect(.degrees(-28))
                 .offset(x: 130, y: 58)
@@ -76,8 +73,7 @@ struct BrandHeroCardBackground: View {
 /// Compact version of the brand treatment for popup title bars.
 /// The popup container owns the corner clipping, so this background stays edge-to-edge.
 struct BrandPopupHeaderBackground: View {
-    private let brandOrange = Color(red: 1.0, green: 0.48, blue: 0.15)
-    private let deepBerry = Color(red: 0.38, green: 0.10, blue: 0.22)
+    @Environment(\.fausTheme) private var theme
     let topCornerRadius: CGFloat
 
     init(topCornerRadius: CGFloat = AppDesign.CornerRadius.xl) {
@@ -88,27 +84,25 @@ struct BrandPopupHeaderBackground: View {
         GeometryReader { proxy in
             ZStack {
                 LinearGradient(
-                    colors: [
-                        Color(red: 1.0, green: 0.57, blue: 0.22),
-                        brandOrange,
-                        deepBerry
-                    ],
+                    stops: theme.decor.heroStops,
                     startPoint: .topLeading,
                     endPoint: .bottomTrailing
                 )
 
+                FausHeroGlow(color: theme.decor.heroGlow, reach: 0.9)
+
                 Circle()
-                    .fill(Color.white.opacity(0.08))
+                    .fill(theme.decor.heroOrnament.opacity(0.08))
                     .frame(width: 112, height: 112)
                     .offset(x: proxy.size.width * 0.34, y: -42)
 
                 Circle()
-                    .stroke(Color.white.opacity(0.15), lineWidth: 1)
+                    .stroke(theme.decor.heroOrnament.opacity(0.15), lineWidth: 1)
                     .frame(width: 78, height: 78)
                     .offset(x: proxy.size.width * 0.32, y: -34)
 
                 Capsule()
-                    .fill(Color.white.opacity(0.07))
+                    .fill(theme.decor.heroOrnament.opacity(0.07))
                     .frame(width: 132, height: 16)
                     .rotationEffect(.degrees(-24))
                     .offset(x: proxy.size.width * 0.31, y: 28)
@@ -132,8 +126,28 @@ struct BrandPopupHeaderBackground: View {
         )
         .overlay(alignment: .bottom) {
             Rectangle()
-                .fill(Color.white.opacity(0.14))
+                .fill(theme.decor.heroOrnament.opacity(theme.colorScheme == .dark ? 0.26 : 0.14))
                 .frame(height: 0.5)
+        }
+        .allowsHitTesting(false)
+        .accessibilityHidden(true)
+    }
+}
+
+/// Top-trailing bloom over a hero gradient; draws nothing when the theme's glow is clear.
+struct FausHeroGlow: View {
+    let color: Color
+    /// Radius as a fraction of the larger side.
+    var reach: CGFloat = 0.62
+
+    var body: some View {
+        GeometryReader { proxy in
+            RadialGradient(
+                colors: [color, color.opacity(0)],
+                center: .topTrailing,
+                startRadius: 0,
+                endRadius: max(proxy.size.width, proxy.size.height) * reach
+            )
         }
         .allowsHitTesting(false)
         .accessibilityHidden(true)

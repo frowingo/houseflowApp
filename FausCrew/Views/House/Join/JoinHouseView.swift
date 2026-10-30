@@ -57,7 +57,7 @@ struct JoinHouseView: View {
     private var headerContent: some View {
         VStack(spacing: AppDesign.Spacing.md) {
             Circle()
-                .fill(Color(.systemBackground))
+                .fill(AppDesign.Colors.background)
                 .overlay(Circle().stroke(FausBrand.orange.opacity(0.55), lineWidth: 1.5))
                 .frame(width: 96, height: 96)
                 .overlay(FausHouseIcon(size: 48))
@@ -165,7 +165,7 @@ struct JoinHouseView: View {
                 .background(
                     !InviteCodeRules.isValid(inviteCode)
                         ? LinearGradient(
-                            colors: [Color.gray.opacity(0.30), Color.gray.opacity(0.24)],
+                            colors: [AppDesign.Colors.textTertiary.opacity(0.30), AppDesign.Colors.textTertiary.opacity(0.24)],
                             startPoint: .leading,
                             endPoint: .trailing
                         )

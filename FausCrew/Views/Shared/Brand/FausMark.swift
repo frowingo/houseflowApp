@@ -4,12 +4,12 @@ import SwiftUI
 
 /// FausCrew brand palette, matching the app icon and `BrandHeroCardBackground`.
 enum FausBrand {
-    static let orangeLight = Color(red: 1.0, green: 0.57, blue: 0.22)
-    static let orange = Color(red: 1.0, green: 0.48, blue: 0.15)
-    static let deepBerry = Color(red: 0.38, green: 0.10, blue: 0.22)
-    static let markBerry = Color(red: 0.54, green: 0.14, blue: 0.25)
-    static let spinnerRed = Color(red: 1.0, green: 0.37, blue: 0.18)
-    static let spinnerBerry = Color(red: 0.64, green: 0.14, blue: 0.29)
+    static let orangeLight = Color.faus(\.brandOrangeLight)
+    static let orange = Color.faus(\.brandOrange)
+    static let deepBerry = Color.faus(\.brandDeepBerry)
+    static let markBerry = Color.faus(\.brandMarkBerry)
+    static let spinnerRed = Color.faus(\.spinnerRed)
+    static let spinnerBerry = Color.faus(\.spinnerBerry)
 
     /// Hero surfaces (auth header): the `BrandHeroCardBackground` orange → berry diagonal.
     static var heroGradient: LinearGradient {
@@ -130,19 +130,32 @@ struct FausMark: View {
 /// inside is cleared to `fill` so the page's ambient lines stop at its edge.
 struct FausFramedMark: View {
     var size: CGFloat
-    var fill: Color = Color(uiColor: .systemBackground)
+    /// `nil` uses the theme's framed-mark fill.
+    var fill: Color?
     var progress: CGFloat = 1
     var dotScale: CGFloat = 1
+
+    @Environment(\.fausTheme) private var theme
 
     var body: some View {
         let unit = size / 1024
         ZStack {
             Circle()
-                .fill(fill)
+                .fill(fill ?? theme.decor.framedMarkFill)
+                .overlay(
+                    RadialGradient(
+                        colors: [theme.decor.framedMarkGlow.opacity(0.5), .clear],
+                        center: .center,
+                        startRadius: 0,
+                        endRadius: 470 * unit
+                    )
+                    .clipShape(Circle())
+                )
                 .frame(width: 940 * unit, height: 940 * unit)
                 .overlay(
-                    Circle().stroke(FausBrand.orange.opacity(0.55), lineWidth: max(1, 7 * unit))
+                    Circle().stroke(theme.decor.framedMarkRing, lineWidth: max(1, 7 * unit))
                 )
+                .shadow(color: theme.decor.framedMarkGlow, radius: 17)
 
             Rectangle()
                 .fill(FausBrand.markGradient)

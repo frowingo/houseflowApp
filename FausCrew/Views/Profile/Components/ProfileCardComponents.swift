@@ -44,7 +44,7 @@ struct ProfileModernCard<Content: View>: View {
             .padding(.top, AppDesign.Spacing.md)
             .padding(.bottom, AppDesign.Spacing.sm)
 
-            Divider().padding(.horizontal, AppDesign.Spacing.lg)
+            Divider().overlay(AppDesign.Colors.separator).padding(.horizontal, AppDesign.Spacing.lg)
             content
         }
         .background(
@@ -169,6 +169,8 @@ struct ProfileSettingsRow: View {
     let icon: String
     let tint: Color
     let label: String
+    /// Current choice shown before the chevron (e.g. the active theme).
+    var value: String?
     var action: (() -> Void)?
 
     var body: some View {
@@ -183,6 +185,13 @@ struct ProfileSettingsRow: View {
                     .foregroundStyle(AppDesign.Colors.textPrimary)
 
                 Spacer()
+
+                if let value {
+                    Text(value)
+                        .font(AppDesign.Typography.caption)
+                        .foregroundStyle(AppDesign.Colors.textTertiary)
+                        .lineLimit(1)
+                }
 
                 Image(systemName: "chevron.right")
                     .font(.system(size: 12, weight: .semibold))
@@ -213,6 +222,6 @@ struct ProfileRowIcon: View {
 
 struct ProfileCardDivider: View {
     var body: some View {
-        Divider().padding(.leading, 66)
+        Divider().overlay(AppDesign.Colors.separator).padding(.leading, 66)
     }
 }

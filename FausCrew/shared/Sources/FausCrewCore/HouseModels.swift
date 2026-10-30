@@ -605,6 +605,19 @@ public struct HouseChoreDTO: Decodable, Identifiable, Equatable, Sendable {
     }
 }
 
+public extension HouseChoreDTO {
+    /// Set for Failed chores only (`ChoreFailureReason.reason`).
+    var failureReason: ChoreFailureReason? {
+        guard ChoreStatus(apiValue: status) == .failed else { return nil }
+        return ChoreFailureReason.reason(
+            statusHistories: statusHistories,
+            dueDate: dueDate,
+            reviewRound: reviewRound,
+            reviewVotes: reviewVotes
+        )
+    }
+}
+
 public struct ChoreStatusHistory: Decodable, Identifiable, Equatable, Sendable {
     public let id: String
     public let choreId: String

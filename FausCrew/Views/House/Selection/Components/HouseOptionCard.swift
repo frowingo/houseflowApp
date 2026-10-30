@@ -50,8 +50,8 @@ struct HouseOptionCard: View {
                         .frame(width: 22, height: 22)
                         .background(
                             Circle()
-                                .fill(Color.white)
-                                .shadow(color: Color.black.opacity(0.12), radius: 2, x: 0, y: 2)
+                                .fill(AppDesign.Colors.surface)
+                                .shadow(color: AppDesign.Colors.shadow.opacity(0.12), radius: 2, x: 0, y: 2)
                         )
                         .offset(x: 2, y: 2)
                 }

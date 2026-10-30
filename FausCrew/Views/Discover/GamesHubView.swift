@@ -190,7 +190,7 @@ private struct HubGameCard: View {
         }
         .background(AppDesign.Colors.cardBackground)
         .clipShape(RoundedRectangle(cornerRadius: AppDesign.CornerRadius.xl))
-        .shadow(color: Color.black.opacity(0.06), radius: 8, x: 0, y: 2)
+        .shadow(color: AppDesign.Colors.shadow.opacity(0.06), radius: 8, x: 0, y: 2)
         .frame(maxHeight: .infinity, alignment: .top)
     }
 

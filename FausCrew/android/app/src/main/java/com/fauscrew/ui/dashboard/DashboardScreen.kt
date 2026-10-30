@@ -42,6 +42,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.platform.LocalContext
@@ -63,6 +64,7 @@ import com.fauscrew.ui.components.RemoteImage
 import com.fauscrew.ui.components.mainScreenBackground
 import com.fauscrew.ui.main.TabBarClearance
 import com.fauscrew.ui.theme.FausCrewColors
+import com.fauscrew.ui.theme.LocalFausTheme
 import com.fauscrew.ui.theme.FausCrewIcons
 import com.fauscrew.ui.theme.FausCrewType
 import com.fauscrew.ui.theme.Motion
@@ -208,25 +210,25 @@ private fun DashboardHeader(
                 Text(
                     strings.template("dashboard_greeting_template",
                         "first_name" to state.firstName.ifBlank { strings.get("common_user_fallback") }),
-                    color = Color.White.copy(alpha = .88f), fontSize = 14.sp, fontWeight = FontWeight.Medium,
+                    color = LocalFausTheme.current.decor.heroAccentText, fontSize = 14.sp, fontWeight = FontWeight.Medium,
                     maxLines = 1, overflow = TextOverflow.Ellipsis,
                 )
                 BasicText(
                     houseName,
-                    style = TextStyle(color = Color.White, fontSize = 24.sp, fontWeight = FontWeight.Bold),
+                    style = TextStyle(color = FausCrewColors.onHero, fontSize = 24.sp, fontWeight = FontWeight.Bold),
                     maxLines = 1,
                     autoSize = TextAutoSize.StepBased(minFontSize = 17.sp, maxFontSize = 24.sp),
                 )
             }
             val description = strings.get("new_announcement_action_accessibility_label", "Create announcement")
             Box(
-                Modifier.size(40.dp).clip(CircleShape).background(Color.White.copy(alpha = .18f))
+                Modifier.size(40.dp).clip(CircleShape).background(LocalFausTheme.current.decor.heroOrnament.copy(alpha = .18f))
                     .clickable(role = Role.Button, onClick = onAnnouncement)
                     .semantics { contentDescription = description },
                 contentAlignment = Alignment.Center,
             ) {
                 Icon(FausCrewIcons.megaphoneFill, null, Modifier.size(Sizes.iconMedium + 2.dp),
-                    tint = Color.White.copy(alpha = .9f))
+                    tint = FausCrewColors.onHero.copy(alpha = .9f))
             }
         }
     }
@@ -238,10 +240,10 @@ private fun DashboardHouseImage(url: String?) {
     val shape = RoundedCornerShape(20.dp)
     Box(
         Modifier.softShadow(Color(0xFF3A0A1E).copy(alpha = .3f), 7.dp, y = 5.dp, shape = shape)
-            .clip(shape).background(Color.White.copy(alpha = .95f)).padding(3.dp),
+            .clip(shape).background(LocalFausTheme.current.decor.heroFrame.let { if (it.size == 1) SolidColor(it.first()) else Brush.linearGradient(it) }).padding(3.dp),
     ) {
         RemoteImage(url, Modifier.size(66.dp).clip(RoundedCornerShape(17.dp))) {
-            Box(Modifier.fillMaxSize().background(Color(0xFFFFF2E8)), contentAlignment = Alignment.Center) {
+            Box(Modifier.fillMaxSize().background(LocalFausTheme.current.decor.heroTile), contentAlignment = Alignment.Center) {
                 FausHouseIcon(32.dp)
             }
         }
@@ -256,9 +258,9 @@ private fun NewChoreFab(expanded: Boolean, label: String, modifier: Modifier, on
     Row(
         modifier
             .graphicsLayer { scaleX = scale; scaleY = scale }
-            .softShadow(FausCrewColors.secondary.copy(alpha = .3f), 8.dp, y = 4.dp, shape = shape)
+            .softShadow(LocalFausTheme.current.decor.fabShadow, 8.dp, y = 4.dp, shape = shape)
             .clip(shape)
-            .background(Brush.linearGradient(listOf(FausCrewColors.secondary, FausCrewColors.secondary.copy(alpha = .8f))))
+            .background(Brush.linearGradient(LocalFausTheme.current.decor.fabColors))
             .clickable(role = Role.Button, onClick = onClick)
             .semantics { contentDescription = label }
             .animateContentSize(Motion.spring())
@@ -266,11 +268,11 @@ private fun NewChoreFab(expanded: Boolean, label: String, modifier: Modifier, on
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.Center,
     ) {
-        Icon(FausCrewIcons.plus, null, Modifier.size(if (expanded) 22.dp else 26.dp), tint = Color.White)
+        Icon(FausCrewIcons.plus, null, Modifier.size(if (expanded) 22.dp else 26.dp), tint = FausCrewColors.onAccent)
         AnimatedVisibility(expanded, enter = fadeIn() + scaleIn(), exit = fadeOut() + scaleOut()) {
             Row {
                 Spacer(Modifier.width(Spacing.sm))
-                Text(label, style = FausCrewType.headline, color = Color.White, maxLines = 1)
+                Text(label, style = FausCrewType.headline, color = FausCrewColors.onAccent, maxLines = 1)
             }
         }
     }

@@ -33,7 +33,7 @@ struct HouseInfoPopup: View {
     var body: some View {
         GeometryReader { proxy in
             ZStack {
-                Color.black.opacity(0.55)
+                AppDesign.Colors.scrim
                     .ignoresSafeArea()
                     .onTapGesture {
                         guard !isBusy else { return }
@@ -121,9 +121,9 @@ struct HouseInfoPopup: View {
 
             footer
         }
-        .background(MainScreenBackground())
+        .background(MainScreenBackground(surface: .popup))
         .clipShape(RoundedRectangle(cornerRadius: AppDesign.CornerRadius.xl, style: .continuous))
-        .shadow(color: Color.black.opacity(0.25), radius: 30, x: 0, y: 16)
+        .shadow(color: AppDesign.Colors.shadow.opacity(0.25), radius: 30, x: 0, y: 16)
         .accessibilityAddTraits(.isModal)
     }
 
@@ -481,7 +481,7 @@ struct HouseInfoPopup: View {
                 label: appViewModel.localized("house_info_members_label", fallback: "Members"),
                 value: memberCountText(info)
             )
-            Divider().padding(.leading, 50)
+            Divider().overlay(AppDesign.Colors.separator).padding(.leading, 50)
             readOnlyRow(
                 icon: houseTypeIcon(info.houseType),
                 label: appViewModel.localized("house_info_type_label", fallback: "House type"),
@@ -501,7 +501,7 @@ struct HouseInfoPopup: View {
                 ForEach(info.houseMembers) { member in
                     memberRow(member)
                     if member.id != info.houseMembers.last?.id {
-                        Divider().padding(.leading, 62)
+                        Divider().overlay(AppDesign.Colors.separator).padding(.leading, 62)
                     }
                 }
             }
@@ -617,7 +617,7 @@ struct HouseInfoPopup: View {
         .padding(.vertical, AppDesign.Spacing.md)
         .background(AppDesign.Colors.background)
         .overlay(alignment: .top) {
-            Divider()
+            Divider().overlay(AppDesign.Colors.separator)
         }
     }
 
@@ -806,7 +806,7 @@ struct HouseInfoPopup: View {
                 HouseJourneyTheme.primaryButtonGradient
             } else {
                 LinearGradient(
-                    colors: [Color.gray.opacity(0.42), Color.gray.opacity(0.32)],
+                    colors: [AppDesign.Colors.textTertiary.opacity(0.42), AppDesign.Colors.textTertiary.opacity(0.32)],
                     startPoint: .leading,
                     endPoint: .trailing
                 )

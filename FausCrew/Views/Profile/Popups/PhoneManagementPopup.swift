@@ -43,7 +43,7 @@ struct PhoneManagementPopup: View {
 
     var body: some View {
         ZStack {
-            Color.black.opacity(0.55)
+            AppDesign.Colors.scrim
                 .ignoresSafeArea()
                 .onTapGesture(perform: requestDismiss)
 
@@ -86,9 +86,9 @@ struct PhoneManagementPopup: View {
                 .padding(.vertical, AppDesign.Spacing.lg)
                 .background(AppDesign.Colors.background)
             }
-            .background(MainScreenBackground())
+            .background(MainScreenBackground(surface: .popup))
             .clipShape(RoundedRectangle(cornerRadius: AppDesign.CornerRadius.xl, style: .continuous))
-            .shadow(color: Color.black.opacity(0.25), radius: 30, x: 0, y: 16)
+            .shadow(color: AppDesign.Colors.shadow.opacity(0.25), radius: 30, x: 0, y: 16)
             .padding(.horizontal, AppDesign.Spacing.xl)
         }
         .animation(AppDesign.Animation.standard, value: selectedMode)
@@ -308,7 +308,7 @@ struct PhoneManagementPopup: View {
             .foregroundStyle(.white)
             .frame(maxWidth: .infinity)
             .frame(height: AppDesign.Size.buttonHeightSmall)
-            .background(isEnabled ? accentBlue : Color(.systemGray3))
+            .background(isEnabled ? accentBlue : AppDesign.Colors.controlFillStrong)
             .clipShape(RoundedRectangle(cornerRadius: AppDesign.CornerRadius.md))
         }
         .disabled(!isEnabled)

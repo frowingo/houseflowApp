@@ -87,14 +87,14 @@ struct OTPInputView: View {
 
         return ZStack {
             RoundedRectangle(cornerRadius: 12)
-                .fill(!character.isEmpty && !isError ? FausBrand.orange.opacity(0.06) : Color(.systemGray6))
+                .fill(!character.isEmpty && !isError ? FausBrand.orange.opacity(0.06) : AppDesign.Colors.secondaryBackground)
                 .overlay(
                     RoundedRectangle(cornerRadius: 12)
                         .stroke(
                             isError ? AppDesign.Colors.error :
                                 isActive ? FausBrand.orange :
                                 !character.isEmpty ? FausBrand.orange.opacity(0.45) :
-                                Color(.systemGray4),
+                                AppDesign.Colors.controlFill,
                             lineWidth: isError || isActive ? 2 : 1
                         )
                 )

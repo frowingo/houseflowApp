@@ -19,6 +19,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.ReadOnlyComposable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -41,12 +42,15 @@ import com.fauscrew.ui.theme.Radius
 import com.fauscrew.ui.theme.Spacing
 import com.fauscrew.ui.theme.softShadow
 
-private val MemberTints = listOf(FausCrewColors.indigo, FausCrewColors.teal, FausCrewColors.purple, FausCrewColors.blue)
+private val MemberTints: List<Color>
+    @Composable @ReadOnlyComposable
+    get() = listOf(FausCrewColors.indigo, FausCrewColors.teal, FausCrewColors.purple, FausCrewColors.blue)
 
 /** `HouseMembersCard`: cool-toned member carousel. */
 @Composable
 internal fun HouseMembersCard(members: List<HouseMember>, strings: LocalizedText, modifier: Modifier = Modifier) {
     val shape = RoundedCornerShape(Radius.xl)
+    val glow = FausCrewColors.purple.copy(alpha = .055f)
     Column(
         modifier.fillMaxWidth()
             .softShadow(FausCrewColors.deepIndigo.copy(alpha = .09f), 14.dp, y = 6.dp, shape = shape)
@@ -56,7 +60,7 @@ internal fun HouseMembersCard(members: List<HouseMember>, strings: LocalizedText
                 FausCrewColors.indigo.copy(alpha = .075f), FausCrewColors.teal.copy(alpha = .035f), Color.Transparent,
             )))
             .drawBehind {
-                drawCircle(FausCrewColors.purple.copy(alpha = .055f), 75.dp.toPx(),
+                drawCircle(glow, 75.dp.toPx(),
                     Offset(size.width / 2 + 150.dp.toPx(), size.height / 2 - 70.dp.toPx()))
             }
             .border(1.dp, Brush.linearGradient(listOf(

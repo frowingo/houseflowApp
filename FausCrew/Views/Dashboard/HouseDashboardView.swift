@@ -5,6 +5,7 @@ import FausCrewCore
 /// Refactored: Component'lere bölündü, Design System kullanıyor
 struct HouseDashboardView: View {
     @EnvironmentObject private var appViewModel: AppViewModel
+    @Environment(\.fausTheme) private var theme
     @State private var selectedChore: Chore? = nil
     @State private var showChoreDetail = false
     @State private var showNewChore = false
@@ -86,11 +87,11 @@ struct HouseDashboardView: View {
                         ]
                     ))
                         .font(.system(size: 14, weight: .medium, design: .rounded))
-                        .foregroundStyle(Color.white.opacity(0.88))
+                        .foregroundStyle(theme.decor.heroAccentText)
                         .lineLimit(1)
                     Text(appViewModel.currentHouseDetails?.name ?? appViewModel.houseName)
                         .font(.system(size: 24, weight: .bold, design: .rounded))
-                        .foregroundStyle(.white)
+                        .foregroundStyle(AppDesign.Colors.onHero)
                         .lineLimit(1)
                         .minimumScaleFactor(0.72)
                 }
@@ -103,9 +104,9 @@ struct HouseDashboardView: View {
                 } label: {
                     Image(systemName: "megaphone.fill")
                         .font(.system(size: AppDesign.Size.iconMedium))
-                        .foregroundStyle(Color.white.opacity(0.9))
+                        .foregroundStyle(AppDesign.Colors.onHero.opacity(0.9))
                         .frame(width: 40, height: 40)
-                        .background(Color.white.opacity(0.18))
+                        .background(theme.decor.heroOrnament.opacity(0.18))
                         .clipShape(Circle())
                 }
                 .accessibilityLabel(appViewModel.localized(
@@ -142,14 +143,14 @@ struct HouseDashboardView: View {
         .frame(width: 66, height: 66)
         .clipShape(shape)
         .padding(3)
-        .background(shape.fill(Color.white.opacity(0.95)))
+        .background(shape.fill(LinearGradient(colors: theme.decor.heroFrame, startPoint: .topLeading, endPoint: .bottomTrailing)))
         .shadow(color: Color(red: 0.23, green: 0.04, blue: 0.12).opacity(0.3), radius: 7, x: 0, y: 5)
         .accessibilityHidden(true)
     }
 
     private var houseImagePlaceholder: some View {
         ZStack {
-            Color(red: 1.0, green: 0.95, blue: 0.91)
+            theme.decor.heroTile
             FausHouseIcon(size: 32)
         }
     }

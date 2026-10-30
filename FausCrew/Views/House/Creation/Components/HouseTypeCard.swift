@@ -88,7 +88,7 @@ struct HouseTypeCard: View {
             .strokeBorder(
                 isSelected
                     ? FausBrand.orange
-                    : Color(.systemGray5),
+                    : AppDesign.Colors.elevatedSurface,
                 lineWidth: isSelected ? 2 : 1
             )
     }

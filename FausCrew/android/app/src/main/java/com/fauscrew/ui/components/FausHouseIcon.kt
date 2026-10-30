@@ -46,10 +46,10 @@ internal fun DrawScope.drawFausHouse(brush: Brush) {
 }
 
 /** House glyph stroke gradient, laid out on the icon's 24-unit grid. */
-internal fun fausHouseBrush(unit: Float) = Brush.linearGradient(
-    0f to FausCrewColors.brandLight,
-    .4f to FausCrewColors.brandOrange,
-    1f to Color(0xFF8A2440),
+internal fun fausHouseBrush(unit: Float, colors: List<Color>) = Brush.linearGradient(
+    0f to colors[0],
+    .4f to colors[1],
+    1f to colors[2],
     start = Offset(3f * unit, 3f * unit),
     end = Offset(21f * unit, 21f * unit),
 )
@@ -57,7 +57,8 @@ internal fun fausHouseBrush(unit: Float) = Brush.linearGradient(
 /** `FausHouseIcon`: brand-gradient house by default, or a flat [color]. */
 @Composable
 internal fun FausHouseIcon(size: Dp, modifier: Modifier = Modifier, color: Color? = null) {
+    val markColors = FausMarkColors
     Canvas(modifier.size(size)) {
-        drawFausHouse(color?.let { androidx.compose.ui.graphics.SolidColor(it) } ?: fausHouseBrush(this.size.minDimension / 24f))
+        drawFausHouse(color?.let { androidx.compose.ui.graphics.SolidColor(it) } ?: fausHouseBrush(this.size.minDimension / 24f, markColors))
     }
 }

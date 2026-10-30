@@ -200,7 +200,8 @@ final class ChoreStore: ObservableObject {
             level: response.level,
             reviewRound: response.reviewRound,
             reviewVotes: response.reviewVotes,
-            reviewPhotoRounds: response.reviewPhotoRounds
+            reviewPhotoRounds: response.reviewPhotoRounds,
+            failureReason: response.houseChoreDTO.failureReason
         )
     }
 }

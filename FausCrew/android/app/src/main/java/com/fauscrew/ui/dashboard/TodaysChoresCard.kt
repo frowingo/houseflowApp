@@ -50,6 +50,8 @@ import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.heading
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextDecoration
@@ -59,6 +61,7 @@ import androidx.compose.ui.unit.sp
 import com.fauscrew.platform.HouseChore
 import com.fauscrew.platform.HouseMember
 import com.fauscrew.platform.LocalizedText
+import com.fauscrew.ui.auth.social
 import com.fauscrew.ui.components.UserAvatar
 import com.fauscrew.ui.theme.FausCrewBrushes
 import com.fauscrew.ui.theme.FausCrewColors
@@ -80,12 +83,12 @@ internal fun TodaysChoresCard(
     onChoreTap: (HouseChore) -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    val completed = chores.count { it.status == ChoreStatusUi.COMPLETED.raw }
+    val completed = chores.count { ChoreStatusUi.of(it.status) == ChoreStatusUi.COMPLETED }
     val progress = if (chores.isEmpty()) 0f else completed.toFloat() / chores.size
     val shape = RoundedCornerShape(Radius.xl)
     Column(
         modifier.fillMaxWidth()
-            .softShadow(Color.Black.copy(alpha = .12f), 16.dp, y = 6.dp, shape = shape)
+            .softShadow(FausCrewColors.shadow.copy(alpha = .12f), 16.dp, y = 6.dp, shape = shape)
             .clip(shape)
             .background(FausCrewColors.cardBackground)
             .background(Brush.linearGradient(listOf(
@@ -100,8 +103,19 @@ internal fun TodaysChoresCard(
         if (chores.isEmpty()) {
             ChoresEmptyState(strings)
         } else {
+            // Active chores first; Completed and Failed (and unknown) follow as the history.
+            val (active, history) = chores.splitByHistory()
             Column(Modifier.padding(Spacing.xl), verticalArrangement = Arrangement.spacedBy(Spacing.md)) {
-                chores.forEach { chore ->
+                active.forEach { chore ->
+                    ModernChoreRow(chore, members.firstOrNull { it.id == chore.assignedTo }, strings) { onChoreTap(chore) }
+                }
+                if (history.isNotEmpty() && active.isNotEmpty()) {
+                    Text(strings.social("todays_tasks_history_label", "Geçmiş", "History").uppercase(),
+                        Modifier.fillMaxWidth().padding(top = Spacing.xs).semantics { heading() },
+                        fontSize = 11.sp, fontWeight = FontWeight.SemiBold, letterSpacing = .5.sp,
+                        color = FausCrewColors.textTertiary)
+                }
+                history.forEach { chore ->
                     ModernChoreRow(chore, members.firstOrNull { it.id == chore.assignedTo }, strings) { onChoreTap(chore) }
                 }
             }
@@ -164,13 +178,15 @@ internal fun AccentDot(size: androidx.compose.ui.unit.Dp, ring: Color, modifier:
 private fun CircularProgress(progress: Float, strings: LocalizedText, modifier: Modifier) {
     val animated by animateFloatAsState(progress, Motion.spring(), label = "ring")
     Box(modifier, contentAlignment = Alignment.Center) {
+        val track = FausCrewColors.textSecondary.copy(alpha = .2f)
+        val ring = listOf(FausCrewColors.indigo, FausCrewColors.teal)
         Canvas(Modifier.size(50.dp)) {
             val stroke = 4.dp.toPx()
             val inset = stroke / 2
             val arcSize = Size(size.width - stroke, size.height - stroke)
-            drawArc(FausCrewColors.textSecondary.copy(alpha = .2f), 0f, 360f, false,
+            drawArc(track, 0f, 360f, false,
                 Offset(inset, inset), arcSize, style = Stroke(stroke))
-            drawArc(Brush.linearGradient(listOf(FausCrewColors.indigo, FausCrewColors.teal)),
+            drawArc(Brush.linearGradient(ring),
                 -90f, 360f * animated.coerceIn(0f, 1f), false, Offset(inset, inset), arcSize,
                 style = Stroke(stroke, cap = StrokeCap.Round))
         }
@@ -208,6 +224,8 @@ private fun ChoresEmptyState(strings: LocalizedText) {
 private fun ModernChoreRow(chore: HouseChore, assignee: HouseMember?, strings: LocalizedText, onTap: () -> Unit) {
     val status = ChoreStatusUi.of(chore.status)
     val completed = status == ChoreStatusUi.COMPLETED
+    // Failed reads as closed but not done: muted title, no strikethrough.
+    val closed = status.group.isHistory
     val haptics = LocalHapticFeedback.current
     val interaction = remember { MutableInteractionSource() }
     val pressed by interaction.collectIsPressedAsState()
@@ -245,7 +263,7 @@ private fun ModernChoreRow(chore: HouseChore, assignee: HouseMember?, strings: L
         }
         Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(Spacing.xs)) {
             Text(chore.title, style = FausCrewType.bodyBold,
-                color = if (completed) FausCrewColors.textSecondary else FausCrewColors.textPrimary,
+                color = if (closed) FausCrewColors.textSecondary else FausCrewColors.textPrimary,
                 textDecoration = if (completed) TextDecoration.LineThrough else null,
                 maxLines = 2, overflow = TextOverflow.Ellipsis)
             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(Spacing.sm)) {
@@ -270,7 +288,7 @@ private fun StatusBadge(status: ChoreStatusUi, strings: LocalizedText) {
         horizontalArrangement = Arrangement.spacedBy(Spacing.xs),
     ) {
         ChoreStatusGlyph(status, 11.dp, status.color)
-        Text(strings.get(status.key), style = FausCrewType.caption, fontWeight = FontWeight.Medium,
+        Text(status.label(strings), style = FausCrewType.caption, fontWeight = FontWeight.Medium,
             color = status.color, maxLines = 1)
     }
 }

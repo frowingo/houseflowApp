@@ -20,6 +20,7 @@ internal data class HouseMember(val id: String, val firstName: String, val lastN
     val name: String get() = listOf(firstName, lastName).filter(String::isNotBlank).joinToString(" ")
 }
 internal data class HouseVote(val reviewRound: Int, val reviewerId: String, val isApproved: Boolean)
+internal data class HouseStatusHistory(val status: Int, val updater: String, val dateTime: String)
 internal data class HouseChore(
     val id: String, val houseId: String, val title: String, val description: String,
     val assignedTo: String, val dueDate: String, val status: Int, val isCompleted: Boolean,
@@ -27,7 +28,50 @@ internal data class HouseChore(
     val reviewRound: Int, val reviewVotes: List<HouseVote>,
     /** Review rounds that carry a photo; storage keys never reach the client. */
     val reviewPhotoRounds: List<Int> = emptyList(),
-)
+    val statusHistories: List<HouseStatusHistory> = emptyList(),
+) {
+    /** Set for Failed chores only (iOS `HouseChoreDTO.failureReason`). */
+    val failureReason: ChoreFailureReason?
+        get() = if (status == CHORE_STATUS_FAILED) {
+            ChoreFailureReason.of(statusHistories, dueDate, reviewRound, reviewVotes)
+        } else null
+}
+
+/** `ChoreStatus.failed`: terminal and backend-owned; the client never sends it. */
+internal const val CHORE_STATUS_FAILED = 4
+
+/**
+ * Why a chore failed (iOS `ChoreFailureReason`). The API does not say, so a reason is shown
+ * only when the status history proves it; anything else stays [UNSPECIFIED].
+ */
+internal enum class ChoreFailureReason {
+    DUE_DATE_PASSED,
+    UNSPECIFIED,
+    ;
+
+    companion object {
+        /** `updater` of status-history entries the backend writes itself. */
+        const val SYSTEM_UPDATER = "system"
+
+        /**
+         * [DUE_DATE_PASSED] only when the Failed entry came from the system at or after the due
+         * date and the last review round (the third or later) holds no rejection, which would
+         * make a review failure just as likely.
+         */
+        fun of(histories: List<HouseStatusHistory>, dueDate: String, reviewRound: Int, votes: List<HouseVote>): ChoreFailureReason {
+            val failure = histories.lastOrNull { it.status == CHORE_STATUS_FAILED } ?: return UNSPECIFIED
+            if (failure.updater.trim().lowercase() != SYSTEM_UPDATER) return UNSPECIFIED
+            val due = apiInstant(dueDate) ?: return UNSPECIFIED
+            val failedAt = apiInstant(failure.dateTime) ?: return UNSPECIFIED
+            if (failedAt.isBefore(due)) return UNSPECIFIED
+            val rejectedInFinalRound = reviewRound >= 3 && votes.any { it.reviewRound == reviewRound && !it.isApproved }
+            return if (rejectedInFinalRound) UNSPECIFIED else DUE_DATE_PASSED
+        }
+
+        private fun apiInstant(value: String): java.time.Instant? =
+            runCatching { java.time.OffsetDateTime.parse(value).toInstant() }.getOrNull()
+    }
+}
 internal data class HouseAnnouncement(
     val id: String, val houseId: String?, val title: String, val message: String,
     val createdOn: String, val isActive: Boolean, val publisherId: String?, val publisherName: String?,
@@ -157,6 +201,9 @@ internal fun JSONObject.toHouseChore() = HouseChore(
     reviewPhotoRounds = optJSONArray("reviewPhotoRounds")?.let { rounds ->
         (0 until rounds.length()).mapNotNull { index -> (rounds.opt(index) as? Number)?.toInt() }
     }.orEmpty(),
+    statusHistories = optJSONArray("statusHistories").objects {
+        HouseStatusHistory(it.optInt("status", -1), it.optString("updater"), it.apiTime("dateTime"))
+    },
 )
 
 internal fun JSONObject.toHouseAnnouncement() = HouseAnnouncement(

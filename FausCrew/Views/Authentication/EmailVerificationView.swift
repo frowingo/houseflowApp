@@ -33,7 +33,7 @@ struct EmailVerificationView: View {
 
     var body: some View {
         ZStack(alignment: .top) {
-            Color(.systemBackground).ignoresSafeArea()
+            AppDesign.Colors.background.ignoresSafeArea()
 
             VStack(spacing: 0) {
                 heroSection
@@ -52,7 +52,7 @@ struct EmailVerificationView: View {
                     .padding(.bottom, 60)
                 }
                 .frame(maxHeight: .infinity)
-                .background(Color(.systemBackground))
+                .background(AppDesign.Colors.background)
                 .clipShape(UnevenRoundedRectangle(topLeadingRadius: 32, topTrailingRadius: 32))
             }
             .ignoresSafeArea(.container, edges: .bottom)
@@ -139,7 +139,7 @@ struct EmailVerificationView: View {
             .padding(AppDesign.Spacing.xxl)
             .background(AppDesign.Colors.background)
             .clipShape(RoundedRectangle(cornerRadius: AppDesign.CornerRadius.xxl))
-            .shadow(color: Color.black.opacity(0.20), radius: 24, x: 0, y: 12)
+            .shadow(color: AppDesign.Colors.shadow.opacity(0.20), radius: 24, x: 0, y: 12)
             .padding(.horizontal, AppDesign.Spacing.xxxl)
         }
     }
@@ -256,7 +256,7 @@ struct EmailVerificationView: View {
             .padding(.vertical, AppDesign.Spacing.lg)
             .background(
                 RoundedRectangle(cornerRadius: AppDesign.CornerRadius.md)
-                    .fill(Color(.systemGray5))
+                    .fill(AppDesign.Colors.elevatedSurface)
             )
             .opacity(0.6)
         }
@@ -291,7 +291,7 @@ struct EmailVerificationView: View {
                         heroGradient
                     } else {
                         LinearGradient(
-                            colors: [Color(.systemGray4)],
+                            colors: [AppDesign.Colors.controlFill],
                             startPoint: .leading,
                             endPoint: .trailing
                         )
@@ -357,7 +357,7 @@ struct EmailVerificationView: View {
                         heroGradient
                     } else {
                         LinearGradient(
-                            colors: [Color(.systemGray4)],
+                            colors: [AppDesign.Colors.controlFill],
                             startPoint: .leading,
                             endPoint: .trailing
                         )

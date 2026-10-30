@@ -35,6 +35,7 @@ import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.ReadOnlyComposable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.remember
@@ -62,20 +63,21 @@ import com.fauscrew.ui.components.FausButtonGradient
 import com.fauscrew.ui.components.FausGradientIcon
 import com.fauscrew.ui.components.FausSpinner
 import com.fauscrew.ui.components.fausHeroBackground
+import com.fauscrew.ui.components.fausSheetBackground
 import com.fauscrew.ui.theme.FausCrewColors
 import com.fauscrew.viewmodel.AuthUiState
 import com.fauscrew.viewmodel.ForgotPhase
 import kotlinx.coroutines.delay
 
-private val accentOrange = FausCrewColors.brandOrange
-private val ink = Color(0xFF1C1C1E)
-private val muted = Color(0xFF8E8E93)
-private val field = Color(0xFFE5E5EA)
+private val accentOrange: Color @Composable @ReadOnlyComposable get() = FausCrewColors.brandOrange
+private val ink: Color @Composable @ReadOnlyComposable get() = FausCrewColors.textPrimary
+private val muted: Color @Composable @ReadOnlyComposable get() = FausCrewColors.textTertiary
+private val field: Color @Composable @ReadOnlyComposable get() = FausCrewColors.elevatedSurface
 
 @Composable
 private fun FlowScaffold(title: String, subtitle: String, icon: androidx.compose.ui.graphics.vector.ImageVector,
     onBack: (() -> Unit)?, content: @Composable () -> Unit) {
-    Column(Modifier.fillMaxSize().background(Color.White)) {
+    Column(Modifier.fillMaxSize().background(FausCrewColors.background)) {
         Box(Modifier.fillMaxWidth().fausHeroBackground().statusBarsPadding().padding(top = 32.dp, bottom = 64.dp)) {
             Column(Modifier.fillMaxWidth(), horizontalAlignment = Alignment.CenterHorizontally,
                 verticalArrangement = Arrangement.spacedBy(12.dp)) {
@@ -92,7 +94,7 @@ private fun FlowScaffold(title: String, subtitle: String, icon: androidx.compose
             }
         }
         Column(Modifier.fillMaxSize().offset(y = (-32).dp).clip(RoundedCornerShape(topStart = 32.dp, topEnd = 32.dp))
-            .background(Color.White).verticalScroll(rememberScrollState()).navigationBarsPadding()
+            .fausSheetBackground().verticalScroll(rememberScrollState()).navigationBarsPadding()
             .padding(horizontal = 24.dp, vertical = 32.dp), verticalArrangement = Arrangement.spacedBy(24.dp)) {
             content()
         }
@@ -131,9 +133,9 @@ internal fun OtpField(code: String, onCode: (String) -> Unit, label: String,
                 val character = code.getOrNull(index)?.toString().orEmpty()
                 val active = focused && index == code.length.coerceAtMost(characterCount - 1)
                 Box(Modifier.weight(1f).height(58.dp).clip(RoundedCornerShape(12.dp))
-                    .background(if (character.isNotEmpty()) accentOrange.copy(alpha = .06f) else Color(0xFFF2F2F7))
+                    .background(if (character.isNotEmpty()) accentOrange.copy(alpha = .06f) else FausCrewColors.secondaryBackground)
                     .border(if (active) 2.dp else 1.dp,
-                        if (active) accentOrange else if (character.isNotEmpty()) accentOrange.copy(alpha = .45f) else Color(0xFFD1D1D6),
+                        if (active) accentOrange else if (character.isNotEmpty()) accentOrange.copy(alpha = .45f) else FausCrewColors.systemGray4,
                         RoundedCornerShape(12.dp)), contentAlignment = Alignment.Center) {
                     Text(character, fontSize = 22.sp, fontWeight = FontWeight.Bold, color = ink)
                 }
@@ -157,7 +159,7 @@ private fun FlowButton(label: String, busy: Boolean, enabled: Boolean, onClick: 
         .then(if (enabled) Modifier.shadow(10.dp, RoundedCornerShape(18.dp),
             ambientColor = FausCrewColors.deepBerry, spotColor = FausCrewColors.deepBerry) else Modifier)
         .clip(RoundedCornerShape(18.dp))
-        .background(if (enabled) FausButtonGradient else SolidColor(Color(0xFFD1D1D6)))
+        .background(if (enabled) FausButtonGradient else SolidColor(FausCrewColors.systemGray4))
         .clickable(enabled = enabled, onClick = onClick), contentAlignment = Alignment.Center) {
         if (busy) CircularProgressIndicator(Modifier.size(22.dp), color = Color.White, strokeWidth = 2.dp)
         else Text(label, color = Color.White, fontSize = 17.sp, fontWeight = FontWeight.Bold)
@@ -200,7 +202,7 @@ internal fun EmailVerificationScreen(state: AuthUiState, strings: LocalizedText,
     }
     if (state.signupSuccess) Dialog(onDismissRequest = onDismissSuccess) {
         Column(Modifier.fillMaxWidth().shadow(24.dp, RoundedCornerShape(24.dp))
-            .background(Color.White, RoundedCornerShape(24.dp)).padding(24.dp),
+            .background(FausCrewColors.popupBackground, RoundedCornerShape(24.dp)).padding(24.dp),
             horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(20.dp)) {
             Box(Modifier.size(88.dp).background(Color(0xFF34C759).copy(alpha = .12f), CircleShape),
                 contentAlignment = Alignment.Center) {

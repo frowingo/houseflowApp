@@ -13,6 +13,96 @@ public enum ChoreStatus: Int, Codable, Sendable {
     case progress = 1
     case inTest = 2
     case completed = 3
+    /// Terminal and backend-owned: a third rejected review round, or a due date that passed
+    /// before completion. The client never sends it.
+    case failed = 4
+    /// A status this build does not know; shown read-only and never sent.
+    case unknown = -1
+
+    /// Maps the API's raw `status` without failing: unrecognised values become `.unknown`.
+    public init(apiValue: Int) {
+        self = ChoreStatus(rawValue: apiValue) ?? .unknown
+    }
+
+    /// The normal flow, as drawn by the status pipeline.
+    public static let pipeline: [ChoreStatus] = [.draft, .progress, .inTest, .completed]
+
+    /// Lists group chores by status, never by `isCompleted` alone.
+    public var listGroup: ChoreListGroup {
+        switch self {
+        case .draft, .progress, .inTest: .active
+        case .completed: .completed
+        case .failed: .failed
+        case .unknown: .unknown
+        }
+    }
+
+    /// Only active chores take actions (start, advance, send to review, vote).
+    public var acceptsActions: Bool { listGroup == .active }
+
+    /// The status the assignee can move the chore to next. Review decides InTest → Completed,
+    /// and the backend alone decides Failed, so neither is offered here.
+    public var nextAssigneeStatus: ChoreStatus? {
+        switch self {
+        case .draft: .progress
+        case .progress: .inTest
+        case .inTest, .completed, .failed, .unknown: nil
+        }
+    }
+}
+
+public enum ChoreListGroup: Sendable {
+    /// Draft, Progress, InTest.
+    case active
+    case completed
+    case failed
+    case unknown
+
+    /// Completed, Failed and unknown chores share the history part of a list.
+    public var isHistory: Bool { self != .active }
+}
+
+public extension Array where Element == Chore {
+    /// Active chores first, then the history (Completed, Failed, unknown), each in API order.
+    var activeChores: [Chore] { filter { !$0.choreStatus.listGroup.isHistory } }
+    var historyChores: [Chore] { filter { $0.choreStatus.listGroup.isHistory } }
+}
+
+/// Why a chore failed, for the detail screen. The API does not say, so a reason is shown only
+/// when the status history proves it; anything else stays `.unspecified`.
+public enum ChoreFailureReason: String, Codable, Sendable {
+    case dueDatePassed
+    case unspecified
+
+    /// `updater` of status-history entries the backend writes itself.
+    public static let systemUpdater = "system"
+
+    /// `.dueDatePassed` only when the Failed entry came from the system at or after the due date
+    /// and the last review round (the third or later) holds no rejection, which would make a
+    /// review failure just as likely.
+    public static func reason(
+        statusHistories: [ChoreStatusHistory],
+        dueDate: String?,
+        reviewRound: Int,
+        reviewVotes: [ChoreReviewVote]
+    ) -> ChoreFailureReason {
+        guard let failure = statusHistories.last(where: { $0.status == ChoreStatus.failed.rawValue }),
+              failure.updater.trimmingCharacters(in: .whitespacesAndNewlines).lowercased() == systemUpdater,
+              let dueDate, let due = apiDate(dueDate), let failedAt = apiDate(failure.dateTime),
+              failedAt >= due
+        else { return .unspecified }
+        let rejectedInFinalRound = reviewRound >= 3
+            && reviewVotes.contains { $0.reviewRound == reviewRound && !$0.isApproved }
+        return rejectedInFinalRound ? .unspecified : .dueDatePassed
+    }
+
+    private static func apiDate(_ value: String) -> Date? {
+        let formatter = ISO8601DateFormatter()
+        formatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+        if let date = formatter.date(from: value) { return date }
+        formatter.formatOptions = [.withInternetDateTime]
+        return formatter.date(from: value)
+    }
 }
 
 // MARK: - Requests
@@ -203,6 +293,10 @@ public struct Chore: Identifiable, Codable, Equatable, Sendable {
     public let reviewRound: Int
     public let reviewVotes: [ChoreReviewVote]
     public let reviewPhotoRounds: [Int]
+    /// Set for Failed chores only.
+    public let failureReason: ChoreFailureReason?
+
+    public var choreStatus: ChoreStatus { ChoreStatus(apiValue: status) }
 
     public init(
         id: String? = nil,
@@ -219,7 +313,8 @@ public struct Chore: Identifiable, Codable, Equatable, Sendable {
         level: Int = 10,
         reviewRound: Int = 0,
         reviewVotes: [ChoreReviewVote] = [],
-        reviewPhotoRounds: [Int] = []
+        reviewPhotoRounds: [Int] = [],
+        failureReason: ChoreFailureReason? = nil
     ) {
         self.id = choreApiId ?? id ?? UUID().uuidString
         self.choreApiId = choreApiId
@@ -236,6 +331,7 @@ public struct Chore: Identifiable, Codable, Equatable, Sendable {
         self.reviewRound = reviewRound
         self.reviewVotes = reviewVotes
         self.reviewPhotoRounds = reviewPhotoRounds
+        self.failureReason = failureReason
     }
 }
 

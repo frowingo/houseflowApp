@@ -59,7 +59,8 @@ final class DashboardStore: ObservableObject {
                 level: dto.level,
                 reviewRound: dto.reviewRound,
                 reviewVotes: dto.reviewVotes,
-                reviewPhotoRounds: dto.reviewPhotoRounds
+                reviewPhotoRounds: dto.reviewPhotoRounds,
+                failureReason: dto.failureReason
             )
         })
     }

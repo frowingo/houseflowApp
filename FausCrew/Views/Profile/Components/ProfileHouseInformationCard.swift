@@ -87,13 +87,13 @@ struct ProfileHouseInformationCard: View {
                         .accessibilityHint(detailsButtonTitle)
 
                         if house.id != houses.last?.id {
-                            ProfileCardDivider()
+                            ProfileCardDivider().overlay(AppDesign.Colors.separator)
                         }
                     }
                 }
 
                 if showsAddHouseOptions {
-                    ProfileCardDivider()
+                    ProfileCardDivider().overlay(AppDesign.Colors.separator)
 
                     actionRow(
                         title: joinButtonTitle,
@@ -105,7 +105,7 @@ struct ProfileHouseInformationCard: View {
                         ProfileRowIcon(icon: "person.2.badge.plus", tint: joinTint)
                     }
 
-                    ProfileCardDivider()
+                    ProfileCardDivider().overlay(AppDesign.Colors.separator)
 
                     actionRow(
                         title: createButtonTitle,

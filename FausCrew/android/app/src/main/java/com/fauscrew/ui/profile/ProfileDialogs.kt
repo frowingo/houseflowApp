@@ -1,6 +1,14 @@
 package com.fauscrew.ui.profile
 
 import androidx.compose.animation.AnimatedContent
+import com.fauscrew.ui.theme.linear
+import com.fauscrew.ui.theme.LocalFausThemeController
+import com.fauscrew.ui.theme.FausThemes
+import com.fauscrew.ui.theme.FausTheme
+import com.fauscrew.ui.components.drawCornerGlow
+import androidx.compose.ui.draw.drawBehind
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
@@ -34,6 +42,7 @@ import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.ReadOnlyComposable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -86,9 +95,11 @@ import com.fauscrew.ui.theme.softShadow
 import com.fauscrew.viewmodel.HouseUiState
 import com.fauscrew.viewmodel.ProfileUiState
 
-private val accentOrange = FausCrewColors.accentOrange
+private val accentOrange: Color @Composable @ReadOnlyComposable get() = FausCrewColors.accentOrange
 private val accentBlue = ProfileTints.account
-private val disabledGray = Brush.horizontalGradient(listOf(Color.Gray.copy(alpha = .5f), Color.Gray.copy(alpha = .4f)))
+private val disabledGray: Brush
+    @Composable @ReadOnlyComposable
+    get() = Brush.horizontalGradient(listOf(FausCrewColors.textTertiary.copy(alpha = .5f), FausCrewColors.textTertiary.copy(alpha = .4f)))
 private const val INVITE_CODE_LENGTH = 8
 
 /**
@@ -295,6 +306,96 @@ private fun LanguageCell(language: PlatformLanguage, selected: Boolean, enabled:
     }
 }
 
+/**
+ * `ThemeSettingsPopup`: one option card per theme, each previewing itself with its own palette;
+ * Save applies the theme at once and stores it on the device.
+ */
+@Composable
+internal fun ThemeDialog(strings: LocalizedText, onDismiss: () -> Unit) {
+    val controller = LocalFausThemeController.current
+    val current = controller.themeId
+    var selected by remember { mutableStateOf(current) }
+    FausCrewPopup(
+        onDismiss = onDismiss, maxBodyHeight = 420.dp, bodySpacing = Spacing.md,
+        header = {
+            ProfilePopupHeader(strings.get("theme_settings_title", "Theme"), strings.get("theme_settings_subtitle", "Choose how FausCrew looks"),
+                FausCrewIcons.paintpaletteFill, true, strings.profileValue("common_close"), onDismiss)
+        },
+        footer = {
+            SaveCancelFooter(strings, selected != current, false, { controller.select(selected); onDismiss() }, onDismiss)
+        },
+    ) {
+        FausThemes.all.forEach { theme ->
+            ThemeOption(theme, theme.id == selected, strings) { selected = theme.id }
+        }
+    }
+}
+
+@Composable
+private fun ThemeOption(theme: FausTheme, selected: Boolean, strings: LocalizedText, onClick: () -> Unit) {
+    val shape = RoundedCornerShape(Radius.lg)
+    val accent = accentOrange
+    val border by animateColorAsState(if (selected) accent else FausCrewColors.hairline, Motion.spring(), label = "themeBorder")
+    Row(
+        Modifier.fillMaxWidth().clip(shape).background(FausCrewColors.menuBackground)
+            .border(if (selected) 2.dp else 1.dp, border, shape)
+            .semantics { this.selected = selected }
+            .clickable(role = Role.Button, onClick = onClick)
+            .padding(Spacing.md),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(Spacing.md),
+    ) {
+        ThemePreviewThumbnail(theme)
+        Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+            Text(theme.id.displayName, fontSize = 15.sp, fontWeight = FontWeight.Bold, color = FausCrewColors.textPrimary)
+            Text(strings.get(theme.id.descriptionKey, theme.id.descriptionFallback), fontSize = 12.sp, lineHeight = 16.sp,
+                color = FausCrewColors.textSecondary)
+        }
+        Box(
+            Modifier.size(22.dp).clip(CircleShape).background(if (selected) accent else Color.Transparent)
+                .border(2.dp, if (selected) accent else FausCrewColors.systemGray4, CircleShape),
+            contentAlignment = Alignment.Center,
+        ) {
+            if (selected) Icon(FausCrewIcons.checkmark, null, Modifier.size(13.dp), tint = Color.White)
+        }
+    }
+}
+
+/**
+ * `ThemePreviewThumbnail`: a miniature main screen painted with the theme's own tokens
+ * (backdrop, hero card, two cards and the floating tab bar), independent of the active theme.
+ */
+@Composable
+private fun ThemePreviewThumbnail(theme: FausTheme) {
+    val palette = theme.palette
+    val decor = theme.decor
+    val shape = RoundedCornerShape(10.dp)
+    val baseStops = decor.backdrop.baseStops
+    val backdrop = if (baseStops.size > 1) Brush.verticalGradient(*baseStops.toTypedArray()) else SolidColor(baseStops.first().second)
+    Column(
+        Modifier.size(64.dp, 88.dp).clip(shape).background(backdrop).border(1.dp, palette.hairline, shape).padding(5.dp),
+        verticalArrangement = Arrangement.spacedBy(5.dp),
+    ) {
+        Box(Modifier.fillMaxWidth().height(20.dp).clip(RoundedCornerShape(5.dp)).background(decor.heroStops.linear())
+            .drawBehind { drawCornerGlow(decor.heroGlow) })
+        repeat(2) { index ->
+            Column(
+                Modifier.fillMaxWidth().height(17.dp).clip(RoundedCornerShape(4.dp)).background(palette.cardBackground).padding(start = 5.dp),
+                verticalArrangement = Arrangement.spacedBy(3.dp, Alignment.CenterVertically),
+            ) {
+                Box(Modifier.size(22.dp, 3.dp).background(palette.textPrimary.copy(alpha = palette.textPrimary.alpha * .7f), CircleShape))
+                Box(Modifier.size(if (index == 0) 30.dp else 18.dp, 3.dp)
+                    .background(palette.textTertiary.copy(alpha = palette.textTertiary.alpha * .6f), CircleShape))
+            }
+        }
+        Spacer(Modifier.weight(1f))
+        Box(Modifier.fillMaxWidth().height(11.dp).clip(CircleShape).background(decor.tabBarStops.linear()).padding(start = 5.dp),
+            contentAlignment = Alignment.CenterStart) {
+            Box(Modifier.size(13.dp, 7.dp).background(decor.tabSelectedFill, CircleShape))
+        }
+    }
+}
+
 /** `PhoneManagementPopup`: status, backend-pending notice, Update/Verify segments; actions only show the notice. */
 @Composable
 internal fun PhoneManagementDialog(user: AuthProfile, strings: LocalizedText, onDismiss: () -> Unit) {
@@ -385,8 +486,8 @@ private fun SegmentedControl(options: List<String>, selectedIndex: Int, onSelect
             val shape = RoundedCornerShape(7.dp)
             Box(
                 Modifier.weight(1f).fillMaxSize()
-                    .then(if (selected) Modifier.softShadow(Color.Black.copy(alpha = .12f), 4.dp, y = 2.dp, shape = shape)
-                        .background(Color.White, shape) else Modifier)
+                    .then(if (selected) Modifier.softShadow(FausCrewColors.shadow.copy(alpha = .12f), 4.dp, y = 2.dp, shape = shape)
+                        .background(FausCrewColors.segmentSelected, shape) else Modifier)
                     .clip(shape).clickable(role = Role.Tab) { onSelect(index) }.semantics { this.selected = selected },
                 contentAlignment = Alignment.Center,
             ) {
@@ -457,7 +558,7 @@ internal fun JoinHouseDialog(state: HouseUiState, strings: LocalizedText, onDism
                     PopupPrimaryButton(strings.get(if (busy) "common_joining" else "profile_house_join_button",
                         if (busy) "Joining…" else "Join house"), canJoin, submit, Modifier.weight(1f),
                         icon = FausCrewIcons.arrowRightCircleFill, busy = busy, brush = HouseJourneyBrushes.joinButton,
-                        disabledBrush = Brush.horizontalGradient(listOf(Color.Gray.copy(alpha = .42f), Color.Gray.copy(alpha = .32f))))
+                        disabledBrush = Brush.horizontalGradient(listOf(FausCrewColors.textTertiary.copy(alpha = .42f), FausCrewColors.textTertiary.copy(alpha = .32f))))
                 }
             }
         },

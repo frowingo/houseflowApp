@@ -12,7 +12,7 @@ struct AboutPopup: View {
     var body: some View {
         ZStack {
             // Dim backdrop
-            Color.black.opacity(0.55)
+            AppDesign.Colors.scrim
                 .ignoresSafeArea()
                 .onTapGesture { requestDismiss() }
 
@@ -108,12 +108,12 @@ struct AboutPopup: View {
                 .padding(.vertical, AppDesign.Spacing.lg)
                 .background(
                     AppDesign.Colors.background
-                        .shadow(color: Color.black.opacity(0.06), radius: 8, x: 0, y: -4)
+                        .shadow(color: AppDesign.Colors.shadow.opacity(0.06), radius: 8, x: 0, y: -4)
                 )
             }
-            .background(MainScreenBackground())
+            .background(MainScreenBackground(surface: .popup))
             .clipShape(RoundedRectangle(cornerRadius: AppDesign.CornerRadius.xl, style: .continuous))
-            .shadow(color: Color.black.opacity(0.25), radius: 30, x: 0, y: 16)
+            .shadow(color: AppDesign.Colors.shadow.opacity(0.25), radius: 30, x: 0, y: 16)
             .fixedSize(horizontal: false, vertical: true)
             .padding(.horizontal, AppDesign.Spacing.xl)
         }

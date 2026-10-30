@@ -54,7 +54,7 @@ struct AnnouncementCard: View {
             headerButton
 
             if isExpanded {
-                Divider()
+                Divider().overlay(AppDesign.Colors.separator)
                     .padding(.horizontal, AppDesign.Spacing.xl)
 
                 announcementList

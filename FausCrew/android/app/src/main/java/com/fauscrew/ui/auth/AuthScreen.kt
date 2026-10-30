@@ -35,6 +35,7 @@ import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.ReadOnlyComposable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -69,14 +70,19 @@ import com.fauscrew.ui.components.FausBadge
 import com.fauscrew.ui.components.fausHeroBackground
 import com.fauscrew.ui.components.drawFausMark
 import com.fauscrew.ui.components.fausMarkBrush
+import com.fauscrew.ui.components.FausMarkColors
 import com.fauscrew.ui.theme.FausCrewColors
+import com.fauscrew.ui.theme.LocalFausTheme
+import com.fauscrew.ui.components.fausSheetBackground
 import com.fauscrew.viewmodel.AuthUiState
 import com.fauscrew.viewmodel.AuthMode
 
-private val accent = FausCrewColors.brandOrange
-private val gray6 = Color(0xFFF2F2F7)
-private val secondary = Color(0xFF8E8E93)
-private val ink = Color(0xFF1C1C1E)
+private val accent: Color @Composable @ReadOnlyComposable get() = FausCrewColors.brandOrange
+private val gray6: Color @Composable @ReadOnlyComposable get() = FausCrewColors.secondaryBackground
+private val secondary: Color @Composable @ReadOnlyComposable get() = FausCrewColors.textTertiary
+private val ink: Color @Composable @ReadOnlyComposable get() = FausCrewColors.textPrimary
+/** Google's button keeps its brand colors in every theme. */
+private val googleInk = Color(0xFF1C1C1E)
 
 /** Dimensions and hierarchy follow iOS AuthView. */
 @Composable
@@ -93,7 +99,8 @@ internal fun AuthScreen(
     onSocial: (SocialProvider) -> Unit = {},
 ) {
     val focus = LocalFocusManager.current
-    Column(Modifier.fillMaxSize().background(Color.White)) {
+    val splash = LocalFausTheme.current.decor.splash
+    Column(Modifier.fillMaxSize().background(FausCrewColors.background)) {
         Column(
             Modifier.fillMaxWidth().fausHeroBackground()
                 .statusBarsPadding().padding(top = 32.dp, bottom = 72.dp),
@@ -101,23 +108,23 @@ internal fun AuthScreen(
             verticalArrangement = Arrangement.spacedBy(16.dp),
         ) {
             FausBadge(88.dp) {
-                Canvas(Modifier.size(88.dp)) { drawFausMark(fausMarkBrush(size.minDimension / 1024f)) }
+                run { val markColors = FausMarkColors; Canvas(Modifier.size(88.dp)) { drawFausMark(fausMarkBrush(size.minDimension / 1024f, markColors)) } }
             }
             // Brand wordmark and motto stay fixed across languages.
             Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(4.dp)) {
                 Text(
                     buildAnnotatedString {
                         withStyle(SpanStyle(fontWeight = FontWeight.ExtraBold)) { append("Faus") }
-                        withStyle(SpanStyle(fontWeight = FontWeight.Normal, color = Color.White.copy(alpha = .88f))) { append("Crew") }
+                        withStyle(SpanStyle(fontWeight = FontWeight.Normal, color = splash.wordmarkAccent)) { append("Crew") }
                     },
-                    fontSize = 30.sp, color = Color.White,
+                    fontSize = 30.sp, color = splash.wordmark,
                 )
-                Text("Make living together fun", fontSize = 15.sp, color = Color.White.copy(alpha = .8f))
+                Text("Make living together fun", fontSize = 15.sp, color = splash.motto)
             }
         }
         Column(
             Modifier.fillMaxSize().offset(y = (-32).dp).clip(RoundedCornerShape(topStart = 32.dp, topEnd = 32.dp))
-                .background(Color.White).verticalScroll(rememberScrollState()).navigationBarsPadding()
+                .fausSheetBackground().verticalScroll(rememberScrollState()).navigationBarsPadding()
                 .padding(horizontal = 24.dp).padding(top = 32.dp, bottom = 48.dp),
             verticalArrangement = Arrangement.spacedBy(24.dp),
         ) {
@@ -155,18 +162,18 @@ internal fun AuthScreen(
                     color = Color.Red, fontSize = 15.sp)
             }
             if (state.info != null) {
-                Row(Modifier.fillMaxWidth().background(Color(0xFF007AFF).copy(alpha = .10f), RoundedCornerShape(12.dp)).padding(12.dp),
+                Row(Modifier.fillMaxWidth().background(FausCrewColors.primary.copy(alpha = .10f), RoundedCornerShape(12.dp)).padding(12.dp),
                     horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.Top) {
-                    Icon(Icons.Filled.Info, null, Modifier.size(18.dp), tint = Color(0xFF007AFF))
+                    Icon(Icons.Filled.Info, null, Modifier.size(18.dp), tint = FausCrewColors.primary)
                     Text(state.info, color = ink, fontSize = 15.sp)
                 }
             }
             if (state.notice != null) {
                 Text(state.notice,
-                    Modifier.fillMaxWidth().background(Color(0xFF34C759).copy(alpha = .10f), RoundedCornerShape(12.dp)).padding(12.dp),
-                    color = Color(0xFF237548), fontSize = 15.sp)
+                    Modifier.fillMaxWidth().background(FausCrewColors.success.copy(alpha = .10f), RoundedCornerShape(12.dp)).padding(12.dp),
+                    color = if (LocalFausTheme.current.isDark) FausCrewColors.success else Color(0xFF237548), fontSize = 15.sp)
             }
-            val buttonBrush = if (state.canSubmit) FausButtonGradient else SolidColor(Color(0xFFD1D1D6))
+            val buttonBrush = if (state.canSubmit) FausButtonGradient else SolidColor(FausCrewColors.systemGray4)
             Row(
                 Modifier.fillMaxWidth().height(54.dp)
                     .then(if (state.canSubmit) Modifier.shadow(10.dp, RoundedCornerShape(20.dp),
@@ -176,27 +183,27 @@ internal fun AuthScreen(
                     .semantics { contentDescription = strings.get(if (state.mode == AuthMode.SIGN_UP) "auth_create_account_button" else "auth_sign_in_button") },
                 horizontalArrangement = Arrangement.Center, verticalAlignment = Alignment.CenterVertically,
             ) {
-                if (state.busy) CircularProgressIndicator(Modifier.size(22.dp), color = Color.White, strokeWidth = 2.dp)
+                if (state.busy) CircularProgressIndicator(Modifier.size(22.dp), color = FausCrewColors.onAccent, strokeWidth = 2.dp)
                 else {
-                    Icon(Icons.AutoMirrored.Filled.ArrowForward, null, Modifier.size(18.dp), tint = Color.White)
+                    Icon(Icons.AutoMirrored.Filled.ArrowForward, null, Modifier.size(18.dp), tint = FausCrewColors.onAccent)
                     Spacer(Modifier.width(8.dp))
                     Text(strings.get(if (state.mode == AuthMode.SIGN_UP) "auth_create_account_button" else "auth_sign_in_button"),
-                        color = Color.White, fontWeight = FontWeight.Bold, fontSize = 17.sp)
+                        color = FausCrewColors.onAccent, fontWeight = FontWeight.Bold, fontSize = 17.sp)
                 }
             }
             // Only providers this build enabled; Apple has no Android flow and is never listed.
             if (state.socialProviders.isNotEmpty()) {
                 Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                    Box(Modifier.weight(1f).height(1.dp).background(Color(0xFFE5E5EA)))
+                    Box(Modifier.weight(1f).height(1.dp).background(FausCrewColors.elevatedSurface))
                     Text(strings.get("auth_divider_or"), color = secondary, fontSize = 12.sp)
-                    Box(Modifier.weight(1f).height(1.dp).background(Color(0xFFE5E5EA)))
+                    Box(Modifier.weight(1f).height(1.dp).background(FausCrewColors.elevatedSurface))
                 }
                 Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(16.dp)) {
                     state.socialProviders.forEach { provider ->
                         val onClick = { focus.clearFocus(); onSocial(provider) }
                         when (provider) {
-                            SocialProvider.GOOGLE -> SocialButton(strings.get("auth_google_button"), SocialKind.Google, Color.White, ink,
-                                Modifier.weight(1f).border(1.dp, Color(0xFFD1D1D6), RoundedCornerShape(12.dp)), !state.busy, onClick)
+                            SocialProvider.GOOGLE -> SocialButton(strings.get("auth_google_button"), SocialKind.Google, Color.White, googleInk,
+                                Modifier.weight(1f).border(1.dp, FausCrewColors.systemGray4, RoundedCornerShape(12.dp)), !state.busy, onClick)
                             SocialProvider.FACEBOOK -> SocialButton("Facebook", SocialKind.Facebook, Color(0xFF1877F2), Color.White,
                                 Modifier.weight(1f), !state.busy, onClick)
                             SocialProvider.SNAPCHAT -> SocialButton(strings.get("auth_snapchat_button"), SocialKind.Snapchat, Color(0xFFFFFC00),
@@ -213,7 +220,7 @@ internal fun AuthScreen(
 @Composable
 private fun AuthTab(label: String, selected: Boolean, modifier: Modifier, onClick: () -> Unit) {
     Box(modifier.height(36.dp).clip(RoundedCornerShape(12.dp))
-        .then(if (selected) Modifier.shadow(6.dp, RoundedCornerShape(12.dp)).background(Color.White) else Modifier)
+        .then(if (selected) Modifier.shadow(6.dp, RoundedCornerShape(12.dp)).background(FausCrewColors.segmentSelected) else Modifier)
         .clickable(onClick = onClick), contentAlignment = Alignment.Center) {
         Text(label, fontSize = 15.sp, fontWeight = FontWeight.SemiBold,
             color = if (selected) accent else secondary)

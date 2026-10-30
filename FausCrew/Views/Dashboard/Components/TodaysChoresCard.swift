@@ -17,7 +17,7 @@ struct TodaysChoresCard: View {
     }
     
     var completedCount: Int {
-        todaysChores.filter { $0.status == ChoreStatus.completed.rawValue }.count
+        todaysChores.filter { $0.choreStatus == .completed }.count
     }
     
     var totalCount: Int {
@@ -33,7 +33,7 @@ struct TodaysChoresCard: View {
             // Gradient Header with Stats
             headerSection
             
-            Divider()
+            Divider().overlay(AppDesign.Colors.separator)
                 .padding(.horizontal, AppDesign.Spacing.xl)
             
             // Chores Content
@@ -189,18 +189,40 @@ struct TodaysChoresCard: View {
     
     // MARK: - Chores List
     
+    /// Active chores first; Completed and Failed (and unknown) follow as the history.
     private var choresListView: some View {
-        VStack(spacing: AppDesign.Spacing.md) {
-            ForEach(todaysChores) { chore in
-                ModernChoreRow(
-                    chore: chore,
-                    onTap: {
-                        onChoreDetailTap(chore)
-                    }
-                )
+        let active = todaysChores.activeChores
+        let history = todaysChores.historyChores
+        return VStack(spacing: AppDesign.Spacing.md) {
+            ForEach(active) { chore in
+                choreRow(chore)
+            }
+            if !history.isEmpty {
+                if !active.isEmpty {
+                    Text(appViewModel.choreHistoryLabel)
+                        .font(.system(size: 11, weight: .semibold))
+                        .foregroundColor(AppDesign.Colors.textTertiary)
+                        .textCase(.uppercase)
+                        .tracking(0.5)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .padding(.top, AppDesign.Spacing.xs)
+                        .accessibilityAddTraits(.isHeader)
+                }
+                ForEach(history) { chore in
+                    choreRow(chore)
+                }
             }
         }
         .padding(AppDesign.Spacing.xl)
+    }
+
+    private func choreRow(_ chore: Chore) -> some View {
+        ModernChoreRow(
+            chore: chore,
+            onTap: {
+                onChoreDetailTap(chore)
+            }
+        )
     }
     
     // MARK: - Empty State
@@ -308,8 +330,10 @@ struct ModernChoreRow: View {
         } label: {
             HStack(spacing: AppDesign.Spacing.lg) {
                 // Status indicator with pulse
-                let choreStatus = ChoreStatus(rawValue: chore.status) ?? .draft
+                let choreStatus = chore.choreStatus
                 let isCompleted = choreStatus == .completed
+                // Failed reads as closed but not done: muted title, no strikethrough.
+                let isClosed = choreStatus.listGroup.isHistory
                 ZStack {
                     if !isCompleted {
                         Circle()
@@ -336,7 +360,7 @@ struct ModernChoreRow: View {
                 VStack(alignment: .leading, spacing: 4) {
                     Text(chore.title)
                         .font(AppDesign.Typography.bodyBold)
-                        .foregroundColor(isCompleted ? AppDesign.Colors.textSecondary : AppDesign.Colors.textPrimary)
+                        .foregroundColor(isClosed ? AppDesign.Colors.textSecondary : AppDesign.Colors.textPrimary)
                         .strikethrough(isCompleted)
                         .lineLimit(2)
 
@@ -355,7 +379,7 @@ struct ModernChoreRow: View {
                         HStack(spacing: 4) {
                             Image(systemName: choreStatus.iconName)
                                 .font(.system(size: 9, weight: .bold))
-                            Text(appViewModel.localized(choreStatus.localizationKey))
+                            Text(appViewModel.statusLabel(choreStatus))
                                 .font(AppDesign.Typography.caption)
                                 .fontWeight(.medium)
                                 .lineLimit(1)
@@ -386,7 +410,7 @@ struct ModernChoreRow: View {
     }
     
     private var choreStatusObj: ChoreStatus {
-        ChoreStatus(rawValue: chore.status) ?? .draft
+        chore.choreStatus
     }
 }
 

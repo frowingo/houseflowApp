@@ -22,7 +22,7 @@ struct HouseErrorView: View {
                         .frame(width: 42, height: 42)
                         .background(
                             Circle()
-                                .fill(Color(.systemBackground))
+                                .fill(AppDesign.Colors.background)
                                 .shadow(color: HouseJourneyTheme.errorRed.opacity(0.25), radius: 8, x: 0, y: 4)
                         )
                         .offset(x: -6, y: -6)

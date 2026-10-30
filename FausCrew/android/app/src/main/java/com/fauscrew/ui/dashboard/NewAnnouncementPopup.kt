@@ -19,6 +19,7 @@ import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.ReadOnlyComposable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.saveable.rememberSaveable
@@ -53,7 +54,7 @@ import com.fauscrew.ui.theme.softShadow
 
 private const val TITLE_LIMIT = 30
 private const val MESSAGE_LIMIT = 150
-private val accentOrange = FausCrewColors.accentOrange
+private val accentOrange: Color @Composable @ReadOnlyComposable get() = FausCrewColors.accentOrange
 
 /** `NewAnnouncementPopup`: stays open while publishing so a failed request keeps the draft. */
 @Composable
@@ -70,7 +71,8 @@ internal fun NewAnnouncementPopup(
     var message by rememberSaveable { mutableStateOf("") }
     val canPublish = title.isNotBlank() && message.isNotBlank() && !busy
     val dismiss = { focus.clearFocus(); onDismiss() }
-    val activeBorder = { focused: Boolean -> if (focused) accentOrange.copy(alpha = .60f) else Color.Transparent }
+    val focusedBorder = accentOrange.copy(alpha = .60f)
+    val activeBorder = { focused: Boolean -> if (focused) focusedBorder else Color.Transparent }
 
     FausCrewPopup(
         onDismiss = dismiss,

@@ -117,6 +117,7 @@ final class ChoreDTOTests: XCTestCase {
         XCTAssertEqual(try decode(ChoreStatus.self, rawValue: 1), .progress)
         XCTAssertEqual(try decode(ChoreStatus.self, rawValue: 2), .inTest)
         XCTAssertEqual(try decode(ChoreStatus.self, rawValue: 3), .completed)
+        XCTAssertEqual(try decode(ChoreStatus.self, rawValue: 4), .failed)
     }
 
     func testUnknownEnumRawValuesKeepExistingThrowBehavior() throws {

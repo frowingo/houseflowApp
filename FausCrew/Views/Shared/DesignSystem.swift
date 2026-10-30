@@ -5,23 +5,37 @@ import SwiftUI
 enum AppDesign {
     
     // MARK: - Colors
+    /// Theme-aware tokens; values live in `FausTheme` (Views/Shared/Theme).
     enum Colors {
-        static let primary = Color.blue
-        static let secondary = Color.green
-        static let tertiary = Color.orange
-        static let error = Color.red
-        static let success = Color.green
-        static let warning = Color.orange
+        static let primary = Color.faus(\.primary)
+        static let secondary = Color.faus(\.secondary)
+        static let tertiary = Color.faus(\.tertiary)
+        static let error = Color.faus(\.error)
+        static let success = Color.faus(\.success)
+        static let warning = Color.faus(\.warning)
         
-        static let background = Color(.systemBackground)
-        static let secondaryBackground = Color(.systemGray6)
-        static let cardBackground = Color(.systemGray6)
-        static let surface = Color(.systemBackground)
+        static let background = Color.faus(\.background)
+        static let secondaryBackground = Color.faus(\.secondaryBackground)
+        static let cardBackground = Color.faus(\.cardBackground)
+        static let surface = Color.faus(\.surface)
+        static let elevatedSurface = Color.faus(\.elevatedSurface)
+        static let popupBackground = Color.faus(\.popupBackground)
+        static let menuBackground = Color.faus(\.menuBackground)
+        static let controlFill = Color.faus(\.controlFill)
+        static let controlFillStrong = Color.faus(\.controlFillStrong)
+        static let segmentSelected = Color.faus(\.segmentSelected)
         
-        static let text = Color.primary
-        static let textPrimary = Color.primary
-        static let textSecondary = Color.secondary
-        static let textTertiary = Color.gray
+        static let text = Color.faus(\.textPrimary)
+        static let textPrimary = Color.faus(\.textPrimary)
+        static let textSecondary = Color.faus(\.textSecondary)
+        static let textTertiary = Color.faus(\.textTertiary)
+        static let onAccent = Color.faus(\.onAccent)
+        static let onHero = Color.faus(\.onHero)
+
+        static let separator = Color.faus(\.separator)
+        static let hairline = Color.faus(\.hairline)
+        static let shadow = Color.faus(\.shadow)
+        static let scrim = Color.faus(\.scrim)
     }
     
     // MARK: - Spacing
@@ -68,9 +82,9 @@ enum AppDesign {
         let x: CGFloat
         let y: CGFloat
         
-        static let light = Shadow(color: Color.black.opacity(0.1), radius: 8, x: 0, y: 2)
-        static let medium = Shadow(color: Color.black.opacity(0.12), radius: 16, x: 0, y: 6)
-        static let heavy = Shadow(color: Color.black.opacity(0.2), radius: 20, x: 0, y: 10)
+        static let light = Shadow(color: AppDesign.Colors.shadow.opacity(0.1), radius: 8, x: 0, y: 2)
+        static let medium = Shadow(color: AppDesign.Colors.shadow.opacity(0.12), radius: 16, x: 0, y: 6)
+        static let heavy = Shadow(color: AppDesign.Colors.shadow.opacity(0.2), radius: 20, x: 0, y: 10)
     }
     
     // MARK: - Animation
@@ -101,19 +115,22 @@ enum AppDesign {
 /// Shared visual palette for the create / join / house-state journey.
 /// Cool colors carry the screens while orange is reserved for small brand accents.
 enum HouseJourneyTheme {
-    static let accentOrange = Color(red: 1.0, green: 0.48, blue: 0.15)
-    static let accentOrangeInk = Color(red: 0.73, green: 0.25, blue: 0.045)
-    static let indigo = Color(red: 0.27, green: 0.34, blue: 0.62)
-    static let deepIndigo = Color(red: 0.20, green: 0.25, blue: 0.48)
-    static let blue = Color(red: 0.24, green: 0.48, blue: 0.72)
-    static let teal = Color(red: 0.18, green: 0.57, blue: 0.53)
-    static let deepTeal = Color(red: 0.10, green: 0.40, blue: 0.37)
-    static let buttonBlue = Color(red: 0.18, green: 0.36, blue: 0.59)
-    static let purple = Color(red: 0.48, green: 0.38, blue: 0.68)
-    static let errorRed = Color(red: 0.82, green: 0.27, blue: 0.31)
+    static let accentOrange = Color.faus(\.accentOrange)
+    static let accentOrangeInk = Color.faus(\.accentOrangeInk)
+    static let indigo = Color.faus(\.indigo)
+    static let deepIndigo = Color.faus(\.deepIndigo)
+    static let blue = Color.faus(\.blue)
+    static let teal = Color.faus(\.teal)
+    static let deepTeal = Color.faus(\.deepTeal)
+    static let buttonBlue = Color.faus(\.buttonBlue)
+    static let purple = Color.faus(\.purple)
+    static let indigoFill = Color.faus(\.indigoFill)
+    static let deepIndigoFill = Color.faus(\.deepIndigoFill)
+    static let tealFill = Color.faus(\.tealFill)
+    static let errorRed = Color.faus(\.errorRed)
 
-    static let pageBackground = Color(.systemGroupedBackground)
-    static let surface = Color(.secondarySystemGroupedBackground)
+    static let pageBackground = Color.faus(\.groupedBackground)
+    static let surface = Color.faus(\.groupedSurface)
 
     static var pageGradient: LinearGradient {
         LinearGradient(
@@ -129,7 +146,7 @@ enum HouseJourneyTheme {
 
     static var primaryButtonGradient: LinearGradient {
         LinearGradient(
-            colors: [indigo, deepIndigo],
+            colors: [indigoFill, deepIndigoFill],
             startPoint: .leading,
             endPoint: .trailing
         )
@@ -137,7 +154,7 @@ enum HouseJourneyTheme {
 
     static var joinButtonGradient: LinearGradient {
         LinearGradient(
-            colors: [deepTeal, buttonBlue],
+            colors: [tealFill, buttonBlue],
             startPoint: .leading,
             endPoint: .trailing
         )

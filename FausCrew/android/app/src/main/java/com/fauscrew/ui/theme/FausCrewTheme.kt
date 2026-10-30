@@ -3,8 +3,11 @@ package com.fauscrew.ui.theme
 import androidx.compose.animation.core.spring
 import androidx.compose.animation.core.tween
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.darkColorScheme
 import androidx.compose.material3.lightColorScheme
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.runtime.ReadOnlyComposable
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.TextStyle
@@ -15,66 +18,90 @@ import androidx.compose.ui.unit.sp
 /**
  * Android counterpart of the iOS design tokens in `Views/Shared/DesignSystem.swift`
  * (`AppDesign`, `HouseJourneyTheme`) and the brand palette shared by the hero cards,
- * popup headers, tab bar and `MainScreenBackground`. iOS system colors are the light
- * appearance values so both platforms resolve the same pixels.
+ * popup headers, tab bar and `MainScreenBackground`. Every token reads the active theme
+ * ([LocalFausTheme], values in `FausThemes.kt`), so they are only available in composition.
  */
 internal object FausCrewColors {
+    private val palette: FausPalette @Composable @ReadOnlyComposable get() = LocalFausTheme.current.palette
+
     // AppDesign.Colors
-    val primary = Color(0xFF007AFF)
-    val secondary = Color(0xFF34C759)
-    val success = secondary
-    val warning = Color(0xFFFF9500)
-    val error = Color(0xFFFF3B30)
-    val background = Color.White
-    val secondaryBackground = Color(0xFFF2F2F7)
-    val cardBackground = secondaryBackground
-    val textPrimary = Color.Black
-    val textSecondary = Color(0x993C3C43)
-    val textTertiary = Color(0xFF8E8E93)
-    val separator = Color(0x4A3C3C43)
+    val primary: Color @Composable @ReadOnlyComposable get() = palette.primary
+    val secondary: Color @Composable @ReadOnlyComposable get() = palette.secondary
+    val success: Color @Composable @ReadOnlyComposable get() = palette.secondary
+    val warning: Color @Composable @ReadOnlyComposable get() = palette.warning
+    val error: Color @Composable @ReadOnlyComposable get() = palette.error
+    val background: Color @Composable @ReadOnlyComposable get() = palette.background
+    val secondaryBackground: Color @Composable @ReadOnlyComposable get() = palette.secondaryBackground
+    val cardBackground: Color @Composable @ReadOnlyComposable get() = palette.cardBackground
+    val elevatedSurface: Color @Composable @ReadOnlyComposable get() = palette.elevatedSurface
+    val popupBackground: Color @Composable @ReadOnlyComposable get() = palette.popupBackground
+    val menuBackground: Color @Composable @ReadOnlyComposable get() = palette.menuBackground
+    val segmentSelected: Color @Composable @ReadOnlyComposable get() = palette.segmentSelected
+    val textPrimary: Color @Composable @ReadOnlyComposable get() = palette.textPrimary
+    val textSecondary: Color @Composable @ReadOnlyComposable get() = palette.textSecondary
+    val textTertiary: Color @Composable @ReadOnlyComposable get() = palette.textTertiary
+    val onAccent: Color @Composable @ReadOnlyComposable get() = palette.onAccent
+    val onHero: Color @Composable @ReadOnlyComposable get() = palette.onHero
+    val separator: Color @Composable @ReadOnlyComposable get() = palette.separator
+    val hairline: Color @Composable @ReadOnlyComposable get() = palette.hairline
+    val shadow: Color @Composable @ReadOnlyComposable get() = palette.shadow
+    val scrim: Color @Composable @ReadOnlyComposable get() = palette.scrim
 
     // HouseJourneyTheme
-    val accentOrange = Color(0xFFFF7A26)
-    val accentOrangeInk = Color(0xFFBA400B)
-    val indigo = Color(0xFF45579E)
-    val deepIndigo = Color(0xFF33407A)
-    val blue = Color(0xFF3D7AB8)
-    val teal = Color(0xFF2E9187)
-    val deepTeal = Color(0xFF1A665E)
-    val buttonBlue = Color(0xFF2E5C96)
-    val purple = Color(0xFF7A61AD)
-    val errorRed = Color(0xFFD1454F)
-    val pageBackground = Color(0xFFF2F2F7)
-    val surface = Color.White
+    val accentOrange: Color @Composable @ReadOnlyComposable get() = palette.accentOrange
+    val accentOrangeInk: Color @Composable @ReadOnlyComposable get() = palette.accentOrangeInk
+    val indigo: Color @Composable @ReadOnlyComposable get() = palette.indigo
+    val deepIndigo: Color @Composable @ReadOnlyComposable get() = palette.deepIndigo
+    val blue: Color @Composable @ReadOnlyComposable get() = palette.blue
+    val teal: Color @Composable @ReadOnlyComposable get() = palette.teal
+    val deepTeal: Color @Composable @ReadOnlyComposable get() = palette.deepTeal
+    val buttonBlue: Color @Composable @ReadOnlyComposable get() = palette.buttonBlue
+    val purple: Color @Composable @ReadOnlyComposable get() = palette.purple
+    val errorRed: Color @Composable @ReadOnlyComposable get() = palette.errorRed
+    val indigoFill: Color @Composable @ReadOnlyComposable get() = palette.indigoFill
+    val deepIndigoFill: Color @Composable @ReadOnlyComposable get() = palette.deepIndigoFill
+    val tealFill: Color @Composable @ReadOnlyComposable get() = palette.tealFill
+    val pageBackground: Color @Composable @ReadOnlyComposable get() = palette.pageBackground
+    val surface: Color @Composable @ReadOnlyComposable get() = palette.surface
 
     // Brand treatment (BrandHeroCardBackground, CustomTabBar, MainScreenBackground)
-    val brandLight = Color(0xFFFF9138)
-    val brandOrange = accentOrange
-    val deepBerry = Color(0xFF611A38)
-    val softApricot = Color(0xFFF59E59)
-    val softOrange = Color(0xFFED7D40)
-    val softBerry = Color(0xFF75304D)
+    val brandLight: Color @Composable @ReadOnlyComposable get() = palette.brandLight
+    val brandOrange: Color @Composable @ReadOnlyComposable get() = palette.brandOrange
+    val deepBerry: Color @Composable @ReadOnlyComposable get() = palette.deepBerry
+    val markBerry: Color @Composable @ReadOnlyComposable get() = palette.markBerry
+    val spinnerRed: Color @Composable @ReadOnlyComposable get() = palette.spinnerRed
+    val spinnerBerry: Color @Composable @ReadOnlyComposable get() = palette.spinnerBerry
+    val softApricot: Color @Composable @ReadOnlyComposable get() = palette.softApricot
+    val softOrange: Color @Composable @ReadOnlyComposable get() = palette.softOrange
+    val softBerry: Color @Composable @ReadOnlyComposable get() = palette.softBerry
     /** SwiftUI `Color.orange`, used by the decorative capsules. */
-    val systemOrange = warning
-    val systemGray3 = Color(0xFFC7C7CC)
-    val systemGray4 = Color(0xFFD1D1D6)
+    val systemOrange: Color @Composable @ReadOnlyComposable get() = palette.systemOrange
+    /** iOS systemGray3 / systemGray4: disabled fills and quiet borders. */
+    val systemGray3: Color @Composable @ReadOnlyComposable get() = palette.controlFillStrong
+    val systemGray4: Color @Composable @ReadOnlyComposable get() = palette.controlFill
+
+    // ChoreStatus.color
+    val statusDraft: Color @Composable @ReadOnlyComposable get() = palette.statusDraft
+    val statusProgress: Color @Composable @ReadOnlyComposable get() = palette.statusProgress
+    val statusInTest: Color @Composable @ReadOnlyComposable get() = palette.statusInTest
+    val statusCompleted: Color @Composable @ReadOnlyComposable get() = palette.statusCompleted
+    val statusFailed: Color @Composable @ReadOnlyComposable get() = palette.statusFailed
 }
 
 internal object FausCrewBrushes {
-    val brandHero = Brush.linearGradient(
-        listOf(FausCrewColors.brandLight, FausCrewColors.brandOrange, FausCrewColors.deepBerry),
-    )
-    val tabBar = Brush.linearGradient(
-        listOf(FausCrewColors.softApricot, FausCrewColors.softOrange, FausCrewColors.softBerry),
-    )
-    val indigoTeal = Brush.linearGradient(listOf(FausCrewColors.indigo, FausCrewColors.teal))
-    val orangeAction = Brush.horizontalGradient(
-        listOf(FausCrewColors.accentOrange, FausCrewColors.accentOrange.copy(alpha = .75f)),
-    )
-    val disabledAction = Brush.horizontalGradient(
-        listOf(Color.Gray.copy(alpha = .4f), Color.Gray.copy(alpha = .4f)),
-    )
+    val brandHero: Brush @Composable @ReadOnlyComposable get() = LocalFausTheme.current.decor.heroStops.linear()
+    val tabBar: Brush @Composable @ReadOnlyComposable get() = LocalFausTheme.current.decor.tabBarStops.linear()
+    val indigoTeal: Brush @Composable @ReadOnlyComposable
+        get() = Brush.linearGradient(listOf(FausCrewColors.indigo, FausCrewColors.teal))
+    val orangeAction: Brush @Composable @ReadOnlyComposable
+        get() = Brush.horizontalGradient(listOf(FausCrewColors.accentOrange, FausCrewColors.accentOrange.copy(alpha = .75f)))
+    val disabledAction: Brush @Composable @ReadOnlyComposable
+        get() = Brush.horizontalGradient(listOf(FausCrewColors.systemGray3, FausCrewColors.systemGray4))
 }
+
+/** Top-start → bottom-end gradient through the stops (SwiftUI `.topLeading` → `.bottomTrailing`). */
+internal fun List<Stop>.linear(): Brush =
+    if (size == 1) androidx.compose.ui.graphics.SolidColor(first().second) else Brush.linearGradient(*toTypedArray())
 
 /** `AppDesign.Spacing`. */
 internal object Spacing {
@@ -138,18 +165,37 @@ internal object Motion {
  * stock controls inside FausCrew surfaces do not fall back to the Material baseline purple.
  */
 @Composable
-internal fun FausCrewTheme(content: @Composable () -> Unit) {
-    MaterialTheme(
-        colorScheme = lightColorScheme(
-            primary = FausCrewColors.primary,
+internal fun FausCrewTheme(theme: FausTheme = FausThemes.light, content: @Composable () -> Unit) {
+    val palette = theme.palette
+    val colorScheme = if (theme.isDark) {
+        darkColorScheme(
+            primary = palette.accentOrange,
+            onPrimary = palette.onAccent,
+            secondary = palette.accentOrange,
+            background = palette.background,
+            surface = palette.popupBackground,
+            surfaceVariant = palette.secondaryBackground,
+            surfaceContainerHigh = palette.menuBackground,
+            onBackground = palette.textPrimary,
+            onSurface = palette.textPrimary,
+            onSurfaceVariant = palette.textSecondary,
+            outline = palette.hairline,
+            outlineVariant = palette.hairline,
+            error = palette.error,
+        )
+    } else {
+        lightColorScheme(
+            primary = palette.primary,
             onPrimary = Color.White,
-            secondary = FausCrewColors.accentOrange,
-            background = FausCrewColors.background,
-            surface = FausCrewColors.background,
-            onSurface = FausCrewColors.textPrimary,
-            onSurfaceVariant = FausCrewColors.textSecondary,
-            error = FausCrewColors.error,
-        ),
-        content = content,
-    )
+            secondary = palette.accentOrange,
+            background = palette.background,
+            surface = palette.background,
+            onSurface = palette.textPrimary,
+            onSurfaceVariant = palette.textSecondary,
+            error = palette.error,
+        )
+    }
+    CompositionLocalProvider(LocalFausTheme provides theme) {
+        MaterialTheme(colorScheme = colorScheme, content = content)
+    }
 }

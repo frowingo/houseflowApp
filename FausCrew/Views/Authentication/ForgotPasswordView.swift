@@ -33,7 +33,7 @@ struct ForgotPasswordView: View {
 
     var body: some View {
         ZStack(alignment: .top) {
-            Color(.systemBackground).ignoresSafeArea()
+            AppDesign.Colors.background.ignoresSafeArea()
 
             VStack(spacing: 0) {
                 heroSection
@@ -56,7 +56,7 @@ struct ForgotPasswordView: View {
                     .padding(.bottom, 60)
                 }
                 .frame(maxHeight: .infinity)
-                .background(Color(.systemBackground))
+                .background(AppDesign.Colors.background)
                 .clipShape(UnevenRoundedRectangle(topLeadingRadius: 32, topTrailingRadius: 32))
             }
             .ignoresSafeArea(.container, edges: .bottom)
@@ -174,7 +174,7 @@ struct ForgotPasswordView: View {
             .padding(.vertical, AppDesign.Spacing.lg)
             .background(
                 RoundedRectangle(cornerRadius: AppDesign.CornerRadius.md)
-                    .fill(isEmailDisabled ? Color(.systemGray5) : AppDesign.Colors.cardBackground)
+                    .fill(isEmailDisabled ? AppDesign.Colors.elevatedSurface : AppDesign.Colors.cardBackground)
                     .overlay(
                         RoundedRectangle(cornerRadius: AppDesign.CornerRadius.md)
                             .stroke(
@@ -220,7 +220,7 @@ struct ForgotPasswordView: View {
                         FausBrand.buttonGradient
                     } else {
                         LinearGradient(
-                            colors: [Color(.systemGray4)],
+                            colors: [AppDesign.Colors.controlFill],
                             startPoint: .leading,
                             endPoint: .trailing
                         )
@@ -402,7 +402,7 @@ struct ForgotPasswordView: View {
                         FausBrand.buttonGradient
                     } else {
                         LinearGradient(
-                            colors: [Color(.systemGray4)],
+                            colors: [AppDesign.Colors.controlFill],
                             startPoint: .leading,
                             endPoint: .trailing
                         )

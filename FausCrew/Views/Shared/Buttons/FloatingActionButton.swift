@@ -10,6 +10,8 @@ enum NewChoreButtonState {
 struct FloatingActionButton: View {
     @Binding var buttonState: NewChoreButtonState
     let action: () -> Void
+
+    @Environment(\.fausTheme) private var theme
     
     var body: some View {
         Button(action: action) {
@@ -17,7 +19,7 @@ struct FloatingActionButton: View {
                 if buttonState == .collapsed {
                     Image(systemName: "plus")
                         .font(.system(size: AppDesign.Size.iconMedium, weight: .semibold))
-                        .foregroundColor(.white)
+                        .foregroundColor(AppDesign.Colors.onAccent)
                         .frame(width: AppDesign.Size.fabSize, height: AppDesign.Size.fabSize)
                         .background(fabGradient)
                         .clipShape(Circle())
@@ -29,7 +31,7 @@ struct FloatingActionButton: View {
                             .font(AppDesign.Typography.headline)
                             .transition(.scale.combined(with: .opacity))
                     }
-                    .foregroundColor(.white)
+                    .foregroundColor(AppDesign.Colors.onAccent)
                     .padding(.horizontal, AppDesign.Spacing.xl)
                     .padding(.vertical, AppDesign.Spacing.lg)
                     .background(fabGradient)
@@ -38,7 +40,7 @@ struct FloatingActionButton: View {
             }
             .scaleEffect(buttonState == .expanded ? 1.05 : 1.0)
             .shadow(
-                color: AppDesign.Colors.secondary.opacity(0.3),
+                color: theme.decor.fabShadow,
                 radius: 8,
                 x: 0,
                 y: 4
@@ -48,7 +50,7 @@ struct FloatingActionButton: View {
     
     private var fabGradient: LinearGradient {
         LinearGradient(
-            colors: [AppDesign.Colors.secondary, AppDesign.Colors.secondary.opacity(0.8)],
+            colors: theme.decor.fabColors,
             startPoint: .topLeading,
             endPoint: .bottomTrailing
         )

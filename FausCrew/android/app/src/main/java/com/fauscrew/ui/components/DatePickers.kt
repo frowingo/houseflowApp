@@ -296,9 +296,9 @@ private fun CalendarPopover(onDismiss: () -> Unit, content: @Composable () -> Un
                     scaleY = .92f + .08f * appear.value
                     transformOrigin = TransformOrigin(.5f, .5f)
                 }
-                .softShadow(Color.Black.copy(alpha = .18f), 24.dp, y = 8.dp, shape = shape)
+                .softShadow(FausCrewColors.shadow.copy(alpha = .18f), 24.dp, y = 8.dp, shape = shape)
                 .clip(shape)
-                .background(Color.White.copy(alpha = .97f))
+                .background(FausCrewColors.popupBackground.copy(alpha = .97f))
                 .padding(Spacing.lg),
         ) { content() }
     }

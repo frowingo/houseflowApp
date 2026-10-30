@@ -33,6 +33,7 @@ import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.ReadOnlyComposable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -40,6 +41,7 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
@@ -59,6 +61,7 @@ import androidx.compose.ui.unit.sp
 import com.fauscrew.platform.HouseChore
 import com.fauscrew.platform.HouseMember
 import com.fauscrew.platform.HouseVote
+import com.fauscrew.platform.ChoreFailureReason
 import com.fauscrew.platform.LocalizedText
 import com.fauscrew.platform.RemoteImageLoader
 import com.fauscrew.platform.ReviewPhoto
@@ -87,7 +90,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
-private val accentOrange = FausCrewColors.accentOrange
+private val accentOrange: Color @Composable @ReadOnlyComposable get() = FausCrewColors.accentOrange
 
 /**
  * `ChoreDetailPopup`: status pipeline, task info, assignee status progression and the
@@ -110,6 +113,8 @@ internal fun ChoreDetailPopup(
 ) {
     val status = ChoreStatusUi.of(chore.status)
     val isAssignee = userId.isNotBlank() && chore.assignedTo == userId
+    // Null once the chore leaves the active flow (Completed, Failed, unknown): a refetch that
+    // turns the open chore Failed leaves this popup read-only.
     val nextStatus = if (isAssignee) status.next else null
     val currentVote = chore.reviewVotes.firstOrNull { it.reviewRound == chore.reviewRound && it.reviewerId == userId }
     val canReview = status == ChoreStatusUi.IN_TEST && !isAssignee && userId.isNotBlank() && currentVote == null
@@ -129,6 +134,9 @@ internal fun ChoreDetailPopup(
     var loadingRound by remember(chore.id) { mutableStateOf<Int?>(null) }
     var viewedRound by remember(chore.id) { mutableStateOf<Int?>(null) }
     var captureFile by remember(chore.id) { mutableStateOf<java.io.File?>(null) }
+    // A refetch can end the active flow (e.g. the backend marks the chore Failed): drop the
+    // half-done review photo.
+    LaunchedEffect(status.acceptsActions) { if (!status.acceptsActions) photo = null }
     // Camera only: the system camera writes into our cache file, the gallery is never offered.
     val camera = rememberLauncherForActivityResult(ActivityResultContracts.TakePicture()) { saved ->
         val file = captureFile ?: return@rememberLauncherForActivityResult
@@ -196,7 +204,7 @@ internal fun ChoreDetailPopup(
         } else null,
     ) {
         PopupError(error ?: photoError)
-        StatusPipeline(status, strings)
+        if (status == ChoreStatusUi.FAILED) FailedStatusCard(chore.failureReason, strings) else StatusPipeline(status, strings)
         InfoSection(chore, members.firstOrNull { it.id == chore.assignedTo }, strings)
         if (nextStatus != null) StatusUpdateSection(
             status, nextStatus, busy, strings,
@@ -278,9 +286,10 @@ private fun StatusPipeline(current: ChoreStatusUi, strings: LocalizedText) {
     SectionCard(borderColor = accentOrange.copy(alpha = .2f), spacing = Spacing.sm) {
         PopupSectionLabel(FausCrewIcons.arrowTriangle2Circlepath, strings.get("chore_detail_status_label"))
         Row(Modifier.fillMaxWidth().height(IntrinsicSize.Min)) {
-            ChoreStatusUi.entries.forEachIndexed { index, step ->
+            ChoreStatusUi.PIPELINE.forEachIndexed { index, step ->
                 val isCurrent = step == current
-                val isPast = step.raw < current.raw
+                // An unknown status marks no step as current or past.
+                val isPast = current != ChoreStatusUi.UNKNOWN && step.raw < current.raw
                 Column(Modifier.width(60.dp), horizontalAlignment = Alignment.CenterHorizontally,
                     verticalArrangement = Arrangement.spacedBy(6.dp)) {
                     Box(Modifier.size(32.dp).background(
@@ -297,15 +306,42 @@ private fun StatusPipeline(current: ChoreStatusUi, strings: LocalizedText) {
                         if (isPast) Icon(FausCrewIcons.checkmark, null, Modifier.size(17.dp), tint = tint)
                         else ChoreStatusGlyph(step, 17.dp, tint)
                     }
-                    Text(strings.get(step.key), fontSize = 10.sp,
+                    Text(step.label(strings), fontSize = 10.sp,
                         fontWeight = if (isCurrent) FontWeight.Bold else FontWeight.Normal,
                         color = if (isCurrent) accentOrange else FausCrewColors.textSecondary,
                         textAlign = TextAlign.Center, lineHeight = 12.sp)
                 }
-                if (index < ChoreStatusUi.entries.lastIndex) {
+                if (index < ChoreStatusUi.PIPELINE.lastIndex) {
                     Box(Modifier.weight(1f).padding(top = 15.dp).height(2.dp)
-                        .background(if (step.raw < current.raw) accentOrange.copy(alpha = .4f) else FausCrewColors.secondaryBackground))
+                        .background(if (isPast) accentOrange.copy(alpha = .4f) else FausCrewColors.secondaryBackground))
                 }
+            }
+        }
+    }
+}
+
+/**
+ * `failedStatusCard`: Failed is terminal, so it replaces the pipeline with the outcome and, when
+ * the status history proves it, the reason.
+ */
+@Composable
+private fun FailedStatusCard(reason: ChoreFailureReason?, strings: LocalizedText) {
+    val color = ChoreStatusUi.FAILED.color
+    val shape = RoundedCornerShape(Radius.lg)
+    Column(
+        Modifier.fillMaxWidth().clip(shape).background(color.copy(alpha = .08f))
+            .border(1.dp, color.copy(alpha = .3f), shape).padding(Spacing.lg)
+            .semantics(mergeDescendants = true) {},
+        verticalArrangement = Arrangement.spacedBy(Spacing.sm),
+    ) {
+        PopupSectionLabel(FausCrewIcons.arrowTriangle2Circlepath, strings.get("chore_detail_status_label"))
+        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(Spacing.md)) {
+            Box(Modifier.size(40.dp).background(color, CircleShape), contentAlignment = Alignment.Center) {
+                Icon(ChoreStatusUi.FAILED.icon, null, Modifier.size(22.dp), tint = Color.White)
+            }
+            Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                Text(ChoreStatusUi.FAILED.label(strings), style = FausCrewType.bodyBold, color = color)
+                Text(reason.message(strings), style = FausCrewType.caption, color = FausCrewColors.textSecondary)
             }
         }
     }
@@ -423,7 +459,7 @@ private fun StatusStage(status: ChoreStatusUi, strings: LocalizedText, modifier:
         verticalAlignment = Alignment.CenterVertically,
     ) {
         ChoreStatusGlyph(status, 14.dp, status.color)
-        Text(strings.get(status.key), fontSize = 12.sp, fontWeight = FontWeight.SemiBold, color = status.color, maxLines = 1)
+        Text(status.label(strings), fontSize = 12.sp, fontWeight = FontWeight.SemiBold, color = status.color, maxLines = 1)
     }
 }
 

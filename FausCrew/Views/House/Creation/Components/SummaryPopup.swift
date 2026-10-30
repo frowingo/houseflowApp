@@ -36,7 +36,7 @@ struct SummaryPopup: View {
             actionButtons
         }
         .padding(AppDesign.Spacing.xxl)
-        .background(MainScreenBackground())
+        .background(MainScreenBackground(surface: .popup))
         .cornerRadius(AppDesign.CornerRadius.xl)
         .overlay(
             RoundedRectangle(cornerRadius: AppDesign.CornerRadius.xl)

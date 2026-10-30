@@ -45,12 +45,15 @@ import com.fauscrew.ui.components.FausIconGradient
 import com.fauscrew.ui.components.drawFausMark
 import com.fauscrew.ui.components.fausHeroBackground
 import com.fauscrew.ui.components.fausMarkBrush
+import com.fauscrew.ui.components.FausMarkColors
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.offset
 import androidx.compose.ui.draw.shadow
 import com.fauscrew.ui.components.mainScreenBackground
 import com.fauscrew.ui.theme.FausCrewColors
+import androidx.compose.ui.graphics.SolidColor
+import com.fauscrew.ui.theme.LocalFausTheme
 import com.fauscrew.ui.theme.FausCrewIcons
 import com.fauscrew.ui.theme.FausCrewType
 import com.fauscrew.ui.theme.Motion
@@ -93,8 +96,10 @@ private fun HeaderCard(strings: LocalizedText) {
         Box(Modifier.size(70.dp), contentAlignment = Alignment.Center) {
             Box(Modifier.size(70.dp).background(Color.White.copy(alpha = .16f), CircleShape))
             Box(Modifier.size(58.dp).shadow(8.dp, CircleShape, ambientColor = FausCrewColors.deepBerry,
-                spotColor = FausCrewColors.deepBerry).background(Color.White, CircleShape))
-            Canvas(Modifier.size(58.dp)) { drawFausMark(fausMarkBrush(size.minDimension / 1024f)) }
+                spotColor = FausCrewColors.deepBerry)
+                .background(LocalFausTheme.current.decor.badgeFill.let { if (it.size == 1) SolidColor(it.first()) else Brush.linearGradient(it) }, CircleShape)
+                .border(1.5.dp, LocalFausTheme.current.decor.badgeBorder, CircleShape))
+            run { val markColors = FausMarkColors; Canvas(Modifier.size(58.dp)) { drawFausMark(fausMarkBrush(size.minDimension / 1024f, markColors)) } }
         }
         Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(Spacing.xs)) {
             Text(strings.get("house_selection_title"), fontSize = 24.sp, fontWeight = FontWeight.Bold,
@@ -150,7 +155,7 @@ private fun OptionIcon(kind: OptionKind) {
             }
             Box(
                 Modifier.align(Alignment.BottomEnd).offset(2.dp, 2.dp).size(22.dp)
-                    .shadow(2.dp, CircleShape).background(Color.White, CircleShape),
+                    .shadow(2.dp, CircleShape).background(FausCrewColors.surface, CircleShape),
                 contentAlignment = Alignment.Center,
             ) {
                 Icon(FausCrewIcons.plus, null, Modifier.size(14.dp), tint = FausCrewColors.brandOrange)

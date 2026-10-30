@@ -81,7 +81,7 @@ struct ProfileHeroSection: View {
                 )
 
             Circle()
-                .fill(Color.white)
+                .fill(AppDesign.Colors.surface)
                 .frame(width: 74, height: 74)
 
             Group {
@@ -106,7 +106,7 @@ struct ProfileHeroSection: View {
                     .foregroundStyle(.white)
             }
         }
-        .shadow(color: Color.black.opacity(0.22), radius: 12, x: 0, y: 6)
+        .shadow(color: AppDesign.Colors.shadow.opacity(0.22), radius: 12, x: 0, y: 6)
     }
 
     private var fallbackAvatar: some View {

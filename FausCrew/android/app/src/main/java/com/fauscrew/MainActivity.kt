@@ -29,6 +29,7 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
+import com.fauscrew.platform.ThemeAppearance
 import com.fauscrew.platform.AppLifecycle
 import com.fauscrew.platform.SocialActivityHolder
 import com.fauscrew.platform.AppVisibility
@@ -57,26 +58,43 @@ import com.fauscrew.viewmodel.AuthRoute
 import com.fauscrew.viewmodel.AuthViewModel
 import com.fauscrew.viewmodel.HouseRoute
 import com.fauscrew.viewmodel.HouseViewModel
+import android.graphics.drawable.ColorDrawable
+import androidx.compose.ui.graphics.toArgb
+import androidx.lifecycle.lifecycleScope
+import com.fauscrew.platform.AndroidPreferencesStore
+import com.fauscrew.ui.theme.FausCrewTheme
+import com.fauscrew.ui.theme.FausThemeController
+import com.fauscrew.ui.theme.FausThemeId
+import com.fauscrew.ui.theme.LocalFausThemeController
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.runBlocking
 
 class MainActivity : ComponentActivity() {
     private var authViewModel: AuthViewModel? = null
+    private lateinit var themeController: FausThemeController
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         // Provider SDKs (Credential Manager, Facebook, Snap) present from this activity.
         SocialActivityHolder.attach(this)
-        // The theme paints the launch window brand orange; the app itself sits on white.
-        window.setBackgroundDrawableResource(android.R.color.white)
+        // The user's theme is needed for the very first frame (splash, window and bar colors), so
+        // this one small preferences read blocks; every write after it is asynchronous.
+        val preferences = AndroidPreferencesStore(applicationContext)
+        val storedTheme = FausThemeId.fromStorage(runBlocking { preferences.selectedTheme() })
+        themeController = FausThemeController(storedTheme) { id ->
+            lifecycleScope.launch { preferences.setSelectedTheme(id.storageValue) }
+        }
+        // The launch window shows `launch_background`; the app itself sits on the theme's base.
+        window.setBackgroundDrawable(ColorDrawable(themeController.theme.palette.background.toArgb()))
         val coldStart = savedInstanceState == null
         // Compose owns every inset (status/nav bars and the keyboard) on all API levels, matching
         // the edge-to-edge behavior Android 15+ enforces. Screens pad themselves; the IME is
         // handled once at the root below.
         WindowCompat.setDecorFitsSystemWindows(window, false)
-        window.statusBarColor = android.graphics.Color.WHITE
-        window.navigationBarColor = android.graphics.Color.WHITE
-        @Suppress("DEPRECATION")
-        window.decorView.systemUiVisibility = android.view.View.SYSTEM_UI_FLAG_LIGHT_NAVIGATION_BAR
         setContent {
+            val theme = themeController.theme
+            FausCrewTheme(theme) {
+            CompositionLocalProvider(LocalFausThemeController provides themeController) {
             val model: AuthViewModel = viewModel(factory = AuthViewModel.Factory(applicationContext))
             val houseModel: HouseViewModel = viewModel(factory = HouseViewModel.Factory(applicationContext))
             authViewModel = model
@@ -121,18 +139,23 @@ class MainActivity : ComponentActivity() {
                     showsHouseTanks = false
                 }
             }
-            LaunchedEffect(state.route, showsSplash) {
+            LaunchedEffect(state.route, showsSplash, theme) {
                 val isAuth = state.route is AuthRoute.SignIn || state.route is AuthRoute.ForgotPassword ||
                     state.route is AuthRoute.SocialEmail ||
                     (state.route is AuthRoute.Next && (state.route as AuthRoute.Next).destination == AuthDestination.EMAIL_VERIFICATION)
+                val base = theme.palette.background.toArgb()
+                window.setBackgroundDrawable(ColorDrawable(base))
                 window.statusBarColor = when {
                     showsSplash -> android.graphics.Color.TRANSPARENT
-                    isAuth -> android.graphics.Color.rgb(255, 145, 56)
-                    else -> android.graphics.Color.WHITE
+                    isAuth -> theme.decor.headerStops.first().second.toArgb()
+                    else -> base
                 }
+                window.navigationBarColor = base
+                val lightBars = !theme.isDark
                 @Suppress("DEPRECATION")
-                window.decorView.systemUiVisibility = android.view.View.SYSTEM_UI_FLAG_LIGHT_NAVIGATION_BAR or
-                    (if (isAuth || showsSplash) 0 else android.view.View.SYSTEM_UI_FLAG_LIGHT_STATUS_BAR)
+                window.decorView.systemUiVisibility =
+                    (if (lightBars) android.view.View.SYSTEM_UI_FLAG_LIGHT_NAVIGATION_BAR else 0) or
+                    (if (isAuth || showsSplash || !lightBars) 0 else android.view.View.SYSTEM_UI_FLAG_LIGHT_STATUS_BAR)
             }
             val nav = rememberNavController()
             val currentRoute = state.route
@@ -295,6 +318,8 @@ class MainActivity : ComponentActivity() {
             }
             if (showsSplash) FausSplash(onReveal = { splashCovering = false }) { showsSplash = false }
             }
+            }
+            }
         }
     }
 
@@ -310,6 +335,7 @@ class MainActivity : ComponentActivity() {
     }
 
     override fun onStop() {
+        ThemeAppearance.applyLauncherIcon(applicationContext, themeController.themeId)
         authViewModel?.onBackground()
         AppLifecycle.bridge.onStopped()
         super.onStop()

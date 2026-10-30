@@ -3,6 +3,7 @@ import SwiftUI
 /// House selection screen - Choose between creating or joining a house
 /// Refactored: Component'e bölündü, Design System kullanıyor
 struct HouseSelectionView: View {
+    @Environment(\.fausTheme) private var theme
     @EnvironmentObject private var appViewModel: AppViewModel
     
     var body: some View {
@@ -29,7 +30,8 @@ struct HouseSelectionView: View {
                     .fill(Color.white.opacity(0.16))
                     .frame(width: 70, height: 70)
                 Circle()
-                    .fill(Color.white)
+                    .fill(LinearGradient(colors: theme.decor.badgeFill, startPoint: .topLeading, endPoint: .bottomTrailing))
+                    .overlay(Circle().strokeBorder(theme.decor.badgeBorder, lineWidth: 1.5))
                     .frame(width: 58, height: 58)
                     .shadow(color: FausBrand.deepBerry.opacity(0.3), radius: 8, x: 0, y: 6)
                 Rectangle()

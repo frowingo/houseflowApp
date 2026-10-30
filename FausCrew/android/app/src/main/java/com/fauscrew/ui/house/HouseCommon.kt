@@ -14,6 +14,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.ReadOnlyComposable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -33,9 +34,12 @@ import com.fauscrew.ui.theme.softShadow
 
 /** `HouseJourneyTheme` gradients for the create / join / house-state journey. */
 internal object HouseJourneyBrushes {
-    val primaryButton = Brush.horizontalGradient(listOf(FausCrewColors.indigo, FausCrewColors.deepIndigo))
-    val joinButton = Brush.horizontalGradient(listOf(FausCrewColors.deepTeal, FausCrewColors.buttonBlue))
-    val disabledButton = Brush.horizontalGradient(listOf(Color.Gray.copy(alpha = .30f), Color.Gray.copy(alpha = .24f)))
+    val primaryButton: Brush @Composable @ReadOnlyComposable
+        get() = Brush.horizontalGradient(listOf(FausCrewColors.indigoFill, FausCrewColors.deepIndigoFill))
+    val joinButton: Brush @Composable @ReadOnlyComposable
+        get() = Brush.horizontalGradient(listOf(FausCrewColors.tealFill, FausCrewColors.buttonBlue))
+    val disabledButton: Brush @Composable @ReadOnlyComposable
+        get() = Brush.horizontalGradient(listOf(FausCrewColors.textTertiary.copy(alpha = .30f), FausCrewColors.textTertiary.copy(alpha = .24f)))
 }
 
 /** Round back control shared by the house journey screens (`chevron.left` in a surface circle). */
@@ -78,6 +82,6 @@ internal fun HouseJourneyButton(
             .clickable(enabled = enabled, role = Role.Button, onClick = onClick),
         contentAlignment = Alignment.Center,
     ) {
-        Text(label, style = FausCrewType.headline, color = if (enabled) Color.White else Color.Gray)
+        Text(label, style = FausCrewType.headline, color = if (enabled) Color.White else FausCrewColors.textTertiary)
     }
 }

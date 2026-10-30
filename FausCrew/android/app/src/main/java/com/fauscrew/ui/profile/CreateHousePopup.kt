@@ -120,7 +120,7 @@ internal fun CreateHouseDialog(
                     PopupPrimaryButton(strings.get(if (busy) "common_creating" else "profile_house_create_button",
                         if (busy) "Creating…" else "Create house"), canCreate, submit, Modifier.weight(1f),
                         icon = FausCrewIcons.plus, busy = busy, brush = FausButtonGradient,
-                        disabledBrush = Brush.horizontalGradient(listOf(Color.Gray.copy(alpha = .42f), Color.Gray.copy(alpha = .32f))))
+                        disabledBrush = Brush.horizontalGradient(listOf(FausCrewColors.textTertiary.copy(alpha = .42f), FausCrewColors.textTertiary.copy(alpha = .32f))))
                 }
             }
         },
@@ -168,7 +168,7 @@ private fun NameField(value: String, onChange: (String) -> Unit, enabled: Boolea
         keyboardActions = KeyboardActions(onDone = { onDone() }),
         decorationBox = { inner ->
             Row(
-                Modifier.fillMaxWidth().heightIn(min = 48.dp).clip(shape).background(Color.White)
+                Modifier.fillMaxWidth().heightIn(min = 48.dp).clip(shape).background(FausCrewColors.surface)
                     .border(if (focused) 1.5.dp else 1.dp, if (focused) FausCrewColors.brandOrange else fieldBorder, shape)
                     .padding(horizontal = Spacing.md),
                 verticalAlignment = Alignment.CenterVertically,
@@ -223,7 +223,7 @@ private fun MemberStepper(count: Int?, enabled: Boolean, hint: String, onChange:
     val canDecrease = enabled && count != null && count > range.first
     val canIncrease = enabled && (count ?: 0) < range.last
     Row(
-        Modifier.fillMaxWidth().clip(shape).background(Color.White).border(1.dp, fieldBorder, shape)
+        Modifier.fillMaxWidth().clip(shape).background(FausCrewColors.surface).border(1.dp, fieldBorder, shape)
             .padding(horizontal = Spacing.md, vertical = Spacing.sm),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(Spacing.md),

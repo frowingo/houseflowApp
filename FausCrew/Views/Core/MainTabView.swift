@@ -56,6 +56,13 @@ struct MainTabView: View {
                 isHouseSwitcherPresented = false
             }
         }
+        // The switcher belongs to the dashboard; a tap on another tab passes through the
+        // popover, so leaving Home closes it.
+        .onChange(of: selectedTab) { _, tab in
+            if tab != .home {
+                isHouseSwitcherPresented = false
+            }
+        }
     }
 
     @ViewBuilder
@@ -138,9 +145,7 @@ struct CustomTabBar: View {
     let onHouseSelected: (AuthHouseSummary) -> Void
     @Namespace private var selectionAnimation
 
-    private let softApricot = Color(red: 0.96, green: 0.62, blue: 0.35)
-    private let softOrange = Color(red: 0.93, green: 0.49, blue: 0.25)
-    private let softBerry = Color(red: 0.46, green: 0.19, blue: 0.30)
+    @Environment(\.fausTheme) private var theme
 
     var body: some View {
         HStack(spacing: 0) {
@@ -205,25 +210,27 @@ struct CustomTabBar: View {
             barShape
                 .fill(
                     LinearGradient(
-                        colors: [softApricot, softOrange, softBerry],
+                        stops: theme.decor.tabBarStops,
                         startPoint: .topLeading,
                         endPoint: .bottomTrailing
                     )
                 )
 
+            FausHeroGlow(color: theme.decor.tabBarGlow, reach: 0.7)
+
             GeometryReader { geo in
                 Circle()
-                    .fill(Color.white.opacity(0.08))
+                    .fill(theme.decor.heroOrnament.opacity(0.08))
                     .frame(width: 104, height: 104)
                     .offset(x: geo.size.width - 76, y: -46)
 
                 Circle()
-                    .stroke(Color.white.opacity(0.15), lineWidth: 1)
+                    .stroke(theme.decor.heroOrnament.opacity(0.15), lineWidth: 1)
                     .frame(width: 76, height: 76)
                     .offset(x: geo.size.width - 62, y: -32)
 
                 Capsule()
-                    .fill(Color.white.opacity(0.07))
+                    .fill(theme.decor.heroOrnament.opacity(0.07))
                     .frame(width: 112, height: 15)
                     .rotationEffect(.degrees(-24))
                     .offset(x: geo.size.width - 94, y: geo.size.height - 20)
@@ -238,10 +245,7 @@ struct CustomTabBar: View {
             barShape
                 .strokeBorder(
                     LinearGradient(
-                        colors: [
-                            Color.white.opacity(0.35),
-                            Color.white.opacity(0.10)
-                        ],
+                        colors: theme.decor.tabBarBorder,
                         startPoint: .topLeading,
                         endPoint: .bottomTrailing
                     ),
@@ -249,11 +253,18 @@ struct CustomTabBar: View {
                 )
         }
         .clipShape(barShape)
-        .shadow(color: softBerry.opacity(0.3), radius: 20, x: 0, y: 9)
+        .shadow(color: theme.decor.tabBarShadow, radius: 20, x: 0, y: 9)
     }
 }
 
 // MARK: - Tab Bar Item
+
+/// Selected glyphs take the theme's gradient when it has one.
+private func tabIconStyle(isSelected: Bool, unselected: Color, theme: FausTheme) -> AnyShapeStyle {
+    guard isSelected else { return AnyShapeStyle(unselected) }
+    if let gradient = theme.decor.tabSelectedIconGradient { return AnyShapeStyle(gradient) }
+    return AnyShapeStyle(theme.decor.tabItemSelected)
+}
 
 struct TabBarItem: View {
     let tab: AppTab
@@ -262,6 +273,7 @@ struct TabBarItem: View {
     var namespace: Namespace.ID
     let onTap: () -> Void
 
+    @Environment(\.fausTheme) private var theme
     @State private var bouncing = false
 
     var body: some View {
@@ -273,26 +285,26 @@ struct TabBarItem: View {
                 ZStack {
                     if isSelected {
                         Capsule()
-                            .fill(Color.white.opacity(0.2))
+                            .fill(theme.decor.tabSelectedFill)
                             .frame(width: 52, height: 32)
                             .overlay {
                                 Capsule()
-                                    .strokeBorder(Color.white.opacity(0.24), lineWidth: 1)
+                                    .strokeBorder(theme.decor.tabSelectedBorder, lineWidth: 1)
                             }
-                            .shadow(color: Color.black.opacity(0.12), radius: 7, x: 0, y: 3)
+                            .shadow(color: AppDesign.Colors.shadow.opacity(0.12), radius: 7, x: 0, y: 3)
                             .matchedGeometryEffect(id: "tabHighlight", in: namespace)
                     }
 
                     Image(systemName: tab.icon)
                         .font(.system(size: 18, weight: isSelected ? .semibold : .regular))
-                        .foregroundStyle(isSelected ? Color.white : Color.white.opacity(0.55))
+                        .foregroundStyle(tabIconStyle(isSelected: isSelected, unselected: theme.decor.tabItem, theme: theme))
                         .scaleEffect(bouncing ? 1.25 : 1.0)
                         .frame(width: 52, height: 32)
                 }
                 Text(label)
                     .font(AppDesign.Typography.caption2)
                     .fontWeight(isSelected ? .semibold : .regular)
-                    .foregroundStyle(isSelected ? Color.white : Color.white.opacity(0.55))
+                    .foregroundStyle(isSelected ? theme.decor.tabItemSelected : theme.decor.tabItem)
             }
             .frame(maxWidth: .infinity)
             .contentShape(Rectangle())
@@ -326,6 +338,7 @@ private struct HomeTabBarItem: View {
     let onHouseSelected: (AuthHouseSummary) -> Void
     let onTap: () -> Void
 
+    @Environment(\.fausTheme) private var theme
     @GestureState private var isPressing = false
     @State private var bouncing = false
 
@@ -348,7 +361,7 @@ private struct HomeTabBarItem: View {
                         Image(systemName: AppTab.home.icon)
                             .font(.system(size: 19, weight: isSelected ? .semibold : .medium))
                     }
-                    .foregroundStyle(isSelected ? Color.white : Color.white.opacity(0.62))
+                    .foregroundStyle(tabIconStyle(isSelected: isSelected, unselected: theme.decor.homeItem, theme: theme))
                     .scaleEffect(bouncing ? 1.18 : 1.0)
                 }
                 .frame(width: 52, height: 32)
@@ -358,13 +371,14 @@ private struct HomeTabBarItem: View {
                 Text(label)
                     .font(AppDesign.Typography.caption2)
                     .fontWeight(isSelected ? .semibold : .regular)
-                    .foregroundStyle(isSelected ? Color.white : Color.white.opacity(0.55))
+                    .foregroundStyle(isSelected ? theme.decor.tabItemSelected : theme.decor.tabItem)
             }
             .frame(maxWidth: .infinity)
             .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
-        .simultaneousGesture(houseSwitcherGesture)
+        // The switcher belongs to the dashboard: on other tabs a long press is just a tap.
+        .simultaneousGesture(houseSwitcherGesture, including: isSelected ? .all : .subviews)
         .animation(.easeOut(duration: 0.12), value: isPressing)
         .popover(
             isPresented: $isHouseSwitcherPresented,
@@ -380,29 +394,29 @@ private struct HomeTabBarItem: View {
             )
             .presentationCompactAdaptation(.popover)
         }
-        .accessibilityHint(longPressHint)
-        .accessibilityAction(
-            named: Text(
-                appViewModel.localized(
+        .accessibilityHint(isSelected ? longPressHint : "")
+        .accessibilityActions {
+            if isSelected {
+                Button(appViewModel.localized(
                     "main_tab_house_switcher_accessibility_action",
                     fallback: "Choose house"
-                )
-            )
-        ) {
-            presentHouseSwitcher()
+                )) {
+                    presentHouseSwitcher()
+                }
+            }
         }
     }
 
     private var selectedHomeCapsule: some View {
         Capsule()
-            .fill(Color(red: 1.0, green: 0.88, blue: 0.70).opacity(0.30))
+            .fill(theme.decor.homeSelectedFill)
             .frame(width: 56, height: 38)
             .overlay {
                 Capsule()
-                    .strokeBorder(Color.white.opacity(0.30), lineWidth: 1)
+                    .strokeBorder(theme.decor.homeSelectedBorder, lineWidth: 1)
             }
             .shadow(
-                color: Color.black.opacity(isPressing ? 0.20 : 0.12),
+                color: AppDesign.Colors.shadow.opacity(isPressing ? 0.20 : 0.12),
                 radius: isPressing ? 10 : 7,
                 x: 0,
                 y: isPressing ? 5 : 3
@@ -420,6 +434,7 @@ private struct HomeTabBarItem: View {
     }
 
     private func presentHouseSwitcher() {
+        guard isSelected else { return }
         UIImpactFeedbackGenerator(style: .soft).impactOccurred()
         isHouseSwitcherPresented = true
     }
@@ -450,8 +465,11 @@ private struct HouseSwitcherMenu: View {
                 .padding(.horizontal, AppDesign.Spacing.xs)
 
             ScrollView(showsIndicators: false) {
-                LazyVStack(spacing: AppDesign.Spacing.xs) {
+                LazyVStack(spacing: 2) {
                     ForEach(houses) { house in
+                        if house.id != houses.first?.id {
+                            HouseSwitcherDivider()
+                        }
                         HouseSwitcherRow(
                             house: house,
                             isSelected: house.houseId == selectedHouseId,
@@ -466,12 +484,24 @@ private struct HouseSwitcherMenu: View {
         }
         .padding(AppDesign.Spacing.md)
         .frame(width: 320)
-        .presentationBackground(Color(.secondarySystemBackground))
+        // The page backdrop (wash, curves, mesh) carries into the popover.
+        .presentationBackground { MainScreenBackground() }
         .accessibilityElement(children: .contain)
     }
 
     private var menuListHeight: CGFloat {
-        min(CGFloat(max(houses.count, 1)) * 62, 260)
+        min(CGFloat(max(houses.count, 1)) * 63, 260)
+    }
+}
+
+/// Line between homes; `controlFillStrong` reads clearly on both the light and the dark backdrop.
+private struct HouseSwitcherDivider: View {
+    var body: some View {
+        Rectangle()
+            .fill(AppDesign.Colors.controlFillStrong)
+            .frame(height: 1)
+            .padding(.horizontal, AppDesign.Spacing.sm)
+            .accessibilityHidden(true)
     }
 }
 

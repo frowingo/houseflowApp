@@ -20,6 +20,7 @@ import androidx.compose.material.icons.rounded.Cake
 import androidx.compose.material.icons.rounded.CalendarMonth
 import androidx.compose.material.icons.rounded.Campaign
 import androidx.compose.material.icons.rounded.Cancel
+import androidx.compose.material.icons.rounded.Dangerous
 import androidx.compose.material.icons.rounded.Check
 import androidx.compose.material.icons.rounded.CheckCircle
 import androidx.compose.material.icons.rounded.Checklist
@@ -39,6 +40,7 @@ import androidx.compose.material.icons.rounded.NotificationsActive
 import androidx.compose.material.icons.rounded.Person
 import androidx.compose.material.icons.rounded.PersonOff
 import androidx.compose.material.icons.rounded.Phone
+import androidx.compose.material.icons.rounded.Palette
 import androidx.compose.material.icons.rounded.Public
 import androidx.compose.material.icons.rounded.RadioButtonUnchecked
 import androidx.compose.material.icons.rounded.Refresh
@@ -104,6 +106,7 @@ internal object FausCrewIcons {
     val checkmarkCircleFill: ImageVector = Icons.Rounded.CheckCircle
     val checkmarkSealFill: ImageVector = Icons.Rounded.Verified
     val xmarkCircleFill: ImageVector = Icons.Rounded.Cancel
+    val xmarkOctagonFill: ImageVector = Icons.Rounded.Dangerous
     val minusCircleFill: ImageVector = Icons.Rounded.RemoveCircle
     val circle: ImageVector = Icons.Rounded.RadioButtonUnchecked
     val docFill: ImageVector = Icons.AutoMirrored.Rounded.InsertDriveFile
@@ -135,6 +138,7 @@ internal object FausCrewIcons {
     val lockShieldFill: ImageVector = Icons.Rounded.Security
     val questionmarkCircleFill: ImageVector = Icons.AutoMirrored.Rounded.Help
     val globeFill: ImageVector = Icons.Rounded.Public
+    val paintpaletteFill: ImageVector = Icons.Rounded.Palette
     val infoCircleFill: ImageVector = Icons.Rounded.Info
     val logout: ImageVector = Icons.AutoMirrored.Rounded.Logout
     val person2BadgePlus: ImageVector = Icons.Rounded.GroupAdd

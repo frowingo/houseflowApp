@@ -19,8 +19,8 @@ struct ChoreRow: View {
             // Task title - flexible column
             Text(chore.title)
                 .font(AppDesign.Typography.bodyBold)
-                .strikethrough(chore.isDone)
-                .foregroundColor(chore.isDone ? AppDesign.Colors.textSecondary : AppDesign.Colors.textPrimary)
+                .strikethrough(choreStatus == .completed)
+                .foregroundColor(choreStatus.listGroup.isHistory ? AppDesign.Colors.textSecondary : AppDesign.Colors.textPrimary)
                 .lineLimit(1)
                 .truncationMode(.tail)
                 .frame(maxWidth: .infinity, alignment: .leading)
@@ -30,7 +30,7 @@ struct ChoreRow: View {
                 .frame(width: AppDesign.Size.avatarSmall)
             
             // Status badge - fixed width column
-            Text(appViewModel.localized(choreStatus.localizationKey))
+            Text(appViewModel.statusLabel(choreStatus))
                 .font(AppDesign.Typography.caption)
                 .fontWeight(.medium)
                 .lineLimit(1)
@@ -57,7 +57,7 @@ struct ChoreRow: View {
     }
     
     private var choreStatus: ChoreStatus {
-        ChoreStatus(rawValue: chore.status) ?? .draft
+        chore.choreStatus
     }
 }
 

@@ -1,32 +1,54 @@
 import SwiftUI
 
 /// Shared ambient backdrop for the app's primary screens.
-/// It keeps the page visually quiet while giving white space a little depth.
+/// It keeps the page visually quiet while giving white space a little depth. The base, the
+/// line inks and the optional mesh texture come from the active theme's `FausBackdrop`.
 struct MainScreenBackground: View {
-    private let softApricot = Color(red: 0.96, green: 0.62, blue: 0.35)
-    private let softOrange = Color(red: 0.93, green: 0.49, blue: 0.25)
-    private let softBerry = Color(red: 0.46, green: 0.19, blue: 0.30)
+    enum Surface {
+        case page
+        case popup
+    }
+
+    var surface: Surface = .page
+
+    @Environment(\.fausTheme) private var theme
+
+    private var backdrop: FausBackdrop {
+        surface == .popup ? theme.decor.popupBackdrop : theme.decor.backdrop
+    }
 
     var body: some View {
         ZStack {
-            Color(uiColor: .systemBackground)
+            if backdrop.baseStops.count > 1 {
+                LinearGradient(stops: backdrop.baseStops, startPoint: backdrop.baseStart, endPoint: backdrop.baseEnd)
+            } else {
+                backdrop.baseStops.first?.color ?? AppDesign.Colors.background
+            }
+
+            if let mesh = backdrop.mesh {
+                FausMeshTextureView(texture: mesh)
+            }
 
             LinearGradient(
-                colors: [
-                    softApricot.opacity(0.035),
-                    Color.clear,
-                    softBerry.opacity(0.018)
-                ],
+                colors: backdrop.wash,
                 startPoint: .topLeading,
                 endPoint: .bottomTrailing
             )
 
-            lineField
+            FausHeroGlow(color: backdrop.glow, reach: 0.6)
+
+            if backdrop.drawsLines {
+                lineField
+            }
         }
         .ignoresSafeArea()
         .allowsHitTesting(false)
         .accessibilityHidden(true)
     }
+
+    private var softApricot: Color { backdrop.apricotInk }
+    private var softOrange: Color { backdrop.orangeInk }
+    private var softBerry: Color { backdrop.berryInk }
 
     /// Static, irregular paths feel random without changing whenever SwiftUI redraws.
     private var lineField: some View {
@@ -152,7 +174,8 @@ struct MainScreenBackground: View {
         opacity: Double,
         width: CGFloat
     ) -> some View {
-        AmbientCurve(
+        let strength = strength(for: color)
+        return AmbientCurve(
             start: start,
             control1: control1,
             control2: control2,
@@ -161,12 +184,18 @@ struct MainScreenBackground: View {
         .stroke(
             edgeWeightedInk(
                 color,
-                edgeOpacity: opacity,
+                edgeOpacity: min(opacity * strength, 0.66),
                 from: start,
                 to: end
             ),
-            style: StrokeStyle(lineWidth: width, lineCap: .round)
+            style: StrokeStyle(lineWidth: width + backdrop.lineWidthBoost, lineCap: .round)
         )
+    }
+
+    private func strength(for ink: Color) -> Double {
+        if ink == backdrop.apricotInk { return backdrop.apricotStrength }
+        if ink == backdrop.orangeInk { return backdrop.orangeStrength }
+        return backdrop.berryStrength
     }
 
     private func edgeWeightedInk(
@@ -210,6 +239,82 @@ private struct AmbientCurve: Shape {
             x: rect.minX + rect.width * unitPoint.x,
             y: rect.minY + rect.height * unitPoint.y
         )
+    }
+}
+
+/// Faus Dark's perforated metal: a hex grid of dark holes with a warm rim, strongest toward the
+/// top-trailing light and never fully gone at the bottom, plus two faint sheens.
+struct FausMeshTextureView: View {
+    let texture: FausMeshTexture
+    /// Auth's form sheet uses the texture without the radial fade.
+    var masked = true
+
+    var body: some View {
+        ZStack {
+            Canvas(rendersAsynchronously: true) { context, size in
+                var holes = Path()
+                var rims = Path()
+                let rows = Int(size.height / texture.rowPitch) + 2
+                let columns = Int(size.width / texture.pitch) + 2
+                for row in 0..<rows {
+                    let y = CGFloat(row) * texture.rowPitch + texture.pitch / 2
+                    let shift = row.isMultiple(of: 2) ? 0 : texture.pitch / 2
+                    for column in 0..<columns {
+                        let x = CGFloat(column) * texture.pitch + texture.pitch / 2 + shift
+                        holes.addEllipse(in: CGRect(
+                            x: x - texture.holeRadius, y: y - texture.holeRadius,
+                            width: texture.holeRadius * 2, height: texture.holeRadius * 2
+                        ))
+                        rims.addEllipse(in: CGRect(
+                            x: x - texture.rimRadius, y: y - texture.rimRadius,
+                            width: texture.rimRadius * 2, height: texture.rimRadius * 2
+                        ))
+                    }
+                }
+                context.stroke(rims, with: .color(texture.rim), lineWidth: 0.5)
+                context.fill(holes, with: .color(texture.hole))
+            }
+            .mask {
+                if masked {
+                    GeometryReader { proxy in
+                        RadialGradient(
+                            stops: [
+                                .init(color: .black, location: 0),
+                                .init(color: .black.opacity(0.88), location: 0.55),
+                                .init(color: .black.opacity(0.78), location: 1)
+                            ],
+                            center: UnitPoint(x: 0.72, y: 0.22),
+                            startRadius: 0,
+                            endRadius: max(proxy.size.width * 1.1, proxy.size.height * 0.7)
+                        )
+                    }
+                } else {
+                    Color.black
+                }
+            }
+
+            GeometryReader { proxy in
+                ZStack {
+                    RadialGradient(
+                        colors: [texture.sheen.opacity(masked ? 0.06 : 0.05), texture.sheen.opacity(0)],
+                        center: UnitPoint(x: 0.74, y: 0.20),
+                        startRadius: 0,
+                        endRadius: proxy.size.width * 0.5
+                    )
+                    if masked {
+                        RadialGradient(
+                            colors: [texture.sheen.opacity(0.035), texture.sheen.opacity(0)],
+                            center: UnitPoint(x: 0.30, y: 0.88),
+                            startRadius: 0,
+                            endRadius: proxy.size.width * 0.63
+                        )
+                    }
+                }
+            }
+        }
+        .drawingGroup()
+        .allowsHitTesting(false)
+        .accessibilityHidden(true)
     }
 }
 

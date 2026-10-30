@@ -19,7 +19,7 @@ struct LanguageSettingsPopup: View {
 
     var body: some View {
         ZStack {
-            Color.black.opacity(0.55)
+            AppDesign.Colors.scrim
                 .ignoresSafeArea()
                 .onTapGesture { if !isSaving { requestDismiss() } }
 
@@ -122,7 +122,7 @@ struct LanguageSettingsPopup: View {
                         .background(
                             canSave
                                 ? LinearGradient(colors: [accentOrange, accentOrange.opacity(0.75)], startPoint: .leading, endPoint: .trailing)
-                                : LinearGradient(colors: [Color.gray.opacity(0.5), Color.gray.opacity(0.4)], startPoint: .leading, endPoint: .trailing)
+                                : LinearGradient(colors: [AppDesign.Colors.textTertiary.opacity(0.5), AppDesign.Colors.textTertiary.opacity(0.4)], startPoint: .leading, endPoint: .trailing)
                         )
                         .cornerRadius(AppDesign.CornerRadius.md)
                     }
@@ -140,11 +140,11 @@ struct LanguageSettingsPopup: View {
                 }
                 .padding(.horizontal, AppDesign.Spacing.xl)
                 .padding(.vertical, AppDesign.Spacing.lg)
-                .background(AppDesign.Colors.background.shadow(color: Color.black.opacity(0.06), radius: 8, x: 0, y: -4))
+                .background(AppDesign.Colors.popupBackground.shadow(color: AppDesign.Colors.shadow.opacity(0.06), radius: 8, x: 0, y: -4))
             }
-            .background(MainScreenBackground())
+            .background(MainScreenBackground(surface: .popup))
             .clipShape(RoundedRectangle(cornerRadius: AppDesign.CornerRadius.xl, style: .continuous))
-            .shadow(color: Color.black.opacity(0.25), radius: 30, x: 0, y: 16)
+            .shadow(color: AppDesign.Colors.shadow.opacity(0.25), radius: 30, x: 0, y: 16)
             .padding(.horizontal, AppDesign.Spacing.xl)
         }
         .animation(AppDesign.Animation.standard, value: isSaving)

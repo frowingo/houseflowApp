@@ -23,7 +23,7 @@ struct CreateHousePopup: View {
     var body: some View {
         GeometryReader { proxy in
             ZStack {
-                Color.black.opacity(0.55)
+                AppDesign.Colors.scrim
                     .ignoresSafeArea()
                     .onTapGesture {
                         guard !isCreating else { return }
@@ -79,9 +79,9 @@ struct CreateHousePopup: View {
 
             footer
         }
-        .background(MainScreenBackground())
+        .background(MainScreenBackground(surface: .popup))
         .clipShape(RoundedRectangle(cornerRadius: AppDesign.CornerRadius.xl, style: .continuous))
-        .shadow(color: Color.black.opacity(0.25), radius: 30, x: 0, y: 16)
+        .shadow(color: AppDesign.Colors.shadow.opacity(0.25), radius: 30, x: 0, y: 16)
         .accessibilityAddTraits(.isModal)
     }
 
@@ -170,7 +170,7 @@ struct CreateHousePopup: View {
             }
             .padding(.horizontal, AppDesign.Spacing.md)
             .frame(minHeight: 48)
-            .background(Color.white)
+            .background(AppDesign.Colors.surface)
             .clipShape(RoundedRectangle(cornerRadius: AppDesign.CornerRadius.md))
             .overlay(
                 RoundedRectangle(cornerRadius: AppDesign.CornerRadius.md)
@@ -279,7 +279,7 @@ struct CreateHousePopup: View {
             }
             .padding(.horizontal, AppDesign.Spacing.md)
             .padding(.vertical, AppDesign.Spacing.sm)
-            .background(Color.white)
+            .background(AppDesign.Colors.surface)
             .clipShape(RoundedRectangle(cornerRadius: AppDesign.CornerRadius.md))
             .overlay(
                 RoundedRectangle(cornerRadius: AppDesign.CornerRadius.md)
@@ -358,7 +358,7 @@ struct CreateHousePopup: View {
         .padding(.vertical, AppDesign.Spacing.md)
         .background(AppDesign.Colors.background)
         .overlay(alignment: .top) {
-            Divider()
+            Divider().overlay(AppDesign.Colors.separator)
         }
     }
 
@@ -418,7 +418,7 @@ struct CreateHousePopup: View {
                 FausBrand.buttonGradient
             } else {
                 LinearGradient(
-                    colors: [Color.gray.opacity(0.42), Color.gray.opacity(0.32)],
+                    colors: [AppDesign.Colors.textTertiary.opacity(0.42), AppDesign.Colors.textTertiary.opacity(0.32)],
                     startPoint: .leading,
                     endPoint: .trailing
                 )

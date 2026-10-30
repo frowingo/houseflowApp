@@ -41,6 +41,7 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.ReadOnlyComposable
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.rememberUpdatedState
@@ -91,10 +92,18 @@ private const val MIN_MEMBERS = 2
 private const val MAX_MEMBERS = 8
 
 /** `HouseTypeCard.HouseType`: API value, copy key, SF icon and tint. */
-internal enum class HouseTypeUi(val apiValue: Int, val key: String, val icon: ImageVector, val tint: Color) {
-    STUDENT(1, "create_house_type_student", FausCrewIcons.graduationcapFill, FausCrewColors.purple),
-    SHARED(2, "create_house_type_shared", FausCrewIcons.houseFill, FausCrewColors.teal),
-    DORM(3, "create_house_type_dorm", FausCrewIcons.building2Fill, FausCrewColors.blue);
+internal enum class HouseTypeUi(val apiValue: Int, val key: String, val icon: ImageVector) {
+    STUDENT(1, "create_house_type_student", FausCrewIcons.graduationcapFill),
+    SHARED(2, "create_house_type_shared", FausCrewIcons.houseFill),
+    DORM(3, "create_house_type_dorm", FausCrewIcons.building2Fill);
+
+    val tint: Color
+        @Composable @ReadOnlyComposable
+        get() = when (this) {
+            STUDENT -> FausCrewColors.purple
+            SHARED -> FausCrewColors.teal
+            DORM -> FausCrewColors.blue
+        }
 
     companion object {
         fun of(apiValue: Int): HouseTypeUi? = entries.firstOrNull { it.apiValue == apiValue }
@@ -212,7 +221,7 @@ private fun HouseTypeCard(type: HouseTypeUi, selected: Boolean, strings: Localiz
             .graphicsLayer { scaleX = scale; scaleY = scale }
             .clip(shape)
             .background(if (selected) FausCrewColors.brandOrange.copy(alpha = .08f) else FausCrewColors.surface)
-            .border(if (selected) 2.dp else 1.dp, if (selected) FausCrewColors.brandOrange else Color(0xFFE5E5EA), shape)
+            .border(if (selected) 2.dp else 1.dp, if (selected) FausCrewColors.brandOrange else FausCrewColors.elevatedSurface, shape)
             .clickable(role = Role.RadioButton, onClick = onClick)
             .semantics { this.selected = selected }
             .padding(horizontal = Spacing.xs),
@@ -258,21 +267,24 @@ private fun MemberCountPicker(count: Int, strings: LocalizedText, onChange: (Int
                         detectDragGestures { change, _ -> pick(change.position.x, size.width.toFloat(), edge.toPx()) }
                     }
                     .semantics { contentDescription = label; stateDescription = currentCount.toString() }
+                val railColor = FausCrewColors.systemGray4
+                val tickColor = FausCrewColors.systemGray3
+                val stopColors = listOf(FausCrewColors.brandLight, FausCrewColors.brandOrange, FausCrewColors.markBerry)
                 Canvas(track) {
                     val left = edge.toPx()
                     val width = size.width - left * 2
                     val centerY = size.height / 2
                     val rail = 6.dp.toPx()
-                    drawRoundRect(FausCrewColors.systemGray4, Offset(left, centerY - rail / 2), Size(width, rail),
+                    drawRoundRect(railColor, Offset(left, centerY - rail / 2), Size(width, rail),
                         CornerRadius(3.dp.toPx()))
                     val slot = width / stops
                     // Each stop is a 16pt tick over a 10pt dot, centered on the rail like the iOS VStack.
                     val stackTop = centerY - 13.dp.toPx()
                     for (index in 0 until stops) {
                         val x = left + slot * (index + .5f)
-                        drawRoundRect(FausCrewColors.systemGray3, Offset(x - 1.5.dp.toPx(), stackTop),
+                        drawRoundRect(tickColor, Offset(x - 1.5.dp.toPx(), stackTop),
                             Size(3.dp.toPx(), 16.dp.toPx()), CornerRadius(1.5.dp.toPx()))
-                        drawCircle(if (currentCount >= MIN_MEMBERS + index) memberStopColor(index, stops) else FausCrewColors.systemGray4,
+                        drawCircle(if (currentCount >= MIN_MEMBERS + index) memberStopColor(index, stops, stopColors) else railColor,
                             5.dp.toPx(), Offset(x, stackTop + 21.dp.toPx()))
                     }
                 }
@@ -289,10 +301,10 @@ private fun MemberCountPicker(count: Int, strings: LocalizedText, onChange: (Int
 }
 
 /** Filled stops walk from light orange towards berry as the count grows. */
-private fun memberStopColor(index: Int, stops: Int): Color {
+private fun memberStopColor(index: Int, stops: Int, colors: List<Color>): Color {
     val progress = index / (stops - 1).coerceAtLeast(1).toFloat()
-    return if (progress < .5f) lerp(FausCrewColors.brandLight, FausCrewColors.brandOrange, progress * 2)
-    else lerp(FausCrewColors.brandOrange, Color(0xFF8A2440), (progress - .5f) * 2)
+    return if (progress < .5f) lerp(colors[0], colors[1], progress * 2)
+    else lerp(colors[1], colors[2], (progress - .5f) * 2)
 }
 
 private val BubbleTail = GenericShape { size, _ ->

@@ -71,6 +71,7 @@ internal object ProfileTints {
     val create = Color(0xFFE5620F)
     val notifications = Color(0xFFF2731A)
     val privacy = Color(0xFF598CE0)
+    val theme = Color(0xFFD94A80)
 }
 
 /** `ProfileHeroSection`: brand card with the pulsing avatar ring and the full name. */
@@ -104,7 +105,7 @@ private fun ProfileHeroAvatar(imageUrl: String, initials: String, description: S
     val fallback = Brush.linearGradient(listOf(Color(0xFFF27F14), Color(0xFFC75208)))
     Box(
         Modifier.size(84.dp)
-            .softShadow(Color.Black.copy(alpha = .22f), 12.dp, y = 6.dp, shape = CircleShape)
+            .softShadow(FausCrewColors.shadow.copy(alpha = .22f), 12.dp, y = 6.dp, shape = CircleShape)
             .clip(CircleShape)
             .clickable(role = Role.Button, onClick = onTap)
             .semantics { contentDescription = description },
@@ -113,7 +114,7 @@ private fun ProfileHeroAvatar(imageUrl: String, initials: String, description: S
         Box(Modifier.fillMaxSize().alpha(pulse).border(3.dp, Brush.sweepGradient(listOf(
             Color(0xFFFFC766), FausCrewColors.brandOrange, Color(0xFFA6330D), Color(0xFFFFC766),
         )), CircleShape))
-        Box(Modifier.size(74.dp).background(Color.White, CircleShape))
+        Box(Modifier.size(74.dp).background(FausCrewColors.surface, CircleShape))
         RemoteImage(imageUrl, Modifier.size(74.dp).clip(CircleShape)) {
             Box(Modifier.fillMaxSize().background(fallback), contentAlignment = Alignment.Center) {
                 if (imageUrl.isBlank()) {
@@ -140,7 +141,7 @@ internal fun ProfileModernCard(
     val shape = RoundedCornerShape(Radius.xl)
     Column(
         modifier.fillMaxWidth()
-            .softShadow(Color.Black.copy(alpha = .12f), 16.dp, y = 6.dp, shape = shape)
+            .softShadow(FausCrewColors.shadow.copy(alpha = .12f), 16.dp, y = 6.dp, shape = shape)
             .clip(shape)
             .background(FausCrewColors.cardBackground)
             .background(Brush.linearGradient(gradient))
@@ -218,7 +219,7 @@ internal fun ProfileCommunicationRow(
 }
 
 @Composable
-internal fun ProfileSettingsRow(icon: ImageVector, tint: Color, label: String, onClick: (() -> Unit)? = null) {
+internal fun ProfileSettingsRow(icon: ImageVector, tint: Color, label: String, value: String? = null, onClick: (() -> Unit)? = null) {
     Row(
         Modifier.fillMaxWidth().clickable(role = Role.Button) { onClick?.invoke() }
             .padding(horizontal = Spacing.lg, vertical = 14.dp),
@@ -227,6 +228,8 @@ internal fun ProfileSettingsRow(icon: ImageVector, tint: Color, label: String, o
     ) {
         ProfileRowIcon(icon, tint)
         Text(label, Modifier.weight(1f), style = FausCrewType.subheadline, color = FausCrewColors.textPrimary)
+        // Current choice before the chevron (e.g. the active theme).
+        value?.let { Text(it, style = FausCrewType.caption, color = FausCrewColors.textTertiary, maxLines = 1) }
         Icon(FausCrewIcons.chevronRight, null, Modifier.size(18.dp), tint = FausCrewColors.textTertiary)
     }
 }

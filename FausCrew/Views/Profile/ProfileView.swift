@@ -3,10 +3,12 @@ import FausCrewCore
 
 struct ProfileView: View {
     @EnvironmentObject private var appViewModel: AppViewModel
+    @EnvironmentObject private var themeStore: ThemeStore
 
     @State private var showEditSheet = false
     @State private var showAvatarPicker = false
     @State private var showLanguageSettings = false
+    @State private var showThemeSettings = false
     @State private var showAbout = false
     @State private var showPhoneManagement = false
     @State private var showLogoutConfirmation = false
@@ -27,6 +29,7 @@ struct ProfileView: View {
         .animation(AppDesign.Animation.standard, value: showAvatarPicker)
         .animation(AppDesign.Animation.standard, value: showEditSheet)
         .animation(AppDesign.Animation.standard, value: showLanguageSettings)
+        .animation(AppDesign.Animation.standard, value: showThemeSettings)
         .animation(AppDesign.Animation.standard, value: showAbout)
         .animation(AppDesign.Animation.standard, value: showPhoneManagement)
         .animation(AppDesign.Animation.standard, value: showLogoutConfirmation)
@@ -36,6 +39,7 @@ struct ProfileView: View {
         .onChange(of: showAvatarPicker) { _, _ in syncOverlayPresentation() }
         .onChange(of: showEditSheet) { _, _ in syncOverlayPresentation() }
         .onChange(of: showLanguageSettings) { _, _ in syncOverlayPresentation() }
+        .onChange(of: showThemeSettings) { _, _ in syncOverlayPresentation() }
         .onChange(of: showAbout) { _, _ in syncOverlayPresentation() }
         .onChange(of: showPhoneManagement) { _, _ in syncOverlayPresentation() }
         .onChange(of: showLogoutConfirmation) { _, _ in syncOverlayPresentation() }
@@ -217,6 +221,8 @@ struct ProfileView: View {
             privacySecurityLabel: appViewModel.localized("profile_privacy_security_label"),
             helpSupportLabel: appViewModel.localized("profile_help_support_label"),
             languageSettingsLabel: appViewModel.localized("profile_language_settings_label"),
+            themeLabel: appViewModel.localized("profile_theme_label", fallback: "Theme"),
+            themeValue: themeStore.theme.displayName,
             aboutLabel: appViewModel.localized("profile_about_label"),
             logoutLabel: appViewModel.localized("profile_logout_label", fallback: "Log out"),
             loginMethodsLabel: appViewModel.social("profile_login_methods_label", tr: "Giriş yöntemleri", en: "Sign-in methods"),
@@ -224,6 +230,11 @@ struct ProfileView: View {
             onOpenLanguageSettings: {
                 withAnimation(AppDesign.Animation.standard) {
                     showLanguageSettings = true
+                }
+            },
+            onOpenThemeSettings: {
+                withAnimation(AppDesign.Animation.standard) {
+                    showThemeSettings = true
                 }
             },
             onOpenAbout: {
@@ -297,6 +308,13 @@ struct ProfileView: View {
                 .zIndex(13)
         }
 
+        if showThemeSettings {
+            ThemeSettingsPopup(onDismiss: dismissThemeSettings)
+                .environmentObject(appViewModel)
+                .transition(.opacity.combined(with: .scale(scale: 0.96)))
+                .zIndex(13)
+        }
+
         if showPhoneManagement {
             PhoneManagementPopup(
                 currentPhoneNumber: appViewModel.currentUserProfile?.phoneNumber ?? "",
@@ -339,6 +357,12 @@ struct ProfileView: View {
     private func dismissLanguageSettings() {
         dismissWithoutAnimation {
             showLanguageSettings = false
+        }
+    }
+
+    private func dismissThemeSettings() {
+        dismissWithoutAnimation {
+            showThemeSettings = false
         }
     }
 
@@ -410,6 +434,7 @@ struct ProfileView: View {
         showAvatarPicker
             || showEditSheet
             || showLanguageSettings
+            || showThemeSettings
             || showAbout
             || showPhoneManagement
             || showLogoutConfirmation

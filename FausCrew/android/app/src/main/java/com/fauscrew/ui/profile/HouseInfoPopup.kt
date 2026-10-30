@@ -162,7 +162,7 @@ internal fun HouseInfoDialog(
                             strings.profileValue(if (busy && removingId == null) "common_saving" else "common_save_changes"),
                             enabled = canSave, busy = busy && removingId == null, modifier = Modifier.weight(1f),
                             brush = HouseJourneyBrushes.primaryButton,
-                            disabledBrush = Brush.horizontalGradient(listOf(Color.Gray.copy(alpha = .42f), Color.Gray.copy(alpha = .32f))),
+                            disabledBrush = Brush.horizontalGradient(listOf(FausCrewColors.textTertiary.copy(alpha = .42f), FausCrewColors.textTertiary.copy(alpha = .32f))),
                             onClick = { focus.clearFocus(); onSave(houseId, name.trim(), limit, image, reviewPhotoRequired) },
                         )
                         canLeave -> PopupPrimaryButton(

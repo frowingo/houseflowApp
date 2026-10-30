@@ -27,7 +27,7 @@ struct BirthdaySetupView: View {
 
     var body: some View {
         ZStack {
-            Color(.systemGroupedBackground)
+            HouseJourneyTheme.pageBackground
                 .ignoresSafeArea()
 
             ScrollView(showsIndicators: false) {
@@ -205,7 +205,7 @@ struct BirthdaySetupView: View {
             .frame(height: 54)
             .background {
                 if isSaving {
-                    Color(.systemGray4)
+                    AppDesign.Colors.controlFill
                 } else {
                     FausBrand.buttonGradient
                 }

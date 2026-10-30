@@ -32,6 +32,7 @@ import androidx.compose.material3.Switch
 import androidx.compose.material3.SwitchDefaults
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.ReadOnlyComposable
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
@@ -74,7 +75,7 @@ import java.time.LocalDate
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
 
-private val accentOrange = FausCrewColors.accentOrange
+private val accentOrange: Color @Composable @ReadOnlyComposable get() = FausCrewColors.accentOrange
 
 /** `NewChorePopup`: title, description, assignee, difficulty, due date and recurrence. */
 @Composable
@@ -121,15 +122,16 @@ internal fun NewChorePopup(
             }
         } },
     ) {
+        val filledBorder = accentOrange.copy(alpha = .5f)
         PopupError(error)
         FormField(FausCrewIcons.pencil, strings.get("new_chore_task_name_label")) {
             PopupTextField(title, { title = it }, strings.get("new_chore_task_name_placeholder"), Modifier.fillMaxWidth(),
-                borderColor = { if (title.isEmpty()) Color.Transparent else accentOrange.copy(alpha = .5f) })
+                borderColor = { if (title.isEmpty()) Color.Transparent else filledBorder })
         }
         FormField(FausCrewIcons.textAlignLeft, strings.get("new_chore_description_label")) {
             PopupTextField(description, { description = it }, strings.get("new_chore_description_placeholder"),
                 Modifier.fillMaxWidth(), singleLine = false, minLines = 2, maxLines = 4,
-                borderColor = { if (description.isEmpty()) Color.Transparent else accentOrange.copy(alpha = .5f) })
+                borderColor = { if (description.isEmpty()) Color.Transparent else filledBorder })
         }
         FormField(FausCrewIcons.personFill, strings.get("new_chore_assign_to_label")) {
             MemberPicker(details.members, memberId) { memberId = it }

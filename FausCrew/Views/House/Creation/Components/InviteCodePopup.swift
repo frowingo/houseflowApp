@@ -34,7 +34,7 @@ struct InviteCodePopup: View {
             continueButton
         }
         .padding(AppDesign.Spacing.xxl)
-        .background(MainScreenBackground())
+        .background(MainScreenBackground(surface: .popup))
         .cornerRadius(AppDesign.CornerRadius.xl)
         .shadow(
             color: AppDesign.Shadow.heavy.color,

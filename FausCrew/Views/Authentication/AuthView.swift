@@ -4,12 +4,13 @@ import FausCrewCore
 struct AuthView: View {
     @ObservedObject var viewModel: AuthenticationViewModel
     @FocusState private var focusedField: AuthField?
+    @Environment(\.fausTheme) private var theme
 
     // MARK: - Body
 
     var body: some View {
         ZStack(alignment: .bottom) {
-            Color(.systemBackground).ignoresSafeArea()
+            AppDesign.Colors.background.ignoresSafeArea()
 
             VStack(spacing: 0) {
                 heroSection
@@ -33,8 +34,8 @@ struct AuthView: View {
                     .padding(.bottom, 48)
                 }
                 .frame(maxHeight: .infinity)
-                .background(Color(.systemBackground))
                 .clipShape(UnevenRoundedRectangle(topLeadingRadius: 32, topTrailingRadius: 32))
+                .background(FausSheetBackground())
             }
             .ignoresSafeArea(.container, edges: .bottom)
 
@@ -72,12 +73,12 @@ struct AuthView: View {
             VStack(spacing: AppDesign.Spacing.xs) {
                 (Text(verbatim: "Faus").font(.system(size: 30, weight: .heavy, design: .rounded))
                     + Text(verbatim: "Crew").font(.system(size: 30, weight: .regular, design: .rounded))
-                        .foregroundColor(.white.opacity(0.88)))
-                    .foregroundColor(.white)
+                        .foregroundColor(theme.decor.splash.wordmarkAccent))
+                    .foregroundColor(theme.decor.splash.wordmark)
                     .accessibilityLabel("FausCrew")
                 Text(verbatim: "Make living together fun")
                     .font(.system(size: 15))
-                    .foregroundColor(.white.opacity(0.8))
+                    .foregroundColor(theme.decor.splash.motto)
             }
         }
         .padding(.top, AppDesign.Spacing.xxxl)
@@ -102,7 +103,7 @@ struct AuthView: View {
             }
         }
         .padding(4)
-        .background(Color(.systemGray6))
+        .background(AppDesign.Colors.secondaryBackground)
         .cornerRadius(AppDesign.CornerRadius.lg)
     }
 
@@ -117,8 +118,8 @@ struct AuthView: View {
                     Group {
                         if selected {
                             RoundedRectangle(cornerRadius: AppDesign.CornerRadius.md)
-                                .fill(Color(.systemBackground))
-                                .shadow(color: Color.black.opacity(0.08), radius: 6, x: 0, y: 2)
+                                .fill(AppDesign.Colors.segmentSelected)
+                                .shadow(color: AppDesign.Colors.shadow.opacity(0.08), radius: 6, x: 0, y: 2)
                         }
                     }
                 )
@@ -200,7 +201,7 @@ struct AuthView: View {
             ZStack {
                 if viewModel.isLoading {
                     ProgressView()
-                        .progressViewStyle(CircularProgressViewStyle(tint: .white))
+                        .progressViewStyle(CircularProgressViewStyle(tint: AppDesign.Colors.onAccent))
                 } else {
                     HStack(spacing: AppDesign.Spacing.sm) {
                         Image(systemName: viewModel.isSignUp ? "person.badge.plus.fill" : "arrow.right.circle.fill")
@@ -208,7 +209,7 @@ struct AuthView: View {
                         Text(viewModel.localized(viewModel.isSignUp ? "auth_create_account_button" : "auth_sign_in_button"))
                             .font(.system(size: 17, weight: .bold))
                     }
-                    .foregroundColor(.white)
+                    .foregroundColor(AppDesign.Colors.onAccent)
                 }
             }
             .frame(maxWidth: .infinity)
@@ -218,7 +219,7 @@ struct AuthView: View {
                     if viewModel.isFormValid && !viewModel.isLoading {
                         FausBrand.buttonGradient
                     } else {
-                        LinearGradient(colors: [Color(.systemGray4)], startPoint: .leading, endPoint: .trailing)
+                        LinearGradient(colors: [AppDesign.Colors.controlFill], startPoint: .leading, endPoint: .trailing)
                     }
                 }
             )
@@ -236,11 +237,11 @@ struct AuthView: View {
 
     private var dividerRow: some View {
         HStack(spacing: AppDesign.Spacing.md) {
-            Rectangle().frame(height: 1).foregroundColor(Color(.systemGray5))
+            Rectangle().frame(height: 1).foregroundColor(AppDesign.Colors.elevatedSurface)
             Text(viewModel.localized("auth_divider_or"))
                 .font(AppDesign.Typography.caption)
                 .foregroundColor(AppDesign.Colors.textSecondary)
-            Rectangle().frame(height: 1).foregroundColor(Color(.systemGray5))
+            Rectangle().frame(height: 1).foregroundColor(AppDesign.Colors.elevatedSurface)
         }
     }
 
@@ -265,7 +266,7 @@ struct AuthView: View {
                 name: viewModel.localized("auth_google_button"),
                 backgroundColor: .white,
                 foregroundColor: .black,
-                borderColor: Color(.systemGray4),
+                borderColor: AppDesign.Colors.controlFill,
                 action: { authenticateWithSocial(.google) }
             ) {
                 SocialBrandLogo(provider: .google)
@@ -362,7 +363,7 @@ struct AuthView: View {
             )
         )
         .cornerRadius(AppDesign.CornerRadius.xl)
-        .shadow(color: Color.black.opacity(0.18), radius: 14, x: 0, y: 6)
+        .shadow(color: AppDesign.Colors.shadow.opacity(0.18), radius: 14, x: 0, y: 6)
     }
 
     // MARK: - Actions

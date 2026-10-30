@@ -28,6 +28,7 @@ import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.ReadOnlyComposable
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -58,8 +59,8 @@ import java.time.format.DateTimeFormatter
 import java.time.format.FormatStyle
 import java.util.Locale
 
-private val accentOrange = FausCrewColors.accentOrange
-private val accentInk = FausCrewColors.accentOrangeInk
+private val accentOrange: Color @Composable @ReadOnlyComposable get() = FausCrewColors.accentOrange
+private val accentInk: Color @Composable @ReadOnlyComposable get() = FausCrewColors.accentOrangeInk
 private val confettiPeach = Color(0xFFFFD3A8)
 
 /** `BirthdaySetupView`: orange → berry hero with confetti, graphical calendar card and Save and continue. */

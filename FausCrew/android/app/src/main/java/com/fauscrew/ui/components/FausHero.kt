@@ -26,38 +26,98 @@ import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
+import androidx.compose.foundation.border
+import androidx.compose.runtime.ReadOnlyComposable
+import androidx.compose.ui.graphics.SolidColor
 import com.fauscrew.ui.theme.FausCrewColors
+import com.fauscrew.ui.theme.LocalFausTheme
+import com.fauscrew.ui.theme.linear
 
 /** Icons and small accents filled with the brand diagonal. */
-internal val FausIconGradient = Brush.linearGradient(
-    0f to FausCrewColors.brandLight,
-    .4f to FausCrewColors.brandOrange,
-    1f to Color(0xFF8A2440),
-)
+internal val FausIconGradient: Brush
+    @Composable @ReadOnlyComposable
+    get() = Brush.linearGradient(
+        0f to FausCrewColors.brandLight,
+        .4f to FausCrewColors.brandOrange,
+        1f to FausCrewColors.markBerry,
+    )
 
-/** Orange → berry hero surface with the `BrandHeroCard` geometry: circles top-right, two tilted capsules. */
-internal fun Modifier.fausHeroBackground(): Modifier = background(FausHeroGradient).drawBehind { drawHeroGeometry() }
+/**
+ * Full-bleed hero surface (auth headers, splash) with the `BrandHeroCard` geometry: circles
+ * top-right and two tilted capsules, over the theme's header gradient and glows.
+ */
+@Composable
+internal fun Modifier.fausHeroBackground(): Modifier {
+    val decor = LocalFausTheme.current.decor
+    val accentCapsule = FausCrewColors.systemOrange
+    return background(decor.headerStops.linear()).drawBehind {
+        drawCornerGlow(decor.heroGlow.copy(alpha = decor.heroGlow.alpha * .85f), reach = .75f)
+        if (decor.headerGlow.alpha > 0f) {
+            drawRect(Brush.radialGradient(
+                listOf(decor.headerGlow, decor.headerGlow.copy(alpha = 0f)),
+                center = Offset(size.width / 2, size.height * .48f), radius = size.width * .42f,
+            ))
+        }
+        drawHeroGeometry(decor.heroOrnament, accentCapsule)
+    }
+}
 
-private fun DrawScope.drawHeroGeometry() {
+private fun DrawScope.drawHeroGeometry(ornament: Color, accentCapsule: Color) {
     val w = size.width
-    drawCircle(Color.White.copy(alpha = .08f), 79.dp.toPx(), Offset(w - 6.dp.toPx(), 60.dp.toPx()))
-    drawCircle(Color.White.copy(alpha = .16f), 59.dp.toPx(), Offset(w - 15.dp.toPx(), 68.dp.toPx()), style = Stroke(1.dp.toPx()))
-    drawCircle(Color.White.copy(alpha = .10f), 41.dp.toPx(), Offset(w - 21.dp.toPx(), 74.dp.toPx()), style = Stroke(1.dp.toPx()))
+    drawCircle(ornament.copy(alpha = .08f), 79.dp.toPx(), Offset(w - 6.dp.toPx(), 60.dp.toPx()))
+    drawCircle(ornament.copy(alpha = .16f), 59.dp.toPx(), Offset(w - 15.dp.toPx(), 68.dp.toPx()), style = Stroke(1.dp.toPx()))
+    drawCircle(ornament.copy(alpha = .10f), 41.dp.toPx(), Offset(w - 21.dp.toPx(), 74.dp.toPx()), style = Stroke(1.dp.toPx()))
     fun capsule(color: Color, center: Offset, width: Float, height: Float) = rotate(-28f, center) {
         drawRoundRect(color, Offset(center.x - width / 2, center.y - height / 2), Size(width, height), CornerRadius(height / 2))
     }
-    capsule(Color.White.copy(alpha = .08f), Offset(w - 20.dp.toPx(), size.height - 70.dp.toPx()), 180.dp.toPx(), 24.dp.toPx())
-    capsule(FausCrewColors.systemOrange.copy(alpha = .22f), Offset(23.dp.toPx(), 92.dp.toPx()), 126.dp.toPx(), 18.dp.toPx())
+    capsule(ornament.copy(alpha = .08f), Offset(w - 20.dp.toPx(), size.height - 70.dp.toPx()), 180.dp.toPx(), 24.dp.toPx())
+    capsule(accentCapsule.copy(alpha = .22f), Offset(23.dp.toPx(), 92.dp.toPx()), 126.dp.toPx(), 18.dp.toPx())
 }
 
-/** `FausBadge`: white circle with two soft halo rings; [content] is drawn on top. */
+/**
+ * The form sheet that rises over [fausHeroBackground] (iOS `FausSheetBackground`): the theme's
+ * sheet gradient over its first 660dp, optional mesh texture and a lit top edge. Apply after the
+ * caller's rounded clip.
+ */
+@Composable
+internal fun Modifier.fausSheetBackground(cornerRadius: Dp = 32.dp): Modifier {
+    val decor = LocalFausTheme.current.decor
+    return drawWithCache {
+        val mesh = decor.sheetMesh?.let { MeshLayer(it, size, density, masked = false) }
+        val band = 660.dp.toPx()
+        val stops = decor.sheetStops
+        val base = if (stops.size == 1) SolidColor(stops.first().second)
+            else Brush.verticalGradient(*stops.map { (it.first * band / size.height).coerceAtMost(1f) to it.second }.toTypedArray())
+        onDrawBehind {
+            drawRect(base)
+            mesh?.let { drawMesh(it) }
+            if (decor.sheetEdge.alpha > 0f) {
+                val edge = Brush.verticalGradient(listOf(decor.sheetEdge, Color.Transparent), endY = 48.dp.toPx())
+                val glow = Brush.verticalGradient(listOf(decor.sheetEdgeGlow, Color.Transparent), endY = 18.dp.toPx())
+                drawRect(glow)
+                val inset = .75.dp.toPx()
+                drawRoundRect(edge, Offset(inset, inset), Size(size.width - inset * 2, size.height),
+                    CornerRadius(cornerRadius.toPx()), style = Stroke(1.5.dp.toPx()))
+            }
+        }
+    }
+}
+
+/** `FausBadge`: the theme's badge disc with two soft halo rings; [content] is drawn on top. */
 @Composable
 internal fun FausBadge(size: Dp, content: @Composable BoxScope.() -> Unit) {
+    val decor = LocalFausTheme.current.decor
+    val fill = decor.badgeFill.let { if (it.size == 1) SolidColor(it.first()) else Brush.linearGradient(it) }
     Box(Modifier.size(size + 32.dp), contentAlignment = Alignment.Center) {
-        Box(Modifier.size(size + 32.dp).background(Color.White.copy(alpha = .07f), CircleShape))
-        Box(Modifier.size(size + 16.dp).background(Color.White.copy(alpha = .16f), CircleShape))
+        Box(Modifier.size(size + 32.dp).background(decor.badgeHalo.copy(alpha = .07f), CircleShape))
+        Box(Modifier.size(size + 16.dp).background(decor.badgeHalo.copy(alpha = .16f), CircleShape))
         Box(Modifier.size(size).shadow(12.dp, CircleShape, ambientColor = FausCrewColors.deepBerry,
-            spotColor = FausCrewColors.deepBerry).background(Color.White, CircleShape))
+            spotColor = FausCrewColors.deepBerry).background(fill, CircleShape)
+            .drawBehind {
+                if (decor.headerGlow.alpha > 0f) drawCircle(Brush.radialGradient(
+                    listOf(decor.headerGlow, decor.headerGlow.copy(alpha = 0f)), radius = this.size.minDimension / 2))
+            }
+            .border(1.5.dp, decor.badgeBorder, CircleShape))
         content()
     }
 }
@@ -65,8 +125,9 @@ internal fun FausBadge(size: Dp, content: @Composable BoxScope.() -> Unit) {
 /** An icon filled with [FausIconGradient] instead of a flat tint. */
 @Composable
 internal fun FausGradientIcon(icon: ImageVector, size: Dp, modifier: Modifier = Modifier) {
+    val gradient = FausIconGradient
     Icon(icon, null, modifier.size(size)
         .graphicsLayer { compositingStrategy = CompositingStrategy.Offscreen }
-        .drawWithCache { onDrawWithContent { drawContent(); drawRect(FausIconGradient, blendMode = BlendMode.SrcIn) } },
+        .drawWithCache { onDrawWithContent { drawContent(); drawRect(gradient, blendMode = BlendMode.SrcIn) } },
         tint = Color.White)
 }

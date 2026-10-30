@@ -52,7 +52,7 @@ struct MemberCountPicker: View {
     
     private func railBackground(width: CGFloat) -> some View {
         RoundedRectangle(cornerRadius: 3)
-            .fill(Color(.systemGray4))
+            .fill(AppDesign.Colors.controlFill)
             .frame(width: width, height: 6)
     }
     
@@ -69,12 +69,12 @@ struct MemberCountPicker: View {
     private func stopIndicator(count: Int) -> some View {
         VStack(spacing: 0) {
             Rectangle()
-                .fill(Color(.systemGray3))
+                .fill(AppDesign.Colors.controlFillStrong)
                 .frame(width: 3, height: 16)
                 .cornerRadius(1.5)
             
             Circle()
-                .fill(memberCount >= count ? stopColor(for: count) : Color(.systemGray4))
+                .fill(memberCount >= count ? stopColor(for: count) : AppDesign.Colors.controlFill)
                 .frame(width: 10, height: 10)
                 .animation(AppDesign.Animation.quick, value: memberCount)
         }

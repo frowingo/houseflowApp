@@ -35,7 +35,7 @@ struct NewAnnouncementPopup: View {
 
     var body: some View {
         ZStack {
-            Color.black.opacity(0.52)
+            AppDesign.Colors.scrim
                 .ignoresSafeArea()
                 .onTapGesture {
                     if !isPublishing { requestDismiss() }
@@ -59,13 +59,13 @@ struct NewAnnouncementPopup: View {
 
                 actionButtons
             }
-            .background(MainScreenBackground())
+            .background(MainScreenBackground(surface: .popup))
             .clipShape(RoundedRectangle(cornerRadius: AppDesign.CornerRadius.xxl, style: .continuous))
             .overlay(
                 RoundedRectangle(cornerRadius: AppDesign.CornerRadius.xxl)
                     .strokeBorder(accentOrange.opacity(0.16), lineWidth: 1)
             )
-            .shadow(color: Color.black.opacity(0.24), radius: 30, x: 0, y: 16)
+            .shadow(color: AppDesign.Colors.shadow.opacity(0.24), radius: 30, x: 0, y: 16)
             .padding(.horizontal, AppDesign.Spacing.xl)
         }
     }
@@ -218,7 +218,7 @@ struct NewAnnouncementPopup: View {
                     LinearGradient(
                         colors: canPublish
                             ? [accentOrange, Color(red: 0.90, green: 0.34, blue: 0.08)]
-                            : [Color(.systemGray3), Color(.systemGray4)],
+                            : [AppDesign.Colors.controlFillStrong, AppDesign.Colors.controlFill],
                         startPoint: .leading,
                         endPoint: .trailing
                     )

@@ -45,16 +45,14 @@ struct ChoreDetailPopup: View {
     }
 
     private var currentStatus: ChoreStatus {
-        ChoreStatus(rawValue: displayedChore.status) ?? .draft
+        displayedChore.choreStatus
     }
 
+    /// Nil once the chore leaves the active flow (Completed, Failed, unknown): a refetch that
+    /// turns the open chore Failed leaves this sheet read-only.
     private var nextStatus: ChoreStatus? {
         guard isAssignedToCurrentUser else { return nil }
-        switch currentStatus {
-        case .draft: return .progress
-        case .progress: return .inTest
-        case .inTest, .completed: return nil
-        }
+        return currentStatus.nextAssigneeStatus
     }
 
     private var requiresReviewPhoto: Bool {
@@ -111,7 +109,7 @@ struct ChoreDetailPopup: View {
 
     var body: some View {
         ZStack {
-            Color.black.opacity(0.55)
+            AppDesign.Colors.scrim
                 .ignoresSafeArea()
                 .onTapGesture { if !isBusy { requestDismiss() } }
 
@@ -120,7 +118,11 @@ struct ChoreDetailPopup: View {
                     .zIndex(1)
                 ScrollView(showsIndicators: false) {
                     VStack(spacing: AppDesign.Spacing.xl) {
-                        statusPipeline
+                        if currentStatus == .failed {
+                            failedStatusCard
+                        } else {
+                            statusPipeline
+                        }
                         infoSection
                         if nextStatus != nil {
                             statusUpdateSection
@@ -136,9 +138,9 @@ struct ChoreDetailPopup: View {
                 .clipped()
                 dismissButton
             }
-            .background(MainScreenBackground())
+            .background(MainScreenBackground(surface: .popup))
             .clipShape(RoundedRectangle(cornerRadius: AppDesign.CornerRadius.xl, style: .continuous))
-            .shadow(color: Color.black.opacity(0.25), radius: 30, x: 0, y: 16)
+            .shadow(color: AppDesign.Colors.shadow.opacity(0.25), radius: 30, x: 0, y: 16)
             .padding(.horizontal, AppDesign.Spacing.xl)
 
             if isBusy {
@@ -152,6 +154,13 @@ struct ChoreDetailPopup: View {
             }
         }
         .animation(AppDesign.Animation.standard, value: isBusy)
+        // A refetch can end the active flow (e.g. the backend marks the chore Failed): drop the
+        // half-done review photo so the sheet is read-only.
+        .onChange(of: currentStatus.acceptsActions) { _, acceptsActions in
+            guard !acceptsActions else { return }
+            isShowingReviewCamera = false
+            reviewPhotoData = nil
+        }
         .fullScreenCover(isPresented: $isShowingReviewCamera) {
             ChoreReviewCamera(
                 onCapture: { image in
@@ -233,9 +242,10 @@ struct ChoreDetailPopup: View {
         VStack(alignment: .leading, spacing: AppDesign.Spacing.sm) {
             sectionLabel(icon: "arrow.triangle.2.circlepath", text: appViewModel.localized("chore_detail_status_label"))
             HStack(spacing: 0) {
-                ForEach(Array([ChoreStatus.draft, .progress, .inTest, .completed].enumerated()), id: \.offset) { index, step in
-                    let isCurrent = step.rawValue == displayedChore.status
-                    let isPast    = step.rawValue < displayedChore.status
+                ForEach(Array(ChoreStatus.pipeline.enumerated()), id: \.offset) { index, step in
+                    // An unknown status marks no step as current or past.
+                    let isCurrent = step == currentStatus
+                    let isPast    = currentStatus != .unknown && step.rawValue < currentStatus.rawValue
 
                     VStack(spacing: 6) {
                         ZStack {
@@ -246,7 +256,7 @@ struct ChoreDetailPopup: View {
                                 .font(.system(size: 13, weight: .bold))
                                 .foregroundColor(isCurrent ? .white : (isPast ? accentOrange : AppDesign.Colors.textSecondary))
                         }
-                        Text(appViewModel.localized(step.localizationKey))
+                        Text(appViewModel.statusLabel(step))
                             .font(.system(size: 10, weight: isCurrent ? .bold : .regular))
                             .foregroundColor(isCurrent ? accentOrange : AppDesign.Colors.textSecondary)
                             .multilineTextAlignment(.center)
@@ -254,9 +264,9 @@ struct ChoreDetailPopup: View {
                             .frame(width: 60)
                     }
 
-                    if index < 3 {
+                    if index < ChoreStatus.pipeline.count - 1 {
                         Rectangle()
-                            .fill(step.rawValue < displayedChore.status ? accentOrange.opacity(0.4) : AppDesign.Colors.secondaryBackground)
+                            .fill(isPast ? accentOrange.opacity(0.4) : AppDesign.Colors.secondaryBackground)
                             .frame(height: 2)
                             .frame(maxWidth: .infinity)
                             .offset(y: -10)
@@ -273,6 +283,44 @@ struct ChoreDetailPopup: View {
                         .stroke(accentOrange.opacity(0.2), lineWidth: 1)
                 )
         )
+    }
+
+    // MARK: - Failed Status
+
+    /// Failed is terminal, so it replaces the pipeline with the outcome and, when the status
+    /// history proves it, the reason.
+    private var failedStatusCard: some View {
+        let color = ChoreStatus.failed.color
+        return VStack(alignment: .leading, spacing: AppDesign.Spacing.sm) {
+            sectionLabel(icon: "arrow.triangle.2.circlepath", text: appViewModel.localized("chore_detail_status_label"))
+            HStack(alignment: .center, spacing: AppDesign.Spacing.md) {
+                Image(systemName: ChoreStatus.failed.iconName)
+                    .font(.system(size: 18, weight: .bold))
+                    .foregroundColor(.white)
+                    .frame(width: 40, height: 40)
+                    .background(Circle().fill(color))
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(appViewModel.statusLabel(.failed))
+                        .font(AppDesign.Typography.bodyBold)
+                        .foregroundColor(color)
+                    Text(appViewModel.failureMessage(displayedChore.failureReason))
+                        .font(AppDesign.Typography.caption)
+                        .foregroundColor(AppDesign.Colors.textSecondary)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+                Spacer(minLength: 0)
+            }
+        }
+        .padding(AppDesign.Spacing.lg)
+        .background(
+            RoundedRectangle(cornerRadius: AppDesign.CornerRadius.lg)
+                .fill(color.opacity(0.08))
+                .overlay(
+                    RoundedRectangle(cornerRadius: AppDesign.CornerRadius.lg)
+                        .stroke(color.opacity(0.3), lineWidth: 1)
+                )
+        )
+        .accessibilityElement(children: .combine)
     }
 
     // MARK: - Info Section
@@ -633,7 +681,7 @@ struct ChoreDetailPopup: View {
         }
         .padding(.horizontal, AppDesign.Spacing.xl)
         .padding(.vertical, AppDesign.Spacing.lg)
-        .background(AppDesign.Colors.background.shadow(color: Color.black.opacity(0.06), radius: 8, x: 0, y: -4))
+        .background(AppDesign.Colors.popupBackground.shadow(color: AppDesign.Colors.shadow.opacity(0.06), radius: 8, x: 0, y: -4))
     }
 
     // MARK: - Helpers
@@ -774,7 +822,7 @@ struct ChoreDetailPopup: View {
     }
 
     private func statusStage(_ status: ChoreStatus) -> some View {
-        Label(appViewModel.localized(status.localizationKey), systemImage: status.iconName)
+        Label(appViewModel.statusLabel(status), systemImage: status.iconName)
             .font(.system(size: 12, weight: .semibold))
             .foregroundColor(status.color)
             .frame(maxWidth: .infinity)
@@ -933,14 +981,18 @@ extension ChoreStatus {
         case .progress:  return "arrow.right.circle.fill"
         case .inTest:    return "magnifyingglass.circle.fill"
         case .completed: return "checkmark.seal.fill"
+        case .failed:    return "xmark.octagon.fill"
+        case .unknown:   return "questionmark.circle.fill"
         }
     }
     var color: Color {
         switch self {
-        case .draft:     return Color(red: 0.55, green: 0.55, blue: 0.6)
-        case .progress:  return Color(red: 1.0, green: 0.48, blue: 0.15)
-        case .inTest:    return Color(red: 0.5, green: 0.2, blue: 0.85)
-        case .completed: return Color(red: 0.2, green: 0.75, blue: 0.4)
+        case .draft:     return Color.faus(\.statusDraft)
+        case .progress:  return Color.faus(\.statusProgress)
+        case .inTest:    return Color.faus(\.statusInTest)
+        case .completed: return Color.faus(\.statusCompleted)
+        case .failed:    return Color.faus(\.statusFailed)
+        case .unknown:   return AppDesign.Colors.textTertiary
         }
     }
 }

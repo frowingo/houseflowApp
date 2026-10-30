@@ -18,6 +18,7 @@ extension View {
 struct FausCrewApp: App {
     @UIApplicationDelegateAdaptor(FausCrewAppDelegate.self) private var appDelegate
     @StateObject private var appViewModel = AppViewModel()
+    @StateObject private var themeStore = ThemeStore()
     @Environment(\.scenePhase) private var scenePhase
     @State private var showsSplash = true
     /// Until the splash starts opening, the app underneath is fully hidden and holds its animations.
@@ -29,6 +30,7 @@ struct FausCrewApp: App {
                 RootView()
                     .environmentObject(appViewModel)
                     .environmentObject(appViewModel.router)
+                    .environmentObject(themeStore)
                     .environment(\.fausSplashActive, splashCovering)
                     .task {
                         appViewModel.prepareLocalization()
@@ -41,7 +43,8 @@ struct FausCrewApp: App {
                         .zIndex(1)
                 }
             }
-            .preferredColorScheme(.light)
+            .environment(\.fausSelectedTheme, themeStore.theme)
+            .preferredColorScheme(themeStore.theme.colorScheme)
             // Google, Facebook and Snapchat return to the app through these redirects.
             .onOpenURL { SocialURLHandler.handle($0) }
         }
@@ -49,6 +52,7 @@ struct FausCrewApp: App {
             if newPhase == .background {
                 appViewModel.handleBackground()
             } else if newPhase == .active {
+                themeStore.syncAppIcon()
                 Task { await appViewModel.handleForeground() }
             }
         }

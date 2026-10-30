@@ -186,7 +186,7 @@ struct CreateHouseView: View {
                     isFormValid
                         ? FausBrand.buttonGradient
                         : LinearGradient(
-                            colors: [Color.gray.opacity(0.30), Color.gray.opacity(0.24)],
+                            colors: [AppDesign.Colors.textTertiary.opacity(0.30), AppDesign.Colors.textTertiary.opacity(0.24)],
                             startPoint: .leading,
                             endPoint: .trailing
                         )

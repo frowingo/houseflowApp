@@ -38,9 +38,17 @@ internal class AndroidPreferencesStore internal constructor(
         store.edit { it[SELECTED_LANGUAGE] = value }
     }
 
+    /** Raw `FausThemeId.storageValue`; null until the user picks a theme (iOS `selectedTheme`). */
+    suspend fun selectedTheme(): String? = store.data.first()[SELECTED_THEME]
+
+    suspend fun setSelectedTheme(value: String) {
+        store.edit { it[SELECTED_THEME] = value }
+    }
+
     private companion object {
         val HAS_SEEN_ONBOARDING = booleanPreferencesKey("hasSeenOnboarding")
         val CHOSEN_HOUSE = stringPreferencesKey("chosenHouse")
         val SELECTED_LANGUAGE = stringPreferencesKey("selectedLanguage")
+        val SELECTED_THEME = stringPreferencesKey("selectedTheme")
     }
 }

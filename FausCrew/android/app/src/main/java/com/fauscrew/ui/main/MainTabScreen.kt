@@ -79,9 +79,13 @@ import androidx.compose.ui.window.PopupProperties
 import com.fauscrew.platform.HouseSummary
 import com.fauscrew.platform.LocalizedText
 import com.fauscrew.ui.components.HouseSwitcherIcon
+import com.fauscrew.ui.components.mainScreenBackground
 import com.fauscrew.ui.theme.FausCrewColors
+import com.fauscrew.ui.theme.LocalFausTheme
+import androidx.compose.ui.graphics.BlendMode
+import androidx.compose.ui.graphics.CompositingStrategy
+import androidx.compose.ui.draw.drawWithCache
 import com.fauscrew.ui.theme.FausCrewIcons
-import com.fauscrew.ui.theme.FausCrewTheme
 import com.fauscrew.ui.theme.FausCrewType
 import com.fauscrew.ui.theme.Motion
 import com.fauscrew.ui.theme.Radius
@@ -115,7 +119,8 @@ internal fun MainTabScreen(
     dashboard: @Composable (onOverlayChange: (Boolean) -> Unit) -> Unit,
     games: @Composable (onOverlayChange: (Boolean) -> Unit) -> Unit,
 ) {
-    FausCrewTheme {
+    // The app root (MainActivity) provides FausCrewTheme with the user's theme.
+    run {
         var overlayPresented by remember(selectedTab) { mutableStateOf(false) }
         val onOverlayChange: (Boolean) -> Unit = { overlayPresented = it }
         Box(Modifier.fillMaxSize()) {
@@ -150,14 +155,15 @@ private fun MainTabBar(
     strings: LocalizedText,
 ) {
     val shape = RoundedCornerShape(28.dp)
+    val decor = LocalFausTheme.current.decor
     var homePressed by remember { mutableStateOf(false) }
     Box(
         Modifier.navigationBarsPadding()
             .padding(start = 24.dp, end = 24.dp, bottom = 20.dp)
-            .softShadow(FausCrewColors.softBerry.copy(alpha = .3f), 20.dp, y = 9.dp, shape = shape)
+            .softShadow(decor.tabBarShadow, 20.dp, y = 9.dp, shape = shape)
             .clip(shape)
             .tabBarBackground()
-            .border(1.dp, Brush.linearGradient(listOf(Color.White.copy(alpha = .35f), Color.White.copy(alpha = .10f))), shape)
+            .border(1.dp, Brush.linearGradient(decor.tabBarBorder), shape)
             .padding(horizontal = Spacing.lg, vertical = Spacing.sm),
     ) {
         BoxWithConstraints(Modifier.fillMaxWidth()) {
@@ -195,11 +201,15 @@ private fun SelectionHighlight(selectedTab: MainTab, barWidth: Dp, homePressed: 
         else -> HomeLift
     }
     val centerY by animateDpAsState(ItemIconHeight / 2 - lift, spec, label = "tabY")
+    val decor = LocalFausTheme.current.decor
     val fill by animateColorAsState(
-        if (isHome) Color(0xFFFFE0B3).copy(alpha = .30f) else Color.White.copy(alpha = .2f),
+        if (isHome) decor.homeSelectedFill else decor.tabSelectedFill,
         Motion.spring(), label = "tabFill",
     )
-    val stroke by animateFloatAsState(if (isHome) .30f else .24f, Motion.spring(), label = "tabStroke")
+    val stroke by animateColorAsState(
+        if (isHome) decor.homeSelectedBorder else decor.tabSelectedBorder,
+        Motion.spring(), label = "tabStroke",
+    )
     val scale by animateFloatAsState(if (isHome && homePressed) 1.05f else 1f, tween(120), label = "tabScale")
     val shadowAlpha = if (isHome && homePressed) .20f else .12f
     val capsule = RoundedCornerShape(50)
@@ -207,12 +217,22 @@ private fun SelectionHighlight(selectedTab: MainTab, barWidth: Dp, homePressed: 
         Modifier.offset(x = centerX - width / 2, y = centerY - height / 2)
             .size(width, height)
             .graphicsLayer { scaleX = scale; scaleY = scale }
-            .softShadow(Color.Black.copy(alpha = shadowAlpha), if (homePressed) 10.dp else 7.dp,
+            .softShadow(FausCrewColors.shadow.copy(alpha = shadowAlpha), if (homePressed) 10.dp else 7.dp,
                 y = if (homePressed) 5.dp else 3.dp, shape = capsule)
             .clip(capsule)
             .background(fill)
-            .border(1.dp, Color.White.copy(alpha = stroke), capsule),
+            .border(1.dp, stroke, capsule),
     )
+}
+
+/** Selected glyphs take the theme's gradient when it has one (iOS `tabIconStyle`). */
+@Composable
+private fun Modifier.selectedTabGlyph(selected: Boolean): Modifier {
+    val colors = LocalFausTheme.current.decor.tabSelectedIcon
+    if (!selected || colors == null) return this
+    val brush = Brush.linearGradient(colors)
+    return graphicsLayer { compositingStrategy = CompositingStrategy.Offscreen }
+        .drawWithCache { onDrawWithContent { drawContent(); drawRect(brush, blendMode = BlendMode.SrcIn) } }
 }
 
 @Composable
@@ -230,7 +250,8 @@ private fun rememberBounce(): Pair<Animatable<Float, AnimationVector1D>, () -> U
 @Composable
 private fun TabItem(tab: MainTab, label: String, selected: Boolean, modifier: Modifier, onTap: () -> Unit) {
     val (bounce, triggerBounce) = rememberBounce()
-    val tint = if (selected) Color.White else Color.White.copy(alpha = .55f)
+    val decor = LocalFausTheme.current.decor
+    val tint = if (selected) decor.tabItemSelected else decor.tabItem
     Column(
         modifier.clickable(remember { MutableInteractionSource() }, indication = null, role = Role.Tab) {
             triggerBounce()
@@ -240,8 +261,8 @@ private fun TabItem(tab: MainTab, label: String, selected: Boolean, modifier: Mo
         verticalArrangement = Arrangement.spacedBy(Spacing.xs),
     ) {
         Box(Modifier.size(52.dp, ItemIconHeight), contentAlignment = Alignment.Center) {
-            Icon(tab.icon, null, Modifier.size(22.dp).graphicsLayer { scaleX = bounce.value; scaleY = bounce.value },
-                tint = tint)
+            Icon(tab.icon, null, Modifier.size(22.dp).graphicsLayer { scaleX = bounce.value; scaleY = bounce.value }
+                .selectedTabGlyph(selected), tint = tint)
         }
         TabLabel(label, selected)
     }
@@ -251,7 +272,7 @@ private fun TabItem(tab: MainTab, label: String, selected: Boolean, modifier: Mo
 private fun TabLabel(label: String, selected: Boolean) {
     Text(label, style = FausCrewType.caption2,
         fontWeight = if (selected) FontWeight.SemiBold else FontWeight.Normal,
-        color = if (selected) Color.White else Color.White.copy(alpha = .55f), maxLines = 1)
+        color = if (selected) LocalFausTheme.current.decor.tabItemSelected else LocalFausTheme.current.decor.tabItem, maxLines = 1)
 }
 
 @OptIn(ExperimentalFoundationApi::class)
@@ -273,28 +294,33 @@ private fun HomeTabItem(
     LaunchedEffect(pressed) { onPressedChange(pressed) }
     val (bounce, triggerBounce) = rememberBounce()
     var switcherShown by remember { mutableStateOf(false) }
+    // The switcher belongs to the dashboard: leaving Home (a tap on another tab) closes it.
+    LaunchedEffect(selected) { if (!selected) switcherShown = false }
     fun presentSwitcher() {
+        if (!selected) return
         haptics.performHapticFeedback(HapticFeedbackType.LongPress)
         switcherShown = true
     }
     val lift by animateDpAsState(if (pressed) HomePressedLift else HomeLift, tween(120), label = "homeLift")
     val pressScale by animateFloatAsState(if (pressed) 1.05f else 1f, tween(120), label = "homeScale")
-    val tint = if (selected) Color.White else Color.White.copy(alpha = .62f)
+    val decor = LocalFausTheme.current.decor
+    val tint = if (selected) decor.tabItemSelected else decor.homeItem
     val switchAction = strings.get("main_tab_house_switcher_accessibility_action", "Choose house")
     Column(
         modifier.combinedClickable(
             interactionSource = interaction,
             indication = null,
             role = Role.Tab,
-            onLongClickLabel = strings.get("house_switcher_accessibility_hint", "Press and hold to switch homes."),
-            onLongClick = ::presentSwitcher,
+            // The switcher belongs to the dashboard: on other tabs a long press is just a tap.
+            onLongClickLabel = if (selected) strings.get("house_switcher_accessibility_hint", "Press and hold to switch homes.") else null,
+            onLongClick = if (selected) ::presentSwitcher else null,
             hapticFeedbackEnabled = false,
         ) {
             triggerBounce()
             onTap()
         }.semantics {
             this.selected = selected
-            customActions = listOf(CustomAccessibilityAction(switchAction) { presentSwitcher(); true })
+            if (selected) customActions = listOf(CustomAccessibilityAction(switchAction) { presentSwitcher(); true })
         },
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.spacedBy(Spacing.xs),
@@ -308,8 +334,8 @@ private fun HomeTabItem(
                 Modifier.graphicsLayer { scaleX = bounce.value; scaleY = bounce.value },
                 horizontalAlignment = Alignment.CenterHorizontally,
             ) {
-                Icon(FausCrewIcons.chevronUp, null, Modifier.size(12.dp).offset(y = 3.dp), tint = tint)
-                Icon(FausCrewIcons.houseFill, null, Modifier.size(23.dp), tint = tint)
+                Icon(FausCrewIcons.chevronUp, null, Modifier.size(12.dp).offset(y = 3.dp).selectedTabGlyph(selected), tint = tint)
+                Icon(FausCrewIcons.houseFill, null, Modifier.size(23.dp).selectedTabGlyph(selected), tint = tint)
             }
             if (switcherShown) {
                 HouseSwitcherPopover(houses, currentHouseId, strings, onDismiss = { switcherShown = false }) { house ->
@@ -378,24 +404,32 @@ private fun HouseSwitcherPopover(
                     scaleY = .9f + .1f * appear.value
                     transformOrigin = TransformOrigin(.5f, 1f)
                 }
-                .softShadow(Color.Black.copy(alpha = .18f), 24.dp, y = 8.dp, shape = shape)
+                .softShadow(FausCrewColors.shadow.copy(alpha = .18f), 24.dp, y = 8.dp, shape = shape)
                 .clip(shape)
-                .background(FausCrewColors.secondaryBackground)
+                // The page backdrop (wash, curves, mesh) carries into the popover.
+                .mainScreenBackground()
                 .padding(start = Spacing.md, end = Spacing.md, top = Spacing.md, bottom = Spacing.md + PopoverArrowHeight),
             verticalArrangement = Arrangement.spacedBy(Spacing.md),
         ) {
             Text(strings.get("house_switcher_title", "Your homes"), Modifier.padding(horizontal = Spacing.xs),
                 style = FausCrewType.headline, color = FausCrewColors.textPrimary)
-            val listHeight = min(max(houses.size, 1) * 62, 260).dp
+            val listHeight = min(max(houses.size, 1) * 63, 260).dp
             Column(Modifier.height(listHeight).verticalScroll(rememberScrollState()),
-                verticalArrangement = Arrangement.spacedBy(Spacing.xs)) {
-                houses.forEach { house ->
+                verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                houses.forEachIndexed { index, house ->
+                    if (index > 0) HouseSwitcherDivider()
                     HouseSwitcherRow(house, house.id == currentHouseId,
                         strings.get("house_switcher_current", "Current home")) { onSelect(house) }
                 }
             }
         }
     }
+}
+
+/** Line between homes; `systemGray3` (controlFillStrong) reads clearly on both the light and the dark backdrop. */
+@Composable
+private fun HouseSwitcherDivider() {
+    Box(Modifier.fillMaxWidth().padding(horizontal = Spacing.sm).height(1.dp).background(FausCrewColors.systemGray3))
 }
 
 @Composable

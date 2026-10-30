@@ -35,6 +35,7 @@ import com.fauscrew.ui.dashboard.displayApiDate
 import com.fauscrew.ui.main.TabBarClearance
 import com.fauscrew.ui.theme.FausCrewColors
 import com.fauscrew.ui.theme.FausCrewIcons
+import com.fauscrew.ui.theme.LocalFausThemeController
 import com.fauscrew.ui.theme.Spacing
 import com.fauscrew.ui.theme.entrance
 import com.fauscrew.ui.theme.rememberEntrance
@@ -91,6 +92,7 @@ private sealed interface ProfilePopup {
     data object Edit : ProfilePopup
     data object Avatar : ProfilePopup
     data object Language : ProfilePopup
+    data object Theme : ProfilePopup
     data object About : ProfilePopup
     data object Phone : ProfilePopup
     data object Logout : ProfilePopup
@@ -231,7 +233,7 @@ internal fun ProfileScreen(
                         strings.profileValue("profile_birthdate_label"), displayApiDate(user.birthDay) ?: emptyValue)
                 }
                 ProfileModernCard(FausCrewIcons.gearshapeFill, FausCrewColors.textTertiary,
-                    strings.profileValue("profile_settings_title"), listOf(Color.Gray.copy(alpha = .04f), Color.Transparent),
+                    strings.profileValue("profile_settings_title"), listOf(FausCrewColors.textTertiary.copy(alpha = .04f), Color.Transparent),
                     Modifier.entrance(settings, 24.dp)) {
                     ProfileSettingsRow(FausCrewIcons.bellBadgeFill, ProfileTints.notifications, strings.profileValue("profile_notifications_label"))
                     ProfileCardDivider()
@@ -241,6 +243,11 @@ internal fun ProfileScreen(
                     ProfileCardDivider()
                     ProfileSettingsRow(FausCrewIcons.globeFill, ProfileTints.account, strings.profileValue("profile_language_settings_label")) {
                         open(ProfilePopup.Language)
+                    }
+                    ProfileCardDivider()
+                    ProfileSettingsRow(FausCrewIcons.paintpaletteFill, ProfileTints.theme, strings.get("profile_theme_label", "Theme"),
+                        value = LocalFausThemeController.current.theme.id.displayName) {
+                        open(ProfilePopup.Theme)
                     }
                     ProfileCardDivider()
                     ProfileSettingsRow(FausCrewIcons.infoCircleFill, FausCrewColors.textTertiary, strings.profileValue("profile_about_label")) {
@@ -270,6 +277,7 @@ internal fun ProfileScreen(
         ProfilePopup.Edit -> EditProfileDialog(user, profile, strings, ::close, onUpdateProfile)
         ProfilePopup.Avatar -> AvatarDialog(user, profile, strings, ::close, onUpdateProfile)
         ProfilePopup.Language -> LanguageDialog(user, profile, strings, ::close, onSaveLanguage)
+        ProfilePopup.Theme -> ThemeDialog(strings, ::close)
         ProfilePopup.About -> AboutDialog(strings, ::close)
         ProfilePopup.Phone -> PhoneManagementDialog(user, strings, ::close)
         ProfilePopup.Logout -> LogoutConfirmationPopup(strings, onConfirm = { close(); onLogout() }, onCancel = ::close)

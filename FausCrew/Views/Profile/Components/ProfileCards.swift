@@ -47,7 +47,7 @@ struct ProfilePersonalInfoCard: View {
             .padding(.top, AppDesign.Spacing.md)
             .padding(.bottom, AppDesign.Spacing.sm)
 
-            Divider().padding(.horizontal, AppDesign.Spacing.lg)
+            Divider().overlay(AppDesign.Colors.separator).padding(.horizontal, AppDesign.Spacing.lg)
 
             ProfileInfoRow(
                 icon: "person.fill",
@@ -55,14 +55,14 @@ struct ProfilePersonalInfoCard: View {
                 label: firstNameLabel,
                 value: firstName
             )
-            ProfileCardDivider()
+            ProfileCardDivider().overlay(AppDesign.Colors.separator)
             ProfileInfoRow(
                 icon: "person.fill",
                 tint: personalSage,
                 label: lastNameLabel,
                 value: lastName
             )
-            ProfileCardDivider()
+            ProfileCardDivider().overlay(AppDesign.Colors.separator)
             ProfileInfoRow(
                 icon: "birthday.cake.fill",
                 tint: personalSlate,
@@ -135,7 +135,7 @@ struct ProfileAccountInformationCard: View {
                 isVerified: isEmailVerified,
                 verificationLabel: isEmailVerified ? verifiedLabel : notVerifiedLabel
             )
-            ProfileCardDivider()
+            ProfileCardDivider().overlay(AppDesign.Colors.separator)
             ProfileCommunicationRow(
                 icon: "phone.fill",
                 tint: Color(red: 0.2, green: 0.7, blue: 0.4),
@@ -146,7 +146,7 @@ struct ProfileAccountInformationCard: View {
                 verificationHint: phoneManagementHint,
                 verificationAction: onManagePhone
             )
-            ProfileCardDivider()
+            ProfileCardDivider().overlay(AppDesign.Colors.separator)
             ProfileInfoRow(
                 icon: "calendar",
                 tint: Color(red: 0.55, green: 0.35, blue: 0.9),
@@ -163,11 +163,14 @@ struct ProfileSettingsCard: View {
     let privacySecurityLabel: String
     let helpSupportLabel: String
     let languageSettingsLabel: String
+    let themeLabel: String
+    let themeValue: String
     let aboutLabel: String
     let logoutLabel: String
     let loginMethodsLabel: String
     let deleteAccountLabel: String
     let onOpenLanguageSettings: () -> Void
+    let onOpenThemeSettings: () -> Void
     let onOpenAbout: () -> Void
     let onOpenLoginMethods: () -> Void
     let onDeleteAccount: () -> Void
@@ -178,54 +181,62 @@ struct ProfileSettingsCard: View {
             headerIcon: "gearshape.fill",
             headerTint: AppDesign.Colors.textTertiary,
             title: title,
-            gradientColors: [Color.gray.opacity(0.04), Color.clear]
+            gradientColors: [AppDesign.Colors.textTertiary.opacity(0.04), Color.clear]
         ) {
             ProfileSettingsRow(
                 icon: "bell.badge.fill",
                 tint: Color(red: 0.95, green: 0.45, blue: 0.1),
                 label: notificationsLabel
             )
-            ProfileCardDivider()
+            ProfileCardDivider().overlay(AppDesign.Colors.separator)
             ProfileSettingsRow(
                 icon: "lock.shield.fill",
                 tint: Color(red: 0.35, green: 0.55, blue: 0.88),
                 label: privacySecurityLabel
             )
-            ProfileCardDivider()
+            ProfileCardDivider().overlay(AppDesign.Colors.separator)
             ProfileSettingsRow(
                 icon: "questionmark.circle.fill",
                 tint: Color(red: 0.55, green: 0.35, blue: 0.9),
                 label: helpSupportLabel
             )
-            ProfileCardDivider()
+            ProfileCardDivider().overlay(AppDesign.Colors.separator)
             ProfileSettingsRow(
                 icon: "globe.europe.africa.fill",
                 tint: Color(red: 0.15, green: 0.55, blue: 0.85),
                 label: languageSettingsLabel,
                 action: onOpenLanguageSettings
             )
-            ProfileCardDivider()
+            ProfileCardDivider().overlay(AppDesign.Colors.separator)
+            ProfileSettingsRow(
+                icon: "paintpalette.fill",
+                tint: Color(red: 0.85, green: 0.29, blue: 0.50),
+                label: themeLabel,
+                value: themeValue,
+                action: onOpenThemeSettings
+            )
+            ProfileCardDivider().overlay(AppDesign.Colors.separator)
             ProfileSettingsRow(
                 icon: "info.circle.fill",
                 tint: AppDesign.Colors.textTertiary,
                 label: aboutLabel,
                 action: onOpenAbout
             )
-            ProfileCardDivider()
+            ProfileCardDivider().overlay(AppDesign.Colors.separator)
             ProfileSettingsRow(
                 icon: "person.badge.key.fill",
                 tint: Color(red: 0.2, green: 0.6, blue: 0.5),
                 label: loginMethodsLabel,
                 action: onOpenLoginMethods
             )
-            ProfileCardDivider()
+            ProfileCardDivider().overlay(AppDesign.Colors.separator)
             ProfileSettingsRow(
                 icon: "rectangle.portrait.and.arrow.right",
                 tint: AppDesign.Colors.error,
                 label: logoutLabel,
                 action: onLogout
             )
-            ProfileCardDivider()
+            ProfileCardDivider().overlay(AppDesign.Colors.separator)
             ProfileSettingsRow(
                 icon: "trash.fill",
                 tint: AppDesign.Colors.error,

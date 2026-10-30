@@ -21,6 +21,7 @@ import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.ReadOnlyComposable
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
@@ -58,7 +59,7 @@ import com.fauscrew.ui.theme.Spacing
 import com.fauscrew.viewmodel.ProfileUiState
 import java.time.LocalDate
 
-private val accentOrange = FausCrewColors.accentOrange
+private val accentOrange: Color @Composable @ReadOnlyComposable get() = FausCrewColors.accentOrange
 private val detailsTint = Color(0xFF33B366)
 private val cakeTint = Color(0xFFE6731A)
 
@@ -108,7 +109,7 @@ internal fun EditProfileDialog(
                 PopupPrimaryButton(
                     strings.profileValue(if (state.busy) "common_saving" else "common_save_changes"),
                     enabled = canSave && !state.busy, busy = state.busy, modifier = Modifier.fillMaxWidth(),
-                    disabledBrush = Brush.horizontalGradient(listOf(Color.Gray.copy(alpha = .5f), Color.Gray.copy(alpha = .4f))),
+                    disabledBrush = Brush.horizontalGradient(listOf(FausCrewColors.textTertiary.copy(alpha = .5f), FausCrewColors.textTertiary.copy(alpha = .4f))),
                     onClick = {
                         focus.clearFocus()
                         onSave(ProfileChange(

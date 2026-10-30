@@ -21,7 +21,7 @@ struct SocialEmailCompletionView: View {
 
     var body: some View {
         ZStack {
-            Color(.systemBackground).ignoresSafeArea()
+            AppDesign.Colors.background.ignoresSafeArea()
             ScrollView {
                 VStack(alignment: .leading, spacing: AppDesign.Spacing.xl) {
                     header
@@ -113,7 +113,7 @@ struct SocialEmailCompletionView: View {
             }
             .frame(maxWidth: .infinity)
             .frame(height: 54)
-            .background(canSubmit ? AnyShapeStyle(FausBrand.buttonGradient) : AnyShapeStyle(Color(.systemGray4)))
+            .background(canSubmit ? AnyShapeStyle(FausBrand.buttonGradient) : AnyShapeStyle(AppDesign.Colors.controlFill))
             .cornerRadius(AppDesign.CornerRadius.xl)
         }
         .disabled(!canSubmit || isWorking)

@@ -63,6 +63,8 @@ import androidx.compose.ui.window.DialogProperties
 import androidx.compose.ui.window.DialogWindowProvider
 import com.fauscrew.ui.theme.FausCrewBrushes
 import com.fauscrew.ui.theme.FausCrewColors
+import com.fauscrew.ui.theme.LocalFausTheme
+import androidx.compose.runtime.ReadOnlyComposable
 import com.fauscrew.ui.theme.FausCrewIcons
 import com.fauscrew.ui.theme.FausCrewType
 import com.fauscrew.ui.theme.Motion
@@ -111,10 +113,13 @@ internal fun FausCrewPopup(
         val appear = remember { Animatable(0f) }
         LaunchedEffect(Unit) { appear.animateTo(1f, Motion.standard()) }
         val shape = RoundedCornerShape(cornerRadius)
+        val scrim = FausCrewColors.scrim
+        val outline = if (borderColor == Color.Transparent) LocalFausTheme.current.decor.popupBorder else borderColor
         Box(
             Modifier.fillMaxSize()
                 .graphicsLayer { alpha = appear.value }
-                .background(Color.Black.copy(alpha = scrimAlpha))
+                // `scrimAlpha` is relative to the light theme's .55 black.
+                .background(scrim.copy(alpha = (scrim.alpha * scrimAlpha / .55f).coerceAtMost(1f)))
                 .clickable(remember { MutableInteractionSource() }, indication = null, onClick = dismiss)
                 .systemBarsPadding()
                 .imePadding(),
@@ -128,10 +133,10 @@ internal fun FausCrewPopup(
                         scaleX = scale
                         scaleY = scale
                     }
-                    .softShadow(Color.Black.copy(alpha = .25f), 30.dp, y = 16.dp, shape = shape)
+                    .softShadow(FausCrewColors.shadow.copy(alpha = .25f), 30.dp, y = 16.dp, shape = shape)
                     .clip(shape)
-                    .mainScreenBackground()
-                    .border(1.dp, borderColor, shape)
+                    .mainScreenBackground(BackdropSurface.POPUP)
+                    .border(1.dp, outline, shape)
                     // Taps on empty card space hide the keyboard and never reach the dismissing backdrop.
                     .dismissKeyboardOnTap(),
             ) {
@@ -173,7 +178,7 @@ internal fun PopupHeader(
     Box(Modifier.fillMaxWidth().height(height).brandPopupHeaderBackground(), contentAlignment = Alignment.Center) {
         decorativeIcon?.let {
             Icon(it, null, Modifier.offset(x = decorativeOffsetX).size(decorativeIconSize),
-                tint = Color.White.copy(alpha = decorativeIconAlpha))
+                tint = FausCrewColors.onHero.copy(alpha = decorativeIconAlpha))
         }
         Row(Modifier.fillMaxWidth().padding(horizontal = Spacing.xl),
             verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(spacing)) {
@@ -187,7 +192,7 @@ internal fun PopupHeader(
 
 @Composable
 internal fun PopupHeaderTitle(text: String) {
-    Text(text, style = FausCrewType.headline, color = Color.White, maxLines = 1, overflow = TextOverflow.Ellipsis)
+    Text(text, style = FausCrewType.headline, color = FausCrewColors.onHero, maxLines = 1, overflow = TextOverflow.Ellipsis)
 }
 
 @Composable
@@ -199,12 +204,12 @@ internal fun PopupCloseButton(
     backgroundAlpha: Float = .2f,
 ) {
     Box(
-        Modifier.size(size).clip(CircleShape).background(Color.White.copy(alpha = backgroundAlpha))
+        Modifier.size(size).clip(CircleShape).background(FausCrewColors.onHero.copy(alpha = backgroundAlpha))
             .clickable(enabled = enabled, onClick = onClick)
             .semantics { contentDescription = description },
         contentAlignment = Alignment.Center,
     ) {
-        Icon(FausCrewIcons.xmark, null, Modifier.size(15.dp), tint = Color.White.copy(alpha = .9f))
+        Icon(FausCrewIcons.xmark, null, Modifier.size(15.dp), tint = FausCrewColors.onHero.copy(alpha = .9f))
     }
 }
 
@@ -219,8 +224,8 @@ internal fun PopupFooter(
 ) {
     Column(
         modifier.fillMaxWidth()
-            .then(if (shadow) Modifier.softShadow(Color.Black.copy(alpha = .06f), 8.dp, y = (-4).dp) else Modifier)
-            .background(FausCrewColors.background)
+            .then(if (shadow) Modifier.softShadow(FausCrewColors.shadow.copy(alpha = .06f), 8.dp, y = (-4).dp) else Modifier)
+            .background(FausCrewColors.popupBackground)
             .padding(padding),
         verticalArrangement = Arrangement.spacedBy(spacing),
         content = content,
@@ -357,4 +362,6 @@ internal fun PopupTextField(
 }
 
 /** iOS `placeholderText`. */
-internal val PlaceholderColor = Color(0x4D3C3C43)
+internal val PlaceholderColor: Color
+    @Composable @ReadOnlyComposable
+    get() = if (LocalFausTheme.current.isDark) FausCrewColors.textTertiary.copy(alpha = .75f) else Color(0x4D3C3C43)

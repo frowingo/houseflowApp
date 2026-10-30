@@ -143,7 +143,7 @@ struct OnboardingView: View {
             .frame(height: 54)
             .background {
                 RoundedRectangle(cornerRadius: 16, style: .continuous)
-                    .fill(isLastPage ? AnyShapeStyle(FausBrand.buttonGradient) : AnyShapeStyle(Color(.systemBackground)))
+                    .fill(isLastPage ? AnyShapeStyle(FausBrand.buttonGradient) : AnyShapeStyle(AppDesign.Colors.background))
                     .overlay(
                         RoundedRectangle(cornerRadius: 16, style: .continuous)
                             .stroke(FausBrand.orange.opacity(isLastPage ? 0 : 0.45), lineWidth: 1.5)
@@ -258,7 +258,7 @@ private struct OnboardingArtView: View {
     var body: some View {
         ZStack {
             Circle()
-                .fill(Color(.systemBackground))
+                .fill(AppDesign.Colors.background)
                 .overlay(Circle().stroke(FausBrand.orange.opacity(0.35), lineWidth: 1.2))
                 .frame(width: 192, height: 192)
 
@@ -339,7 +339,7 @@ private struct OnboardingArtView: View {
             .frame(width: 32, height: 32)
             .background(
                 Circle()
-                    .fill(Color(.systemBackground))
+                    .fill(AppDesign.Colors.background)
                     .shadow(color: FausBrand.deepBerry.opacity(0.18), radius: 5, x: 0, y: 4)
             )
             .scaleEffect(entered ? 1 : 0)
