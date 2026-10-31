@@ -17,7 +17,7 @@ struct NewAnnouncementPopup: View {
     @State private var isPublishing = false
     @FocusState private var focusedField: Field?
 
-    private let accentOrange = Color(red: 1.0, green: 0.48, blue: 0.15)
+    private let accentOrange = HouseJourneyTheme.accentOrange
     private let titleLimit = 30
     private let messageLimit = 150
 
@@ -217,7 +217,7 @@ struct NewAnnouncementPopup: View {
                 .background(
                     LinearGradient(
                         colors: canPublish
-                            ? [accentOrange, Color(red: 0.90, green: 0.34, blue: 0.08)]
+                            ? [accentOrange, HouseJourneyTheme.accentOrangeDeep]
                             : [AppDesign.Colors.controlFillStrong, AppDesign.Colors.controlFill],
                         startPoint: .leading,
                         endPoint: .trailing

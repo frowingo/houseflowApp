@@ -14,6 +14,7 @@ import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.drawscope.DrawScope
@@ -31,10 +32,12 @@ import android.graphics.Shader
 import androidx.compose.ui.graphics.drawscope.drawIntoCanvas
 import androidx.compose.ui.graphics.nativeCanvas
 import androidx.compose.ui.graphics.toArgb
+import androidx.compose.ui.res.imageResource
 import kotlin.math.ceil
 import com.fauscrew.ui.theme.FausBackdrop
 import com.fauscrew.ui.theme.FausCrewColors
 import com.fauscrew.ui.theme.FausMeshTexture
+import com.fauscrew.ui.theme.FausOrnament
 import com.fauscrew.ui.theme.FausPalette
 import com.fauscrew.ui.theme.LocalFausTheme
 import com.fauscrew.ui.theme.linear
@@ -54,6 +57,8 @@ internal fun Modifier.mainScreenBackground(surface: BackdropSurface = BackdropSu
     val theme = LocalFausTheme.current
     val backdrop = if (surface == BackdropSurface.POPUP) theme.decor.popupBackdrop else theme.decor.backdrop
     val palette = theme.palette
+    val marble = backdrop.marble?.let { ImageBitmap.imageResource(it.image) to it.opacity }
+    val gardenLayout = if (surface == BackdropSurface.POPUP) GardenLayout.POPUP else GardenLayout.PAGE
     return drawWithCache {
         val mesh = backdrop.mesh?.let { MeshLayer(it, size, density, masked = true) }
         onDrawBehind {
@@ -62,9 +67,11 @@ internal fun Modifier.mainScreenBackground(surface: BackdropSurface = BackdropSu
             else drawRect(Brush.linearGradient(*stops.toTypedArray(),
                 start = Offset(size.width * backdrop.baseStartX, 0f), end = Offset(size.width * backdrop.baseEndX, size.height)))
             mesh?.let { drawMesh(it) }
+            marble?.let { (image, alpha) -> drawMarble(image, alpha) }
             drawRect(Brush.linearGradient(backdrop.wash))
             drawCornerGlow(backdrop.glow, reach = .6f)
             if (backdrop.drawsLines) AmbientCurves.forEach { drawAmbientCurve(it, backdrop, palette) }
+            backdrop.garden?.let { drawGarden(it, gardenLayout) }
         }
     }
 }
@@ -237,6 +244,10 @@ internal fun BrandHeroCard(
                 drawRect(decor.heroStops.linear())
                 drawCornerGlow(decor.heroGlow)
                 val ornament = decor.heroOrnament
+                if (decor.ornament == FausOrnament.BLOOM) {
+                    drawBloomOrnament(BloomOrnamentSurface.HERO_CARD, ornament, accentCapsule)
+                    return@drawBehind
+                }
                 val center = Offset(size.width / 2, size.height / 2)
                 fun at(x: Float, y: Float) = center + Offset(x.dp.toPx(), y.dp.toPx())
                 drawCircle(ornament.copy(alpha = .08f), 79.dp.toPx(), at(145f, -62f))
@@ -264,12 +275,16 @@ internal fun Modifier.brandPopupHeaderBackground(): Modifier {
         drawRect(decor.heroStops.linear())
         drawCornerGlow(decor.heroGlow, reach = .9f)
         val ornament = decor.heroOrnament
-        val center = Offset(size.width / 2, size.height / 2)
-        fun at(xFraction: Float, y: Float) = center + Offset(size.width * xFraction, y.dp.toPx())
-        drawCircle(ornament.copy(alpha = .08f), 56.dp.toPx(), at(.34f, -42f))
-        drawCircle(ornament.copy(alpha = .15f), 39.dp.toPx(), at(.32f, -34f), style = Stroke(1.dp.toPx()))
-        drawCapsule(ornament.copy(alpha = .07f), at(.31f, 28f), 132.dp, 16.dp, -24f)
-        drawCapsule(accentCapsule.copy(alpha = .20f), at(-.39f, -24f), 94.dp, 12.dp, -24f)
+        if (decor.ornament == FausOrnament.BLOOM) {
+            drawBloomOrnament(BloomOrnamentSurface.POPUP_HEADER, ornament, accentCapsule)
+        } else {
+            val center = Offset(size.width / 2, size.height / 2)
+            fun at(xFraction: Float, y: Float) = center + Offset(size.width * xFraction, y.dp.toPx())
+            drawCircle(ornament.copy(alpha = .08f), 56.dp.toPx(), at(.34f, -42f))
+            drawCircle(ornament.copy(alpha = .15f), 39.dp.toPx(), at(.32f, -34f), style = Stroke(1.dp.toPx()))
+            drawCapsule(ornament.copy(alpha = .07f), at(.31f, 28f), 132.dp, 16.dp, -24f)
+            drawCapsule(accentCapsule.copy(alpha = .20f), at(-.39f, -24f), 94.dp, 12.dp, -24f)
+        }
         val hairline = .5.dp.toPx()
         drawRect(ornament.copy(alpha = if (theme.isDark) .26f else .14f), Offset(0f, size.height - hairline), Size(size.width, hairline))
     }
@@ -284,6 +299,10 @@ internal fun Modifier.tabBarBackground(): Modifier {
         drawRect(decor.tabBarStops.linear())
         drawCornerGlow(decor.tabBarGlow, reach = .7f)
         val ornament = decor.heroOrnament
+        if (decor.ornament == FausOrnament.BLOOM) {
+            drawBloomOrnament(BloomOrnamentSurface.TAB_BAR, ornament, accentCapsule)
+            return@drawBehind
+        }
         val w = size.width
         val h = size.height
         fun at(x: Float, y: Float) = Offset(x, y)

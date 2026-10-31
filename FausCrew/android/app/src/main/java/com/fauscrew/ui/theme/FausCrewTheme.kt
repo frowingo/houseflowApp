@@ -50,6 +50,7 @@ internal object FausCrewColors {
     // HouseJourneyTheme
     val accentOrange: Color @Composable @ReadOnlyComposable get() = palette.accentOrange
     val accentOrangeInk: Color @Composable @ReadOnlyComposable get() = palette.accentOrangeInk
+    val accentOrangeDeep: Color @Composable @ReadOnlyComposable get() = palette.accentOrangeDeep
     val indigo: Color @Composable @ReadOnlyComposable get() = palette.indigo
     val deepIndigo: Color @Composable @ReadOnlyComposable get() = palette.deepIndigo
     val blue: Color @Composable @ReadOnlyComposable get() = palette.blue

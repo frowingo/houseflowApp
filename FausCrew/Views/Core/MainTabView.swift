@@ -218,28 +218,10 @@ struct CustomTabBar: View {
 
             FausHeroGlow(color: theme.decor.tabBarGlow, reach: 0.7)
 
-            GeometryReader { geo in
-                Circle()
-                    .fill(theme.decor.heroOrnament.opacity(0.08))
-                    .frame(width: 104, height: 104)
-                    .offset(x: geo.size.width - 76, y: -46)
-
-                Circle()
-                    .stroke(theme.decor.heroOrnament.opacity(0.15), lineWidth: 1)
-                    .frame(width: 76, height: 76)
-                    .offset(x: geo.size.width - 62, y: -32)
-
-                Capsule()
-                    .fill(theme.decor.heroOrnament.opacity(0.07))
-                    .frame(width: 112, height: 15)
-                    .rotationEffect(.degrees(-24))
-                    .offset(x: geo.size.width - 94, y: geo.size.height - 20)
-
-                Capsule()
-                    .fill(Color.orange.opacity(0.2))
-                    .frame(width: 88, height: 12)
-                    .rotationEffect(.degrees(-24))
-                    .offset(x: -28, y: -3)
+            if theme.decor.ornament == .bloom {
+                FausBloomOrnament(surface: .tabBar, ornament: theme.decor.heroOrnament, sprig: theme.decor.heroSprig)
+            } else {
+                tabBarGeometry
             }
 
             barShape
@@ -254,6 +236,32 @@ struct CustomTabBar: View {
         }
         .clipShape(barShape)
         .shadow(color: theme.decor.tabBarShadow, radius: 20, x: 0, y: 9)
+    }
+
+    private var tabBarGeometry: some View {
+        GeometryReader { geo in
+            Circle()
+                .fill(theme.decor.heroOrnament.opacity(0.08))
+                .frame(width: 104, height: 104)
+                .offset(x: geo.size.width - 76, y: -46)
+
+            Circle()
+                .stroke(theme.decor.heroOrnament.opacity(0.15), lineWidth: 1)
+                .frame(width: 76, height: 76)
+                .offset(x: geo.size.width - 62, y: -32)
+
+            Capsule()
+                .fill(theme.decor.heroOrnament.opacity(0.07))
+                .frame(width: 112, height: 15)
+                .rotationEffect(.degrees(-24))
+                .offset(x: geo.size.width - 94, y: geo.size.height - 20)
+
+            Capsule()
+                .fill(theme.decor.heroSprig.opacity(0.2))
+                .frame(width: 88, height: 12)
+                .rotationEffect(.degrees(-24))
+                .offset(x: -28, y: -3)
+        }
     }
 }
 

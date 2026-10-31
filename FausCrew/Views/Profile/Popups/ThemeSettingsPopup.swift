@@ -182,6 +182,17 @@ struct ThemePreviewThumbnail: View {
         ZStack(alignment: .top) {
             LinearGradient(stops: backdropStops, startPoint: .top, endPoint: .bottom)
 
+            if let marble = theme.decor.backdrop.marble {
+                FausMarbleView(marble: marble)
+            }
+            if let garden = theme.decor.backdrop.garden {
+                // The page garden at thumbnail scale; the design frame keeps its corners in view.
+                FausGardenView(garden: garden)
+                    .frame(width: 390, height: 536)
+                    .scaleEffect(64.0 / 390, anchor: .topLeading)
+                    .frame(width: 64, height: 88, alignment: .topLeading)
+            }
+
             VStack(spacing: 5) {
                 RoundedRectangle(cornerRadius: 5, style: .continuous)
                     .fill(LinearGradient(stops: theme.decor.heroStops, startPoint: .topLeading, endPoint: .bottomTrailing))

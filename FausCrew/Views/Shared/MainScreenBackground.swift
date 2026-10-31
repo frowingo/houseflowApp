@@ -29,6 +29,10 @@ struct MainScreenBackground: View {
                 FausMeshTextureView(texture: mesh)
             }
 
+            if let marble = backdrop.marble {
+                FausMarbleView(marble: marble)
+            }
+
             LinearGradient(
                 colors: backdrop.wash,
                 startPoint: .topLeading,
@@ -39,6 +43,10 @@ struct MainScreenBackground: View {
 
             if backdrop.drawsLines {
                 lineField
+            }
+
+            if let garden = backdrop.garden {
+                FausGardenView(garden: garden, layout: surface == .popup ? .popup : .page)
             }
         }
         .ignoresSafeArea()

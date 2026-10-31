@@ -18,28 +18,33 @@ struct FausHeroBackground: View {
                     endRadius: width * 0.42
                 )
 
-                Circle()
-                    .fill(theme.decor.heroOrnament.opacity(0.08))
-                    .frame(width: 158, height: 158)
-                    .position(x: width - 6, y: 60)
-                Circle()
-                    .stroke(theme.decor.heroOrnament.opacity(0.16), lineWidth: 1)
-                    .frame(width: 118, height: 118)
-                    .position(x: width - 15, y: 68)
-                Circle()
-                    .stroke(theme.decor.heroOrnament.opacity(0.10), lineWidth: 1)
-                    .frame(width: 82, height: 82)
-                    .position(x: width - 21, y: 74)
-                Capsule()
-                    .fill(theme.decor.heroOrnament.opacity(0.08))
-                    .frame(width: 180, height: 24)
-                    .rotationEffect(.degrees(-28))
-                    .position(x: width - 20, y: proxy.size.height - 70)
-                Capsule()
-                    .fill(Color.orange.opacity(0.22))
-                    .frame(width: 126, height: 18)
-                    .rotationEffect(.degrees(-28))
-                    .position(x: 23, y: 92)
+                switch theme.decor.ornament {
+                case .geometric:
+                    Circle()
+                        .fill(theme.decor.heroOrnament.opacity(0.08))
+                        .frame(width: 158, height: 158)
+                        .position(x: width - 6, y: 60)
+                    Circle()
+                        .stroke(theme.decor.heroOrnament.opacity(0.16), lineWidth: 1)
+                        .frame(width: 118, height: 118)
+                        .position(x: width - 15, y: 68)
+                    Circle()
+                        .stroke(theme.decor.heroOrnament.opacity(0.10), lineWidth: 1)
+                        .frame(width: 82, height: 82)
+                        .position(x: width - 21, y: 74)
+                    Capsule()
+                        .fill(theme.decor.heroOrnament.opacity(0.08))
+                        .frame(width: 180, height: 24)
+                        .rotationEffect(.degrees(-28))
+                        .position(x: width - 20, y: proxy.size.height - 70)
+                    Capsule()
+                        .fill(theme.decor.heroSprig.opacity(0.22))
+                        .frame(width: 126, height: 18)
+                        .rotationEffect(.degrees(-28))
+                        .position(x: 23, y: 92)
+                case .bloom:
+                    FausBloomOrnament(surface: .header, ornament: theme.decor.heroOrnament, sprig: theme.decor.heroSprig)
+                }
             }
         }
         .accessibilityHidden(true)
@@ -66,6 +71,12 @@ struct FausSheetBackground: View {
             }
             if let mesh = theme.decor.sheetMesh {
                 FausMeshTextureView(texture: mesh, masked: false)
+            }
+            if let marble = theme.decor.sheetMarble {
+                FausMarbleView(marble: marble)
+            }
+            if let garden = theme.decor.sheetGarden {
+                FausGardenView(garden: garden, layout: .sheet)
             }
         }
         .clipShape(shape)
@@ -108,6 +119,11 @@ struct FausBadge<Content: View>: View {
                 .shadow(color: FausBrand.deepBerry.opacity(0.35), radius: 12, x: 0, y: 10)
                 .shadow(color: theme.decor.framedMarkGlow, radius: 13)
             content()
+            if let blossom = theme.decor.badgeBlossom {
+                // Tucked on the outer halo's top-trailing edge.
+                FausBadgeBlossom(garden: blossom, size: 40)
+                    .offset(x: (size + 32) / 2 - 18, y: -(size + 32) / 2 + 22)
+            }
         }
         .accessibilityHidden(true)
     }

@@ -38,6 +38,10 @@ struct HouseSelectionView: View {
                     .fill(FausBrand.markGradient)
                     .frame(width: 58, height: 58)
                     .mask(FausMark(size: 58))
+                if let blossom = theme.decor.badgeBlossom {
+                    FausBadgeBlossom(garden: blossom, size: 26)
+                        .offset(x: 26, y: -24)
+                }
             }
             .accessibilityHidden(true)
 

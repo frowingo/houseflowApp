@@ -20,12 +20,16 @@ class FausThemesTest {
         assertEquals(FausThemeId.FAUS_DARK, FausThemeId.fromStorage("faus_dark"))
         assertEquals("Faus Light", FausThemeId.FAUS_LIGHT.displayName)
         assertEquals("Faus Dark", FausThemeId.FAUS_DARK.displayName)
+        assertEquals("fause_bloom", FausThemeId.FAUSE_BLOOM.storageValue)
+        assertEquals(FausThemeId.FAUSE_BLOOM, FausThemeId.fromStorage("fause_bloom"))
+        assertEquals("Fause Bloom", FausThemeId.FAUSE_BLOOM.displayName)
     }
 
     @Test
     fun launcherAliasesMatchTheManifest() {
         assertEquals("LauncherFausLight", FausThemeId.FAUS_LIGHT.launcherAlias)
         assertEquals("LauncherFausDark", FausThemeId.FAUS_DARK.launcherAlias)
+        assertEquals("LauncherFausBloom", FausThemeId.FAUSE_BLOOM.launcherAlias)
     }
 
     @Test
@@ -33,6 +37,7 @@ class FausThemesTest {
         assertEquals(FausThemeId.entries, FausThemes.all.map { it.id })
         assertFalse(FausThemes.theme(FausThemeId.FAUS_LIGHT).isDark)
         assertTrue(FausThemes.theme(FausThemeId.FAUS_DARK).isDark)
+        assertFalse(FausThemes.theme(FausThemeId.FAUSE_BLOOM).isDark)
     }
 
     @Test

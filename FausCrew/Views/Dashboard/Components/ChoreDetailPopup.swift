@@ -1,7 +1,7 @@
 import SwiftUI
 import FausCrewCore
 
-private let accentOrange = Color(red: 1.0, green: 0.48, blue: 0.15)
+private let accentOrange = HouseJourneyTheme.accentOrange
 
 /// Premium chore detail sheet.
 /// - Shows full status pipeline (Draft → Progress → InTest → Completed).

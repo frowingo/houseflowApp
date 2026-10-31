@@ -117,6 +117,7 @@ enum AppDesign {
 enum HouseJourneyTheme {
     static let accentOrange = Color.faus(\.accentOrange)
     static let accentOrangeInk = Color.faus(\.accentOrangeInk)
+    static let accentOrangeDeep = Color.faus(\.accentOrangeDeep)
     static let indigo = Color.faus(\.indigo)
     static let deepIndigo = Color.faus(\.deepIndigo)
     static let blue = Color.faus(\.blue)

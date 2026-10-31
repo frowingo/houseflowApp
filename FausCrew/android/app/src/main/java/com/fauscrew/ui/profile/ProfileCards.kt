@@ -51,6 +51,7 @@ import com.fauscrew.ui.components.FausHouseIcon
 import com.fauscrew.ui.components.HouseThumbnail
 import com.fauscrew.ui.components.RemoteImage
 import com.fauscrew.ui.theme.FausCrewColors
+import com.fauscrew.ui.theme.LocalFausTheme
 import com.fauscrew.ui.theme.FausCrewIcons
 import com.fauscrew.ui.theme.FausCrewType
 import com.fauscrew.ui.theme.Radius
@@ -102,7 +103,8 @@ internal fun ProfileHeroSection(
 private fun ProfileHeroAvatar(imageUrl: String, initials: String, description: String, onTap: () -> Unit) {
     val pulse by rememberInfiniteTransition(label = "avatarPulse")
         .animateFloat(.55f, 1f, infiniteRepeatable(tween(2_000), RepeatMode.Reverse), label = "ring")
-    val fallback = Brush.linearGradient(listOf(Color(0xFFF27F14), Color(0xFFC75208)))
+    val decor = LocalFausTheme.current.decor
+    val fallback = Brush.linearGradient(decor.avatarFallback)
     Box(
         Modifier.size(84.dp)
             .softShadow(FausCrewColors.shadow.copy(alpha = .22f), 12.dp, y = 6.dp, shape = CircleShape)
@@ -111,9 +113,7 @@ private fun ProfileHeroAvatar(imageUrl: String, initials: String, description: S
             .semantics { contentDescription = description },
         contentAlignment = Alignment.Center,
     ) {
-        Box(Modifier.fillMaxSize().alpha(pulse).border(3.dp, Brush.sweepGradient(listOf(
-            Color(0xFFFFC766), FausCrewColors.brandOrange, Color(0xFFA6330D), Color(0xFFFFC766),
-        )), CircleShape))
+        Box(Modifier.fillMaxSize().alpha(pulse).border(3.dp, Brush.sweepGradient(decor.avatarRing), CircleShape))
         Box(Modifier.size(74.dp).background(FausCrewColors.surface, CircleShape))
         RemoteImage(imageUrl, Modifier.size(74.dp).clip(CircleShape)) {
             Box(Modifier.fillMaxSize().background(fallback), contentAlignment = Alignment.Center) {

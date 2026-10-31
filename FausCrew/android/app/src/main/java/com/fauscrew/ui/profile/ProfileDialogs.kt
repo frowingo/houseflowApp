@@ -6,6 +6,14 @@ import com.fauscrew.ui.theme.LocalFausThemeController
 import com.fauscrew.ui.theme.FausThemes
 import com.fauscrew.ui.theme.FausTheme
 import com.fauscrew.ui.components.drawCornerGlow
+import com.fauscrew.ui.components.drawGarden
+import com.fauscrew.ui.components.drawMarble
+import com.fauscrew.ui.components.GardenLayout
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Size
+import androidx.compose.ui.graphics.ImageBitmap
+import androidx.compose.ui.graphics.drawscope.withTransform
+import androidx.compose.ui.res.imageResource
 import androidx.compose.ui.draw.drawBehind
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.animation.animateColorAsState
@@ -372,8 +380,18 @@ private fun ThemePreviewThumbnail(theme: FausTheme) {
     val shape = RoundedCornerShape(10.dp)
     val baseStops = decor.backdrop.baseStops
     val backdrop = if (baseStops.size > 1) Brush.verticalGradient(*baseStops.toTypedArray()) else SolidColor(baseStops.first().second)
+    val marble = decor.backdrop.marble?.let { ImageBitmap.imageResource(it.image) to it.opacity }
     Column(
-        Modifier.size(64.dp, 88.dp).clip(shape).background(backdrop).border(1.dp, palette.hairline, shape).padding(5.dp),
+        Modifier.size(64.dp, 88.dp).clip(shape).background(backdrop)
+            .drawBehind {
+                marble?.let { (image, alpha) -> drawMarble(image, alpha) }
+                // The garden of a 390×536 screen, shrunk to the thumbnail.
+                decor.backdrop.garden?.let { garden ->
+                    val k = size.width / (390f * density)
+                    withTransform({ scale(k, k, Offset.Zero) }) { drawGarden(garden, GardenLayout.PAGE, Size(390f, 536f)) }
+                }
+            }
+            .border(1.dp, palette.hairline, shape).padding(5.dp),
         verticalArrangement = Arrangement.spacedBy(5.dp),
     ) {
         Box(Modifier.fillMaxWidth().height(20.dp).clip(RoundedCornerShape(5.dp)).background(decor.heroStops.linear())

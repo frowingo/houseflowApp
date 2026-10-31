@@ -10,7 +10,7 @@ struct LanguageSettingsPopup: View {
     @State private var isSaving = false
     @State private var saveError: String?
 
-    private let accentOrange = Color(red: 1.0, green: 0.48, blue: 0.15)
+    private let accentOrange = HouseJourneyTheme.accentOrange
     private let columns = [
         GridItem(.flexible()),
         GridItem(.flexible()),

@@ -18,7 +18,12 @@ struct BrandHeroCardBackground: View {
 
                 FausHeroGlow(color: theme.decor.heroGlow)
 
-                decorativeGeometry
+                switch theme.decor.ornament {
+                case .geometric:
+                    decorativeGeometry
+                case .bloom:
+                    FausBloomOrnament(surface: .heroCard, ornament: theme.decor.heroOrnament, sprig: theme.decor.heroSprig)
+                }
             }
             .frame(width: proxy.size.width, height: proxy.size.height)
         }
@@ -62,7 +67,7 @@ struct BrandHeroCardBackground: View {
                 .offset(x: 130, y: 58)
 
             Capsule()
-                .fill(Color.orange.opacity(0.22))
+                .fill(theme.decor.heroSprig.opacity(0.22))
                 .frame(width: 126, height: 18)
                 .rotationEffect(.degrees(-28))
                 .offset(x: -145, y: -58)
@@ -91,27 +96,32 @@ struct BrandPopupHeaderBackground: View {
 
                 FausHeroGlow(color: theme.decor.heroGlow, reach: 0.9)
 
-                Circle()
-                    .fill(theme.decor.heroOrnament.opacity(0.08))
-                    .frame(width: 112, height: 112)
-                    .offset(x: proxy.size.width * 0.34, y: -42)
+                switch theme.decor.ornament {
+                case .geometric:
+                    Circle()
+                        .fill(theme.decor.heroOrnament.opacity(0.08))
+                        .frame(width: 112, height: 112)
+                        .offset(x: proxy.size.width * 0.34, y: -42)
 
-                Circle()
-                    .stroke(theme.decor.heroOrnament.opacity(0.15), lineWidth: 1)
-                    .frame(width: 78, height: 78)
-                    .offset(x: proxy.size.width * 0.32, y: -34)
+                    Circle()
+                        .stroke(theme.decor.heroOrnament.opacity(0.15), lineWidth: 1)
+                        .frame(width: 78, height: 78)
+                        .offset(x: proxy.size.width * 0.32, y: -34)
 
-                Capsule()
-                    .fill(theme.decor.heroOrnament.opacity(0.07))
-                    .frame(width: 132, height: 16)
-                    .rotationEffect(.degrees(-24))
-                    .offset(x: proxy.size.width * 0.31, y: 28)
+                    Capsule()
+                        .fill(theme.decor.heroOrnament.opacity(0.07))
+                        .frame(width: 132, height: 16)
+                        .rotationEffect(.degrees(-24))
+                        .offset(x: proxy.size.width * 0.31, y: 28)
 
-                Capsule()
-                    .fill(Color.orange.opacity(0.20))
-                    .frame(width: 94, height: 12)
-                    .rotationEffect(.degrees(-24))
-                    .offset(x: -proxy.size.width * 0.39, y: -24)
+                    Capsule()
+                        .fill(theme.decor.heroSprig.opacity(0.20))
+                        .frame(width: 94, height: 12)
+                        .rotationEffect(.degrees(-24))
+                        .offset(x: -proxy.size.width * 0.39, y: -24)
+                case .bloom:
+                    FausBloomOrnament(surface: .popupHeader, ornament: theme.decor.heroOrnament, sprig: theme.decor.heroSprig)
+                }
             }
             .frame(width: proxy.size.width, height: proxy.size.height)
         }

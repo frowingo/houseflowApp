@@ -9,11 +9,7 @@ struct ProfileHeroSection: View {
 
     @State private var avatarPulse = false
 
-    private let brandOrange = Color(red: 1.0, green: 0.48, blue: 0.15)
-    private let fallbackColors = [
-        Color(red: 0.95, green: 0.50, blue: 0.08),
-        Color(red: 0.78, green: 0.32, blue: 0.03)
-    ]
+    @Environment(\.fausTheme) private var theme
 
     var body: some View {
         ZStack {
@@ -62,15 +58,7 @@ struct ProfileHeroSection: View {
         ZStack {
             Circle()
                 .strokeBorder(
-                    AngularGradient(
-                        colors: [
-                            Color(red: 1.0, green: 0.78, blue: 0.40),
-                            brandOrange,
-                            Color(red: 0.65, green: 0.20, blue: 0.05),
-                            Color(red: 1.0, green: 0.78, blue: 0.40)
-                        ],
-                        center: .center
-                    ),
+                    AngularGradient(colors: theme.decor.avatarRing, center: .center),
                     lineWidth: 3
                 )
                 .frame(width: 84, height: 84)
@@ -113,7 +101,7 @@ struct ProfileHeroSection: View {
         Circle()
             .fill(
                 LinearGradient(
-                    colors: fallbackColors,
+                    colors: theme.decor.avatarFallback,
                     startPoint: .topLeading,
                     endPoint: .bottomTrailing
                 )

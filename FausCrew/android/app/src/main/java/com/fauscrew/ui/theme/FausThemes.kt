@@ -1,8 +1,10 @@
 package com.fauscrew.ui.theme
 
+import androidx.annotation.DrawableRes
 import androidx.compose.runtime.Immutable
 import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.ui.graphics.Color
+import com.fauscrew.R
 
 /**
  * The visual themes the app can render. `storageValue` is the on-device contract shared with
@@ -12,6 +14,7 @@ import androidx.compose.ui.graphics.Color
 internal enum class FausThemeId(val storageValue: String, val displayName: String) {
     FAUS_LIGHT("faus_light", "Faus Light"),
     FAUS_DARK("faus_dark", "Faus Dark"),
+    FAUSE_BLOOM("fause_bloom", "Fause Bloom"),
     ;
 
     /** Picker copy key; iOS `FausTheme.descriptionKey`. */
@@ -21,6 +24,7 @@ internal enum class FausThemeId(val storageValue: String, val displayName: Strin
         get() = when (this) {
             FAUS_LIGHT -> "Bright and warm, the classic FausCrew look."
             FAUS_DARK -> "Ember glow on deep berry, easy on the eyes at night."
+            FAUSE_BLOOM -> "A calm morning garden of vines and flowers on marbled blush."
         }
 
     /** Manifest `activity-alias` that carries this theme's launcher icon; iOS `alternateIconName`. */
@@ -28,6 +32,7 @@ internal enum class FausThemeId(val storageValue: String, val displayName: Strin
         get() = when (this) {
             FAUS_LIGHT -> "LauncherFausLight"
             FAUS_DARK -> "LauncherFausDark"
+            FAUSE_BLOOM -> "LauncherFausBloom"
         }
 
     companion object {
@@ -90,6 +95,8 @@ internal data class FausPalette(
     // House journey accents
     val accentOrange: Color,
     val accentOrangeInk: Color,
+    /** Deep end of accent gradients such as the publish button (iOS `accentOrangeDeep`). */
+    val accentOrangeDeep: Color,
     val indigo: Color,
     val deepIndigo: Color,
     val blue: Color,
@@ -171,6 +178,47 @@ internal data class FausDecor(
     val sheetMesh: FausMeshTexture?,
     val backdrop: FausBackdrop,
     val popupBackdrop: FausBackdrop,
+    /** What the hero surfaces (cards, popup headers, tab bar, full-bleed headers) are decorated with. */
+    val ornament: FausOrnament = FausOrnament.GEOMETRIC,
+    /** Pulsing ring around the profile avatar. */
+    val avatarRing: List<Color> = listOf(Color(0xFFFFC766), Color(0xFFFF7A26), Color(0xFFA6330D), Color(0xFFFFC766)),
+    /** Profile avatar fill when there is no photo. */
+    val avatarFallback: List<Color> = listOf(Color(0xFFF27F14), Color(0xFFC75208)),
+    /** A small blossom tucked on the brand badge halo (auth, house selection); null draws none. */
+    val badgeBlossom: FausGarden? = null,
+    /** Texture and corner garden of the auth form sheet. */
+    val sheetMarble: FausMarble? = null,
+    val sheetGarden: FausGarden? = null,
+)
+
+/** Decoration family of the hero surfaces (iOS `FausOrnament`). */
+internal enum class FausOrnament {
+    /** Layered circles and tilted capsules (Faus Light, Faus Dark). */
+    GEOMETRIC,
+    /** A large petal flower, its outline, a leaf and a blush sprig (Fause Bloom). */
+    BLOOM,
+}
+
+/** A marbled (ebru) texture image laid over a backdrop base, top-aligned and filling it. */
+@Immutable
+internal data class FausMarble(@DrawableRes val image: Int, val opacity: Float)
+
+/** Vines, leaves and flowers drawn at the edges of a backdrop (iOS `FausGarden`). */
+@Immutable
+internal data class FausGarden(
+    val vine: Color,
+    val leaf: Color,
+    val leafAlt: Color,
+    /** Daisies and drifting petals. */
+    val petal: Color,
+    /** Wild roses and tulips. */
+    val rose: Color,
+    /** Buds and berries. */
+    val mauve: Color,
+    val wine: Color,
+    val sky: Color,
+    val pollen: Color,
+    val blossomHeart: Color,
 )
 
 /**
@@ -216,6 +264,10 @@ internal data class FausBackdrop(
     val berryStrength: Float,
     val lineWidthBoost: Float,
     val mesh: FausMeshTexture?,
+    /** Marbled texture over the base. */
+    val marble: FausMarble? = null,
+    /** Vines and flowers over everything else. */
+    val garden: FausGarden? = null,
 ) {
     val drawsLines: Boolean get() = apricotStrength + orangeStrength + berryStrength > 0f
 }
@@ -276,6 +328,7 @@ internal object FausThemes {
             error = Color(0xFFFF3B30),
             accentOrange = Color(0xFFFF7A26),
             accentOrangeInk = Color(0xFFBA400B),
+            accentOrangeDeep = Color(0xFFE65714),
             indigo = Color(0xFF45579E),
             deepIndigo = Color(0xFF33407A),
             blue = Color(0xFF3D7AB8),
@@ -403,6 +456,7 @@ internal object FausThemes {
             error = Color(0xFFFF6B80),
             accentOrange = Color(0xFFFF7A26),
             accentOrangeInk = Color(0xFFFFB27A),
+            accentOrangeDeep = Color(0xFFE65714),
             indigo = Color(0xFF9FA8FF),
             deepIndigo = Color(0xFFB9BFFF),
             blue = Color(0xFF7DB9F2),
@@ -487,7 +541,167 @@ internal object FausThemes {
         ),
     )
 
-    val all: List<FausTheme> = listOf(light, dark)
+    /**
+     * Flowers, vines and calm: a blush, marbled light theme. Green (#336063) carries and
+     * completes, wine (#6A122F) takes the accent-orange role, every gradient runs green → wine.
+     */
+    private val bloomGarden = FausGarden(
+        vine = Color(0xFF336063),
+        leaf = Color(0xFF336063),
+        leafAlt = Color(0xFF4D869B),
+        petal = Color(0xFFEBC3CF),
+        rose = Color(0xFFC98399),
+        mauve = Color(0xFF94506D),
+        wine = Color(0xFF6A122F),
+        sky = Color(0xFF88BAC8),
+        pollen = Color(0xFFD9A441),
+        blossomHeart = Color(0xFFFFF4E6),
+    )
+
+    private val bloomBackdrop = FausBackdrop(
+        baseStops = listOf(0f to Color(0xFFFAF0F3), 1f to Color(0xFFF6E7EC)),
+        wash = listOf(Color.Transparent, Color.Transparent, Color(0xFF88BAC8).copy(alpha = .10f)),
+        glow = Color(0xFFC98399).copy(alpha = .16f),
+        apricotStrength = 1.6f,
+        orangeStrength = .9f,
+        berryStrength = .7f,
+        lineWidthBoost = .2f,
+        mesh = null,
+        marble = FausMarble(R.drawable.bloom_marble, .23f),
+        garden = bloomGarden,
+    )
+
+    private val bloomPopupBackdrop = FausBackdrop(
+        baseStops = listOf(0f to Color(0xFFF8EBEF)),
+        wash = listOf(Color.Transparent, Color.Transparent),
+        glow = Color.Transparent,
+        apricotStrength = 1.4f,
+        orangeStrength = .6f,
+        berryStrength = .5f,
+        lineWidthBoost = .2f,
+        mesh = null,
+        marble = FausMarble(R.drawable.bloom_marble, .18f),
+        garden = bloomGarden,
+    )
+
+    val bloom = FausTheme(
+        id = FausThemeId.FAUSE_BLOOM,
+        isDark = false,
+        palette = FausPalette(
+            background = Color(0xFFF8EBEF),
+            secondaryBackground = Color(0xFFF1E1E7),
+            cardBackground = Color(0xFFF1E1E7),
+            surface = Color(0xFFFFF9FA),
+            elevatedSurface = Color(0xFFEAD5DD),
+            pageBackground = Color(0xFFF8EBEF),
+            popupBackground = Color(0xFFF8EBEF),
+            menuBackground = Color(0xFFFDF3F6),
+            controlFill = Color(0xFFDDC3CC),
+            controlFillStrong = Color(0xFFCDAEBA),
+            segmentSelected = Color(0xFFFFF9FA),
+            textPrimary = Color(0xFF2C3350),
+            textSecondary = Color(0xFF4E566B),
+            textTertiary = Color(0xFF8A93A6),
+            onAccent = Color.White,
+            onHero = Color.White,
+            separator = Color(0xFF6A122F).copy(alpha = .12f),
+            hairline = Color(0xFF2C3350).copy(alpha = .08f),
+            shadow = Color(0xFF422C47),
+            scrim = Color(0xFF1E2338).copy(alpha = .55f),
+            primary = Color(0xFF4D869B),
+            secondary = Color(0xFF336063),
+            warning = Color(0xFFA86F2A),
+            error = Color(0xFF8E1F42),
+            accentOrange = Color(0xFF6A122F),
+            accentOrangeInk = Color(0xFF6A122F),
+            accentOrangeDeep = Color(0xFF4A0D22),
+            indigo = Color(0xFF333A57),
+            deepIndigo = Color(0xFF2A3049),
+            blue = Color(0xFF4D869B),
+            teal = Color(0xFF336063),
+            deepTeal = Color(0xFF2A5053),
+            buttonBlue = Color(0xFF3E6F80),
+            purple = Color(0xFF422C47),
+            errorRed = Color(0xFF8E1F42),
+            indigoFill = Color(0xFF333A57),
+            deepIndigoFill = Color(0xFF2A3049),
+            tealFill = Color(0xFF336063),
+            brandLight = Color(0xFF4D869B),
+            brandOrange = Color(0xFF336063),
+            deepBerry = Color(0xFF4A0D22),
+            markBerry = Color(0xFF6A122F),
+            spinnerRed = Color(0xFF94506D),
+            spinnerBerry = Color(0xFF6A122F),
+            softApricot = Color(0xFF88BAC8),
+            softOrange = Color(0xFFC98399),
+            softBerry = Color(0xFF336063),
+            // The top-start sprig of the hero surfaces.
+            systemOrange = Color(0xFFF2D6DE),
+            statusDraft = Color(0xFF6B7489),
+            statusProgress = Color(0xFFA86F2A),
+            statusInTest = Color(0xFF6E4A7C),
+            statusCompleted = Color(0xFF2F6F5E),
+            statusFailed = Color(0xFF8E1F42),
+        ),
+        decor = FausDecor(
+            heroStops = listOf(0f to Color(0xFF4D869B), .45f to Color(0xFF336063), 1f to Color(0xFF6A122F)),
+            heroGlow = Color(0xFF88BAC8).copy(alpha = .34f),
+            heroBorder = listOf(Color.White.copy(alpha = .42f), Color.White.copy(alpha = .06f)),
+            heroOrnament = Color.White,
+            heroShadow = Color(0xFF6A122F).copy(alpha = .26f),
+            heroAccentText = Color(0xFFD7E9EE),
+            heroFrame = listOf(Color.White.copy(alpha = .95f)),
+            heroTile = Color(0xFFFCEFF3),
+            headerStops = listOf(0f to Color(0xFF4D869B), .48f to Color(0xFF336063), 1f to Color(0xFF6A122F)),
+            headerGlow = Color.Transparent,
+            tabBarStops = listOf(0f to Color(0xFF5E97A8), .5f to Color(0xFF3E6F72), 1f to Color(0xFF6E2A44)),
+            tabBarGlow = Color.Transparent,
+            tabBarBorder = listOf(Color.White.copy(alpha = .35f), Color.White.copy(alpha = .10f)),
+            tabBarShadow = Color(0xFF6E2A44).copy(alpha = .3f),
+            tabItem = Color.White.copy(alpha = .6f),
+            tabItemSelected = Color.White,
+            tabSelectedFill = Color.White.copy(alpha = .2f),
+            tabSelectedBorder = Color.White.copy(alpha = .24f),
+            tabSelectedIcon = null,
+            homeItem = Color.White.copy(alpha = .62f),
+            homeSelectedFill = Color(0xFFF2D6DE).copy(alpha = .30f),
+            homeSelectedBorder = Color.White.copy(alpha = .30f),
+            fabColors = listOf(Color(0xFF336063), Color(0xFF336063).copy(alpha = .8f)),
+            fabShadow = Color(0xFF336063).copy(alpha = .3f),
+            popupGlow = Color.Transparent,
+            popupBorder = Color.Transparent,
+            badgeFill = listOf(Color.White, Color(0xFFFCEFF3)),
+            badgeHalo = Color.White,
+            badgeBorder = Color.Transparent,
+            framedMarkFill = Color(0xFFFFF9FA),
+            framedMarkRing = Color(0xFF6A122F).copy(alpha = .45f),
+            framedMarkGlow = Color.Transparent,
+            splash = FausSplashStyle(
+                launchHandOff = FausLaunchHandOff.FADE,
+                mark = listOf(Color.White),
+                markGlow = Color(0xFF2A0A1A).copy(alpha = .25f),
+                wordmark = Color.White,
+                wordmarkAccent = Color(0xFFF6D9E1),
+                motto = Color.White.copy(alpha = .82f),
+                ripple = Color(0xFFF2D6DE).copy(alpha = .55f),
+                revealRim = Color.Transparent,
+            ),
+            sheetStops = listOf(0f to Color(0xFFFAF0F3), 1f to Color(0xFFF6E7EC)),
+            sheetEdge = Color.Transparent,
+            sheetEdgeGlow = Color.Transparent,
+            sheetMesh = null,
+            backdrop = bloomBackdrop,
+            popupBackdrop = bloomPopupBackdrop,
+            ornament = FausOrnament.BLOOM,
+            avatarRing = listOf(Color(0xFFF2D6DE), Color(0xFF88BAC8), Color(0xFF6A122F), Color(0xFFF2D6DE)),
+            avatarFallback = listOf(Color(0xFF4D869B), Color(0xFF336063)),
+            badgeBlossom = bloomGarden,
+            sheetMarble = FausMarble(R.drawable.bloom_marble, .23f),
+            sheetGarden = bloomGarden,
+        ),
+    )
+
+    val all: List<FausTheme> = listOf(light, dark, bloom)
 
     fun theme(id: FausThemeId): FausTheme = all.firstOrNull { it.id == id } ?: light
 }

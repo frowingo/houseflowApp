@@ -6,6 +6,7 @@ import Foundation
 public enum AppThemeID: String, CaseIterable, Sendable {
     case fausLight = "faus_light"
     case fausDark = "faus_dark"
+    case fauseBloom = "fause_bloom"
 
     /// First launch, and any stored value this build does not know, use Faus Light.
     public static let defaultTheme: AppThemeID = .fausLight
@@ -15,6 +16,7 @@ public enum AppThemeID: String, CaseIterable, Sendable {
         switch self {
         case .fausLight: "Faus Light"
         case .fausDark: "Faus Dark"
+        case .fauseBloom: "Fause Bloom"
         }
     }
 }

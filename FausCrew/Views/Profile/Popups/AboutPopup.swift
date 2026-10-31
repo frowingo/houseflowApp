@@ -7,7 +7,7 @@ struct AboutPopup: View {
 
     let onDismiss: () -> Void
 
-    private let accentOrange = Color(red: 1.0, green: 0.48, blue: 0.15)
+    private let accentOrange = HouseJourneyTheme.accentOrange
 
     var body: some View {
         ZStack {

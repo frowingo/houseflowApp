@@ -13,14 +13,15 @@ internal object ThemeAppearance {
      */
     fun applyLauncherIcon(context: Context, theme: FausThemeId) {
         val packages = context.packageManager
+        // Walk aliases, not themes, so two themes may share one icon.
         // Enable the new entry before disabling the old one so the app always has a launcher icon.
-        val ordered = FausThemeId.entries.sortedByDescending { it == theme }
-        for (id in ordered) {
-            val component = ComponentName(context.packageName, "com.fauscrew.${id.launcherAlias}")
-            val wanted = id == theme
+        val ordered = FausThemeId.entries.map { it.launcherAlias }.distinct().sortedByDescending { it == theme.launcherAlias }
+        for (alias in ordered) {
+            val component = ComponentName(context.packageName, "com.fauscrew.$alias")
+            val wanted = alias == theme.launcherAlias
             val enabled = when (packages.getComponentEnabledSetting(component)) {
                 PackageManager.COMPONENT_ENABLED_STATE_ENABLED -> true
-                PackageManager.COMPONENT_ENABLED_STATE_DEFAULT -> id == FausThemeId.DEFAULT
+                PackageManager.COMPONENT_ENABLED_STATE_DEFAULT -> alias == FausThemeId.DEFAULT.launcherAlias
                 else -> false
             }
             if (enabled == wanted) continue

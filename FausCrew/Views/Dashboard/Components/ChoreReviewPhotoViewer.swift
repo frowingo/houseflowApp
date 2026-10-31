@@ -1,7 +1,7 @@
 import SwiftUI
 import UIKit
 
-private let accentOrange = Color(red: 1.0, green: 0.48, blue: 0.15)
+private let accentOrange = HouseJourneyTheme.accentOrange
 
 /// Full-screen review photo, the only place a review photo is shown. The photo and
 /// its controls live inside a secure canvas that screenshots and recordings leave

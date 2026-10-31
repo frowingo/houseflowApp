@@ -30,7 +30,14 @@ final class AppThemeTests: XCTestCase {
     }
 
     func testStorageContractMatchesAndroid() {
-        XCTAssertEqual(AppThemeID.allCases.map(\.rawValue), ["faus_light", "faus_dark"])
-        XCTAssertEqual(AppThemeID.allCases.map(\.displayName), ["Faus Light", "Faus Dark"])
+        XCTAssertEqual(AppThemeID.allCases.map(\.rawValue), ["faus_light", "faus_dark", "fause_bloom"])
+        XCTAssertEqual(AppThemeID.allCases.map(\.displayName), ["Faus Light", "Faus Dark", "Fause Bloom"])
+    }
+
+    func testBloomRoundTrips() {
+        let store = MemoryPreferences()
+        AppThemePreference.save(.fauseBloom, to: store)
+        XCTAssertEqual(store.strings["selectedTheme"], "fause_bloom")
+        XCTAssertEqual(AppThemePreference.load(from: store), .fauseBloom)
     }
 }

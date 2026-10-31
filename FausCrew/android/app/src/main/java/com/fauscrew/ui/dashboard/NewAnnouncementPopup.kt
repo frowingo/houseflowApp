@@ -102,7 +102,7 @@ internal fun NewAnnouncementPopup(
                     enabled = canPublish,
                     busy = busy,
                     icon = FausCrewIcons.paperplaneFill,
-                    brush = Brush.horizontalGradient(listOf(accentOrange, Color(0xFFE65714))),
+                    brush = Brush.horizontalGradient(listOf(accentOrange, FausCrewColors.accentOrangeDeep)),
                     disabledBrush = Brush.horizontalGradient(listOf(FausCrewColors.systemGray3, FausCrewColors.systemGray4)),
                     height = 50.dp,
                     cornerRadius = Radius.lg,

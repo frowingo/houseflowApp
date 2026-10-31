@@ -3,6 +3,7 @@ package com.fauscrew.ui.components
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxScope
+import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material3.Icon
@@ -28,8 +29,11 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.foundation.border
 import androidx.compose.runtime.ReadOnlyComposable
+import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.graphics.SolidColor
+import androidx.compose.ui.res.imageResource
 import com.fauscrew.ui.theme.FausCrewColors
+import com.fauscrew.ui.theme.FausOrnament
 import com.fauscrew.ui.theme.LocalFausTheme
 import com.fauscrew.ui.theme.linear
 
@@ -58,7 +62,8 @@ internal fun Modifier.fausHeroBackground(): Modifier {
                 center = Offset(size.width / 2, size.height * .48f), radius = size.width * .42f,
             ))
         }
-        drawHeroGeometry(decor.heroOrnament, accentCapsule)
+        if (decor.ornament == FausOrnament.BLOOM) drawBloomOrnament(BloomOrnamentSurface.HEADER, decor.heroOrnament, accentCapsule)
+        else drawHeroGeometry(decor.heroOrnament, accentCapsule)
     }
 }
 
@@ -82,6 +87,7 @@ private fun DrawScope.drawHeroGeometry(ornament: Color, accentCapsule: Color) {
 @Composable
 internal fun Modifier.fausSheetBackground(cornerRadius: Dp = 32.dp): Modifier {
     val decor = LocalFausTheme.current.decor
+    val marble = decor.sheetMarble?.let { ImageBitmap.imageResource(it.image) to it.opacity }
     return drawWithCache {
         val mesh = decor.sheetMesh?.let { MeshLayer(it, size, density, masked = false) }
         val band = 660.dp.toPx()
@@ -91,6 +97,8 @@ internal fun Modifier.fausSheetBackground(cornerRadius: Dp = 32.dp): Modifier {
         onDrawBehind {
             drawRect(base)
             mesh?.let { drawMesh(it) }
+            marble?.let { (image, alpha) -> drawMarble(image, alpha) }
+            decor.sheetGarden?.let { drawGarden(it, GardenLayout.SHEET) }
             if (decor.sheetEdge.alpha > 0f) {
                 val edge = Brush.verticalGradient(listOf(decor.sheetEdge, Color.Transparent), endY = 48.dp.toPx())
                 val glow = Brush.verticalGradient(listOf(decor.sheetEdgeGlow, Color.Transparent), endY = 18.dp.toPx())
@@ -119,6 +127,10 @@ internal fun FausBadge(size: Dp, content: @Composable BoxScope.() -> Unit) {
             }
             .border(1.5.dp, decor.badgeBorder, CircleShape))
         content()
+        decor.badgeBlossom?.let {
+            // Tucked on the outer halo's top-end edge.
+            FausBadgeBlossom(it, 40.dp, Modifier.offset(x = (size + 32.dp) / 2 - 18.dp, y = -(size + 32.dp) / 2 + 22.dp))
+        }
     }
 }
 

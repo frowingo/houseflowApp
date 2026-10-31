@@ -39,6 +39,7 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.fauscrew.platform.LocalizedText
+import com.fauscrew.ui.components.FausBadgeBlossom
 import com.fauscrew.ui.components.FausGradientIcon
 import com.fauscrew.ui.components.FausHouseIcon
 import com.fauscrew.ui.components.FausIconGradient
@@ -100,6 +101,9 @@ private fun HeaderCard(strings: LocalizedText) {
                 .background(LocalFausTheme.current.decor.badgeFill.let { if (it.size == 1) SolidColor(it.first()) else Brush.linearGradient(it) }, CircleShape)
                 .border(1.5.dp, LocalFausTheme.current.decor.badgeBorder, CircleShape))
             run { val markColors = FausMarkColors; Canvas(Modifier.size(58.dp)) { drawFausMark(fausMarkBrush(size.minDimension / 1024f, markColors)) } }
+            LocalFausTheme.current.decor.badgeBlossom?.let {
+                FausBadgeBlossom(it, 26.dp, Modifier.offset(x = 26.dp, y = (-24).dp))
+            }
         }
         Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(Spacing.xs)) {
             Text(strings.get("house_selection_title"), fontSize = 24.sp, fontWeight = FontWeight.Bold,
