@@ -1,0 +1,282 @@
+import SwiftUI
+import FausCrewCore
+
+/// Presentation only; lifecycle commands and deadlines belong to the lobby service.
+struct HouseRocketsOnlineLobbyView: View {
+    @EnvironmentObject private var appViewModel: AppViewModel
+    let state: HouseRocketsOnlineLobbyState
+    let localPlayerID: String?
+    let memberNames: [String: String]
+    let isWaitingForLandscape: Bool
+    let orientationFailed: Bool
+    let onReady: () -> Void
+    let onRetry: () -> Void
+    let canCancel: Bool
+    let onCancel: () -> Void
+    let onExit: () -> Void
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: AppDesign.Spacing.lg) {
+            HStack(spacing: AppDesign.Spacing.sm) {
+                if HouseRocketsOnlineCopyKeys.lobbyShowsProgress(state) {
+                    ProgressView().tint(HouseRocketsPreparationTheme.accent)
+                }
+                Label(copy(statusKey), systemImage: state.connection == .failed ? "wifi.exclamationmark" : "person.2")
+                    .font(.headline)
+                    .foregroundStyle(HouseRocketsPreparationTheme.ink)
+            }
+            Text(copy(detailKey, replacements: ["minimum": "\(state.session?.rules.minimumPlayers ?? 2)"]))
+                .font(.subheadline)
+                .foregroundStyle(HouseRocketsPreparationTheme.muted)
+                .fixedSize(horizontal: false, vertical: true)
+            if state.connection == .reconnecting {
+                TimelineView(.periodic(from: .now, by: 0.25)) { _ in
+                    let remaining = max(0, Int(ceil((state.retryNotBefore ?? 0) - ProcessInfo.processInfo.systemUptime)))
+                    Text(copy("house_rockets_reconnect_wait", replacements: ["seconds": "\(remaining)"]))
+                        .font(.subheadline).monospacedDigit().foregroundStyle(HouseRocketsPreparationTheme.muted)
+                }
+            }
+
+            if !state.participants.isEmpty {
+                VStack(spacing: AppDesign.Spacing.md) {
+                    ForEach(Array(state.participants.enumerated()), id: \.element.playerId) { index, player in
+                        HStack(spacing: AppDesign.Spacing.sm) {
+                            Circle()
+                                .fill(Color(HouseRocketsPalette.player(HouseRocketsColor.allCases[index % 8])))
+                                .frame(width: 10, height: 10)
+                                .overlay(Circle().stroke(HouseRocketsPreparationTheme.ink.opacity(0.35), lineWidth: 1))
+                            Text(verbatim: memberNames[player.playerId] ?? copy(player.playerId == localPlayerID
+                                                                               ? "house_rockets_you" : "house_rockets_member"))
+                                .font(.subheadline.weight(.semibold))
+                                .foregroundStyle(HouseRocketsPreparationTheme.ink)
+                            if player.playerId == localPlayerID, memberNames[player.playerId] != nil {
+                                Text(copy("house_rockets_you"))
+                                    .font(.caption)
+                                    .foregroundStyle(HouseRocketsPreparationTheme.muted)
+                            }
+                            Spacer(minLength: 8)
+                            Label(copy(playerStatusKey(player.state)),
+                                  systemImage: player.state == .ready ? "checkmark.circle.fill" : "clock")
+                                .font(.caption.weight(.semibold))
+                                .foregroundStyle(player.state == .ready ? HouseRocketsPreparationTheme.accent : HouseRocketsPreparationTheme.muted)
+                        }
+                        .accessibilityElement(children: .combine)
+                    }
+                }
+                Text(copy("house_rockets_ready_count", replacements: ["ready": "\(state.readyCount)",
+                                                                        "total": "\(state.participants.count)"]))
+                    .font(.subheadline.weight(.semibold))
+                    .foregroundStyle(HouseRocketsPreparationTheme.accent)
+            }
+
+            if state.session?.state == .readyWindow || state.session?.state == .countdown {
+                TimelineView(.periodic(from: .now, by: 0.25)) { _ in
+                    let deadline = state.session?.state == .countdown ? state.session?.countdownEndsAt : state.session?.readyWindowEndsAt
+                    if let seconds = state.remainingSeconds(until: deadline, uptime: ProcessInfo.processInfo.systemUptime) {
+                        Text(copy(state.session?.state == .countdown ? "house_rockets_online_countdown" : "house_rockets_ready_deadline",
+                                  replacements: ["seconds": "\(seconds)"]))
+                            .font(.subheadline.weight(.semibold))
+                            .monospacedDigit()
+                            .foregroundStyle(HouseRocketsPreparationTheme.ink)
+                            .accessibilityAddTraits(.updatesFrequently)
+                    }
+                }
+            }
+
+            if let issue = state.issue, state.connection != .reconnecting {
+                Text(copy(issueKey(issue)))
+                    .font(.subheadline)
+                    .foregroundStyle(HouseRocketsPreparationTheme.danger)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+            if orientationFailed {
+                Text(copy("house_rockets_landscape_error"))
+                    .font(.subheadline)
+                    .foregroundStyle(HouseRocketsPreparationTheme.danger)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+
+            if state.connection == .failed {
+                if canRetry {
+                    TimelineView(.periodic(from: .now, by: 1)) { _ in
+                        let now = ProcessInfo.processInfo.systemUptime
+                        let remaining = max(0, Int(ceil((state.retryNotBefore ?? now) - now)))
+                        Button(copy(remaining > 0 ? "house_rockets_online_retry_after" : "house_rockets_online_retry",
+                                    replacements: ["seconds": "\(remaining)"]), action: onRetry)
+                            .buttonStyle(.borderedProminent)
+                            .tint(HouseRocketsPreparationTheme.accent)
+                            .foregroundStyle(HouseRocketsPreparationTheme.surface)
+                            .frame(minHeight: 44)
+                            .disabled(!state.canReconnect(at: now))
+                    }
+                }
+            } else if state.isLobby {
+                Button(action: onReady) {
+                    Label(copy(isWaitingForLandscape ? "house_rockets_rotating"
+                               : state.localPlayer(localPlayerID)?.state == .ready ? "house_rockets_not_ready_action"
+                               : "house_rockets_ready_action"), systemImage: "rectangle.landscape.rotate")
+                        .font(.headline)
+                        .foregroundStyle(HouseRocketsPreparationTheme.surface)
+                        .frame(maxWidth: .infinity, minHeight: AppDesign.Size.buttonHeightLarge)
+                        .background(HouseRocketsPreparationTheme.accent,
+                                    in: RoundedRectangle(cornerRadius: AppDesign.CornerRadius.lg))
+                }
+                .buttonStyle(ScaleButtonStyle())
+                .disabled(isWaitingForLandscape || !state.canChangeReady(playerID: localPlayerID))
+                Text(copy("house_rockets_online_ready_detail"))
+                    .font(.caption)
+                    .foregroundStyle(HouseRocketsPreparationTheme.muted)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+            if canCancel {
+                Button(copy("house_rockets_cancel_flight"), action: onCancel)
+                    .foregroundStyle(HouseRocketsPreparationTheme.danger).frame(minHeight: 44)
+            }
+            Button(copy(state.isLeaving ? "house_rockets_leaving" : "house_rockets_exit"), action: onExit)
+                .font(.subheadline.weight(.semibold))
+                .foregroundStyle(HouseRocketsPreparationTheme.ink)
+                .frame(minHeight: 44)
+                .disabled(state.isLeaving)
+        }
+        .padding(AppDesign.Spacing.xl)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(HouseRocketsPreparationTheme.surface, in: RoundedRectangle(cornerRadius: AppDesign.CornerRadius.xl))
+    }
+
+    private func playerStatusKey(_ state: GameSessionPlayerState) -> String {
+        HouseRocketsOnlineCopyKeys.playerStatus(state)
+    }
+
+    private var statusKey: String { HouseRocketsOnlineCopyKeys.lobbyStatus(state) }
+
+    private var detailKey: String { HouseRocketsOnlineCopyKeys.lobbyDetail(state) }
+
+    private var canRetry: Bool {
+        state.canReconnect(at: .infinity)
+    }
+
+    private func issueKey(_ issue: HouseRocketsOnlineLobbyIssue) -> String {
+        HouseRocketsOnlineCopyKeys.issue(issue)
+    }
+
+    private func copy(_ key: String, replacements: [String: String] = [:]) -> String {
+        appViewModel.localized(key, replacements: replacements)
+    }
+}
+
+/// Shares the sampled frame with the scene; never computes physics or control authority.
+struct HouseRocketsOnlineFlightOverlay: View {
+    @EnvironmentObject private var appViewModel: AppViewModel
+    let state: HouseRocketsOnlineLobbyState
+    let presentation: HouseRocketsOnlinePresentation
+    let canCancel: Bool
+    let onRetry: () -> Void
+    let onReclaimControl: () -> Void
+    let onCancel: () -> Void
+    private var frame: HouseRocketsRenderFrame { presentation.frame }
+    let onExit: () -> Void
+
+    var body: some View {
+        GeometryReader { geometry in
+            let projection = HouseRocketsProjection(elapsedTime: frame.elapsedTime, cameraX: frame.cameraX,
+                                                   width: Double(geometry.size.width), height: Double(geometry.size.height),
+                                                   courseAngle: frame.courseAngle)
+            let regions = projection.informationRegions(width: Double(geometry.size.width), height: Double(geometry.size.height))
+            Menu {
+                Button(copy("house_rockets_exit"), action: onExit)
+                if canCancel {
+                    Button(copy("house_rockets_cancel_flight"), role: .destructive, action: onCancel)
+                }
+            } label: {
+                Image(systemName: "ellipsis")
+                    .foregroundStyle(HouseRocketsTheme.ink)
+                    .frame(width: 44, height: 44)
+                    .background(HouseRocketsTheme.panel, in: Circle())
+            }
+            .accessibilityLabel(copy("house_rockets_flight_actions"))
+            .disabled(state.isLeaving)
+            .position(x: geometry.size.width - 30, y: geometry.size.height - 30)
+
+            ForEach(regions.indices, id: \.self) { index in
+                let region = regions[index]
+                VStack(spacing: AppDesign.Spacing.xs) {
+                    if index == 0 {
+                        HStack(spacing: AppDesign.Spacing.sm) {
+                            Label(copy(statusKey), systemImage: presentation.isSyncing ? "arrow.triangle.2.circlepath" : "antenna.radiowaves.left.and.right")
+                            if frame.phase == .playing {
+                                Label("\(Int(frame.elapsedTime))", systemImage: "timer")
+                                    .monospacedDigit()
+                                    .accessibilityLabel(copy("house_rockets_time") + " \(Int(frame.elapsedTime))")
+                                Label("\(frame.players.filter(\.isAlive).count)", systemImage: "person.2.fill")
+                                    .accessibilityLabel(appViewModel.localized("house_rockets_alive", replacements: [
+                                        "count": "\(frame.players.filter(\.isAlive).count)"
+                                    ]))
+                            }
+                        }
+                        if let effect = frame.players.first(where: { $0.role == .human })?.speedEffect {
+                            Text(copy(effect == .boost ? "house_rockets_boost_active" : "house_rockets_slow_active"))
+                                .foregroundStyle(HouseRocketsTheme.accent)
+                        }
+                    } else {
+                        if presentation.eliminations.isEmpty {
+                            LazyVGrid(columns: Array(repeating: GridItem(.flexible(), alignment: .leading),
+                                                     count: region.width < 340 ? 2 : 4),
+                                      alignment: .leading, spacing: AppDesign.Spacing.xs) {
+                                ForEach(frame.players) { player in
+                                    HStack(spacing: 4) {
+                                        Circle().fill(Color(HouseRocketsPalette.player(player.color))).frame(width: 7, height: 7)
+                                        if case .displayName(let name) = player.name {
+                                            Text(verbatim: name).strikethrough(!player.isAlive)
+                                        }
+                                    }
+                                    .foregroundStyle(player.isAlive ? HouseRocketsTheme.ink : HouseRocketsTheme.muted)
+                                }
+                            }
+                        } else {
+                            Text(appViewModel.localized("house_rockets_online_eliminated", replacements: [
+                                "names": presentation.eliminations.map(\.displayName).joined(separator: ", ")
+                            ]))
+                            .foregroundStyle(HouseRocketsTheme.danger)
+                            .lineLimit(region.width < 340 ? 4 : 2)
+                            .accessibilityAddTraits(.updatesFrequently)
+                        }
+                    }
+                }
+                .font(.caption.weight(.semibold))
+                .foregroundStyle(HouseRocketsTheme.ink)
+                .lineLimit(1)
+                .frame(width: region.width, height: region.height, alignment: .top)
+                .position(x: region.midX, y: region.midY)
+                .allowsHitTesting(false)
+            }
+            if frame.phase == .countdown, !state.isTerminal {
+                TimelineView(.periodic(from: .now, by: 0.25)) { _ in
+                    let seconds = state.remainingSeconds(until: state.game?.countdownEndsAt ?? state.session?.countdownEndsAt,
+                                                         uptime: ProcessInfo.processInfo.systemUptime)
+                    VStack(spacing: AppDesign.Spacing.sm) {
+                        Text(seconds.map { $0 > 0 ? "\($0)" : copy("house_rockets_online_waiting_start") }
+                             ?? copy("house_rockets_online_launching"))
+                            .font(seconds.map { $0 > 0 } == true ? .system(size: 64, weight: .black, design: .rounded) : .headline)
+                            .monospacedDigit()
+                        Text(copy("house_rockets_online_launching_detail")).font(.subheadline)
+                    }
+                    .foregroundStyle(HouseRocketsTheme.ink)
+                    .multilineTextAlignment(.center)
+                    .padding(AppDesign.Spacing.xl)
+                    .background(HouseRocketsTheme.panel, in: RoundedRectangle(cornerRadius: AppDesign.CornerRadius.xl))
+                    .position(x: geometry.size.width / 2, y: geometry.size.height / 2)
+                    .accessibilityAddTraits(.updatesFrequently)
+                }
+            }
+            if HouseRocketsOnlineCopyKeys.showsConnectionPanel(state, presentation) {
+                HouseRocketsOnlineConnectionView(state: state, onRetry: onRetry, onReclaimControl: onReclaimControl)
+                    .frame(maxWidth: min(430, geometry.size.width - 48), maxHeight: geometry.size.height - 96)
+                    .position(x: geometry.size.width / 2, y: geometry.size.height / 2)
+            }
+        }
+    }
+
+    private var statusKey: String { HouseRocketsOnlineCopyKeys.flightStatus(state, presentation) }
+
+    private func copy(_ key: String) -> String { appViewModel.localized(key, fallback: key) }
+}

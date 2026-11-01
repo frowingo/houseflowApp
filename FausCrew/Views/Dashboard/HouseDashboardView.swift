@@ -1,0 +1,293 @@
+import SwiftUI
+import FausCrewCore
+
+/// Ana dashboard view - ev görevlerini ve üyelerini gösterir
+/// Refactored: Component'lere bölündü, Design System kullanıyor
+struct HouseDashboardView: View {
+    @EnvironmentObject private var appViewModel: AppViewModel
+    @Environment(\.fausTheme) private var theme
+    @State private var selectedChore: Chore? = nil
+    @State private var showChoreDetail = false
+    @State private var showNewChore = false
+    @State private var showNewAnnouncement = false
+    @State private var buttonState: NewChoreButtonState = .collapsed
+    @State private var buttonTimer: Timer?
+    @State private var appeared = false
+    
+    var body: some View {
+        ZStack {
+            MainScreenBackground()
+
+            ScrollView {
+                VStack(spacing: AppDesign.Spacing.lg) {
+                    headerSection
+
+                    AnnouncementCard(
+                        houseId: appViewModel.currentHouseDetails?.id ?? "",
+                        readerId: appViewModel.currentUser?.apiId ?? appViewModel.currentUser?.id,
+                        announcements: appViewModel.currentHouseDetails?.announcements ?? [],
+                        members: appViewModel.currentHouseDetails?.members ?? []
+                    )
+                        .padding(.horizontal, AppDesign.Spacing.xl)
+                        .opacity(appeared ? 1 : 0)
+                        .offset(y: appeared ? 0 : 20)
+                        .animation(.spring(response: 0.6, dampingFraction: 0.78).delay(0.12), value: appeared)
+                    
+                    TodaysChoresCard(
+                        chores: appViewModel.dashboardChores,
+                        onChoreDetailTap: { chore in
+                            selectedChore = chore
+                            showChoreDetail = true
+                        }
+                    )
+                    .padding(.horizontal, AppDesign.Spacing.xxl)
+                    .opacity(appeared ? 1 : 0)
+                    .offset(y: appeared ? 0 : 26)
+                    .animation(.spring(response: 0.6, dampingFraction: 0.78).delay(0.22), value: appeared)
+                    
+                    HouseMembersCard(members: appViewModel.dashboardMembers)
+                        .padding(.horizontal, AppDesign.Spacing.xxl)
+                        .opacity(appeared ? 1 : 0)
+                        .offset(y: appeared ? 0 : 26)
+                        .animation(.spring(response: 0.6, dampingFraction: 0.78).delay(0.32), value: appeared)
+                    
+                    // Spacer for floating button + tab bar clearance
+                    Spacer(minLength: 140)
+                }
+            }
+            .overlay(floatingActionButton, alignment: .bottomTrailing)
+            .overlay(popupsOverlay)
+        }
+        .onAppear {
+            withAnimation(.spring(response: 0.6, dampingFraction: 0.78).delay(0.05)) {
+                appeared = true
+            }
+        }
+        .onDisappear {
+            stopButtonTimer()
+        }
+    }
+    
+    // MARK: - Header Section
+
+    private var headerSection: some View {
+        ZStack(alignment: .leading) {
+            BrandHeroCardBackground()
+
+            // House image + greeting/name + announcement action
+            HStack(alignment: .center, spacing: AppDesign.Spacing.md) {
+                houseImage
+
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(appViewModel.localized(
+                        "dashboard_greeting_template",
+                        replacements: [
+                            "first_name": appViewModel.currentUser?.firstName
+                                ?? appViewModel.localized("common_user_fallback")
+                        ]
+                    ))
+                        .font(.system(size: 14, weight: .medium, design: .rounded))
+                        .foregroundStyle(theme.decor.heroAccentText)
+                        .lineLimit(1)
+                    Text(appViewModel.currentHouseDetails?.name ?? appViewModel.houseName)
+                        .font(.system(size: 24, weight: .bold, design: .rounded))
+                        .foregroundStyle(AppDesign.Colors.onHero)
+                        .lineLimit(1)
+                        .minimumScaleFactor(0.72)
+                }
+                .frame(maxWidth: .infinity, alignment: .leading)
+
+                Button {
+                    withAnimation(AppDesign.Animation.standard) {
+                        showNewAnnouncement = true
+                    }
+                } label: {
+                    Image(systemName: "megaphone.fill")
+                        .font(.system(size: AppDesign.Size.iconMedium))
+                        .foregroundStyle(AppDesign.Colors.onHero.opacity(0.9))
+                        .frame(width: 40, height: 40)
+                        .background(theme.decor.heroOrnament.opacity(0.18))
+                        .clipShape(Circle())
+                }
+                .accessibilityLabel(appViewModel.localized(
+                    "new_announcement_action_accessibility_label",
+                    fallback: "Create announcement"
+                ))
+            }
+            .padding(.horizontal, AppDesign.Spacing.lg)
+            .padding(.vertical, AppDesign.Spacing.xl)
+        }
+        .padding(.horizontal, AppDesign.Spacing.xl)
+        .padding(.top, AppDesign.Spacing.xl)
+        .padding(.bottom, AppDesign.Spacing.sm)
+        .opacity(appeared ? 1 : 0)
+        .offset(y: appeared ? 0 : 12)
+    }
+
+    private var houseImageURL: URL? {
+        let value = (appViewModel.currentHouseDetails?.profileImage
+            ?? appViewModel.currentHouse?.profileImage
+            ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
+        return value.isEmpty ? nil : URL(string: value)
+    }
+
+    private var houseImage: some View {
+        let shape = RoundedRectangle(cornerRadius: 20, style: .continuous)
+        return CachedRemoteImage(url: houseImageURL) { image in
+            image.resizable().scaledToFill()
+        } placeholder: {
+            houseImagePlaceholder
+        } failure: {
+            houseImagePlaceholder
+        }
+        .frame(width: 66, height: 66)
+        .clipShape(shape)
+        .padding(3)
+        .background(shape.fill(LinearGradient(colors: theme.decor.heroFrame, startPoint: .topLeading, endPoint: .bottomTrailing)))
+        .shadow(color: Color(red: 0.23, green: 0.04, blue: 0.12).opacity(0.3), radius: 7, x: 0, y: 5)
+        .accessibilityHidden(true)
+    }
+
+    private var houseImagePlaceholder: some View {
+        ZStack {
+            theme.decor.heroTile
+            FausHouseIcon(size: 32)
+        }
+    }
+
+    // MARK: - Floating Action Button
+    
+    private var floatingActionButton: some View {
+        FloatingActionButton(buttonState: $buttonState) {
+            handleNewChoreButtonTap()
+        }
+        .padding(.trailing, AppDesign.Spacing.xxl)
+        .padding(.bottom, 110)
+    }
+    
+    // MARK: - Popups Overlay
+    
+    private var popupsOverlay: some View {
+        Group {
+            if showChoreDetail, let chore = selectedChore {
+                ChoreDetailPopup(
+                    chore: chore,
+                    appViewModel: appViewModel,
+                    onDismiss: {
+                        dismissChoreDetail()
+                    }
+                )
+            }
+
+            if showNewChore {
+                NewChorePopup(
+                    appViewModel: appViewModel,
+                    onDismiss: {
+                        dismissNewChore()
+                    }
+                )
+            }
+
+            if showNewAnnouncement {
+                NewAnnouncementPopup(
+                    appViewModel: appViewModel,
+                    onPublish: { title, message in
+                        await appViewModel.createAnnouncement(
+                            title: title,
+                            description: message
+                        )
+                    },
+                    onDismiss: {
+                        dismissNewAnnouncement()
+                    }
+                )
+            }
+        }
+        .onChange(of: showChoreDetail) { _, _ in syncOverlayPresentation() }
+        .onChange(of: showNewChore) { _, _ in syncOverlayPresentation() }
+        .onChange(of: showNewAnnouncement) { _, _ in syncOverlayPresentation() }
+    }
+
+    private func syncOverlayPresentation() {
+        appViewModel.isOverlayPresented = showChoreDetail || showNewChore || showNewAnnouncement
+    }
+
+    private func dismissChoreDetail() {
+        DispatchQueue.main.async {
+            var transaction = Transaction()
+            transaction.disablesAnimations = true
+            withTransaction(transaction) {
+                showChoreDetail = false
+                selectedChore = nil
+            }
+        }
+    }
+
+    private func dismissNewChore() {
+        UIApplication.shared.sendAction(#selector(UIResponder.resignFirstResponder), to: nil, from: nil, for: nil)
+        DispatchQueue.main.async {
+            var transaction = Transaction()
+            transaction.disablesAnimations = true
+            withTransaction(transaction) {
+                showNewChore = false
+            }
+            resetButtonState()
+        }
+    }
+
+    private func dismissNewAnnouncement() {
+        UIApplication.shared.sendAction(#selector(UIResponder.resignFirstResponder), to: nil, from: nil, for: nil)
+        DispatchQueue.main.async {
+            var transaction = Transaction()
+            transaction.disablesAnimations = true
+            withTransaction(transaction) {
+                showNewAnnouncement = false
+            }
+        }
+    }
+    
+    // MARK: - Helper Methods
+    
+    private func handleNewChoreButtonTap() {
+        switch buttonState {
+        case .collapsed:
+            // First tap: expand button with stretch animation
+            withAnimation(AppDesign.Animation.spring) {
+                buttonState = .expanded
+            }
+            startButtonTimer()
+            
+        case .expanded:
+            // Second tap: show popup
+            buttonTimer?.invalidate()
+            showNewChore = true
+        }
+    }
+    
+    private func startButtonTimer() {
+        stopButtonTimer()
+        buttonTimer = Timer.scheduledTimer(withTimeInterval: 3.0, repeats: false) { _ in
+            withAnimation(AppDesign.Animation.spring) {
+                buttonState = .collapsed
+            }
+            buttonTimer = nil
+        }
+    }
+    
+    private func resetButtonState() {
+        stopButtonTimer()
+        withAnimation(AppDesign.Animation.spring) {
+            buttonState = .collapsed
+        }
+    }
+
+    private func stopButtonTimer() {
+        buttonTimer?.invalidate()
+        buttonTimer = nil
+    }
+}
+
+#Preview {
+    HouseDashboardView()
+        .environmentObject(AppViewModel())
+}

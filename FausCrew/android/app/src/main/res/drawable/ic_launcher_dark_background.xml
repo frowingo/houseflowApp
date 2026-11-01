@@ -1,0 +1,37 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- FausCrew Faus Dark launcher background. Source: Design/AppIcon/FausCrew-AppIcon-Dark.svg -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:aapt="http://schemas.android.com/aapt"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="1024"
+    android:viewportHeight="1024">
+    <path android:pathData="M0,0h1024v1024h-1024z">
+        <aapt:attr name="android:fillColor">
+            <gradient
+                android:type="linear"
+                android:startX="0"
+                android:startY="0"
+                android:endX="1024"
+                android:endY="1024">
+                <item android:offset="0" android:color="#FF33101F" />
+                <item android:offset="1" android:color="#FF14060C" />
+            </gradient>
+        </aapt:attr>
+    </path>
+    <path android:pathData="M0,0h1024v1024h-1024z">
+        <aapt:attr name="android:fillColor">
+            <gradient
+                android:type="radial"
+                android:centerX="512"
+                android:centerY="532"
+                android:gradientRadius="512">
+                <item android:offset="0" android:color="#29FF7A26" />
+                <item android:offset="1" android:color="#00FF7A26" />
+            </gradient>
+        </aapt:attr>
+    </path>
+    <path
+        android:fillColor="#0FFF7A26"
+        android:pathData="M670,130a230,230 0,1 0,460 0a230,230 0,1 0,-460 0z" />
+</vector>
