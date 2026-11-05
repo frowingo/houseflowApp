@@ -49,7 +49,7 @@ private val FausTotalLength = FausPolylines.sumOf { line ->
 }.toFloat()
 
 /** `FausMark`: the roof-F glyph plus its "crew" dot, scaled to fit the draw area. */
-internal fun DrawScope.drawFausMark(brush: Brush, progress: Float = 1f, dotScale: Float = 1f) {
+internal fun DrawScope.drawFausMark(brush: Brush, progress: Float = 1f, dotScale: Float = 1f, webDot: Boolean = false) {
     val unit = min(size.width, size.height) / 1024f
     val origin = Offset(center.x - 512f * unit, center.y - 512f * unit)
     fun point(p: Offset) = Offset(origin.x + p.x * unit, origin.y + p.y * unit)
@@ -68,7 +68,17 @@ internal fun DrawScope.drawFausMark(brush: Brush, progress: Float = 1f, dotScale
         }
         drawPath(path, brush, style = stroke)
     }
-    if (dotScale > 0f) drawCircle(brush, radius = 44f * unit * dotScale, center = point(Offset(622f, 578f)))
+    if (dotScale <= 0f) return
+    if (webDot) {
+        // Faus Web: a small web with a solid hub in place of the dot.
+        // Built in pixels so the brush keeps its gradient coordinates.
+        val hub = point(FausWebDotCenter)
+        val scale = unit * dotScale
+        drawPath(fausWebDotPath(hub, scale), brush, style = Stroke(width = 13f * scale, cap = StrokeCap.Round, join = StrokeJoin.Round))
+        drawCircle(brush, radius = 21f * scale, center = hub)
+    } else {
+        drawCircle(brush, radius = 44f * unit * dotScale, center = point(Offset(622f, 578f)))
+    }
 }
 
 /**
@@ -86,6 +96,7 @@ internal fun FausFramedMark(
     val decor = LocalFausTheme.current.decor
     val disc = fill ?: decor.framedMarkFill
     val markColors = FausMarkColors
+    val webDot = decor.webDotMark
     Canvas(modifier.size(size)) {
         val unit = this.size.minDimension / 1024f
         if (decor.framedMarkGlow.alpha > 0f) {
@@ -99,7 +110,7 @@ internal fun FausFramedMark(
         }
         drawCircle(decor.framedMarkRing, radius = 470f * unit,
             style = Stroke(width = maxOf(1.dp.toPx(), 7f * unit)))
-        drawFausMark(fausMarkBrush(unit, markColors), progress, dotScale)
+        drawFausMark(fausMarkBrush(unit, markColors), progress, dotScale, webDot)
     }
 }
 

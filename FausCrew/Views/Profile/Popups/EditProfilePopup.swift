@@ -121,11 +121,11 @@ struct EditProfilePopup: View {
                             HStack(spacing: AppDesign.Spacing.md) {
                                 ZStack {
                                     RoundedRectangle(cornerRadius: 8)
-                                        .fill(Color(red: 0.9, green: 0.45, blue: 0.1).opacity(0.13))
+                                        .fill(HouseJourneyTheme.tintBirthday.opacity(0.13))
                                         .frame(width: 34, height: 34)
                                     Image(systemName: "birthday.cake.fill")
                                         .font(.system(size: 14, weight: .medium))
-                                        .foregroundStyle(Color(red: 0.9, green: 0.45, blue: 0.1))
+                                        .foregroundStyle(HouseJourneyTheme.tintBirthday)
                                 }
                                 Text(appViewModel.localized("profile_birthdate_label"))
                                     .font(AppDesign.Typography.subheadline)
@@ -133,7 +133,7 @@ struct EditProfilePopup: View {
                                 Spacer()
                                 DatePicker("", selection: $birthDate, in: ...maximumBirthDate, displayedComponents: .date)
                                     .labelsHidden()
-                                    .tint(Color(red: 0.9, green: 0.45, blue: 0.1))
+                                    .tint(HouseJourneyTheme.tintBirthday)
                             }
                             .padding(.horizontal, AppDesign.Spacing.lg)
                             .padding(.vertical, 14)

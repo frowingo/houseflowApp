@@ -1,6 +1,8 @@
 package com.fauscrew.ui.theme
 
+import androidx.annotation.ColorRes
 import androidx.annotation.DrawableRes
+import androidx.annotation.StyleRes
 import androidx.compose.runtime.Immutable
 import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.ui.graphics.Color
@@ -14,17 +16,23 @@ import com.fauscrew.R
 internal enum class FausThemeId(val storageValue: String, val displayName: String) {
     FAUS_LIGHT("faus_light", "Faus Light"),
     FAUS_DARK("faus_dark", "Faus Dark"),
-    FAUSE_BLOOM("fause_bloom", "Fause Bloom"),
+    FAUS_BLOOM("faus_bloom", "Faus Bloom"),
+    FAUS_WEB("faus_web", "Faus Web"),
     ;
 
-    /** Picker copy key; iOS `FausTheme.descriptionKey`. */
-    val descriptionKey: String get() = "theme_${storageValue}_description"
+    /**
+     * Picker copy key; iOS `AppThemeID.descriptionKey`. Faus Bloom keeps the key it had under
+     * its former storage value, so copy already published for it stays in use.
+     */
+    val descriptionKey: String
+        get() = if (this == FAUS_BLOOM) "theme_fause_bloom_description" else "theme_${storageValue}_description"
 
     val descriptionFallback: String
         get() = when (this) {
             FAUS_LIGHT -> "Bright and warm, the classic FausCrew look."
             FAUS_DARK -> "Ember glow on deep berry, easy on the eyes at night."
-            FAUSE_BLOOM -> "A calm morning garden of vines and flowers on marbled blush."
+            FAUS_BLOOM -> "A calm morning garden of vines and flowers on marbled blush."
+            FAUS_WEB -> "Imperial blue cards on a sky of webs, lit by a crimson city glow."
         }
 
     /** Manifest `activity-alias` that carries this theme's launcher icon; iOS `alternateIconName`. */
@@ -32,14 +40,42 @@ internal enum class FausThemeId(val storageValue: String, val displayName: Strin
         get() = when (this) {
             FAUS_LIGHT -> "LauncherFausLight"
             FAUS_DARK -> "LauncherFausDark"
-            FAUSE_BLOOM -> "LauncherFausBloom"
+            FAUS_BLOOM -> "LauncherFausBloom"
+            FAUS_WEB -> "LauncherFausWeb"
+        }
+
+    /**
+     * The system launch window's color on Android 12+: a stop near the middle of the header
+     * gradient, where the splash mark sits. iOS cannot follow the theme and starts from black.
+     */
+    @get:ColorRes
+    val launchColor: Int
+        get() = when (this) {
+            FAUS_LIGHT -> R.color.launch_light
+            FAUS_DARK -> R.color.launch_dark
+            FAUS_BLOOM -> R.color.launch_bloom
+            FAUS_WEB -> R.color.launch_web
+        }
+
+    /** The style handed to `SplashScreen.setSplashScreenTheme`, which shows [launchColor]. */
+    @get:StyleRes
+    val launchStyle: Int
+        get() = when (this) {
+            FAUS_LIGHT -> R.style.Theme_FausCrew_Launch_Light
+            FAUS_DARK -> R.style.Theme_FausCrew_Launch_Dark
+            FAUS_BLOOM -> R.style.Theme_FausCrew_Launch_Bloom
+            FAUS_WEB -> R.style.Theme_FausCrew_Launch_Web
         }
 
     companion object {
         /** First launch, and any stored value this build does not know, use Faus Light. */
         val DEFAULT = FAUS_LIGHT
 
-        fun fromStorage(value: String?): FausThemeId = entries.firstOrNull { it.storageValue == value } ?: DEFAULT
+        /** Names a theme was saved under before it was renamed (iOS `AppThemeID(storageValue:)`). */
+        private val legacyStorageValues = mapOf("fause_bloom" to FAUS_BLOOM)
+
+        fun fromStorage(value: String?): FausThemeId =
+            entries.firstOrNull { it.storageValue == value } ?: legacyStorageValues[value] ?: DEFAULT
     }
 }
 
@@ -97,6 +133,15 @@ internal data class FausPalette(
     val accentOrangeInk: Color,
     /** Deep end of accent gradients such as the publish button (iOS `accentOrangeDeep`). */
     val accentOrangeDeep: Color,
+    /** Chore difficulty chips (easy, medium, hard). */
+    val levelEasy: Color,
+    val levelMedium: Color,
+    val levelHard: Color,
+    /** Profile and house accents: create house, notifications, owner badge, birthday. */
+    val tintCreate: Color,
+    val tintNotifications: Color,
+    val tintOwner: Color,
+    val tintBirthday: Color,
     val indigo: Color,
     val deepIndigo: Color,
     val blue: Color,
@@ -128,7 +173,22 @@ internal data class FausPalette(
     val statusInTest: Color,
     val statusCompleted: Color,
     val statusFailed: Color,
-)
+    /**
+     * Text drawn straight on the page backdrop (screen titles, empty states, onboarding). Only
+     * themes whose backdrop and cards contrast differently (Faus Web: sky page, imperial
+     * cards) set these; null uses the regular text tokens.
+     */
+    val pageTextOverride: Color? = null,
+    val pageTextSecondaryOverride: Color? = null,
+    val pageTextTertiaryOverride: Color? = null,
+    /** Links drawn on the page backdrop; null uses [accentOrangeInk]. */
+    val pageAccentOverride: Color? = null,
+) {
+    val pageText: Color get() = pageTextOverride ?: textPrimary
+    val pageTextSecondary: Color get() = pageTextSecondaryOverride ?: textSecondary
+    val pageTextTertiary: Color get() = pageTextTertiaryOverride ?: textTertiary
+    val pageAccent: Color get() = pageAccentOverride ?: accentOrangeInk
+}
 
 /** How the brand surfaces are painted (iOS `FausDecor`); components read these, not the id. */
 @Immutable
@@ -189,14 +249,22 @@ internal data class FausDecor(
     /** Texture and corner garden of the auth form sheet. */
     val sheetMarble: FausMarble? = null,
     val sheetGarden: FausGarden? = null,
+    /** Lighter tone the main cards fade from at their top-end corner; transparent keeps them flat. */
+    val cardSheen: Color = Color.Transparent,
+    /** The roof-F mark ends in a small orb web instead of a dot (Faus Web). */
+    val webDotMark: Boolean = false,
+    /** Small selected labels, chevrons and chips on dark cards; null keeps the brand orange. */
+    val accentOnCard: Color? = null,
 )
 
 /** Decoration family of the hero surfaces (iOS `FausOrnament`). */
 internal enum class FausOrnament {
     /** Layered circles and tilted capsules (Faus Light, Faus Dark). */
     GEOMETRIC,
-    /** A large petal flower, its outline, a leaf and a blush sprig (Fause Bloom). */
+    /** A large petal flower, its outline, a leaf and a blush sprig (Faus Bloom). */
     BLOOM,
+    /** A corner orb web, an angled silk strand and crimson/sky glows (Faus Web). */
+    WEB,
 }
 
 /** A marbled (ebru) texture image laid over a backdrop base, top-aligned and filling it. */
@@ -222,23 +290,11 @@ internal data class FausGarden(
 )
 
 /**
- * Cold-start intro. The launch window stays brand orange; the header gradient fades in over
- * it, so dark themes cross-fade instead of flashing.
+ * Cold-start intro. It starts on the launch window's color ([FausThemeId.launchColor] on
+ * Android 12+, black before that) and fades the theme's header gradient in over it.
  */
 @Immutable
-/**
- * How the intro leaves the launch window, which is always `launch_background` orange so both
- * platforms start from the same frame (iOS caches its launch screen and cannot follow the theme).
- */
-internal enum class FausLaunchHandOff {
-    /** The header gradient fades in over the orange (themes whose header is orange). */
-    FADE,
-    /** The orange condenses into the ember glow behind the mark, uncovering the dark header. */
-    CONDENSE,
-}
-
 internal data class FausSplashStyle(
-    val launchHandOff: FausLaunchHandOff,
     /** Roof-F fill, roof to stem foot; one color draws it solid. */
     val mark: List<Color>,
     val markGlow: Color,
@@ -268,6 +324,8 @@ internal data class FausBackdrop(
     val marble: FausMarble? = null,
     /** Vines and flowers over everything else. */
     val garden: FausGarden? = null,
+    /** Soft light high in the middle of the page, over the texture; transparent turns it off. */
+    val centerGlow: Color = Color.Transparent,
 ) {
     val drawsLines: Boolean get() = apricotStrength + orangeStrength + berryStrength > 0f
 }
@@ -329,6 +387,13 @@ internal object FausThemes {
             accentOrange = Color(0xFFFF7A26),
             accentOrangeInk = Color(0xFFBA400B),
             accentOrangeDeep = Color(0xFFE65714),
+            levelEasy = Color(0xFF33BF66),
+            levelMedium = Color(0xFFFF7A26),
+            levelHard = Color(0xFFE63340),
+            tintCreate = Color(0xFFE5620F),
+            tintNotifications = Color(0xFFF2731A),
+            tintOwner = Color(0xFFEB782E),
+            tintBirthday = Color(0xFFE6731A),
             indigo = Color(0xFF45579E),
             deepIndigo = Color(0xFF33407A),
             blue = Color(0xFF3D7AB8),
@@ -390,7 +455,6 @@ internal object FausThemes {
             framedMarkRing = Color(0xFFFF7A26).copy(alpha = .55f),
             framedMarkGlow = Color.Transparent,
             splash = FausSplashStyle(
-                launchHandOff = FausLaunchHandOff.FADE,
                 mark = listOf(Color.White),
                 markGlow = Color.Transparent,
                 wordmark = Color.White,
@@ -457,6 +521,13 @@ internal object FausThemes {
             accentOrange = Color(0xFFFF7A26),
             accentOrangeInk = Color(0xFFFFB27A),
             accentOrangeDeep = Color(0xFFE65714),
+            levelEasy = Color(0xFF33BF66),
+            levelMedium = Color(0xFFFF7A26),
+            levelHard = Color(0xFFE63340),
+            tintCreate = Color(0xFFE5620F),
+            tintNotifications = Color(0xFFF2731A),
+            tintOwner = Color(0xFFEB782E),
+            tintBirthday = Color(0xFFE6731A),
             indigo = Color(0xFF9FA8FF),
             deepIndigo = Color(0xFFB9BFFF),
             blue = Color(0xFF7DB9F2),
@@ -518,7 +589,6 @@ internal object FausThemes {
             framedMarkRing = Color(0xFFFFA04D).copy(alpha = .62f),
             framedMarkGlow = Color(0xFFFF6A2A).copy(alpha = .22f),
             splash = FausSplashStyle(
-                launchHandOff = FausLaunchHandOff.CONDENSE,
                 mark = listOf(Color(0xFFFFB060), Color(0xFFFF8A3D), Color(0xFFFF6A2A)),
                 markGlow = Color(0xFFFF6A2A).copy(alpha = .40f),
                 wordmark = Color(0xFFFFF1E8),
@@ -585,7 +655,7 @@ internal object FausThemes {
     )
 
     val bloom = FausTheme(
-        id = FausThemeId.FAUSE_BLOOM,
+        id = FausThemeId.FAUS_BLOOM,
         isDark = false,
         palette = FausPalette(
             background = Color(0xFFF8EBEF),
@@ -615,6 +685,13 @@ internal object FausThemes {
             accentOrange = Color(0xFF6A122F),
             accentOrangeInk = Color(0xFF6A122F),
             accentOrangeDeep = Color(0xFF4A0D22),
+            levelEasy = Color(0xFF2F6F5E),
+            levelMedium = Color(0xFFA86F2A),
+            levelHard = Color(0xFF8E1F42),
+            tintCreate = Color(0xFF6A122F),
+            tintNotifications = Color(0xFFA23C5E),
+            tintOwner = Color(0xFF6A122F),
+            tintBirthday = Color(0xFFC0577A),
             indigo = Color(0xFF333A57),
             deepIndigo = Color(0xFF2A3049),
             blue = Color(0xFF4D869B),
@@ -677,7 +754,6 @@ internal object FausThemes {
             framedMarkRing = Color(0xFF6A122F).copy(alpha = .45f),
             framedMarkGlow = Color.Transparent,
             splash = FausSplashStyle(
-                launchHandOff = FausLaunchHandOff.FADE,
                 mark = listOf(Color.White),
                 markGlow = Color(0xFF2A0A1A).copy(alpha = .25f),
                 wordmark = Color.White,
@@ -701,7 +777,183 @@ internal object FausThemes {
         ),
     )
 
-    val all: List<FausTheme> = listOf(light, dark, bloom)
+    /**
+     * Imperial blue (#001D51) cards on a sky page woven with one big orb web, noble crimson reds
+     * (#C8161F → #4E0000) for accents and cream (#FCEBE5) for chips and dividers on the cards.
+     * Dark system chrome so card and popup text is light; text straight on the sky page uses the
+     * `pageText` tokens.
+     */
+    private val webCream = Color(0xFFFCEBE5)
+
+    private val webHeroStops = listOf(
+        0f to Color(0xFFC8161F),
+        .26f to Color(0xFFA30F17),
+        .46f to Color(0xFF7A0610),
+        .60f to Color(0xFF4E0000),
+        .76f to Color(0xFF1E0B3A),
+        .92f to Color(0xFF0F3A93),
+        1f to Color(0xFF2459C4),
+    )
+
+    private val webSkyStops = listOf(0f to Color(0xFF7FA6F7), .5f to Color(0xFF6690EC), 1f to Color(0xFF5781DE))
+
+    private val webBackdrop = FausBackdrop(
+        baseStops = webSkyStops,
+        wash = listOf(Color.Transparent, Color.Transparent),
+        glow = Color.Transparent,
+        apricotStrength = 0f,
+        orangeStrength = 0f,
+        berryStrength = 0f,
+        lineWidthBoost = 0f,
+        mesh = null,
+        marble = FausMarble(R.drawable.web_orb, 1f),
+        centerGlow = webCream.copy(alpha = .5f),
+    )
+
+    /** Imperial, lighter at the top end, with the small-webs texture. */
+    private val webPopupBackdrop = FausBackdrop(
+        baseStops = listOf(0f to Color(0xFF0D3170), .72f to Color(0xFF001D51)),
+        baseStartX = 1f,
+        baseEndX = 0f,
+        wash = listOf(Color.Transparent, Color.Transparent),
+        glow = Color(0xFFE23A42).copy(alpha = .06f),
+        apricotStrength = 0f,
+        orangeStrength = 0f,
+        berryStrength = 0f,
+        lineWidthBoost = 0f,
+        mesh = null,
+        marble = FausMarble(R.drawable.web_scatter, .55f),
+    )
+
+    val web = FausTheme(
+        id = FausThemeId.FAUS_WEB,
+        isDark = true,
+        palette = FausPalette(
+            background = Color(0xFF001D51),
+            secondaryBackground = Color(0xFF0A2B68),
+            cardBackground = Color(0xFF001D51),
+            surface = Color(0xFF0A2B68),
+            elevatedSurface = Color(0xFF0A2B68),
+            pageBackground = Color(0xFF001D51),
+            popupBackground = Color(0xFF001D51),
+            menuBackground = Color(0xFF0A2B68),
+            controlFill = Color(0xFF123A80),
+            controlFillStrong = Color(0xFF1B4790),
+            segmentSelected = Color(0xFF123A80),
+            textPrimary = Color(0xFFF3F6FF),
+            textSecondary = Color(0xFFB8C6E8),
+            textTertiary = Color(0xFF9AAAD6),
+            onAccent = Color.White,
+            onHero = Color.White,
+            separator = webCream.copy(alpha = .4f),
+            hairline = Color(0xFF8FB2FF).copy(alpha = .14f),
+            shadow = Color(0xFF000820),
+            scrim = Color(0xFF000820).copy(alpha = .62f),
+            primary = Color(0xFF8FB2FF),
+            secondary = Color(0xFF4FD6A0),
+            warning = Color(0xFFFFB547),
+            error = Color(0xFFF07F86),
+            accentOrange = Color(0xFFC8161F),
+            accentOrangeInk = Color(0xFFE8757C),
+            accentOrangeDeep = Color(0xFF7A0610),
+            levelEasy = Color(0xFF4FD6A0),
+            levelMedium = Color(0xFFFFB547),
+            levelHard = Color(0xFFC8161F),
+            tintCreate = Color(0xFFC8161F),
+            tintNotifications = Color(0xFFE23A42),
+            tintOwner = Color(0xFFC8161F),
+            tintBirthday = Color(0xFFE8757C),
+            indigo = Color(0xFFA9B8FF),
+            deepIndigo = Color(0xFFB9C6FF),
+            blue = Color(0xFF8FB2FF),
+            teal = Color(0xFF4FD6C2),
+            deepTeal = Color(0xFF36B5A2),
+            buttonBlue = Color(0xFF2E5FC4),
+            purple = Color(0xFFC6A9FF),
+            errorRed = Color(0xFFF07F86),
+            indigoFill = Color(0xFF3F6FD1),
+            deepIndigoFill = Color(0xFF2E5FC4),
+            tealFill = Color(0xFF2FA894),
+            brandLight = Color(0xFFD42A33),
+            brandOrange = Color(0xFFC8161F),
+            deepBerry = Color(0xFF4E0000),
+            markBerry = Color(0xFF7A0610),
+            spinnerRed = Color(0xFFE23A42),
+            spinnerBerry = Color(0xFF8FB2FF),
+            softApricot = Color.Transparent,
+            softOrange = Color.Transparent,
+            softBerry = Color.Transparent,
+            // The top-start accent of the hero surfaces.
+            systemOrange = webCream,
+            statusDraft = Color(0xFFA3ABBF),
+            statusProgress = Color(0xFFFFC46B),
+            statusInTest = Color(0xFFC79BFF),
+            statusCompleted = Color(0xFF6FE0B2),
+            statusFailed = Color(0xFFF07F86),
+            pageTextOverride = Color(0xFF001D51),
+            pageTextSecondaryOverride = Color(0xFF1A3A78),
+            pageTextTertiaryOverride = Color(0xFF2C4C8C),
+            pageAccentOverride = Color(0xFF0F3A93),
+        ),
+        decor = FausDecor(
+            heroStops = webHeroStops,
+            heroGlow = Color.Transparent,
+            heroBorder = listOf(webCream.copy(alpha = .34f), webCream.copy(alpha = .10f)),
+            heroOrnament = webCream,
+            heroShadow = Color(0xFF000820).copy(alpha = .5f),
+            heroAccentText = webCream.copy(alpha = .88f),
+            heroFrame = listOf(Color.White, webCream),
+            heroTile = Color(0xFF001D51),
+            headerStops = webHeroStops,
+            headerGlow = Color(0xFFC8161F).copy(alpha = .22f),
+            tabBarStops = listOf(0f to Color(0xFFC8161F), .35f to Color(0xFFA30F17), .65f to Color(0xFF7A0610), 1f to Color(0xFF4E0000)),
+            tabBarGlow = Color(0xFFE23A42).copy(alpha = .34f),
+            tabBarBorder = listOf(Color(0xFFE23A42).copy(alpha = .5f), Color(0xFFE23A42).copy(alpha = .12f)),
+            tabBarShadow = Color(0xFF000820).copy(alpha = .55f),
+            tabItem = Color.White.copy(alpha = .6f),
+            tabItemSelected = Color.White,
+            tabSelectedFill = webCream.copy(alpha = .26f),
+            tabSelectedBorder = Color.White.copy(alpha = .24f),
+            tabSelectedIcon = null,
+            homeItem = Color.White.copy(alpha = .66f),
+            homeSelectedFill = webCream.copy(alpha = .26f),
+            homeSelectedBorder = Color.White.copy(alpha = .30f),
+            fabColors = listOf(Color(0xFF3F6FD1), Color(0xFF0F3A93), Color(0xFF001D51)),
+            fabShadow = Color(0xFF001D51).copy(alpha = .45f),
+            popupGlow = Color(0xFFE23A42).copy(alpha = .06f),
+            popupBorder = Color(0xFF8FB2FF).copy(alpha = .18f),
+            badgeFill = listOf(Color(0xFF0F3A93), Color(0xFF001D51)),
+            badgeHalo = webCream,
+            badgeBorder = webCream.copy(alpha = .55f),
+            framedMarkFill = Color(0xFF001D51),
+            framedMarkRing = Color(0xFFC8161F).copy(alpha = .6f),
+            framedMarkGlow = Color(0xFFE23A42).copy(alpha = .3f),
+            splash = FausSplashStyle(
+                mark = listOf(Color.White),
+                markGlow = Color(0xFF1A0000).copy(alpha = .35f),
+                wordmark = Color.White,
+                wordmarkAccent = webCream,
+                motto = webCream.copy(alpha = .88f),
+                ripple = webCream.copy(alpha = .3f),
+                revealRim = webCream.copy(alpha = .4f),
+            ),
+            sheetStops = webSkyStops,
+            sheetEdge = Color(0xFFE23A42).copy(alpha = .55f),
+            sheetEdgeGlow = Color(0xFF000820).copy(alpha = .3f),
+            sheetMesh = null,
+            backdrop = webBackdrop,
+            popupBackdrop = webPopupBackdrop,
+            ornament = FausOrnament.WEB,
+            avatarRing = listOf(Color(0xFFC8161F), Color(0xFF8FB2FF), Color(0xFF4E0000), Color(0xFFC8161F)),
+            avatarFallback = listOf(Color(0xFFC8161F), Color(0xFF4E0000)),
+            sheetMarble = FausMarble(R.drawable.web_orb, 1f),
+            cardSheen = Color(0xFF0D3170),
+            webDotMark = true,
+            accentOnCard = webCream,
+        ),
+    )
+
+    val all: List<FausTheme> = listOf(light, dark, bloom, web)
 
     fun theme(id: FausThemeId): FausTheme = all.firstOrNull { it.id == id } ?: light
 }

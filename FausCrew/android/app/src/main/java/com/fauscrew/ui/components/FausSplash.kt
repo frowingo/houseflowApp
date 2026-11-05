@@ -1,5 +1,6 @@
 package com.fauscrew.ui.components
 
+import android.os.Build
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.CubicBezierEasing
 import androidx.compose.animation.core.FastOutSlowInEasing
@@ -28,11 +29,9 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.drawWithContent
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.ClipOp
-import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.SolidColor
-import androidx.compose.ui.graphics.drawscope.DrawScope
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.drawscope.clipPath
 import androidx.compose.ui.graphics.graphicsLayer
@@ -43,7 +42,6 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.res.colorResource
 import com.fauscrew.R
-import com.fauscrew.ui.theme.FausLaunchHandOff
 import com.fauscrew.ui.theme.LocalFausTheme
 import com.fauscrew.ui.theme.FausCrewColors
 import kotlinx.coroutines.delay
@@ -64,8 +62,8 @@ private const val WORDMARK = "FausCrew"
  * `FausSplashView`: cold-start brand intro over the app (~3.2s). The roof-F draws itself, the
  * crew dot pops with two ripples, the mark lifts while "FausCrew" rises letter by letter, the
  * motto fades in, then the gradient closes into a circle and reveals the app. It starts on the
- * launch window's orange (`launch_background`), so the hand-off is seamless; dark themes then
- * condense that orange into the ember behind the mark ([FausLaunchHandOff]).
+ * launch window's color, the theme's `FausThemeId.launchColor` on Android 12+ and black before
+ * that, and fades the theme's header gradient in over it.
  */
 @Composable
 internal fun FausSplash(onReveal: () -> Unit = {}, onFinished: () -> Unit) {
@@ -78,18 +76,16 @@ internal fun FausSplash(onReveal: () -> Unit = {}, onFinished: () -> Unit) {
     val letters = remember { List(WORDMARK.length) { Animatable(0f) } }
     val motto = remember { Animatable(0f) }
     val reveal = remember { Animatable(0f) }
-    val splash = LocalFausTheme.current.decor.splash
-    val launchColor = colorResource(R.color.launch_background)
-    val condenses = splash.launchHandOff == FausLaunchHandOff.CONDENSE
+    val theme = LocalFausTheme.current
+    val splash = theme.decor.splash
+    val webDot = theme.decor.webDotMark
+    // The system launch window this splash takes over from (ThemeAppearance.applyLaunchScreen).
+    val launchColor = colorResource(
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) theme.id.launchColor else R.color.launch_neutral,
+    )
 
     LaunchedEffect(Unit) {
-        if (condenses) {
-            launch { gradient.animateTo(1f, tween(650, easing = CubicBezierEasing(.5f, 0f, .25f, 1f))) }
-            // The ember-colored mark would vanish against the orange, so it waits for the dark.
-            delay(300)
-        } else {
-            launch { gradient.animateTo(1f, tween(300)) }
-        }
+        launch { gradient.animateTo(1f, tween(450, easing = FastOutSlowInEasing)) }
         delay(250)
         launch { draw.animateTo(1f, tween(900, easing = CubicBezierEasing(.65f, 0f, .35f, 1f))) }
         delay(800)
@@ -131,12 +127,7 @@ internal fun FausSplash(onReveal: () -> Unit = {}, onFinished: () -> Unit) {
     ) {
         val centerY = maxHeight * CENTER_RATIO
         Box(Modifier.fillMaxSize().background(launchColor))
-        if (condenses) {
-            Box(Modifier.fillMaxSize().fausHeroBackground())
-            Canvas(Modifier.fillMaxSize()) { drawLaunchCondense(gradient.value, launchColor) }
-        } else {
-            Box(Modifier.fillMaxSize().graphicsLayer { alpha = gradient.value }.fausHeroBackground())
-        }
+        Box(Modifier.fillMaxSize().graphicsLayer { alpha = gradient.value }.fausHeroBackground())
 
         // Ripples
         listOf(ripple1, ripple2).forEach { ripple ->
@@ -164,7 +155,7 @@ internal fun FausSplash(onReveal: () -> Unit = {}, onFinished: () -> Unit) {
         ) {
             val markBrush = if (splash.mark.size > 1) fausMarkBrush(size.minDimension / 1024f, splash.mark)
                 else SolidColor(splash.mark.first())
-            drawFausMark(markBrush, progress = draw.value, dotScale = dot.value)
+            drawFausMark(markBrush, progress = draw.value, dotScale = dot.value, webDot = webDot)
         }
 
         // Wordmark and motto
@@ -195,20 +186,4 @@ internal fun FausSplash(onReveal: () -> Unit = {}, onFinished: () -> Unit) {
             )
         }
     }
-}
-
-/**
- * The launch window's orange shrinking into a soft disc at the mark, where the dark header's
- * ember glow takes over (iOS `LaunchCondense`): solid to 72% of the radius, then feathered, and
- * fading out over the last quarter so it never ends as a hard dot.
- */
-private fun DrawScope.drawLaunchCondense(progress: Float, color: Color) {
-    val alpha = ((1 - progress) * 4).coerceAtMost(1f)
-    if (alpha <= 0f) return
-    val center = Offset(size.width / 2, size.height * CENTER_RATIO)
-    val radius = (hypot(size.width, size.height) * .85f * (1 - progress)).coerceAtLeast(1f)
-    drawRect(
-        Brush.radialGradient(0f to color, .72f to color, 1f to color.copy(alpha = 0f), center = center, radius = radius),
-        alpha = alpha,
-    )
 }

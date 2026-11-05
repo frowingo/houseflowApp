@@ -40,6 +40,11 @@ internal object FausCrewColors {
     val textPrimary: Color @Composable @ReadOnlyComposable get() = palette.textPrimary
     val textSecondary: Color @Composable @ReadOnlyComposable get() = palette.textSecondary
     val textTertiary: Color @Composable @ReadOnlyComposable get() = palette.textTertiary
+    /** Text drawn straight on the page backdrop rather than on a card (titles, empty states). */
+    val pageText: Color @Composable @ReadOnlyComposable get() = palette.pageText
+    val pageTextSecondary: Color @Composable @ReadOnlyComposable get() = palette.pageTextSecondary
+    val pageTextTertiary: Color @Composable @ReadOnlyComposable get() = palette.pageTextTertiary
+    val pageAccent: Color @Composable @ReadOnlyComposable get() = palette.pageAccent
     val onAccent: Color @Composable @ReadOnlyComposable get() = palette.onAccent
     val onHero: Color @Composable @ReadOnlyComposable get() = palette.onHero
     val separator: Color @Composable @ReadOnlyComposable get() = palette.separator
@@ -51,6 +56,13 @@ internal object FausCrewColors {
     val accentOrange: Color @Composable @ReadOnlyComposable get() = palette.accentOrange
     val accentOrangeInk: Color @Composable @ReadOnlyComposable get() = palette.accentOrangeInk
     val accentOrangeDeep: Color @Composable @ReadOnlyComposable get() = palette.accentOrangeDeep
+    val levelEasy: Color @Composable @ReadOnlyComposable get() = palette.levelEasy
+    val levelMedium: Color @Composable @ReadOnlyComposable get() = palette.levelMedium
+    val levelHard: Color @Composable @ReadOnlyComposable get() = palette.levelHard
+    val tintCreate: Color @Composable @ReadOnlyComposable get() = palette.tintCreate
+    val tintNotifications: Color @Composable @ReadOnlyComposable get() = palette.tintNotifications
+    val tintOwner: Color @Composable @ReadOnlyComposable get() = palette.tintOwner
+    val tintBirthday: Color @Composable @ReadOnlyComposable get() = palette.tintBirthday
     val indigo: Color @Composable @ReadOnlyComposable get() = palette.indigo
     val deepIndigo: Color @Composable @ReadOnlyComposable get() = palette.deepIndigo
     val blue: Color @Composable @ReadOnlyComposable get() = palette.blue

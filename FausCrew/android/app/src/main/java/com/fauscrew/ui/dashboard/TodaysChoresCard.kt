@@ -1,5 +1,6 @@
 package com.fauscrew.ui.dashboard
 
+import com.fauscrew.ui.components.fausCardSheen
 import androidx.compose.animation.core.RepeatMode
 import androidx.compose.animation.core.animateFloat
 import androidx.compose.animation.core.animateFloatAsState
@@ -91,6 +92,7 @@ internal fun TodaysChoresCard(
             .softShadow(FausCrewColors.shadow.copy(alpha = .12f), 16.dp, y = 6.dp, shape = shape)
             .clip(shape)
             .background(FausCrewColors.cardBackground)
+            .fausCardSheen()
             .background(Brush.linearGradient(listOf(
                 FausCrewColors.primary.copy(alpha = .05f), Color.Transparent, FausCrewColors.secondary.copy(alpha = .05f),
             )))

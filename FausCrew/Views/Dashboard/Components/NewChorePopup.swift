@@ -356,9 +356,9 @@ extension ChoreLevel {
     }
     var color: Color {
         switch self {
-        case .easy:   return Color(red: 0.2, green: 0.75, blue: 0.4)
-        case .medium: return Color(red: 1.0, green: 0.48, blue: 0.15)
-        case .hard:   return Color(red: 0.9, green: 0.2, blue: 0.25)
+        case .easy:   return HouseJourneyTheme.levelEasy
+        case .medium: return HouseJourneyTheme.levelMedium
+        case .hard:   return HouseJourneyTheme.levelHard
         }
     }
 }

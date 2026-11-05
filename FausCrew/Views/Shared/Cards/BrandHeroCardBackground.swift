@@ -23,6 +23,8 @@ struct BrandHeroCardBackground: View {
                     decorativeGeometry
                 case .bloom:
                     FausBloomOrnament(surface: .heroCard, ornament: theme.decor.heroOrnament, sprig: theme.decor.heroSprig)
+                case .web:
+                    FausWebOrnament(surface: .heroCard, ornament: theme.decor.heroOrnament)
                 }
             }
             .frame(width: proxy.size.width, height: proxy.size.height)
@@ -121,6 +123,8 @@ struct BrandPopupHeaderBackground: View {
                         .offset(x: -proxy.size.width * 0.39, y: -24)
                 case .bloom:
                     FausBloomOrnament(surface: .popupHeader, ornament: theme.decor.heroOrnament, sprig: theme.decor.heroSprig)
+                case .web:
+                    FausWebOrnament(surface: .popupHeader, ornament: theme.decor.heroOrnament)
                 }
             }
             .frame(width: proxy.size.width, height: proxy.size.height)

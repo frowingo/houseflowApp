@@ -17,9 +17,9 @@ extension EnvironmentValues {
 /// Cold-start brand intro shown over the app while it loads underneath (~3.2s):
 /// the roof-F draws itself, the crew dot pops with two ripples, the mark lifts while
 /// "FausCrew" rises letter by letter, the motto fades in, then the gradient closes
-/// into a circle and reveals the app. It starts on the system launch screen's orange
-/// (`LaunchBackground`), so the hand-off is seamless; dark themes then condense that orange into
-/// the ember behind the mark (`FausLaunchHandOff`).
+/// into a circle and reveals the app. It starts on the system launch screen's black
+/// (`LaunchBackground`) and fades the theme's header gradient in over it: iOS draws the launch
+/// screen before any app code runs and cannot follow the in-app theme, so black suits them all.
 struct FausSplashView: View {
     /// Called as the gradient starts to open: the app underneath becomes visible from here on.
     var onReveal: () -> Void = {}
@@ -38,8 +38,6 @@ struct FausSplashView: View {
     /// Launch screen → theme hand-off, 0...1.
     @State private var handOff: CGFloat = 0
 
-    private var condenses: Bool { theme.decor.splash.launchHandOff == .condense }
-
     private let wordmark = Array("FausCrew")
     private let markSize: CGFloat = 132
     private let centerRatio: CGFloat = 0.44
@@ -51,14 +49,8 @@ struct FausSplashView: View {
 
             ZStack {
                 Color("LaunchBackground")
-                if condenses {
-                    FausHeroBackground()
-                    LaunchCondense(progress: handOff, color: Color("LaunchBackground"), center: UnitPoint(x: 0.5, y: centerRatio),
-                                   radius: hypot(proxy.size.width, proxy.size.height) * 0.85)
-                } else {
-                    FausHeroBackground()
-                        .opacity(handOff)
-                }
+                FausHeroBackground()
+                    .opacity(handOff)
 
                 ripple(delay: 0).position(center)
                 ripple(delay: 0.2).position(center)
@@ -157,13 +149,7 @@ struct FausSplashView: View {
             return
         }
 
-        if condenses {
-            withAnimation(.timingCurve(0.5, 0, 0.25, 1, duration: 0.65)) { handOff = 1 }
-            // The ember-colored mark would vanish against the orange, so it waits for the dark.
-            await wait(until: 0.3, from: 0)
-        } else {
-            withAnimation(.easeOut(duration: 0.3)) { handOff = 1 }
-        }
+        withAnimation(.timingCurve(0.4, 0, 0.2, 1, duration: 0.45)) { handOff = 1 }
         await wait(until: 0.25, from: 0)
         withAnimation(.timingCurve(0.65, 0, 0.35, 1, duration: 0.9)) { drawProgress = 1 }
         await wait(until: 1.05, from: 0.25)
@@ -187,37 +173,6 @@ struct FausSplashView: View {
 
     private func wait(until end: Double, from start: Double) async {
         try? await Task.sleep(for: .milliseconds(Int((end - start) * 1000)))
-    }
-}
-
-/// The launch screen's orange shrinking into a soft disc at the mark, where the dark header's
-/// ember glow takes over. Shared math with Android `drawLaunchCondense`.
-private struct LaunchCondense: View, Animatable {
-    var progress: CGFloat
-    let color: Color
-    let center: UnitPoint
-    /// Start radius: the solid core just reaches the far corners from `center`.
-    let radius: CGFloat
-
-    var animatableData: CGFloat {
-        get { progress }
-        set { progress = newValue }
-    }
-
-    var body: some View {
-        RadialGradient(
-            stops: [
-                .init(color: color, location: 0),
-                .init(color: color, location: 0.72),
-                .init(color: color.opacity(0), location: 1)
-            ],
-            center: center,
-            startRadius: 0,
-            endRadius: max(radius * (1 - progress), 1)
-        )
-        // Fades out over the last quarter so it never ends as a hard dot.
-        .opacity(Double(min(1, (1 - progress) * 4)))
-        .allowsHitTesting(false)
     }
 }
 

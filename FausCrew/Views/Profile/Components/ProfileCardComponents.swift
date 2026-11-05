@@ -50,6 +50,7 @@ struct ProfileModernCard<Content: View>: View {
         .background(
             ZStack {
                 AppDesign.Colors.cardBackground
+                FausCardSheen()
                 LinearGradient(
                     colors: gradientColors,
                     startPoint: .topLeading,

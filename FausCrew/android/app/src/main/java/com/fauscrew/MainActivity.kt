@@ -84,7 +84,8 @@ class MainActivity : ComponentActivity() {
         themeController = FausThemeController(storedTheme) { id ->
             lifecycleScope.launch { preferences.setSelectedTheme(id.storageValue) }
         }
-        // The launch window shows `launch_background`; the app itself sits on the theme's base.
+        // The launch window shows the theme's launch color (black on Android 11); the app itself
+        // sits on the theme's base.
         window.setBackgroundDrawable(ColorDrawable(themeController.theme.palette.background.toArgb()))
         val coldStart = savedInstanceState == null
         // Compose owns every inset (status/nav bars and the keyboard) on all API levels, matching
@@ -336,6 +337,7 @@ class MainActivity : ComponentActivity() {
 
     override fun onStop() {
         ThemeAppearance.applyLauncherIcon(applicationContext, themeController.themeId)
+        ThemeAppearance.applyLaunchScreen(this, themeController.themeId)
         authViewModel?.onBackground()
         AppLifecycle.bridge.onStopped()
         super.onStop()

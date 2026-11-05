@@ -88,7 +88,7 @@ struct EmailVerificationView: View {
 
     private var heroGradient: LinearGradient {
         LinearGradient(
-            colors: [Color.orange, Color.orange.opacity(0.72)],
+            colors: [HouseJourneyTheme.tintVerify, HouseJourneyTheme.tintVerify.opacity(0.72)],
             startPoint: .topLeading,
             endPoint: .bottomTrailing
         )
@@ -300,7 +300,7 @@ struct EmailVerificationView: View {
             )
             .cornerRadius(AppDesign.CornerRadius.xl)
             .shadow(
-                color: !isDisabled ? Color.orange.opacity(0.4) : .clear,
+                color: !isDisabled ? HouseJourneyTheme.tintVerify.opacity(0.4) : .clear,
                 radius: 12,
                 x: 0,
                 y: 6
@@ -366,7 +366,7 @@ struct EmailVerificationView: View {
             )
             .cornerRadius(AppDesign.CornerRadius.xl)
             .shadow(
-                color: !isDisabled ? Color.orange.opacity(0.4) : .clear,
+                color: !isDisabled ? HouseJourneyTheme.tintVerify.opacity(0.4) : .clear,
                 radius: 12,
                 x: 0,
                 y: 6

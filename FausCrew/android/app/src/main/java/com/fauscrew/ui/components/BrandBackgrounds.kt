@@ -70,6 +70,12 @@ internal fun Modifier.mainScreenBackground(surface: BackdropSurface = BackdropSu
             marble?.let { (image, alpha) -> drawMarble(image, alpha) }
             drawRect(Brush.linearGradient(backdrop.wash))
             drawCornerGlow(backdrop.glow, reach = .6f)
+            if (backdrop.centerGlow.alpha > 0f) {
+                drawRect(Brush.radialGradient(
+                    listOf(backdrop.centerGlow, backdrop.centerGlow.copy(alpha = 0f)),
+                    center = Offset(size.width * .5f, size.height * .22f), radius = maxOf(size.width, size.height) * .41f,
+                ))
+            }
             if (backdrop.drawsLines) AmbientCurves.forEach { drawAmbientCurve(it, backdrop, palette) }
             backdrop.garden?.let { drawGarden(it, gardenLayout) }
         }
@@ -236,6 +242,7 @@ internal fun BrandHeroCard(
     val shape = RoundedCornerShape(Radius.xl)
     val decor = LocalFausTheme.current.decor
     val accentCapsule = FausCrewColors.systemOrange
+    val webImages = rememberWebOrnamentImages()
     Box(
         modifier
             .softShadow(decor.heroShadow, 18.dp, y = 8.dp, shape = shape)
@@ -246,6 +253,10 @@ internal fun BrandHeroCard(
                 val ornament = decor.heroOrnament
                 if (decor.ornament == FausOrnament.BLOOM) {
                     drawBloomOrnament(BloomOrnamentSurface.HERO_CARD, ornament, accentCapsule)
+                    return@drawBehind
+                }
+                if (webImages != null) {
+                    drawWebOrnament(WebOrnamentSurface.HERO_CARD, webImages, ornament)
                     return@drawBehind
                 }
                 val center = Offset(size.width / 2, size.height / 2)
@@ -271,12 +282,15 @@ internal fun Modifier.brandPopupHeaderBackground(): Modifier {
     val theme = LocalFausTheme.current
     val decor = theme.decor
     val accentCapsule = FausCrewColors.systemOrange
+    val webImages = rememberWebOrnamentImages()
     return drawBehind {
         drawRect(decor.heroStops.linear())
         drawCornerGlow(decor.heroGlow, reach = .9f)
         val ornament = decor.heroOrnament
         if (decor.ornament == FausOrnament.BLOOM) {
             drawBloomOrnament(BloomOrnamentSurface.POPUP_HEADER, ornament, accentCapsule)
+        } else if (webImages != null) {
+            drawWebOrnament(WebOrnamentSurface.POPUP_HEADER, webImages, ornament)
         } else {
             val center = Offset(size.width / 2, size.height / 2)
             fun at(xFraction: Float, y: Float) = center + Offset(size.width * xFraction, y.dp.toPx())
@@ -295,12 +309,18 @@ internal fun Modifier.brandPopupHeaderBackground(): Modifier {
 internal fun Modifier.tabBarBackground(): Modifier {
     val decor = LocalFausTheme.current.decor
     val accentCapsule = FausCrewColors.systemOrange
+    val webImages = rememberWebOrnamentImages()
     return drawBehind {
         drawRect(decor.tabBarStops.linear())
+        if (webImages != null) drawWebTabBarLight(decor.tabBarStops)
         drawCornerGlow(decor.tabBarGlow, reach = .7f)
         val ornament = decor.heroOrnament
         if (decor.ornament == FausOrnament.BLOOM) {
             drawBloomOrnament(BloomOrnamentSurface.TAB_BAR, ornament, accentCapsule)
+            return@drawBehind
+        }
+        if (webImages != null) {
+            drawWebOrnament(WebOrnamentSurface.TAB_BAR, webImages, ornament)
             return@drawBehind
         }
         val w = size.width

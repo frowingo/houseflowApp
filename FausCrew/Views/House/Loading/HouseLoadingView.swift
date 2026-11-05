@@ -27,14 +27,14 @@ struct HouseLoadingView: View {
                 VStack(spacing: AppDesign.Spacing.sm) {
                     Text(appViewModel.localized(phase.titleKey))
                         .font(AppDesign.Typography.title2)
-                        .foregroundColor(AppDesign.Colors.text)
+                        .foregroundColor(AppDesign.Colors.pageText)
                         .multilineTextAlignment(.center)
                         .id("phase-title-\(phase.titleKey)")
                         .transition(.opacity.combined(with: .move(edge: .bottom)))
 
                     Text(appViewModel.localized(phase.subtitleKey))
                         .font(AppDesign.Typography.subheadline)
-                        .foregroundColor(AppDesign.Colors.textSecondary)
+                        .foregroundColor(AppDesign.Colors.pageTextSecondary)
                         .multilineTextAlignment(.center)
                         .padding(.horizontal, AppDesign.Spacing.xxxl)
                         .id("phase-subtitle-\(phase.subtitleKey)")

@@ -47,6 +47,7 @@ struct TodaysChoresCard: View {
             ZStack {
                 // Glassmorphism base
                 AppDesign.Colors.cardBackground
+                FausCardSheen()
 
                 // Gradient overlay
                 LinearGradient(

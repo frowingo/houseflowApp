@@ -1,5 +1,6 @@
 package com.fauscrew.ui.games
 
+import com.fauscrew.ui.components.fausCardSheen
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -116,7 +117,8 @@ private fun HouseRocketsCard(copy: RocketsCopy, modifier: Modifier, onClick: () 
         modifier.scaleButton(onClick = onClick)
             .softShadow(Color.Black.copy(alpha = .06f), 8.dp, y = 2.dp, shape = shape)
             .clip(shape)
-            .background(FausCrewColors.cardBackground),
+            .background(FausCrewColors.cardBackground)
+            .fausCardSheen(),
     ) {
         BoxWithConstraints(
             Modifier.fillMaxWidth().height(120.dp).clipToBounds()
@@ -154,7 +156,8 @@ private fun HouseTanksCard(copy: TanksCopy, modifier: Modifier, onClick: () -> U
         modifier.scaleButton(onClick = onClick)
             .softShadow(Color.Black.copy(alpha = .06f), 8.dp, y = 2.dp, shape = shape)
             .clip(shape)
-            .background(FausCrewColors.cardBackground),
+            .background(FausCrewColors.cardBackground)
+            .fausCardSheen(),
     ) {
         Box(
             Modifier.fillMaxWidth().height(120.dp).clipToBounds()

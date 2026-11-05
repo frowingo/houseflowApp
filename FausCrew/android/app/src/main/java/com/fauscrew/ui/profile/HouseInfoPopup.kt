@@ -37,6 +37,7 @@ import androidx.compose.material3.SwitchDefaults
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.ReadOnlyComposable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
@@ -93,7 +94,7 @@ import com.fauscrew.viewmodel.ProfileUiState
 import kotlinx.coroutines.delay
 
 private val houseTint = ProfileTints.house
-private val ownerTint = Color(0xFFEB782E)
+private val ownerTint: Color @Composable @ReadOnlyComposable get() = FausCrewColors.tintOwner
 private val inviteTint = ProfileTints.join
 private const val NAME_LIMIT = 30
 

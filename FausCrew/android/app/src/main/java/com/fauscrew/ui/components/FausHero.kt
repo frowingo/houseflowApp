@@ -54,6 +54,7 @@ internal val FausIconGradient: Brush
 internal fun Modifier.fausHeroBackground(): Modifier {
     val decor = LocalFausTheme.current.decor
     val accentCapsule = FausCrewColors.systemOrange
+    val webImages = rememberWebOrnamentImages()
     return background(decor.headerStops.linear()).drawBehind {
         drawCornerGlow(decor.heroGlow.copy(alpha = decor.heroGlow.alpha * .85f), reach = .75f)
         if (decor.headerGlow.alpha > 0f) {
@@ -62,8 +63,11 @@ internal fun Modifier.fausHeroBackground(): Modifier {
                 center = Offset(size.width / 2, size.height * .48f), radius = size.width * .42f,
             ))
         }
-        if (decor.ornament == FausOrnament.BLOOM) drawBloomOrnament(BloomOrnamentSurface.HEADER, decor.heroOrnament, accentCapsule)
-        else drawHeroGeometry(decor.heroOrnament, accentCapsule)
+        when {
+            decor.ornament == FausOrnament.BLOOM -> drawBloomOrnament(BloomOrnamentSurface.HEADER, decor.heroOrnament, accentCapsule)
+            webImages != null -> drawWebOrnament(WebOrnamentSurface.HEADER, webImages, decor.heroOrnament)
+            else -> drawHeroGeometry(decor.heroOrnament, accentCapsule)
+        }
     }
 }
 

@@ -17,13 +17,16 @@ struct GamesHubView: View {
     @State private var appeared = false
     let houseRocketsSessionFactory: HouseRocketsSessionFactory
 
+    /// iOS system orange in light mode, fixed so the cards ignore the system and the theme.
+    private static let gameOrange = Color(hex: "FF9500")
+
     private let games: [GameInfo] = [
         GameInfo(id: 7, titleKey: "games_house_rockets_title",
                  descriptionKey: "games_house_rockets_card_description",
                  icon: "arrow.up.right", color: Color(HouseRocketsPalette.red), badgeKey: "games_house_rockets_badge"),
         GameInfo(id: 6, titleKey: "games_house_tanks_title",
                  descriptionKey: "games_house_tanks_card_description",
-                 icon: "scope", color: .orange, badgeKey: "games_house_tanks_badge"),
+                 icon: "scope", color: Self.gameOrange, badgeKey: "games_house_tanks_badge"),
         GameInfo(id: 5, titleKey: "games_house_switch_title",
                  descriptionKey: "games_house_switch_card_description",
                  icon: "arrow.up.arrow.down.circle.fill", color: .teal, badgeKey: "games_house_switch_badge"),
@@ -38,7 +41,7 @@ struct GamesHubView: View {
                  icon: "building.columns.fill", color: Color(hex: "0F172A"), badgeKey: "games_vault_rush_badge"),
         GameInfo(id: 0, titleKey: "games_lucky_spin_title",
                  descriptionKey: "games_lucky_spin_card_description",
-                 icon: "arrow.2.circlepath", color: .orange, badgeKey: "games_lucky_spin_badge"),
+                 icon: "arrow.2.circlepath", color: Self.gameOrange, badgeKey: "games_lucky_spin_badge"),
     ]
 
     private let columns = [
@@ -188,7 +191,12 @@ private struct HubGameCard: View {
             .padding(AppDesign.Spacing.md)
             .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
         }
-        .background(AppDesign.Colors.cardBackground)
+        .background {
+            ZStack {
+                AppDesign.Colors.cardBackground
+                FausCardSheen()
+            }
+        }
         .clipShape(RoundedRectangle(cornerRadius: AppDesign.CornerRadius.xl))
         .shadow(color: AppDesign.Colors.shadow.opacity(0.06), radius: 8, x: 0, y: 2)
         .frame(maxHeight: .infinity, alignment: .top)

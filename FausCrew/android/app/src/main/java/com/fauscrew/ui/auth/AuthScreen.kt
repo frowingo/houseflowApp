@@ -108,7 +108,7 @@ internal fun AuthScreen(
             verticalArrangement = Arrangement.spacedBy(16.dp),
         ) {
             FausBadge(88.dp) {
-                run { val markColors = FausMarkColors; Canvas(Modifier.size(88.dp)) { drawFausMark(fausMarkBrush(size.minDimension / 1024f, markColors)) } }
+                run { val markColors = FausMarkColors; val webDot = LocalFausTheme.current.decor.webDotMark; Canvas(Modifier.size(88.dp)) { drawFausMark(fausMarkBrush(size.minDimension / 1024f, markColors), webDot = webDot) } }
             }
             // Brand wordmark and motto stay fixed across languages.
             Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(4.dp)) {
@@ -152,7 +152,7 @@ internal fun AuthScreen(
                     focus.clearFocus(); onSubmit()
                 }
                 if (state.mode == AuthMode.SIGN_IN) {
-                    Text(strings.get("auth_forgot_password_button"), Modifier.fillMaxWidth().clickable(onClick = onForgot), color = FausCrewColors.accentOrangeInk,
+                    Text(strings.get("auth_forgot_password_button"), Modifier.fillMaxWidth().clickable(onClick = onForgot), color = FausCrewColors.pageAccent,
                         fontSize = 14.sp, fontWeight = FontWeight.Medium, textAlign = TextAlign.End)
                 }
             }
@@ -165,7 +165,7 @@ internal fun AuthScreen(
                 Row(Modifier.fillMaxWidth().background(FausCrewColors.primary.copy(alpha = .10f), RoundedCornerShape(12.dp)).padding(12.dp),
                     horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.Top) {
                     Icon(Icons.Filled.Info, null, Modifier.size(18.dp), tint = FausCrewColors.primary)
-                    Text(state.info, color = ink, fontSize = 15.sp)
+                    Text(state.info, color = FausCrewColors.pageText, fontSize = 15.sp)
                 }
             }
             if (state.notice != null) {
@@ -195,7 +195,7 @@ internal fun AuthScreen(
             if (state.socialProviders.isNotEmpty()) {
                 Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                     Box(Modifier.weight(1f).height(1.dp).background(FausCrewColors.elevatedSurface))
-                    Text(strings.get("auth_divider_or"), color = secondary, fontSize = 12.sp)
+                    Text(strings.get("auth_divider_or"), color = FausCrewColors.pageTextSecondary, fontSize = 12.sp)
                     Box(Modifier.weight(1f).height(1.dp).background(FausCrewColors.elevatedSurface))
                 }
                 Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(16.dp)) {
@@ -223,7 +223,7 @@ private fun AuthTab(label: String, selected: Boolean, modifier: Modifier, onClic
         .then(if (selected) Modifier.shadow(6.dp, RoundedCornerShape(12.dp)).background(FausCrewColors.segmentSelected) else Modifier)
         .clickable(onClick = onClick), contentAlignment = Alignment.Center) {
         Text(label, fontSize = 15.sp, fontWeight = FontWeight.SemiBold,
-            color = if (selected) accent else secondary)
+            color = if (selected) (LocalFausTheme.current.decor.accentOnCard ?: accent) else secondary)
     }
 }
 
@@ -232,7 +232,7 @@ private fun AuthField(label: String, placeholder: String, value: String, onValue
     icon: ImageVector, secure: Boolean, keyboard: KeyboardType, ime: ImeAction, onDone: () -> Unit = {}) {
     var focused by remember { mutableStateOf(false) }
     Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
-        Text(label, color = ink, fontSize = 15.sp)
+        Text(label, color = FausCrewColors.pageText, fontSize = 15.sp)
         Row(
             Modifier.fillMaxWidth().clip(RoundedCornerShape(12.dp)).background(gray6)
                 .border(2.dp, if (focused) accent else Color.Transparent, RoundedCornerShape(12.dp))

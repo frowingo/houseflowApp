@@ -218,10 +218,23 @@ struct CustomTabBar: View {
 
             FausHeroGlow(color: theme.decor.tabBarGlow, reach: 0.7)
 
-            if theme.decor.ornament == .bloom {
-                FausBloomOrnament(surface: .tabBar, ornament: theme.decor.heroOrnament, sprig: theme.decor.heroSprig)
-            } else {
+            switch theme.decor.ornament {
+            case .geometric:
                 tabBarGeometry
+            case .bloom:
+                FausBloomOrnament(surface: .tabBar, ornament: theme.decor.heroOrnament, sprig: theme.decor.heroSprig)
+            case .web:
+                // The canvas lights the bar from inside: a crimson ellipse over the diagonal.
+                GeometryReader { geo in
+                    EllipticalGradient(
+                        stops: theme.decor.tabBarStops,
+                        center: UnitPoint(x: 0.4, y: 0.3),
+                        startRadiusFraction: 0,
+                        endRadiusFraction: 0.75
+                    )
+                    .frame(width: geo.size.width, height: geo.size.height)
+                }
+                FausWebOrnament(surface: .tabBar, ornament: theme.decor.heroOrnament)
             }
 
             barShape

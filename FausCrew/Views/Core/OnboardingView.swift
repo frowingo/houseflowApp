@@ -2,6 +2,7 @@ import SwiftUI
 
 struct OnboardingView: View {
     @EnvironmentObject private var appViewModel: AppViewModel
+    @Environment(\.fausTheme) private var theme
     @State private var currentPage = 0
 
     let onboardingPages = [
@@ -87,7 +88,7 @@ struct OnboardingView: View {
 
             Text(verbatim: "Make living together fun")
                 .font(.system(size: 14))
-                .foregroundColor(AppDesign.Colors.textSecondary)
+                .foregroundColor(AppDesign.Colors.pageTextSecondary)
         }
     }
 
@@ -138,7 +139,7 @@ struct OnboardingView: View {
                 Image(systemName: "arrow.right")
             }
             .font(.system(size: 17, weight: .bold))
-            .foregroundColor(isLastPage ? .white : HouseJourneyTheme.accentOrangeInk)
+            .foregroundColor(isLastPage ? .white : (theme.decor.accentOnCard ?? HouseJourneyTheme.accentOrangeInk))
             .frame(maxWidth: .infinity)
             .frame(height: 54)
             .background {
@@ -207,7 +208,7 @@ private struct OnboardingPageView: View {
             VStack(spacing: AppDesign.Spacing.sm) {
                 Text(title)
                     .font(.system(size: 22, weight: .bold, design: .rounded))
-                    .foregroundColor(AppDesign.Colors.text)
+                    .foregroundColor(AppDesign.Colors.pageText)
                     .multilineTextAlignment(.center)
                     .offset(y: entered ? 0 : 14)
                     .opacity(entered ? 1 : 0)
@@ -215,7 +216,7 @@ private struct OnboardingPageView: View {
 
                 Text(subtitle)
                     .font(.system(size: 15))
-                    .foregroundColor(AppDesign.Colors.textSecondary)
+                    .foregroundColor(AppDesign.Colors.pageTextSecondary)
                     .multilineTextAlignment(.center)
                     .lineSpacing(2)
                     .offset(y: entered ? 0 : 14)
@@ -252,6 +253,7 @@ private struct OnboardingArtView: View {
     let entered: Bool
 
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @Environment(\.fausTheme) private var theme
     @State private var spinning = false
     @State private var floating = false
 
@@ -335,7 +337,7 @@ private struct OnboardingArtView: View {
     private func gameChip(_ symbol: String, x: CGFloat, y: CGFloat, delay: Double) -> some View {
         Image(systemName: symbol)
             .font(.system(size: 15, weight: .semibold))
-            .foregroundColor(FausBrand.orange)
+            .foregroundColor(theme.decor.accentOnCard ?? FausBrand.orange)
             .frame(width: 32, height: 32)
             .background(
                 Circle()

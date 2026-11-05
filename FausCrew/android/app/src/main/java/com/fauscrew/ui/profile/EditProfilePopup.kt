@@ -61,7 +61,7 @@ import java.time.LocalDate
 
 private val accentOrange: Color @Composable @ReadOnlyComposable get() = FausCrewColors.accentOrange
 private val detailsTint = Color(0xFF33B366)
-private val cakeTint = Color(0xFFE6731A)
+private val cakeTint: Color @Composable @ReadOnlyComposable get() = FausCrewColors.tintBirthday
 
 /** `EditProfilePopup`: 20-day notice, name section, birthdate section, Save / Cancel. */
 @Composable

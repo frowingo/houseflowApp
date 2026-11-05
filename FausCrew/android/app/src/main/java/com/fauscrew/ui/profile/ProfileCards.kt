@@ -1,5 +1,6 @@
 package com.fauscrew.ui.profile
 
+import com.fauscrew.ui.components.fausCardSheen
 import androidx.compose.animation.core.RepeatMode
 import androidx.compose.animation.core.animateFloat
 import androidx.compose.animation.core.infiniteRepeatable
@@ -29,6 +30,7 @@ import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.ReadOnlyComposable
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -69,8 +71,8 @@ internal object ProfileTints {
     val personalSlate = Color(0xFF5C7A9C)
     val house = Color(0xFF6B45AB)
     val join = Color(0xFF1F8C8A)
-    val create = Color(0xFFE5620F)
-    val notifications = Color(0xFFF2731A)
+    val create: Color @Composable @ReadOnlyComposable get() = FausCrewColors.tintCreate
+    val notifications: Color @Composable @ReadOnlyComposable get() = FausCrewColors.tintNotifications
     val privacy = Color(0xFF598CE0)
     val theme = Color(0xFFD94A80)
 }
@@ -144,6 +146,7 @@ internal fun ProfileModernCard(
             .softShadow(FausCrewColors.shadow.copy(alpha = .12f), 16.dp, y = 6.dp, shape = shape)
             .clip(shape)
             .background(FausCrewColors.cardBackground)
+            .fausCardSheen()
             .background(Brush.linearGradient(gradient))
             .border(1.dp, Brush.linearGradient(borderColors), shape),
     ) {

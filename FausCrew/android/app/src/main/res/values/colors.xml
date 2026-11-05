@@ -1,5 +1,11 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <!-- Brand orange shown by the system launch window; FausSplash picks up from it. -->
-    <color name="launch_background">#FFFF7A26</color>
+    <!-- System launch window colors. Android 12+ shows the selected theme's color (a stop near the
+         middle of its header gradient, where the splash mark sits); FausSplash fades in from it.
+         Android 11 cannot follow the theme, so it shows the neutral black, as iOS does. -->
+    <color name="launch_light">#FFFF7A26</color>
+    <color name="launch_dark">#FF5A1A33</color>
+    <color name="launch_bloom">#FF336063</color>
+    <color name="launch_web">#FF7A0610</color>
+    <color name="launch_neutral">#FF000000</color>
 </resources>

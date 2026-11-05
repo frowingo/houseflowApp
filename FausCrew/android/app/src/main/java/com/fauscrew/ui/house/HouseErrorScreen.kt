@@ -72,10 +72,10 @@ internal fun HouseErrorScreen(
                 }
             }
             Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(Spacing.md)) {
-                Text(strings.get("house_error_title"), style = FausCrewType.title2, color = FausCrewColors.textPrimary,
+                Text(strings.get("house_error_title"), style = FausCrewType.title2, color = FausCrewColors.pageText,
                     textAlign = TextAlign.Center)
                 Text(strings.get("house_error_message"), Modifier.padding(horizontal = Spacing.xxxl),
-                    style = FausCrewType.subheadline, color = FausCrewColors.textSecondary, textAlign = TextAlign.Center)
+                    style = FausCrewType.subheadline, color = FausCrewColors.pageTextSecondary, textAlign = TextAlign.Center)
             }
             Column(Modifier.padding(horizontal = Spacing.xxl), verticalArrangement = Arrangement.spacedBy(Spacing.lg)) {
                 HouseJourneyButton(strings.get("house_error_retry_button"), true, FausButtonGradient,

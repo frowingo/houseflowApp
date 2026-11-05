@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- FausCrew Fause Bloom launcher background. Source: Design/AppIcon/FausCrew-AppIcon-Bloom.svg
+<!-- FausCrew Faus Bloom launcher background. Source: Design/AppIcon/FausCrew-AppIcon-Bloom.svg
      (the decoration shares the foreground's 0.8 safe-zone scale and sits further in than on iOS
      so circular launcher masks keep it). -->
 <vector xmlns:android="http://schemas.android.com/apk/res/android"

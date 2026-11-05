@@ -133,9 +133,9 @@ internal fun CreateHouseScreen(
             verticalArrangement = Arrangement.spacedBy(Spacing.sm)) {
             HouseBackButton(strings.get("common_back", "Back"), onBack)
             Text(strings.get("create_house_title"), fontSize = 34.sp, fontWeight = FontWeight.Bold,
-                color = FausCrewColors.textPrimary, textAlign = TextAlign.Center)
+                color = FausCrewColors.pageText, textAlign = TextAlign.Center)
             Text(strings.get("create_house_subtitle"), Modifier.padding(horizontal = Spacing.xxl),
-                style = FausCrewType.subheadline, color = FausCrewColors.textSecondary, textAlign = TextAlign.Center)
+                style = FausCrewType.subheadline, color = FausCrewColors.pageTextSecondary, textAlign = TextAlign.Center)
             Box(Modifier.padding(top = Spacing.xs).size(34.dp, 4.dp).background(FausIconGradient, CircleShape))
         }
         Column(
@@ -143,18 +143,18 @@ internal fun CreateHouseScreen(
             verticalArrangement = Arrangement.spacedBy(Spacing.xxl),
         ) {
             Column(verticalArrangement = Arrangement.spacedBy(Spacing.lg)) {
-                Text(strings.get("create_house_name_label"), style = FausCrewType.headline, color = FausCrewColors.textPrimary)
+                Text(strings.get("create_house_name_label"), style = FausCrewType.headline, color = FausCrewColors.pageText)
                 Column(verticalArrangement = Arrangement.spacedBy(Spacing.sm)) {
                     HouseNameField(name, { name = it.take(NAME_LIMIT) }, strings)
                     AnimatedVisibility(name.isNotEmpty(), enter = fadeIn() + expandVertically(),
                         exit = fadeOut() + shrinkVertically()) {
                         Text(strings.template("create_house_name_count_template", "count" to name.length.toString()),
-                            style = FausCrewType.caption2, color = FausCrewColors.textSecondary)
+                            style = FausCrewType.caption2, color = FausCrewColors.pageTextSecondary)
                     }
                 }
             }
             Column(verticalArrangement = Arrangement.spacedBy(Spacing.lg)) {
-                Text(strings.get("create_house_type_label"), style = FausCrewType.headline, color = FausCrewColors.textPrimary)
+                Text(strings.get("create_house_type_label"), style = FausCrewType.headline, color = FausCrewColors.pageText)
                 Row(horizontalArrangement = Arrangement.spacedBy(Spacing.md)) {
                     HouseTypeUi.entries.forEach { option ->
                         HouseTypeCard(option, option == type, strings, Modifier.weight(1f)) { type = option }
@@ -245,7 +245,7 @@ private fun MemberCountPicker(count: Int, strings: LocalizedText, onChange: (Int
     val update by rememberUpdatedState(onChange)
     val label = strings.get("create_house_member_count_label")
     Column(verticalArrangement = Arrangement.spacedBy(Spacing.xl)) {
-        Text(label, style = FausCrewType.headline, color = FausCrewColors.textPrimary)
+        Text(label, style = FausCrewType.headline, color = FausCrewColors.pageText)
         Column(Modifier.padding(vertical = Spacing.lg), verticalArrangement = Arrangement.spacedBy(Spacing.sm)) {
             BoxWithConstraints(Modifier.fillMaxWidth().height(70.dp)) {
                 val edge = 22.dp
@@ -292,9 +292,9 @@ private fun MemberCountPicker(count: Int, strings: LocalizedText, onChange: (Int
                 MemberBubble(count, Modifier.offset(x = bubbleX - 22.dp, y = 15.dp - 27.dp))
             }
             Row(Modifier.fillMaxWidth().padding(horizontal = Spacing.xs)) {
-                Text(strings.get("common_min"), style = FausCrewType.caption2, color = FausCrewColors.textSecondary)
+                Text(strings.get("common_min"), style = FausCrewType.caption2, color = FausCrewColors.pageTextSecondary)
                 Spacer(Modifier.weight(1f))
-                Text(strings.get("common_max"), style = FausCrewType.caption2, color = FausCrewColors.textSecondary)
+                Text(strings.get("common_max"), style = FausCrewType.caption2, color = FausCrewColors.pageTextSecondary)
             }
         }
     }

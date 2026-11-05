@@ -9,6 +9,8 @@ struct ModernSecureField: View {
     let icon: String
     @FocusState.Binding var focusedField: AuthField?
     let fieldType: AuthField
+    /// The label above the field sits on the screen, not the field: auth's sheet passes `pageText`.
+    var titleColor: Color = AppDesign.Colors.text
     @State private var isSecure = true
     
     var body: some View {
@@ -23,7 +25,7 @@ struct ModernSecureField: View {
     private var titleLabel: some View {
         Text(title)
             .font(AppDesign.Typography.subheadline)
-            .foregroundColor(AppDesign.Colors.text)
+            .foregroundColor(titleColor)
     }
     
     private var inputField: some View {

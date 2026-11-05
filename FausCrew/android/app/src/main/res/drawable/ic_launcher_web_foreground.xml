@@ -1,0 +1,35 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- FausCrew roof-F glyph whose dot is a small orb web (Faus Web), scaled to stay inside the
+     adaptive icon safe zone. Source: Design/AppIcon/FausCrew-AppIcon-Web.svg -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="1024"
+    android:viewportHeight="1024">
+    <group
+        android:pivotX="512"
+        android:pivotY="512"
+        android:scaleX="0.8"
+        android:scaleY="0.8">
+        <path
+            android:pathData="M692,398L512,246L332,398V778"
+            android:strokeColor="#FFFFFFFF"
+            android:strokeWidth="76"
+            android:strokeLineCap="round"
+            android:strokeLineJoin="round" />
+        <path
+            android:pathData="M332,578H512"
+            android:strokeColor="#FFFFFFFF"
+            android:strokeWidth="76"
+            android:strokeLineCap="round" />
+        <path
+            android:pathData="M652.0 578.0L681.8 505.9M652.0 578.0L724.1 548.2M652.0 578.0L724.1 607.8M652.0 578.0L681.8 650.1M652.0 578.0L622.2 650.1M652.0 578.0L579.9 607.8M652.0 578.0L579.9 548.2M652.0 578.0L622.2 505.9M661.9 554.0Q665.2 564.8 676.0 568.1Q670.7 578.0 676.0 587.9Q665.2 591.2 661.9 602.0Q652.0 596.7 642.1 602.0Q638.8 591.2 628.0 587.9Q633.3 578.0 628.0 568.1Q638.8 564.8 642.1 554.0Q652.0 559.3 661.9 554.0ZM671.9 530.0Q678.5 551.5 700.0 558.1Q689.4 578.0 700.0 597.9Q678.5 604.5 671.9 626.0Q652.0 615.4 632.1 626.0Q625.5 604.5 604.0 597.9Q614.6 578.0 604.0 558.1Q625.5 551.5 632.1 530.0Q652.0 540.6 671.9 530.0ZM681.8 505.9Q691.7 538.3 724.1 548.2Q708.2 578.0 724.1 607.8Q691.7 617.7 681.8 650.1Q652.0 634.2 622.2 650.1Q612.3 617.7 579.9 607.8Q595.8 578.0 579.9 548.2Q612.3 538.3 622.2 505.9Q652.0 521.8 681.8 505.9Z"
+            android:strokeColor="#FFFFFFFF"
+            android:strokeWidth="13"
+            android:strokeLineCap="round"
+            android:strokeLineJoin="round" />
+        <path
+            android:fillColor="#FFFFFFFF"
+            android:pathData="M631,578a21,21 0,1 0,42 0a21,21 0,1 0,-42 0z" />
+    </group>
+</vector>

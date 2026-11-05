@@ -1,5 +1,6 @@
 package com.fauscrew.ui.house
 
+import com.fauscrew.ui.theme.LocalFausTheme
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -53,7 +54,7 @@ internal fun HouseBackButton(description: String, onClick: () -> Unit) {
                 .semantics { contentDescription = description },
             contentAlignment = Alignment.Center,
         ) {
-            Icon(FausCrewIcons.chevronLeft, null, Modifier.size(24.dp), tint = FausCrewColors.accentOrangeInk)
+            Icon(FausCrewIcons.chevronLeft, null, Modifier.size(24.dp), tint = LocalFausTheme.current.decor.accentOnCard ?: FausCrewColors.accentOrangeInk)
         }
     }
 }

@@ -1,6 +1,13 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <style name="Theme.FausCrew" parent="@android:style/Theme.Material.Light.NoActionBar">
-        <item name="android:windowBackground">@color/launch_background</item>
+        <item name="android:windowBackground">@color/launch_neutral</item>
     </style>
+
+    <!-- Per-theme launch styles, applied with SplashScreen.setSplashScreenTheme on Android 12+
+         (values-v31). The system persists them by name, so these names must stay stable. -->
+    <style name="Theme.FausCrew.Launch.Light" parent="Theme.FausCrew" />
+    <style name="Theme.FausCrew.Launch.Dark" parent="Theme.FausCrew" />
+    <style name="Theme.FausCrew.Launch.Bloom" parent="Theme.FausCrew" />
+    <style name="Theme.FausCrew.Launch.Web" parent="Theme.FausCrew" />
 </resources>

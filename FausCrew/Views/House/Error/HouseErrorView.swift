@@ -33,12 +33,12 @@ struct HouseErrorView: View {
                 VStack(spacing: AppDesign.Spacing.md) {
                     Text(appViewModel.localized("house_error_title"))
                         .font(AppDesign.Typography.title2)
-                        .foregroundColor(AppDesign.Colors.text)
+                        .foregroundColor(AppDesign.Colors.pageText)
                         .multilineTextAlignment(.center)
 
                     Text(appViewModel.localized("house_error_message"))
                         .font(AppDesign.Typography.subheadline)
-                        .foregroundColor(AppDesign.Colors.textSecondary)
+                        .foregroundColor(AppDesign.Colors.pageTextSecondary)
                         .multilineTextAlignment(.center)
                         .padding(.horizontal, AppDesign.Spacing.xxxl)
                 }

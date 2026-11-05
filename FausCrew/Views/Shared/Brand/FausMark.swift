@@ -108,6 +108,8 @@ struct FausMark: View {
     var progress: CGFloat = 1
     var dotScale: CGFloat = 1
 
+    @Environment(\.fausTheme) private var theme
+
     var body: some View {
         let unit = size / 1024
         ZStack {
@@ -115,11 +117,25 @@ struct FausMark: View {
                 .trim(from: 0, to: progress)
                 .stroke(color, style: StrokeStyle(lineWidth: 76 * unit, lineCap: .round, lineJoin: .round))
 
-            Circle()
-                .fill(color)
-                .frame(width: 88 * unit, height: 88 * unit)
-                .scaleEffect(dotScale)
-                .position(x: 622 * unit, y: 578 * unit)
+            if theme.decor.webDotMark {
+                // Faus Web: a small web with a solid hub in place of the dot.
+                ZStack {
+                    FausWebDotShape()
+                        .stroke(color, style: StrokeStyle(lineWidth: 13 * unit, lineCap: .round, lineJoin: .round))
+                    Circle()
+                        .fill(color)
+                        .frame(width: 42 * unit, height: 42 * unit)
+                        .position(x: FausWebDotShape.center.x * unit, y: FausWebDotShape.center.y * unit)
+                }
+                .frame(width: size, height: size)
+                .scaleEffect(dotScale, anchor: UnitPoint(x: FausWebDotShape.center.x / 1024, y: FausWebDotShape.center.y / 1024))
+            } else {
+                Circle()
+                    .fill(color)
+                    .frame(width: 88 * unit, height: 88 * unit)
+                    .scaleEffect(dotScale)
+                    .position(x: 622 * unit, y: 578 * unit)
+            }
         }
         .frame(width: size, height: size)
         .accessibilityHidden(true)

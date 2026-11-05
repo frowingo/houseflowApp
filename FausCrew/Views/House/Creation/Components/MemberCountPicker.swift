@@ -13,6 +13,7 @@ struct MemberCountPicker: View {
         VStack(alignment: .leading, spacing: AppDesign.Spacing.xl) {
             Text(appViewModel.localized("create_house_member_count_label"))
                 .font(AppDesign.Typography.headline)
+                .foregroundColor(AppDesign.Colors.pageText)
             
             sliderSection
         }
@@ -131,13 +132,13 @@ struct MemberCountPicker: View {
         HStack {
             Text(appViewModel.localized("common_min"))
                 .font(AppDesign.Typography.caption2)
-                .foregroundColor(AppDesign.Colors.textSecondary)
+                .foregroundColor(AppDesign.Colors.pageTextSecondary)
             
             Spacer()
             
             Text(appViewModel.localized("common_max"))
                 .font(AppDesign.Typography.caption2)
-                .foregroundColor(AppDesign.Colors.textSecondary)
+                .foregroundColor(AppDesign.Colors.pageTextSecondary)
         }
         .padding(.horizontal, AppDesign.Spacing.xs)
     }

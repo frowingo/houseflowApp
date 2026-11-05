@@ -107,10 +107,16 @@ internal fun ChoreFailureReason?.message(strings: LocalizedText): String = when 
 }
 
 /** `ChoreLevel` presentation from NewChorePopup.swift. */
-internal enum class ChoreLevelUi(val raw: Int, val key: String, val color: Color, val icon: ImageVector) {
-    EASY(10, "chore_level_easy", Color(0xFF33BF66), FausCrewIcons.leafFill),
-    MEDIUM(20, "chore_level_medium", Color(0xFFFF7A26), FausCrewIcons.flameFill),
-    HARD(30, "chore_level_hard", Color(0xFFE63340), FausCrewIcons.boltFill);
+internal enum class ChoreLevelUi(val raw: Int, val key: String, val icon: ImageVector) {
+    EASY(10, "chore_level_easy", FausCrewIcons.leafFill),
+    MEDIUM(20, "chore_level_medium", FausCrewIcons.flameFill),
+    HARD(30, "chore_level_hard", FausCrewIcons.boltFill);
+
+    val color: Color @Composable @ReadOnlyComposable get() = when (this) {
+        EASY -> FausCrewColors.levelEasy
+        MEDIUM -> FausCrewColors.levelMedium
+        HARD -> FausCrewColors.levelHard
+    }
 
     companion object {
         fun of(raw: Int): ChoreLevelUi = entries.firstOrNull { it.raw == raw } ?: EASY

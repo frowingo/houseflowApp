@@ -44,6 +44,8 @@ struct FausHeroBackground: View {
                         .position(x: 23, y: 92)
                 case .bloom:
                     FausBloomOrnament(surface: .header, ornament: theme.decor.heroOrnament, sprig: theme.decor.heroSprig)
+                case .web:
+                    FausWebOrnament(surface: .header, ornament: theme.decor.heroOrnament)
                 }
             }
         }

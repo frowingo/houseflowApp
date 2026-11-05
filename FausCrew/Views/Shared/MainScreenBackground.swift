@@ -41,6 +41,17 @@ struct MainScreenBackground: View {
 
             FausHeroGlow(color: backdrop.glow, reach: 0.6)
 
+            if backdrop.centerGlow != .clear {
+                GeometryReader { proxy in
+                    RadialGradient(
+                        colors: [backdrop.centerGlow, backdrop.centerGlow.opacity(0)],
+                        center: UnitPoint(x: 0.5, y: 0.22),
+                        startRadius: 0,
+                        endRadius: max(proxy.size.width, proxy.size.height) * 0.41
+                    )
+                }
+            }
+
             if backdrop.drawsLines {
                 lineField
             }

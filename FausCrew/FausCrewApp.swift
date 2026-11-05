@@ -44,6 +44,11 @@ struct FausCrewApp: App {
                 }
             }
             .environment(\.fausSelectedTheme, themeStore.theme)
+            // `preferredColorScheme` reaches the window only after the first frames, which would
+            // render in the device's appearance; a theme whose scheme differs (Faus Web or Faus Dark
+            // on a light-mode phone, Faus Bloom on a dark-mode one) would then fall back to Faus
+            // Light, flashing its orange splash. The tree gets the theme's scheme from frame one.
+            .environment(\.colorScheme, themeStore.theme.colorScheme)
             .preferredColorScheme(themeStore.theme.colorScheme)
             // Google, Facebook and Snapchat return to the app through these redirects.
             .onOpenURL { SocialURLHandler.handle($0) }

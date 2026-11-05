@@ -74,13 +74,13 @@ internal fun HouseLoadingScreen(phase: HouseLoadingPhase, strings: LocalizedText
             AnimatedContent(title, transitionSpec = {
                 (fadeIn(Motion.standard()) + slideInVertically(Motion.standard()) { it / 2 }) togetherWith fadeOut(Motion.standard())
             }, label = "phaseTitle") { key ->
-                Text(strings.get(key), style = FausCrewType.title2, color = FausCrewColors.textPrimary, textAlign = TextAlign.Center)
+                Text(strings.get(key), style = FausCrewType.title2, color = FausCrewColors.pageText, textAlign = TextAlign.Center)
             }
             Spacer(Modifier.height(8.dp))
             AnimatedContent(subtitle, transitionSpec = { fadeIn(Motion.standard()) togetherWith fadeOut(Motion.standard()) },
                 label = "phaseSubtitle") { key ->
                 Text(strings.get(key), Modifier.padding(horizontal = 32.dp), style = FausCrewType.subheadline,
-                    color = FausCrewColors.textSecondary, textAlign = TextAlign.Center)
+                    color = FausCrewColors.pageTextSecondary, textAlign = TextAlign.Center)
             }
             FausSpinner(46.dp, Modifier.padding(top = 24.dp))
         }

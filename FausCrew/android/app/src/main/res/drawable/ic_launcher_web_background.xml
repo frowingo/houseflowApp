@@ -1,0 +1,47 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- FausCrew Faus Web launcher background: the hero gradient, a crimson glow from the top-left
+     and a cream orb web from the top-right. Source: Design/AppIcon/FausCrew-AppIcon-Web.svg
+     (the web hangs from the safe-zone corner rather than the canvas corner so circular launcher
+     masks keep it). -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:aapt="http://schemas.android.com/aapt"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="1024"
+    android:viewportHeight="1024">
+    <path android:pathData="M0,0h1024v1024h-1024z">
+        <aapt:attr name="android:fillColor">
+            <gradient
+                android:type="linear"
+                android:startX="0"
+                android:startY="0"
+                android:endX="635"
+                android:endY="1024">
+                <item android:offset="0" android:color="#FFC8161F" />
+                <item android:offset="0.26" android:color="#FFA30F17" />
+                <item android:offset="0.46" android:color="#FF7A0610" />
+                <item android:offset="0.6" android:color="#FF4E0000" />
+                <item android:offset="0.76" android:color="#FF1E0B3A" />
+                <item android:offset="0.92" android:color="#FF0F3A93" />
+                <item android:offset="1" android:color="#FF2459C4" />
+            </gradient>
+        </aapt:attr>
+    </path>
+    <path android:pathData="M0,0h1024v1024h-1024z">
+        <aapt:attr name="android:fillColor">
+            <gradient
+                android:type="radial"
+                android:centerX="0"
+                android:centerY="0"
+                android:gradientRadius="614">
+                <item android:offset="0" android:color="#80E23A42" />
+                <item android:offset="1" android:color="#00E23A42" />
+            </gradient>
+        </aapt:attr>
+    </path>
+    <path
+        android:pathData="M853.0 171.0L1525.0 171.0M853.0 171.0L1435.0 507.0M853.0 171.0L1189.0 753.0M853.0 171.0L853.0 843.0M853.0 171.0L517.0 753.0M853.0 171.0L271.0 507.0M853.0 171.0L181.0 171.0M853.0 171.0L271.0 -165.0M853.0 171.0L517.0 -411.0M853.0 171.0L853.0 -501.0M853.0 171.0L1189.0 -411.0M853.0 171.0L1435.0 -165.0M946.3 171.0Q923.3 189.8 933.8 217.7Q904.5 222.5 899.7 251.8Q871.8 241.3 853.0 264.3Q834.2 241.3 806.3 251.8Q801.5 222.5 772.2 217.7Q782.7 189.8 759.7 171.0Q782.7 152.2 772.2 124.3Q801.5 119.5 806.3 90.2Q834.2 100.7 853.0 77.7Q871.8 100.7 899.7 90.2Q904.5 119.5 933.8 124.3Q923.3 152.2 946.3 171.0ZM1039.7 171.0Q993.6 208.7 1014.7 264.3Q956.0 274.0 946.3 332.7Q890.7 311.6 853.0 357.7Q815.3 311.6 759.7 332.7Q750.0 274.0 691.3 264.3Q712.4 208.7 666.3 171.0Q712.4 133.3 691.3 77.7Q750.0 68.0 759.7 9.3Q815.3 30.4 853.0 -15.7Q890.7 30.4 946.3 9.3Q956.0 68.0 1014.7 77.7Q993.6 133.3 1039.7 171.0ZM1133.0 171.0Q1064.0 227.5 1095.5 311.0Q1007.4 325.4 993.0 413.5Q909.5 382.0 853.0 451.0Q796.5 382.0 713.0 413.5Q698.6 325.4 610.5 311.0Q642.0 227.5 573.0 171.0Q642.0 114.5 610.5 31.0Q698.6 16.6 713.0 -71.5Q796.5 -40.0 853.0 -109.0Q909.5 -40.0 993.0 -71.5Q1007.4 16.6 1095.5 31.0Q1064.0 114.5 1133.0 171.0ZM1226.3 171.0Q1134.3 246.4 1176.3 357.7Q1058.9 376.9 1039.7 494.3Q928.4 452.3 853.0 544.3Q777.6 452.3 666.3 494.3Q647.1 376.9 529.7 357.7Q571.7 246.4 479.7 171.0Q571.7 95.6 529.7 -15.7Q647.1 -34.9 666.3 -152.3Q777.6 -110.3 853.0 -202.3Q928.4 -110.3 1039.7 -152.3Q1058.9 -34.9 1176.3 -15.7Q1134.3 95.6 1226.3 171.0ZM1319.7 171.0Q1204.6 265.2 1257.1 404.3Q1110.4 428.4 1086.3 575.1Q947.2 522.6 853.0 637.7Q758.8 522.6 619.7 575.1Q595.6 428.4 448.9 404.3Q501.4 265.2 386.3 171.0Q501.4 76.8 448.9 -62.3Q595.6 -86.4 619.7 -233.1Q758.8 -180.6 853.0 -295.7Q947.2 -180.6 1086.3 -233.1Q1110.4 -86.4 1257.1 -62.3Q1204.6 76.8 1319.7 171.0ZM1413.0 171.0Q1274.9 284.1 1338.0 451.0Q1161.9 479.9 1133.0 656.0Q966.1 592.9 853.0 731.0Q739.9 592.9 573.0 656.0Q544.1 479.9 368.0 451.0Q431.1 284.1 293.0 171.0Q431.1 57.9 368.0 -109.0Q544.1 -137.9 573.0 -314.0Q739.9 -250.9 853.0 -389.0Q966.1 -250.9 1133.0 -314.0Q1161.9 -137.9 1338.0 -109.0Q1274.9 57.9 1413.0 171.0Z"
+        android:strokeColor="#42FCEBE5"
+        android:strokeWidth="9"
+        android:strokeLineCap="round" />
+</vector>

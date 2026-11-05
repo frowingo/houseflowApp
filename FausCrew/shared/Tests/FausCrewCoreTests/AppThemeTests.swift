@@ -30,14 +30,29 @@ final class AppThemeTests: XCTestCase {
     }
 
     func testStorageContractMatchesAndroid() {
-        XCTAssertEqual(AppThemeID.allCases.map(\.rawValue), ["faus_light", "faus_dark", "fause_bloom"])
-        XCTAssertEqual(AppThemeID.allCases.map(\.displayName), ["Faus Light", "Faus Dark", "Fause Bloom"])
+        XCTAssertEqual(AppThemeID.allCases.map(\.rawValue), ["faus_light", "faus_dark", "faus_bloom", "faus_web"])
+        XCTAssertEqual(AppThemeID.allCases.map(\.displayName), ["Faus Light", "Faus Dark", "Faus Bloom", "Faus Web"])
     }
 
     func testBloomRoundTrips() {
         let store = MemoryPreferences()
-        AppThemePreference.save(.fauseBloom, to: store)
-        XCTAssertEqual(store.strings["selectedTheme"], "fause_bloom")
-        XCTAssertEqual(AppThemePreference.load(from: store), .fauseBloom)
+        AppThemePreference.save(.fausBloom, to: store)
+        XCTAssertEqual(store.strings["selectedTheme"], "faus_bloom")
+        XCTAssertEqual(AppThemePreference.load(from: store), .fausBloom)
+    }
+
+    func testBloomSavedUnderItsFormerNameStillLoads() {
+        let store = MemoryPreferences()
+        store.set("fause_bloom", forKey: AppThemePreference.storageKey)
+        XCTAssertEqual(AppThemePreference.load(from: store), .fausBloom)
+        XCTAssertEqual(AppThemeID.fausBloom.descriptionKey, "theme_fause_bloom_description")
+        XCTAssertEqual(AppThemeID.fausWeb.descriptionKey, "theme_faus_web_description")
+    }
+
+    func testWebRoundTrips() {
+        let store = MemoryPreferences()
+        AppThemePreference.save(.fausWeb, to: store)
+        XCTAssertEqual(store.strings["selectedTheme"], "faus_web")
+        XCTAssertEqual(AppThemePreference.load(from: store), .fausWeb)
     }
 }
