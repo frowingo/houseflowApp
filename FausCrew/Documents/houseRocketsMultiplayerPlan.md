@@ -370,7 +370,7 @@ işlerle güncellenmiştir; tekrar uygulanacak görev değildir.
 | [GameOrientationController.swift](/Users/frowing/Projects/houseflowApp/FausCrew/Services/Games/General/GameOrientationController.swift) | Landscape kilidi ve failure callback'i kullanılabilir. |
 
 Genel oyun taramasında RPS ve House Tanks'ın da service + command + snapshot
-sınırları kullandığı, House Switch'in solo fizik akışı olduğu görüldü. Ortak
+sınırları kullandığı, Faus Switch'in (eski House Switch) solo fizik akışı olduğu görüldü. Ortak
 HTTP/session DTO'ları ve WebSocket transport tekrar kullanılabilir; bütün oyunları
 tek generic servis veya tek fizik motoruna dönüştürme ihtiyacı yok.
 
@@ -1927,7 +1927,7 @@ yeni M6 ve mevcut Flight/Tanks actor testleri async XCTest task'ında çalışt�
 Native screenshot harness'i, test AppViewModel'i bırakılmadan hosting graph'ını
 temizler. İz, [Swift runtime kaydı #88036](https://github.com/swiftlang/swift/issues/88036)
 ile örtüşür; gerçek cihaz/OS yaşam döngüsü yine ayrıca doğrulanır.
-House Switch destek probu testi, mevcut geometrinin yüzeydeki merkezini ve
+Faus Switch (eski House Switch) destek probu testi, mevcut geometrinin yüzeydeki merkezini ve
 0,5 birim dışarı uzanan kenarını doğru kontrol edecek şekilde düzeltildi;
 oyun fiziği değiştirilmedi. Son iPhone koşusunda bütün 204 test geçti.
 

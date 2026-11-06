@@ -33,23 +33,22 @@ FausCrew brings recurring household coordination and small social moments into o
 - Each House-Tanks player starts a round with five armor points. A round lasts at most 60 seconds; the last survivor or the unique highest-armor player wins. The match ends at three round wins.
 - House-Tanks keeps its future online boundary explicit through commands and revisioned snapshots, but the demo does not include networking, matchmaking, or server authority.
 - House-Tanks must use original household tabletop visuals and sounds rather than copying the reference game's assets.
-- House-Switch remains an existing, separate game surface.
-- House-Switch gameplay is landscape-only. Its lobby explains the requirement before starting and the run begins only after the scene enters a landscape layout.
-- Leaving House-Tanks or House-Switch returns the Games screen to portrait orientation.
+- Faus Switch (formerly House-Switch) is a landscape gravity race with a demo mode and an online multiplayer mode, split the same way as FauseTanks and House Rockets: the player picks Demo or Online in a portrait lobby, and the race turns the screen to landscape.
+- Demo: one human against one to three local bots (Volt, Byte, Pixel) on the device, no network. Online: everyone in the house who is ready races the same server-authoritative course; the server owns flips, crashes, finish order and the persisted result. One robot per device.
+- Each player picks a robot color (eight colors). In demo the bots take the remaining colors; online, the first player to claim a color keeps it and the others get a free color.
+- Leaving FauseTanks or Faus Switch returns the Games screen to portrait orientation.
 - The course scrolls forward continuously. Hitting a solid obstacle does not pause that movement; a runner that fully leaves the left edge is eliminated.
-- The finite course is twice its original length and contains alternating floor and ceiling gaps. Falling through a gap carries the runner off-screen and ends the run.
-- Small one-use speed pads provide a brief forward gain relative to the camera, helping the runner recover some screen space after obstacles.
-- A tap reverses gravity only while the runner's base is supported by solid geometry. Mid-air taps are ignored.
-- Platforms are solid geometry. Contact with a platform's front or side does **not** kill the player.
-- Explicit hazards such as active lasers may end a run.
-- The first implementation is a solo, finite, playable course; Endless and multiplayer remain open follow-up decisions.
-- House-Switch must not copy the reference game's name, artwork, or proprietary assets.
+- Obstacles come in groups of two or three that split the screen into passages, alternating between top, bottom and middle, instead of single columns from only the top or only the bottom. Floor and ceiling gaps send a runner off-screen; small one-use speed pads give a brief forward gain; one-use slow pads in awkward spots (landings after gaps, rails a runner must leave before a block) cost a little ground; portals on the floor or ceiling, just big enough for a robot, send a runner to the opposite rail and farther back (never behind the camera's edge).
+- A tap reverses gravity only while the runner's feet are supported by solid geometry. Mid-air taps are ignored. Platform contact is never lethal.
+- The physics (run speed, gravity, flip velocity, boost and gap behavior) are unchanged from the original game and now run as a deterministic 120 Hz simulation in FausCrewCore so the server can run the same rules.
+- The race HUD has no progress bar and no flip counter; it shows pause (demo) or leave (online) and small live standings.
+- Faus Switch must not copy the reference game's name, artwork, or proprietary assets.
 - Project changes must not be committed without a commit message supplied by the user.
 
 ## Brand Commitments
 
 - Preserve the FausCrew name and the app's existing friendly, rounded, colorful native character.
-- The game is named **House-Switch**.
+- The gravity race is named **Faus Switch**.
 - Gameplay may be more immersive and energetic than utility screens, while navigation and controls remain recognizably native to the app.
 
 ## Evidence on Hand
@@ -59,7 +58,7 @@ FausCrew brings recurring household coordination and small social moments into o
 - Existing game hub: `Views/Discover/GamesHubView.swift`.
 - Existing arcade implementation: `Views/Discover/Games/SkylineDashView.swift`.
 - Shared visual tokens: `Views/Shared/DesignSystem.swift`.
-- No approved House-Switch illustration or sprite assets are currently present; future work must not imply that such assets were supplied.
+- Faus Switch assets: the supplied grunge texture (recolored into the palette as `FausSwitchTexture`) and a supplied robot reference image that the vector robot runner is modelled on.
 
 ## Product Principles
 

@@ -47,7 +47,7 @@ final class LocalizationStore: ObservableObject {
     func value(for key: String) -> String {
         values[key]
             ?? RPSLocalization.value(for: key, language: languagePrefix)
-            ?? HouseSwitchLocalization.value(for: key, language: languagePrefix)
+            ?? FausSwitchLocalization.value(for: key, language: languagePrefix)
             ?? HouseTanksLocalization.value(for: key, language: languagePrefix)
             ?? HouseRocketsLocalization.value(for: key, language: languagePrefix)
             ?? LuckySpinLocalization.value(for: key, language: languagePrefix)
@@ -57,7 +57,7 @@ final class LocalizationStore: ObservableObject {
     func value(for key: String, fallback: String) -> String {
         values[key]
             ?? RPSLocalization.value(for: key, language: languagePrefix)
-            ?? HouseSwitchLocalization.value(for: key, language: languagePrefix)
+            ?? FausSwitchLocalization.value(for: key, language: languagePrefix)
             ?? HouseTanksLocalization.value(for: key, language: languagePrefix)
             ?? HouseRocketsLocalization.value(for: key, language: languagePrefix)
             ?? LuckySpinLocalization.value(for: key, language: languagePrefix)

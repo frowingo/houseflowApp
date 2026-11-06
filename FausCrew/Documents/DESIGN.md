@@ -1,16 +1,21 @@
 ---
-name: "FausCrew — House-Switch Surface"
-description: "A focused, neon-night arcade world for House-Switch inside FausCrew."
+name: "FausCrew — Faus Switch Surface"
+description: "A light, textured gravity race for Faus Switch inside FausCrew: dark robots and machined blocks on a pale mint course."
 colors:
-  night-sky: "#071827"
-  horizon-teal: "#123D4B"
-  panel-ink: "rgba(10, 28, 45, 0.92)"
-  action-mint: "#31D7C5"
-  action-ink: "#041B22"
-  hazard-orange: "#F28A3A"
-  primary-ink: "rgba(255, 255, 255, 0.96)"
-  secondary-ink: "rgba(255, 255, 255, 0.72)"
-  quiet-track: "rgba(255, 255, 255, 0.16)"
+  course-mint: "#D8FDD4"
+  signal-green: "#3D896D"
+  deep-plum: "#30021F"
+  machine-teal: "#164F52"
+  laser-lavender: "#B6A0CF"
+  pad-lime: "#D5E8A0"
+  paper-sand: "#E6D5B7"
+  hazard-berry: "#7A2453"
+  wine: "#692747"
+  deep-wine: "#501536"
+  light-sand: "#F3EBDD"
+  visor-ink: "#0E2A2C"
+  panel: "linear-gradient(135deg, #F3EBDD, #E6D5B7)"
+  secondary-ink: "rgba(22, 79, 82, 0.82)"
 typography:
   display:
     fontFamily: "SF Pro, -apple-system, BlinkMacSystemFont, sans-serif"
@@ -18,7 +23,7 @@ typography:
     fontWeight: 900
   title:
     fontFamily: "SF Pro, -apple-system, BlinkMacSystemFont, sans-serif"
-    fontSize: "28px"
+    fontSize: "22px"
     fontWeight: 900
   headline:
     fontFamily: "SF Pro, -apple-system, BlinkMacSystemFont, sans-serif"
@@ -34,15 +39,14 @@ typography:
     fontWeight: 400
   label:
     fontFamily: "SF Pro, -apple-system, BlinkMacSystemFont, sans-serif"
-    fontSize: "11px"
-    fontWeight: 700
+    fontSize: "12px"
+    fontWeight: 800
 rounded:
-  small-detail: "3px"
-  platform: "8px"
+  block: "5px"
   control: "12px"
-  action: "16px"
-  panel: "20px"
-  overlay: "24px"
+  action: "12px"
+  panel: "16px"
+  overlay: "20px"
   pill: "999px"
 spacing:
   xs: "4px"
@@ -53,202 +57,132 @@ spacing:
   xxl: "24px"
 components:
   action-primary:
-    backgroundColor: "{colors.action-mint}"
-    textColor: "{colors.action-ink}"
+    backgroundColor: "{colors.wine}"
+    textColor: "{colors.light-sand}"
     typography: "{typography.headline}"
     rounded: "{rounded.action}"
     height: "56px"
     padding: "0 20px"
-  action-danger-result:
-    backgroundColor: "{colors.hazard-orange}"
-    textColor: "{colors.action-ink}"
+  action-not-ready:
+    backgroundColor: "{colors.deep-plum}"
+    textColor: "{colors.course-mint}"
     typography: "{typography.headline}"
     rounded: "{rounded.action}"
     height: "56px"
-    padding: "0 20px"
-  briefing-panel:
-    backgroundColor: "{colors.panel-ink}"
-    textColor: "{colors.primary-ink}"
-    rounded: "{rounded.panel}"
-    padding: "20px"
-  landscape-notice:
-    backgroundColor: "{colors.panel-ink}"
-    textColor: "{colors.primary-ink}"
+  section-card:
+    backgroundColor: "{colors.panel}"
+    textColor: "{colors.deep-plum}"
     rounded: "{rounded.panel}"
     padding: "16px"
   state-overlay:
-    backgroundColor: "{colors.panel-ink}"
-    textColor: "{colors.primary-ink}"
+    backgroundColor: "{colors.course-mint}"
+    textColor: "{colors.deep-plum}"
     rounded: "{rounded.overlay}"
-    padding: "24px"
+    padding: "20px"
   hud-control:
-    backgroundColor: "{colors.panel-ink}"
-    textColor: "{colors.primary-ink}"
+    backgroundColor: "{colors.machine-teal}"
+    textColor: "{colors.course-mint}"
     rounded: "{rounded.control}"
+  standing-chip:
+    backgroundColor: "{colors.panel}"
+    textColor: "{colors.deep-plum}"
+    rounded: "{rounded.pill}"
 ---
 
-# Design System: FausCrew — House-Switch Surface
+# Design System: FausCrew — Faus Switch Surface
 
 ## Overview
 
-**Creative North Star: "The Neon Household Run"**
+**Creative North Star: "Robots on a Mint Sheet"**
 
-House-Switch is a compact, landscape-only arcade world nested inside FausCrew: a deep, cool nightscape where a small house becomes the runner. It feels energetic without abandoning the app's friendly native character. The lobby clearly establishes the required orientation before play, then the playfield owns the screen for the full run; surrounding interface stays concise, rounded, legible, and unmistakably iOS.
+Faus Switch is a landscape gravity race inside FausCrew. Up to four robots (demo: you and one to three bots; online: everyone in the house) run on the same scrolling course; a tap on a surface flips gravity between floor and ceiling. The course sits on a pale, grainy mint texture; everything that matters for play — robots, rails, blocks, gap stripes — is dark so it reads instantly against it. Navigation, type and controls stay native iOS.
 
-This document is intentionally bounded to the House-Switch game surface and the reusable visual or interaction vocabulary expressed by that surface. It is not authority to restyle unrelated FausCrew screens. Within this boundary, mint communicates action, progress, and successful completion; orange communicates explicit danger and high-salience result feedback; translucent navy panels keep controls readable without separating them from the course.
+This document is bounded to the Faus Switch surface. It is not authority to restyle other FausCrew screens.
 
 **Key Characteristics:**
 
-- Deep blue-to-teal night atmosphere with restrained neon accents.
-- Native iOS typography, controls, accessibility, and navigation behavior.
-- A prominent landscape requirement that gates and then locks the playable layout.
-- Friendly continuous corners and compact translucent HUD surfaces.
-- A house-shaped runner and gravity reversal as the signature visual interaction.
-- Motion that explains gameplay state and yields to Reduce Motion.
+- One light background (the supplied grunge texture, duotoned into the palette) and dark play objects.
+- A robot runner modelled on the supplied reference: wide rounded head, dark visor with two white rounded-square eyes, a side ear pad, a small body with arms and legs. Each player picks one of eight body colors.
+- Obstacles arrive in groups of two or three that split the play band into openings; no single column fully blocks the screen from only the top or only the bottom.
+- A minimal HUD: pause (demo) or leave (online), the music button and the sound button. There are no live standings, no progress bar and no flip counter; during the countdown each robot's player name sits beside it, and the result panel shows who was which robot and the order.
+- Portrait lobby, landscape race.
 
 ## Colors
 
-The palette is a cool, dark field with one dominant mint voice and a tightly reserved warm warning voice.
+The palette is #D8FDD4, #3D896D, #30021F, #164F52, #B6A0CF, #D5E8A0 and #E6D5B7, with two wines, **Wine** (#692747) and **Deep Wine** (#501536), so green never dominates. Two extra tones are allowed because play needs them: **Hazard Berry** (#7A2453) for crash results and warnings, and **Visor Ink** (#0E2A2C), a darker teal for the robot visor. **Light Sand** (#F3EBDD) is Paper Sand mixed halfway to white.
 
-### Primary
+- **Course Mint (#D8FDD4):** the light end of the background texture and the finish line.
+- **Paper Sand (#E6D5B7) → Light Sand:** every card and panel (lobby cards, mode bar, pause and result panels, the Games card) is a diagonal gradient from Light Sand at the top left to Paper Sand; result rows are Light Sand; text on dark fills is Light Sand.
+- **Wine (#692747):** primary actions, section titles, kicker, links and chevrons, the online mode icon, every third rail section (the leftward run) and one of the block colors.
+- **Deep Wine (#501536):** secondary ink, HUD buttons, selected-tile outline, the climb's rails, speed-pad outlines and one of the block colors.
+- **Machine Teal (#164F52):** the first run's rails and one of the block colors.
+- **Signal Green (#3D896D):** the first run's running-surface line, speed pads and positive states.
+- **Deep Plum (#30021F):** primary ink, gap chevrons and stripes, the finish checks and the countdown disc.
+- **Laser Lavender (#B6A0CF):** portal swirls and exit rings, slow pads, the local robot's halo, the demo mode icon, selected color tiles, the local name tag and result row, the climb's running-surface line and one of the block colors.
+- **Pad Lime (#D5E8A0):** the chest light, the "you" marker, the leftward run's running-surface line and start-platform lines.
 
-- **Action Mint:** The sole default action and progress accent, used for primary actions, flip feedback, progress fill, right-pointing speed pads, platform guidance, and the finish gate.
-
-### Secondary
-
-- **Horizon Teal:** The lower atmosphere of the vertical sky gradient; it keeps the course cool and dimensional without competing with gameplay geometry.
-
-### Tertiary
-
-- **Hazard Orange:** Reserved for lasers, warm gap-edge markers, danger messaging, the runner's small door detail, best-time emphasis, and crash-result actions.
-
-### Neutral
-
-- **Night Sky:** The darkest backdrop anchor and upper end of the playfield gradient.
-- **Panel Ink:** A high-opacity navy surface for briefing groups, HUD tiles, pause controls, and result overlays.
-- **Primary Ink:** Near-white for essential labels and high-priority content on dark surfaces.
-- **Secondary Ink:** Soft white for explanations, metadata, and secondary actions.
-- **Action Ink:** Deep blue-black text placed on mint or orange filled actions.
-- **Quiet Track:** Low-contrast white used for inactive progress tracks and subtle structural highlights.
+Robot body colors, one per hue so they tell apart (all dark enough to read on the mint course): Plum #30021F, Forest #3D896D, Ocean #3F6C9E, Lavender #8467B8, Olive #7D8B2E, Bronze #B06A3B, Graphite #5B5560, Berry #B0446F. Berry is lighter than the wine blocks so a berry robot never blends into them. The default color is Lavender. Limbs and outlines are the body color darkened; the visor is Visor Ink and the eyes are near-white.
 
 ### Named Rules
 
-**The Two-Signal Rule.** Mint means act, advance, or finish; orange means danger or exceptional result feedback. Do not introduce a third competing accent inside House-Switch.
+**Light Field, Dark Pieces.** The background is always the lightest thing on screen. Anything a player must react to is darker than the texture behind it.
 
-**The Orange Is Earned Rule.** Warm color stays rare enough that an active laser or crash result remains immediately legible.
+**Berry Means Danger.** Only crash results, the left-behind line and destructive actions use Hazard Berry.
 
 ## Typography
 
-**Display Font:** SF Pro through native iOS semantic styles
+Native SF Pro semantic styles throughout; weight carries the arcade tone. Section titles are uppercase caption-heavy in Signal Green. Countdown digits are rounded black, monospaced.
 
-**Body Font:** SF Pro through native iOS semantic styles
-
-**Character:** The hierarchy is native, direct, and highly legible. Weight creates arcade confidence while Dynamic Type, rather than fixed decorative type, preserves FausCrew's platform-native voice.
-
-### Hierarchy
-
-- **Display** (black, large-title semantic style): House-Switch briefing title only.
-- **Title** (black, title semantic style): Pause, crash, and finish overlay titles.
-- **Headline** (semibold by default): Primary actions, rule titles, and compact values.
-- **Body** (regular): Overlay explanations and secondary action labels.
-- **Supporting** (regular, subheadline semantic style): Rule explanations and transient play hints; use semibold only when the hint must remain readable over motion.
-- **Label** (bold, caption semantic styles): Progress endpoints and compact HUD metadata. Time and flip values use monospaced digits for stable measurement.
-
-### Named Rules
-
-**The Native Scale Rule.** Keep non-gameplay copy on iOS semantic text styles so localization and Dynamic Type remain useful; do not freeze interface copy into SpriteKit labels.
+**The Native Scale Rule.** Interface copy stays in SwiftUI so localization and Dynamic Type work; nothing but the course geometry is drawn in SpriteKit.
 
 ## Layout
 
-House-Switch uses a full-bleed playfield with safe, compact interface layers above it. The briefing is vertically scrollable, horizontally inset by the extra-large spacing step, and places a prominent landscape-required panel before the rules. Its persistent full-width action either starts immediately from an already-landscape layout or requests rotation and waits; the playable phase begins only after the measured viewport is wider than it is tall. Landscape remains the only supported run layout until the game view exits, when the Games screen explicitly returns to portrait.
+**Lobby (portrait):** header (robot mark, kicker, title, subtitle) → mode cards (Demo, Online) → after choosing: mode bar with "change mode" → demo setup (robot color grid of eight robot tiles, bot count 1–3 segmented, roster preview, best time) or online room (status with server countdown badge, the same color grid with the first-claim note, roster with ready states) → rules card. The rules card is a two-column grid of seven tiles, each a tiny looping 16:9 clip (2.2–3.6 s, drawn live on the mint course with teal rails and the player's chosen robot color) with a two- to four-word caption under it: tap on a surface, dodge the blocks, robots are solid, don't fall in gaps, green pads speed you up, purple pads slow you down, portals throw you back. Under Reduce Motion each clip holds one telling frame; VoiceOver reads the caption and the full rule sentence. A pinned bottom bar holds "Start" (demo, rotates to landscape) or "Ready / Not ready" plus the host's cancel (online).
 
-During play, the top HUD uses a three-part row: a square pause control, a flexible progress meter, and a compact flip counter. A transient tap hint floats near the bottom and never captures touches. The finite course runs 8,840 points, twice its original length, with four alternating floor and ceiling gaps and five one-use speed pads. The camera advances from course progress independently of the player's physical position. A solid front or side impact may hold the house back while the course continues; failure occurs only when the entire runner has passed behind the left viewport edge, not when it is merely clipped. A fall through a rail gap continues off-screen before the run ends.
+**Race (landscape):** the SpriteKit course fills the screen. The world is 844 × 390 logical units scaled to the screen height; wider screens show more course ahead. Top-left: a 44-point deep wine button (pause in demo, leave in online); top-right: the music button (background track only) and next to it the sound button (effects only: flips and portals). Both choices are remembered separately. During the three-second start every robot has a name tag to its right (caption, heavy, a capsule in the robot's body color with mint text; the local player's tag is lavender with plum ink and reads "You"), and a large plum countdown disc sits at the right edge so the start line stays visible. The tags disappear when the run starts. A short tap hint appears at the bottom for the first seconds.
 
-State overlays dim the entire playfield and center a scrollable panel with a maximum width of 430 points. Content uses the 24-point rhythm for major groups and 8-point rhythm for tightly related labels. Platforms, laser reach, finish geometry, gravity strength, and gravity-switch velocity resolve from the current playfield height so the same vertical traversal remains reachable across landscape iPhone and iPad layouts.
+**Panels:** pause and results dim the race with plum at 38% and centre a sand gradient card (max 660 points wide) laid out for landscape: the header (44-point icon tile, title 3 black) and the standings table on the left, every action stacked in a 210-point column on the right (a 48-point primary button, 44-point text buttons). Standings use one column for up to four robots and two columns for more, with 32-point rows, so every panel fits the landscape screen without scrolling. Only very large text sizes that cannot fit fall back to a scrolling card.
 
-**The Course-First Rule.** Once play begins, remove briefing density and give nearly the entire viewport to the course; HUD elements exist only to pause, orient, or report progress.
+## Course
 
-**The Landscape Gate Rule.** Explain landscape-only play before the start action, wait for a real landscape viewport before entering the playable phase, and keep that orientation locked until the game exits.
+The course first runs to the right, then bends upward in a quarter turn and climbs. The screen stays in landscape; the course itself turns. While climbing, the floor rail is the right wall and the ceiling rail the left wall, so robots switch left and right. After the climb a second left turn brings the course back to horizontal, now running to the left; the band is upside down there, so the floor rail is the top one and robots run toward the left edge, where the finish line is. Bends have no obstacles. Bends are fair: a robot keeps the share of the margin it was using, so no one is lost just because the view turns, and every robot still in the race stays on screen. Through each bend the camera fits the band from the left-behind line onward and zooms out a little (to about 70 %); there the line crosses the screen diagonally and the band behind it is dimmed plum with a berry line; on the climb it is centered on the shaft, zoomed to 75 %, with the robots in the lower part of the screen so more of the climb shows ahead; on the leftward run the robots sit 380 from the right edge at full size. The texture scrolls on both axes.
 
-## Elevation & Depth
+- **Rails:** solid bands along the floor and ceiling with a running-surface line and faint diagonal speed ticks, colored per section so each stretch reads apart: teal with green on the first run, Deep Wine with lavender on the climb, Wine with lime on the leftward run. A bend takes the colors of the section after it.
+- **Blocks:** machined blocks (5-point corners, outline, recessed panel, two bolts) in four styles: teal/green, wine/lavender, lavender/deep wine, deep wine/sand. Every block of a group (blocks less than 200 apart) shares one style; groups take the styles in turn along the course, so neighboring groups differ, and a group never takes its section's rail color. They come in staggered pairs and triples — top+middle, bottom+middle, top+middle+bottom with two openings, diagonal stairs — so every group leaves at least one opening that a timed flip can reach.
+- **Gaps:** real breaks in a rail, filled with plum hazard stripes and marked by plum chevrons on both lips.
+- **Speed pads:** green strips (48 × 28) with three mint chevrons and a deep wine outline, floating in the band, never touching a rail. A robot gets the boost by passing through one, usually mid-flip.
+- **Portals (replace the lasers):** an upright wine ring, 22 × 44, standing on the floor or hanging from the ceiling on a short wine foot, just taller than a robot; inside, a deep wine swirl with a lavender core pulses with the race clock (steady under Reduce Motion). Where it sends a robot is marked on the opposite rail, farther back (220 on the horizontal runs, 100 on the climb), with a faint lavender ring outlined in wine. Running into one moves the robot there, pulled toward that rail; the robot is never placed behind the left-behind line.
+- **Slow pads:** lavender strips (48 × 28) with three deep wine chevrons pointing back against the run and a deep wine outline. Most lie flat on a rail — on landings after gaps and on rails a robot must leave before a block — and a few float in passages flips cross. Each robot is slowed by each pad once (100 slower for 0.8 s).
+- **Finish:** a plum and mint checkered column.
+- **Start platforms:** every robot starts on its own short slab (6 units thick, from 40 behind to 120 past the start line) at the same x. The slabs split the band into one lane per robot; floor-side robots stand on top, ceiling-side robots hang underneath. Each slab is filled with its robot's body color, outlined a shade darker, with a thin lime line on the face the robot stands on.
 
-Depth is primarily tonal: the night gradient, low-opacity skyline, translucent panels, outlined platforms, and glowing course signals establish layers. One ambient shadow belongs to the House-Switch mark, while SpriteKit glow belongs to the runner, active laser, and finish gate. Ordinary HUD surfaces remain shadowless so they feel anchored to the playfield rather than floating above it.
+## The Robot
 
-### Shadow Vocabulary
+The robot is drawn at the size of its 27.2 × 33.6 physics box (80% of the old house runner). Robots are solid to each other: one can run on another's head, two with opposite gravity press sole to sole, and a faster robot is held behind a slower one. Feet on another robot count as a surface for flipping. It faces the run direction (right, then up, then left). A gravity flip mirrors it vertically over 140 ms (instant with Reduce Motion) so its feet stay on the new rail. Legs trot slightly while running. Boosts show two green speed streaks behind it. The local robot has a lavender halo and a lime "you" marker above the head. Crashed robots fade to 32% opacity; disconnected online robots are drawn at 55%.
 
-- **Mark Ambient:** A soft black shadow with 28% opacity, 18-point blur, and 10-point downward offset; use only for the large briefing mark.
-- **Gameplay Signal Glow:** Tight shape glow on the player, laser, and finish gate; it communicates state or collision relevance, not generic decoration.
+## Motion and Feedback
 
-### Named Rules
+- Sound: a soft looping chiptune track (F major, 116 BPM, 33 s) plays from the countdown to the end of the race, is quieter under result panels and notices, pauses with the game and stops when the race closes. The player's own accepted flip plays a short "bloop" that rises toward the ceiling and falls toward the floor, with a small random pitch spread. Bots and other players are silent. The music button mutes the track and the speaker button mutes the effects (flips and portals); each choice is remembered. The audio session is ambient, so the silent switch mutes it and other apps' audio keeps playing.
 
-**The Signal-Only Glow Rule.** Glow identifies interactive or hazardous course objects. Panels, copy, and routine controls do not glow.
-
-## Shapes
-
-The interface uses continuous rounded rectangles: 12-point corners for compact HUD controls, 16-point corners for actions, 20-point corners for briefing groups, and 24-point corners for the primary mark and state overlay. Capsules are reserved for progress geometry and the temporary tap hint. Course platforms use a firmer 8-point radius, while their thin highlight and mint outline make solid geometry readable without making it look lethal. Gaps remain real breaks in those rails with short amber edge markers. Speed pads are small mint strips with right-pointing arrows; the arrows make their purpose legible without relying on color alone.
-
-The player silhouette is a compact house with a peaked roof, outlined body, small rounded window, and orange door. This recognizable silhouette is the surface's signature and should remain readable at gameplay scale.
-
-## Components
-
-### Buttons
-
-- **Shape:** Full-width filled actions use a friendly continuous 16-point corner and a 56-point minimum height; the compact pause control is 46 points square with a 12-point corner.
-- **Primary:** Mint fill, deep action ink, native headline weight, and a system symbol paired with the label.
-- **Pressed / Focus:** Pressing scales the control to 97% with a damped spring. Accessibility focus stays semantic and the entire action remains at least 44 points high.
-- **Result Variant:** Successful restart uses mint; hazard recovery may use orange. The quiet exit action is text-only with secondary ink and a 44-point minimum height.
-
-### Cards / Containers
-
-- **Corner Style:** Briefing groups use 20-point continuous corners; centered state overlays use 24-point continuous corners.
-- **Background:** High-opacity panel ink over the still-visible course.
-- **Shadow Strategy:** Flat by default; only the briefing mark receives ambient elevation.
-- **Internal Padding:** 20 points for briefing content and 24 points for state overlays.
-
-### Navigation
-
-The native navigation bar is visible only during the briefing. Active play hides it and exposes an in-world pause control. The run owns landscape orientation until the game view exits, then the Games screen is restored to portrait. Leaving the app while playing pauses the run; returning never silently advances gameplay.
-
-### Landscape Requirement
-
-A full-width panel appears between the title and gameplay rules. Its 48-point landscape-rotation symbol, REQUIRED capsule, headline, and direct explanation make orientation a prerequisite rather than a footnote. If the system cannot rotate automatically, the same panel turns its symbol and badge orange and tells the player to rotate the device before trying again.
-
-### Rule Row
-
-A 44-point tinted icon tile leads a left-aligned title and supporting explanation. The lobby teaches five rules before play: supported gravity flips in mint, non-lethal solid impacts and continuous scrolling in cyan, floor and ceiling gaps in orange, short mint speed pads, and active lasers in orange. Gap copy tells players to change rails before an opening; pad copy explains the small forward recovery relative to the camera.
-
-### Gameplay HUD
-
-HUD surfaces share panel ink and 12-point continuous corners. The progress component pairs compact start/finish labels with a thin capsule track and mint fill. Numeric values use monospaced digits to prevent visual jitter.
-
-### House Runner and Course Signals
-
-The runner is a mint house with a white edge, dark window, orange door, and a soft circular aura. A playfield tap flips gravity only when a narrow probe under the house's gravity-facing base finds solid support. An accepted flip rotates the house toward the opposite rail over 180 milliseconds, pulses the aura over 220 milliseconds, increments the counter, and gives light haptic feedback. An airborne tap leaves gravity, orientation, and count unchanged and answers with a distinct rigid blocked haptic. On contact from the supported rail, each mint arrow pad gives one brief extra burst of speed relative to the camera, then dims after use. A runner falling into a gap is carried beyond the vertical viewport before elimination. Lasers move through dim, warning, active, and cooldown states using opacity and brightness so danger never relies on hue alone.
+- Accepted flip: light haptic. Mid-air tap: rigid haptic at 55%, no state change.
+- Portal: a short swirling "vwoop" (with the effects) and a warning haptic. Boost: medium haptic. Crash: error notification. Finish: success notification.
+- The background texture scrolls at 28% of the camera speed and becomes static with Reduce Motion.
+- Online corrections ease out within 80 ms; larger jumps snap.
 
 ## Do's and Don'ts
 
 ### Do:
 
-- **Do** keep the entire unobscured playfield available as the gravity-flip target while preserving explicit pause controls.
-- **Do** make the landscape-only requirement prominent in the lobby, start only after landscape layout is confirmed, and keep the run locked there until exit.
-- **Do** keep camera and course progression advancing when a solid obstacle blocks the player, and trigger left-behind failure only after the whole runner clears the left viewport edge.
-- **Do** accept gravity flips only from the gravity-facing supported base; use distinct blocked feedback for airborne taps without changing gameplay state.
-- **Do** scale vertical geometry, gravity, and switch velocity from playfield height so phone and iPad landscape traversal stays reachable.
-- **Do** use mint for the principal action/progress channel and orange only for hazards or exceptional result feedback.
-- **Do** keep solid platforms visually substantial and non-lethal; their outline and highlight should distinguish them from lasers.
-- **Do** show the four alternating rail gaps as physical openings with amber edge markers and let a fall finish off-screen before ending the run.
-- **Do** show all five one-use speed pads as short mint strips with right-pointing arrows; their brief boost should recover only a little screen space.
-- **Do** pair motion and haptics with persistent visual state, and replace decorative parallax or large transitions when Reduce Motion is enabled.
-- **Do** preserve native localization, Dynamic Type, semantic accessibility labels, and 44-point minimum controls outside the SpriteKit course.
+- **Do** keep the whole playfield as the tap target; HUD pieces outside buttons never capture touches.
+- **Do** keep obstacle groups split into passages and keep every play object darker than the texture.
+- **Do** keep standings for the result panel only; during the race the course and robots carry the screen.
+- **Do** start the race only in a landscape layout and return to portrait when it closes.
+- **Do** keep 44-point minimum controls, semantic labels and Dynamic Type on all SwiftUI copy.
 
 ### Don't:
 
-- **Don't** extend this dark arcade treatment to unrelated FausCrew surfaces without a separate design decision.
-- **Don't** style ordinary panels or labels with neon glow; glow belongs to course signals.
-- **Don't** use orange as a general secondary accent or let it compete with active hazards.
-- **Don't** begin a run while the measured layout is portrait or restore portrait support before the game view exits.
-- **Don't** pause course scrolling because a solid obstacle blocks the player, or fail the run while any part of the runner is still inside the left viewport edge.
-- **Don't** let an airborne tap reverse gravity, rotate the house, or increment the flip count.
-- **Don't** make a platform front or side impact look like failure; only explicit hazards, leaving the vertical boundary, or falling fully behind the left viewport end a run.
-- **Don't** depict a gap as a solid platform or let an already-used speed pad imply another available boost.
-- **Don't** copy the reference game's name, artwork, assets, or browser-like chrome.
+- **Don't** add a Start–Finish progress bar or a flip counter.
+- **Don't** use a dark night background or neon glow on panels.
+- **Don't** use Hazard Berry for anything but danger.
+- **Don't** let a mid-air tap flip gravity.
+- **Don't** copy the reference game's name, artwork or assets.

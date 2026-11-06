@@ -28,30 +28,41 @@ Ekrandan çıkışta demo görevi iptal edilir ve akış kapatılır. Yeni turnu
 
 ---
 
-# House-Switch ilk oynanabilir sürüm
+# Faus Switch: demo ve online
 
-- `HouseSwitchView`: hazırlık, oyun HUD'ı, duraklatma ve sonuç akışını sunar.
-- `HouseSwitchViewModel`: oyun fazını, ilerlemeyi, süreyi, yerçekimi değişim sayısını ve yerel en iyi süreyi yönetir.
-- `HouseSwitchScene`: SpriteKit fizik döngüsü, kamera, platform, lazer ve bitiş temaslarının tek otoritesidir.
-- `HouseSwitchLevel`: ekrandan bağımsız parkur verisini taşır; dikey ölçüler farklı cihaz boylarına oranlanır.
+Eski adı House-Switch. Oyun FauseTanks ve House Rockets ile aynı demo/online ayrımını kullanır: portre lobide mod seçilir, yarış yatay ekranda oynanır.
 
-## Ekran yönü ve kontrol kuralı
+## Katmanlar
 
-Lobi, koşudan önce yatay ekran zorunluluğunu açıklar. Başlat eylemi sahneyi yataya kilitler; yatay ölçü oluşmadan oyun döngüsü başlamaz. Yerçekimi yalnızca evin tabanı mevcut çekim yönündeki katı bir yüzeye basarken değiştirilebilir. Havadaki dokunuşlar fizik durumunu değiştirmez.
+- **FausCrewCore (`shared/Sources/FausCrewCore/Games/FausSwitch`)** — platformdan bağımsız, deterministik kurallar:
+  - `FausSwitchModels`: metrikler (120 Hz sabit adım, koşu hızı 225, yerçekimi 2900 (solo sürümün 3600'ünden ~%20 yumuşak), flip hızı 270, boost +110 / 0,65 sn), robot renkleri, modlar.
+  - `FausSwitchCourse`: 20.400 birimlik parkur: önce sağa akan kısım, x = 9100'de yukarı çeyrek dönüş, dikey tırmanış (zemin rayı sağ duvar, tavan rayı sol duvar), x = 15.450'de ikinci sola dönüş ve sola akan son kısım (bant ters döner: zemin rayı üstte); 2'li ve 3'lü bölünmüş engel grupları, sekiz ray boşluğu, zemin ve tavanda sekiz portal (lazerlerin yerine; robot boyunda, giren robot karşı rayda ve daha geride (yatayda 220, tırmanışta 100) çıkar, ama kameranın elenme çizgisinin önünde), raylara değmeyen dokuz havada hız şeridi (48 × 28) (flip sırasında içinden geçilir), on dört yavaşlatma şeridi (48 × 28; çoğu boşluk dönüşü inişlerde ve bloktan önce terk edilmesi gereken raylarda, kimi havada; 0,8 sn boyunca 100 yavaş), bitiş çizgisi solda. `FausSwitchStartGrid` her robota aynı start çizgisinde kendi platformunu verir; `FausSwitchCourse.race(runnerCount:)` = parkur + platformlar (`courseVersion` 6).
+  - `FausSwitchTrack` / `FausSwitchCamera`: parkur koordinatlarını (x = yol, y = bant içi yükseklik) dünyaya çevirir; düz kısımlar döndürülmüş kopyalar, dönüş eğri raylardır. Fizik bu bükülmeyi görmez. Kamera odak noktasını izler; tırmanışta 0,75'e uzaklaşır, geride kalma çizgisi 380'den 140'a daralır, ikinci dönüşte yeniden 380'e açılır; sola akan kısımda odak ekranın sağ kenarından 380 içeridedir. Dönüşler adildir: her robot dönüşte kullandığı pay oranını korur (`turnCarry`; düzlüklerde 0), kamera izden itibaren bandı her an ekrana sığdırır (yarışta olan her robot görünür), dönüşte iz çizgisinin gerisi karartılır.
+  - `FausSwitchPhysics`: eski SpriteKit fiziğinin aynı sabitlerle yeniden yazılmış, sunucuda da çalışacak hali (destek probu, flip, çarpışma çözümü, boşluk, boost, yavaşlatma, portal, sınırlar, geride kalma). Robotlar birbirine katıdır; yarış tüm robotları koltuk sırasıyla birlikte adımlar (`step(_ runners:tick:course:)`).
+  - `FausSwitchBotBrain` / `FausSwitchBotMatch` / `FausSwitchBotPlanner`: demo yarışı; botlar aynı fizikle ileriyi tarayarak karar verir, diğer robotları düz koşmaya devam eden engeller olarak görür. Kararlar bir önceki karar anındaki durumdan arka planda hesaplanır (sonuç planlayıcıyla ve onsuz aynıdır). 1–3 bot, üç zorluk.
+  - `Online/*`: `FausSwitchRealtime` (wire sözleşmesi `fausSwitch.v1`), `FausSwitchOnlinePlayMachine` (tahmin, düzeltme, flip yeniden gönderimi), `FausSwitchOnlineEngine` (sans-IO lobi + yarış + sonuç), `FausSwitchOnlineCopyKeys`.
+- **iOS**
+  - `FausSwitchViewModel`: mod seçimi, robot rengi (cihazda saklanır), bot sayısı, demo yarış döngüsü, online host, haptik.
+  - `FausSwitchScene`: yalnız çizim yapar; her karede `FausSwitchRenderFrame` ister. Açık doku arka plan, koyu engel ve robotlar.
+  - `FausSwitchView` / `FausSwitchLobbyView` / `FausSwitchArtwork`: lobi, yarış HUD'ı, sonuç panelleri, robot çizimi ve Games kapağı.
+  - `Services/Games/FausSwitch/FausSwitchOnlineHost`: `GameOnlineHost<FausSwitchOnlineEngine>` ve fabrika.
+  - `Views/Discover/Games/FausSwitch/FausSwitchRuleClips`: lobideki kural kartı; her kural `Canvas` ile çizilen minik döngülü bir klip ve birkaç kelimelik başlıktır (video dosyası yok; Reduce Motion açıkken tek kare). Kuralın tam cümlesi VoiceOver ipucu olarak kalır.
+  - `Services/Games/FausSwitch/FausSwitchAudio`: yarış müziği (döngü), oyuncunun kendi flip sesleri ve portal sesi; `.ambient` oturum, müzik HUD'daki nota düğmesiyle, efektler hoparlör düğmesiyle ayrı kapatılır. Sesler `Assets.xcassets` içindeki `FausSwitchMusic`, `FausSwitchFlipUp`, `FausSwitchFlipDown`, `FausSwitchPortal` veri setleridir ve `Documents/Games/fausSwitchAudioSynth.py` ile yeniden üretilir (`python3 fausSwitchAudioSynth.py <klasör>`, ardından `afconvert -f caff -d ima4` müzik, `-d LEI16` efektler).
 
-## Çarpışma ve akış kuralı
+## Kurallar
 
-Katı platformlar oyuncuyla fiziksel olarak çarpışır ancak doğrudan ölüm üretmez. Bu kural ön ve yan yüzeyler için de geçerlidir. Kamera oyuncudan bağımsız ve sabit hızla sağa ilerler; engele takılan oyuncu ekranda geriye düşer ve gövdesi sol kenardan tamamen çıktığında elenir. Aktif lazer teması ve oyun alanının dikey sınırlarının dışına çıkmak da koşuyu bitirir.
+Yerçekimi yalnızca robotun ayakları bir yüzeye basarken değişir; havadaki dokunuşlar durumu değiştirmez. Robotlar birbirinin içinden geçmez: biri diğerinin başında koşabilir, zıt yerçekimli iki robot tabanları birbirine değerek ilerler, arkadan gelen hızlı robot öndekini itemez, arkasında kalır. Ayakları başka bir robota değen robot desteklidir ve flip yapabilir. Bitiren ve elenen robotlar artık çarpışmaz. Her robot aynı x'te kendi start platformundan başlar. Katı engel teması öldürmez, fakat kamera sabit hızla ilerler ve robot sol kenardan tamamen çıkarsa elenir. Aktif lazer, ray boşluğundan düşme ve dikey sınırlar yarışı bitirir. Sıralama: bitirenler bitiş tick'ine göre, sonra koşanlar ilerlemeye göre, sonra elenenler (geç elenen önde).
 
-Parkur uzunluğu 8.840 birimdir. Alt ve üst raylarda ikişer fiziksel boşluk bulunur. Boşluğa yerçekimi yönünde giren oyuncu ray desteğini kaybeder ve ekran dışına düşer. Beş küçük oklu hız şeridi yalnızca üzerinde koşulunca bir kez çalışır; kısa süreli hız farkı oyuncuya kameraya göre yaklaşık 70 birim sağ mesafe kazandırır.
+## Online
 
-## Kapsam
-
-İlk sürüm solo ve bitişli tek bir parkurdur. Endless ve multiplayer bu çekirdeğin oynanış dengesi doğrulandıktan sonra ayrı aşamalar olarak ele alınmalıdır. En iyi süre cihazda `UserDefaults` ile tutulur; sunucu skor tablosu henüz yoktur.
+Sunucu otoriterdir. İstemci dokunuşu `fausSwitch.flip` (controlGeneration, inputSequence, clientTick) olarak gönderir ve sonucu hemen tahmin eder; sunucu flip'i en fazla 250 ms geri sararak `clientTick`'te uygular. Renk lobide `fausSwitch.selectColor` ile istenir; ilk talep eden alır. Ayrıntılar ve backend görevleri: `Documents/fausSwitchBackendBriefing.md`. Sözleşme örnekleri: `shared/Fixtures/fausSwitchProtocol.json`.
 
 ## Doğrulama
 
-`FausCrewTests/HouseSwitchTests.swift` güvenli platform kuralını, ölümcül temas politikasını, yerçekimi geçişini, taban temas probunu, sol kenardan tamamen çıkma sınırını, ilerleme sınırlarını ve parkurun ölçeklenmesini kapsar.
+- `shared/Tests/FausCrewCoreTests/FausSwitchPhysicsTests.swift`: boyut, hız, flip, taşıma, duvar güvenliği, geride kalma, boşluk, boost, portal (karşı raya ve geriye ışınlama, iz önünde iniş), yavaşlatma, bölünmüş engel geçitleri, sıralama.
+- `FausSwitchBotMatchTests.swift`: zor bot parkuru tabandan ve tavandan bitirir; boşta kalan insan elenir; determinizm.
+- `FausSwitchOnlineEngineTests.swift`: fixture çözümleme, renk talebi, kontrol, flip ve yeniden gönderim, tahmin, stale_control reddi, sonuç, katalog.
+- `FausCrewTests/FausSwitchTests.swift`: view model demo döngüsü, duraklatma, renk saklama, yerel çeviri anahtarları.
 
 ---
 

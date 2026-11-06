@@ -5,6 +5,7 @@ import Foundation
 public enum GameKey {
     public static let houseRockets = "houseRockets"
     public static let houseTanks = "houseTanks"
+    public static let fausSwitch = "fausSwitch"
 }
 
 /// Release 1 (backend v38) game routes, relative to `/api/v1`. The legacy
@@ -115,10 +116,12 @@ public struct GameCatalogEntryDTO: Decodable, Equatable, Sendable {
     public let rules: GameRulesDTO
     public let houseRocketsSettings: HouseRocketsRuntimeSettingsDTO?
     public let houseTanksSettings: HouseTanksRuntimeSettingsDTO?
+    public let fausSwitchSettings: FausSwitchRuntimeSettingsDTO?
 
     public init(gameKey: String, protocolVersion: Int, mode: String, configVersion: Int,
                 rules: GameRulesDTO, houseRocketsSettings: HouseRocketsRuntimeSettingsDTO?,
-                houseTanksSettings: HouseTanksRuntimeSettingsDTO? = nil) {
+                houseTanksSettings: HouseTanksRuntimeSettingsDTO? = nil,
+                fausSwitchSettings: FausSwitchRuntimeSettingsDTO? = nil) {
         self.gameKey = gameKey
         self.protocolVersion = protocolVersion
         self.mode = mode
@@ -126,6 +129,7 @@ public struct GameCatalogEntryDTO: Decodable, Equatable, Sendable {
         self.rules = rules
         self.houseRocketsSettings = houseRocketsSettings
         self.houseTanksSettings = houseTanksSettings
+        self.fausSwitchSettings = fausSwitchSettings
     }
 
     private enum CodingKeys: String, CodingKey {
@@ -144,6 +148,9 @@ public struct GameCatalogEntryDTO: Decodable, Equatable, Sendable {
             : nil
         houseTanksSettings = gameKey == GameKey.houseTanks
             ? try values.decodeIfPresent(HouseTanksRuntimeSettingsDTO.self, forKey: .settings)
+            : nil
+        fausSwitchSettings = gameKey == GameKey.fausSwitch
+            ? try values.decodeIfPresent(FausSwitchRuntimeSettingsDTO.self, forKey: .settings)
             : nil
     }
 }
@@ -170,6 +177,12 @@ public struct GameCatalog: Equatable, Sendable {
     /// follows its own `welcome.settings` and contract checks.
     public var houseTanks: GameCatalogEntryDTO? {
         guard let entry = realtimeEntry(for: GameKey.houseTanks), entry.houseTanksSettings != nil else { return nil }
+        return entry
+    }
+
+    /// Faus Switch is offered only with its settings, like FauseTanks.
+    public var fausSwitch: GameCatalogEntryDTO? {
+        guard let entry = realtimeEntry(for: GameKey.fausSwitch), entry.fausSwitchSettings != nil else { return nil }
         return entry
     }
 

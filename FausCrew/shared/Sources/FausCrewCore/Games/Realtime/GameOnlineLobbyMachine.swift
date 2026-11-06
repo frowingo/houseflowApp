@@ -261,6 +261,17 @@ final class GameOnlineLobbyMachine<Game: GameRealtimeGame> {
         return send(message)
     }
 
+    /// A game intent that needs no control grant (a lobby choice such as a robot color).
+    /// Sent only while this player sits in the open lobby; the server has the last word.
+    @discardableResult
+    func sendLobbyIntent(_ intent: Game.Intent, now: TimeInterval) -> Bool {
+        self.now = now
+        guard !isClosed, !state.isLeaving, state.connection == .connected, state.isSynced, state.isLobby,
+              Game.controlGeneration(of: intent) == nil,
+              state.localPlayer(context.localPlayerID) != nil else { return false }
+        return send(ClientMessage(messageId: makeID(), action: .gameplay(intent)))
+    }
+
     func resyncGameplay(now: TimeInterval) {
         self.now = now
         guard !isClosed, !state.controlTransferred, state.connection == .connected,

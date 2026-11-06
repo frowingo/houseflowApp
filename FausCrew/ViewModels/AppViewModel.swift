@@ -15,6 +15,7 @@ class AppViewModel: ObservableObject {
     let authenticationViewModel: AuthenticationViewModel
     let houseRocketsSessionFactory: HouseRocketsSessionFactory
     let houseTanksOnlineFactory: HouseTanksOnlineFactory
+    let fausSwitchOnlineFactory: FausSwitchOnlineFactory
     private let sessionCoordinator: AppSessionCoordinator
     private let fausCrewCoordinator: FausCrewCoordinator
     private let dashboardCoordinator: DashboardCoordinator
@@ -121,6 +122,7 @@ class AppViewModel: ObservableObject {
             userDefaults: dependencies.userDefaults,
             houseRocketsSessionFactory: dependencies.houseRocketsSessionFactory,
             houseTanksOnlineFactory: dependencies.houseTanksOnlineFactory,
+            fausSwitchOnlineFactory: dependencies.fausSwitchOnlineFactory,
             appEvents: dependencies.appEvents
         )
     }
@@ -137,6 +139,7 @@ class AppViewModel: ObservableObject {
         userDefaults: any PreferencesStore,
         houseRocketsSessionFactory: HouseRocketsSessionFactory? = nil,
         houseTanksOnlineFactory: HouseTanksOnlineFactory = .unavailable,
+        fausSwitchOnlineFactory: FausSwitchOnlineFactory = .unavailable,
         appEvents: AppEventsService? = nil
     ) {
         self.appEvents = appEvents
@@ -149,6 +152,7 @@ class AppViewModel: ObservableObject {
         self.localizationStore = localizationStore
         self.houseRocketsSessionFactory = houseRocketsSessionFactory ?? .localOnly
         self.houseTanksOnlineFactory = houseTanksOnlineFactory
+        self.fausSwitchOnlineFactory = fausSwitchOnlineFactory
 
         let router = AppRouter(
             hasAuthToken: keychain.authToken != nil,
