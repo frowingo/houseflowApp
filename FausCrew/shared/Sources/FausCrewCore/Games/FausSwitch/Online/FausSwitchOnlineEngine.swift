@@ -14,6 +14,9 @@ public final class FausSwitchOnlineEngine {
     public private(set) var result = FausSwitchOnlineResultState()
     /// The color this player asked for; resent after a reconnect while still in the lobby.
     public private(set) var preferredColor: FausSwitchColor?
+    /// The lobby's robot colors (`lobbyState`); the local color shown is
+    /// `lobbyColors.localColor(preferred: preferredColor)`.
+    public var lobbyColors: FausSwitchLobbyColors { lobby.lobbyColors(localPlayerID: context.localPlayerID) }
     /// True after `leave` finished or `disconnect`; the host leaves the screen.
     public var isClosed: Bool { lobbyMachine.isClosed && !finished }
     /// The session to exclude when the player asks for a rematch.
@@ -129,9 +132,10 @@ public final class FausSwitchOnlineEngine {
     }
 
     /// Asks for a robot color; sent now if the player sits in the lobby, otherwise as
-    /// soon as they do.
+    /// soon as they do. A ready player's color is locked: the pick is ignored.
     public func selectColor(_ color: FausSwitchColor, now: TimeInterval) {
         self.now = now
+        guard !lobbyColors.isLocked else { return }
         preferredColor = color
         sendColorIfNeeded()
     }
@@ -178,6 +182,11 @@ public final class FausSwitchOnlineEngine {
         guard let color = preferredColor, let sessionID = lobby.session?.sessionId,
               lobby.connection == .connected, lobby.isSynced, lobby.isLobby,
               lobby.localPlayer(context.localPlayerID) != nil else { return }
+        // Already ours, or held by another player (the claim would change nothing; it is
+        // sent once the holder leaves and the color is free again).
+        // A ready player keeps their color, even when the one they asked for frees up.
+        let colors = lobbyColors
+        if colors.isLocked || colors.localClaim == color || colors.isTakenByOthers(color) { return }
         if let sent = sentColor, sent.session == sessionID, sent.color == color,
            sent.connection == lobby.connectionGeneration { return }
         if lobbyMachine.sendLobbyIntent(.selectColor(color), now: now) {

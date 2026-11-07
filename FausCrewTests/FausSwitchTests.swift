@@ -80,18 +80,6 @@ final class FausSwitchTests: XCTestCase {
         XCTAssertNil(model.scene.frameProvider?(0.1))
     }
 
-    func testOnlinePortalIsHeardWhenTheRobotIsThrownBack() {
-        let before = FausSwitchRunnerState.spawn(on: .down, x: 2_180)
-        var thrown = before
-        thrown.x = 1_970
-        thrown.gravity = .up
-        var running = before
-        running.x += 2
-        XCTAssertTrue(FausSwitchViewModel.wentThroughPortal(from: before, to: thrown))
-        XCTAssertFalse(FausSwitchViewModel.wentThroughPortal(from: before, to: running))
-        XCTAssertFalse(FausSwitchViewModel.wentThroughPortal(from: nil, to: thrown))
-    }
-
     /// The rules card's gap clip slides a gap from beyond the right edge to beyond the
     /// left; every position must give valid rail pieces (a reversed range crashed the lobby).
     func testRuleClipRailsSurviveGapsOffEitherEdge() {

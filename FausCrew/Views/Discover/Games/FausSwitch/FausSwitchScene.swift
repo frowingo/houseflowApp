@@ -235,7 +235,7 @@ final class FausSwitchScene: SKScene {
     private func buildIfNeeded() {
         guard !isBuilt else { return }
         isBuilt = true
-        let groups = Self.blockGroups(course.solids.filter { $0.kind == .block })
+        let groups = course.blockGroups()
         backdrop.zPosition = -20
         addChild(backdrop)
         world.zPosition = 0
@@ -300,19 +300,6 @@ final class FausSwitchScene: SKScene {
     /// The straight section that draws track x `x` (a bend belongs to the one before it).
     private func section(at x: Double) -> SKNode { sections[sectionIndex(at: x)] }
 
-    /// Group number by block id: blocks closer than 200 along the course share a group.
-    private static func blockGroups(_ blocks: [FausSwitchSolid]) -> [Int: Int] {
-        var groups: [Int: Int] = [:]
-        var group = -1
-        var groupEnd = -Double.infinity
-        for block in blocks.sorted(by: { $0.rect.minX < $1.rect.minX }) {
-            if block.rect.minX - groupEnd >= 200 { group += 1 }
-            groupEnd = max(groupEnd, block.rect.maxX)
-            groups[block.id] = group
-        }
-        return groups
-    }
-
     private func sectionIndex(at x: Double) -> Int {
         sectionRanges.firstIndex { x < $0.endX } ?? sectionRanges.count - 1
     }
@@ -367,7 +354,8 @@ final class FausSwitchScene: SKScene {
         platformColors = colors
         platforms.removeAllChildren()
         guard !runners.isEmpty else { return }
-        for (lane, runner) in zip(FausSwitchStartGrid.lanes(count: runners.count), runners) {
+        let scale = runners.first?.state.scale ?? 1
+        for (lane, runner) in zip(FausSwitchStartGrid.lanes(count: runners.count, runnerScale: scale), runners) {
             let frame = cgRect(lane.platform)
             let slab = SKShapeNode(rect: frame, cornerRadius: 2.5)
             slab.fillColor = runner.color.uiColor
@@ -714,6 +702,9 @@ final class FausSwitchRobotNode: SKNode {
     func update(_ runner: FausSwitchRenderRunner, pose: FausSwitchPose, tick: Int64, phase: FausSwitchMatchPhase,
                 reduceMotion: Bool) {
         let state = runner.state
+        // Crowded races draw smaller robots (`FausSwitchRunnerState.scale`).
+        let size = CGFloat(FausSwitchMetrics.runnerHeight / 29.4 * state.scale)
+        if xScale != size { setScale(size) }
         position = CGPoint(x: pose.x, y: pose.y)
         zRotation = CGFloat(pose.angle)
 

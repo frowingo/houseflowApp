@@ -1,6 +1,6 @@
 # Faus Switch online — backend brifingi
 
-Tarih: 6 Kasım 2026 (robot çarpışması, start platformları, yerçekimi 2900, havadaki hız şeritleri; dikey tırmanış, sola akan son kısım, adil dönüşler (dönüş payı, robotlar arası temas yönü), lazerler yerine portallar, yavaşlatma şeritleri, 28 yüksekliğinde şeritler ve daha uzun portal atlayışları: `courseVersion` 6) · Hazırlayan: mobil (istemci) tarafı · Hedef: `houseflowApi` backend agent'ı
+Tarih: 6 Kasım 2026 (robot çarpışması, start platformları, yerçekimi 2900, havadaki hız şeritleri; dikey tırmanış, sola akan son kısım, adil dönüşler (dönüş payı, robotlar arası temas yönü), lazerler yerine portallar, yavaşlatma şeritleri, 28 yüksekliğinde şeritler ve daha uzun portal atlayışları; 4'ten fazla robotlu yarışta %75 boy robotlar ve snapshot'ta `runnerScale`: `courseVersion` 7) · Hazırlayan: mobil (istemci) tarafı · Hedef: `houseflowApi` backend agent'ı
 
 Durum: **İstemci tarafı hazır, backend geliştirmesi bekleniyor.** iOS demo modu oynanabilir;
 online mod bu belgedeki sözleşmeyle konuşan bir sunucu bekliyor. Katalogda `fausSwitch`
@@ -49,6 +49,8 @@ koşar; oyuncu bir yüzeye basarken dokunarak yerçekimini zemin ↔ tavan aras�
    bir flip'in geri sarılması **bütün dünyayı** (tüm robotları) geri sarar ve yeniden simüle eder (§6).
 4. **Start platformları.** Her robot aynı x'te kendi platformundan başlar; platformlar oyuncu
    sayısına göre parkura eklenir (§4.2, §4.3).
+5. **Kalabalık yarışta küçük robotlar (v7).** Yarış 4'ten fazla robotla başlarsa bütün robotlar
+   yarış boyunca %75 boydadır (§4.2.2); sunucu bunu her snapshot'ta `runnerScale` ile yollar.
 
 ## 4. Oyun kuralları (Swift referansıyla birebir)
 
@@ -59,7 +61,7 @@ koşar; oyuncu bir yüzeye basarken dokunarak yerçekimini zemin ↔ tavan aras�
 | Fizik frekansı | 120 Hz sabit adım (`dt = 1/120`) |
 | Dünya | yükseklik 390, görüş genişliği 844 (kamera sol kenarı) |
 | Ray kalınlığı | 27,3 → zemin yüzeyi y = 27,3, tavan yüzeyi y = 362,7 |
-| Robot kutusu | 27,2 × 33,6 (merkez x, y) |
+| Robot kutusu | 27,2 × 33,6 (merkez x, y); 4'ten fazla robotlu yarışta × 0,75 = 20,4 × 25,2 (§4.2.2) |
 | Başlangıç x | 380 |
 | Koşu hızı | 225 birim/sn |
 | Yerçekimi | 2900 birim/sn² (çekim yönüne) |
@@ -71,7 +73,7 @@ koşar; oyuncu bir yüzeye basarken dokunarak yerçekimini zemin ↔ tavan aras�
 | Azami yarış | 120 sn = 14.400 tick |
 | Kamera | §4.2.1: `cameraTrail(tick)` (geride kalma çizgisi) |
 
-### 4.2. Parkur (`FausSwitchCourse.race(runnerCount:)`, `courseVersion = 6`)
+### 4.2. Parkur (`FausSwitchCourse.race(runnerCount:)`, `courseVersion = 7`)
 
 **Tüm kurallar parkur koordinatlarındadır:** `x` parkur boyunca alınan yol, `y` bant içindeki
 yükseklik (zemin rayı altta, tavan rayı üstte). Parkur ekranda önce sağa akar, x = 9100'de
@@ -120,6 +122,27 @@ Engeller 2'li / 3'lü gruplardır (ekranı geçitlere böler). Tüm koordinatlar
   - Platform `minY = bottom / 10`, `maxY = (bottom + 60) / 10`; robot `y = merkez / 10`.
   - Örnek n = 2: platformlar 91,3–97,3 ve 292,6–298,6; robotlar y = 114,1 (zemin tarafı)
     ve 275,8 (tavan tarafı). Swift testleri 1…8 için tüm değerleri kontrol eder.
+  - n > 4 iken `height = round(33,6 · runnerScale · 10) = 252`, `halfBlock = 156` (§4.2.2);
+    robot merkezi `bottom + 60 + 126` / `bottom − 126`.
+
+#### 4.2.2. Kalabalık yarış: robot boyu (`FausSwitchStartGrid.runnerScale`, v7)
+
+8 robotta start bandı koltuk başına yalnız 41,9 yüksekliğindedir; tam boy robot (33,6) ile
+platformu (6) ancak sığar. Bu yüzden:
+
+- `n` = yarış başlarken (geri sayıma girerken) yarıştaki robot sayısı;
+  `runnerScale = n > 4 ? 0,75 : 1`. Yarış boyunca sabittir (çıkan/elenen olsa da), bütün
+  robotlar aynı ölçektedir. Snapshot'ta `runnerScale` alanı olarak her zaman yazılır.
+- Ölçeklenen: robot kutusu (`27,2·s × 33,6·s`, merkez x, y), destek probu (`width = 27,2·s`,
+  `inset = min(7, 0,2·width)`, ayak kenarı `y ± 33,6·s/2`) ve start platformları (§4.2).
+- Ölçeklenmeyen: portal çıkışı (`exitY` yüzeyden ± 16,8; küçük robot 4,2 havada çıkıp düşer),
+  `landingX` içindeki 13,6, boşluk sensörü payı (`27,2 + 10`), hız, yerçekimi, kamera, sınırlar.
+- Go'da ölçekli boyut **çalışma anında** `float64` çarpımıyla hesaplanmalı (`width := w * s`).
+  Untyped sabit katlama (`27.2 * 0.75`) Swift'ten 1 ulp farklı olabilir: `33,6 · 0,75`
+  çalışma anında `25.200000000000003`'tür.
+- Kontrol değerleri (n = 8, s = 0,75; koltuk 0…7 doğuş y): 51,2 · 338,7 · 93,1 · 296,8 ·
+  135,1 · 254,8 · 177,0 · 212,9. Fixture'da `crowdedCountdown` örneği bu yarışın tick 0
+  snapshot'ıdır; Swift testi `testCrowdedStartsMatchTheBackendTables` n = 5 ve 8'i kontrol eder.
 
 #### 4.2.1. Kamera ve geride kalma çizgisi (`FausSwitchCamera`)
 
@@ -212,7 +235,7 @@ elenen robot çarpışmaya katılmaz (adımı içinde bitiren/elenen robot o and
 10. Dikey sınır: `y < −80` veya `y > 470` → `boundary`.
 11. Geride kalma: `body.maxX ≤ cameraTrail(next)` → `leftBehind` (§4.2.1).
 
-Destek probu: robotun ayak kenarının ±0,5 dışında, yatayda `min(7, 0,2·genişlik)` içeriden
+Destek probu: robotun (ölçekli, §4.2.2) ayak kenarının ±0,5 dışında, yatayda `min(7, 0,2·genişlik)` içeriden
 ince bir kutu; bir katıyla ya da başka bir koşan robotla kesişiyorsa robot desteklidir
 (başka bir robotun başında duran ya da tabanı başka bir robotun tabanına değen robot da flip
 yapabilir). **Flip yalnız destekliyken** kabul edilir; değilse sessizce yok sayılır (istemci zaten yalnız destekliyken gönderir, ama
@@ -277,7 +300,7 @@ Flip kuralları:
 
 | Tip | Ne zaman |
 |---|---|
-| `realtime.welcome` | `settings` (fixture), `courseVersion: 6` |
+| `realtime.welcome` | `settings` (fixture), `courseVersion: 7` |
 | `realtime.sessionSnapshot` | lobi değişince (ortak) |
 | `fausSwitch.controlGranted` | ortak kontrol mekanizması |
 | `fausSwitch.snapshot` | 20 Hz; geri sayımda da (tick 0) |
@@ -285,7 +308,8 @@ Flip kuralları:
 | `fausSwitch.result` | kalıcı sonuç yazılınca |
 
 Snapshot alanları: `sessionId, gameKey, runtimeEpoch, stateSequence, tick, elapsedSeconds,
-phase, courseVersion, countdownEndsAt, winnerId, runners[]`. Her runner:
+phase, courseVersion, runnerScale, countdownEndsAt, winnerId, runners[]`. `runnerScale` 1 ya da
+0,75'tir (§4.2.2); başka değer istemcide `invalidResponse` olur. Her runner:
 `playerId, displayName, color, x, y, velocityY, gravity, boostedUntilTick, usedBoosts,
 slowedUntilTick, usedSlows, status, finishedAtTick, eliminatedAtTick, eliminationReason, connected,
 lastProcessedInputSequence, controlGeneration`. Boş değerler `null` olarak **yazılmalı**
@@ -320,16 +344,31 @@ Her oyuncu: `playerId, rank, finishedAtTick, eliminatedAtTick, eliminationReason
 ## 8. Test ve eşitlik beklentileri
 
 - Go fizik adımı Swift ile aynı sırada ve aynı sabitlerle; parkur verisi birebir.
-- Eşitlik fixture'ı önerisi: `fausSwitchSimulation.json` — birkaç robot için tick'li flip
-  listesi ve belirli tick'lerde beklenen (x, y, vy, gravity, status). İstenirse istemci
-  tarafı Swift motorundan üretip ekler (§9).
+- Eşitlik fixture'ı: `shared/Fixtures/fausSwitchSimulation.json` (Swift motorundan, courseVersion 7).
+  Senaryolar `duel` (2), `four` (4), `crowdedFive` (5, ölçek 0,75) ve `crowdedEight` (8, ölçek 0,75);
+  her biri bütün robotlar durana kadar süren tam bir yarış. Biçim:
+  `{"courseVersion", "scenarios": [{"name", "runnerCount", "flips": [{"tick", "seat"}],
+  "checkpoints": [{"tick", "runners": [{"x", "y", "velocityY", "gravity", "status",
+  "finishedAtTick", "eliminatedAtTick", "eliminationReason"}]}]}]}`; opsiyoneller `null`,
+  `Double`'lar kısaltmasız, anahtarlar sıralı. `finishedAtTick` yalnız `finished`, eleme alanları
+  yalnız `crashed` robotta dolu. Senaryo `lanes(count:runnerScale:)` ile başlar; her tick'te o
+  tick'in flip'leri liste sırasıyla uygulanır, sonra adım atılır. Tick `T`'deki checkpoint, `T`'ye
+  ulaştıran adımdan sonraki ve `T`'nin flip'lerinden önceki durumdur. Flip'ler denemedir:
+  havadayken yapılan (desteksiz) flip listede durur ve hiçbir şeyi değiştirmez. Checkpoint'ler
+  tick 0'da, her 30 tick'te ve bir robotun durumu değiştiği her tick'te. Her senaryoda en az bir
+  portal fırlatması, bir desteksiz flip, bir robotun başka robot üstünde durması, bir bitiş ve bir
+  eleme var; dosyanın tamamında `boundary` ve `leftBehind` elemeleri ikisi de geçiyor.
+  İstemci testi: `FausSwitchSimulationFixtureTests`.
 - Protokol fixture'ı (`fausSwitchProtocol.json`) üzerinden encode/decode testleri.
 - Geri sarma: 250 ms gecikmeli flip'in, gecikmesiz flip ile aynı sonuca vardığı test
   (iki robot üst üste dururken alttakinin geç flip'i dahil).
 - Çarpışma: üst üste duran, tabanları birbirine değen ve arka arkaya koşan robot senaryoları;
   hiçbir tick'te iki koşan robotun kutusunun iç içe geçmediği tam yarış testi
   (Swift karşılığı `FausSwitchCollisionTests`).
-- Start platformları: n = 1…8 için platform ve doğuş değerlerinin Swift ile birebir aynı olduğu test.
+- Start platformları: n = 1…8 için platform ve doğuş değerlerinin Swift ile birebir aynı olduğu test
+  (n > 4'te ölçek 0,75; `crowdedCountdown` fixture'ı).
+- Ölçek: 4 kişilik yarış 1, 5 kişilik 0,75 ile başlar; geri sayımda biri çıksa da ölçek değişmez.
+- 8 robotlu tam yarışta hiçbir tick'te kutular iç içe geçmez; 8 oyunculu geri sarma benchmark'ı.
 - Aynı `inputSequence` ile yeniden gönderilen flip'in iki kez uygulanmadığı test.
 
 ## 9. Backend agent'ın karar vereceği noktalar

@@ -94,13 +94,16 @@ final class FausSwitchCollisionTests: XCTestCase {
 
     func testEveryRobotStartsOnItsOwnPlatform() {
         for count in 1...FausSwitchStartGrid.maximumRunners {
-            let lanes = FausSwitchStartGrid.lanes(count: count)
+            let scale = FausSwitchStartGrid.runnerScale(runnerCount: count)
+            XCTAssertEqual(scale, count > 4 ? 0.75 : 1, "Crowded races shrink the robots")
+            let lanes = FausSwitchStartGrid.lanes(count: count, runnerScale: scale)
             let race = FausSwitchCourse.race(runnerCount: count)
             XCTAssertEqual(race.solids.filter { $0.kind == .platform }.map(\.rect), lanes.map(\.platform))
             XCTAssertEqual(race.version, FausSwitchCourse.currentVersion)
             let states = lanes.map(\.spawn)
             for (seat, lane) in lanes.enumerated() {
                 XCTAssertEqual(lane.spawn.x, FausSwitchMetrics.spawnX, "Same start line")
+                XCTAssertEqual(lane.spawn.scale, scale)
                 XCTAssertEqual(lane.gravity, seat.isMultiple(of: 2) ? .down : .up)
                 XCTAssertTrue(lane.platform.intersects(FausSwitchPhysics.supportProbe(of: lane.spawn)), "Seat \(seat) of \(count)")
                 XCTAssertGreaterThan(lane.platform.minY, FausSwitchMetrics.floorSurface)
@@ -122,6 +125,19 @@ final class FausSwitchCollisionTests: XCTestCase {
     func testTwoRobotStartMatchesTheProtocolFixture() {
         let lanes = FausSwitchStartGrid.lanes(count: 2)
         XCTAssertEqual(lanes.map(\.spawn.y), [114.1, 275.8])
+    }
+
+    /// The crowded start values the backend prompt lists (n = 5 and 8 at 75 %).
+    func testCrowdedStartsMatchTheBackendTables() {
+        let five = FausSwitchStartGrid.lanes(count: 5, runnerScale: 0.75)
+        XCTAssertEqual(five.map(\.platform.minY), [45.2, 338.7, 112.3, 271.6, 179.4])
+        XCTAssertEqual(five.map(\.spawn.y), [63.8, 326.1, 130.9, 259.0, 198.0])
+        let eight = FausSwitchStartGrid.lanes(count: 8, runnerScale: 0.75)
+        XCTAssertEqual(eight.map(\.platform.minY), [32.6, 351.3, 74.5, 309.4, 116.5, 267.4, 158.4, 225.5])
+        XCTAssertEqual(eight.map(\.spawn.y), [51.2, 338.7, 93.1, 296.8, 135.1, 254.8, 177.0, 212.9])
+        let body = eight[0].spawn.body
+        XCTAssertEqual(body.width, FausSwitchMetrics.runnerWidth * 0.75, accuracy: 1e-9)
+        XCTAssertEqual(body.height, FausSwitchMetrics.runnerHeight * 0.75, accuracy: 1e-9)
     }
 
     func testRobotsLeaveTheirPlatformsAndLandOnTheRails() {

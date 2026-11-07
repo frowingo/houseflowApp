@@ -28,7 +28,8 @@ public enum FausSwitchRealtime: GameRealtimeGame {
         guard snapshot.courseVersion == FausSwitchCourse.currentVersion else {
             throw GameRealtimeError.unsupportedCourse(snapshot.courseVersion)
         }
-        guard snapshot.tick >= 0, snapshot.runners.count <= 8,
+        guard snapshot.tick >= 0, snapshot.runners.count <= FausSwitchStartGrid.maximumRunners,
+              snapshot.runnerScale == 1 || snapshot.runnerScale == FausSwitchStartGrid.crowdedRobotScale,
               Set(snapshot.runners.map(\.playerId)).count == snapshot.runners.count,
               snapshot.runners.allSatisfy(\.isValid) else { throw GameRealtimeError.invalidResponse }
     }
@@ -63,9 +64,27 @@ public enum FausSwitchRealtime: GameRealtimeGame {
     }
 
     /// A robot that finished or crashed never runs again.
+    /// The server rewinds the world for a late flip by at most this many ticks
+    /// (`maximumRewindMilliseconds`, ADR-031).
+    public static let maximumRewindTicks: Int64 = 30
+    /// A snapshot leaves the server at most this many ticks after the step it shows (20 Hz).
+    static let snapshotTicks: Int64 = Int64(FausSwitchMetrics.physicsRate / 20)
+
+    /// A robot that stopped runs again only when a late flip rewound the world to before
+    /// its end: within the rewind window of the next snapshot (ADR-031). Any other return
+    /// to the race is a broken stream.
     public static func isValidSuccessor(_ next: FausSwitchSnapshotDTO, of current: FausSwitchSnapshotDTO) -> Bool {
-        let done = Set(current.runners.filter { $0.status != .running }.map(\.playerId))
-        return !next.runners.contains { $0.status == .running && done.contains($0.playerId) }
+        let ends = Dictionary(current.runners.compactMap { runner -> (String, Int64)? in
+            switch runner.status {
+            case .running: return nil
+            case .finished: return runner.finishedAtTick.map { (runner.playerId, $0) }
+            case .crashed: return runner.eliminatedAtTick.map { (runner.playerId, $0) }
+            }
+        }, uniquingKeysWith: { first, _ in first })
+        return !next.runners.contains { runner in
+            guard runner.status == .running, let end = ends[runner.playerId] else { return false }
+            return next.tick - end > maximumRewindTicks + snapshotTicks
+        }
     }
 
     public static func identities(in snapshot: FausSwitchSnapshotDTO) -> [String: FausSwitchResultPlayerIdentity] {

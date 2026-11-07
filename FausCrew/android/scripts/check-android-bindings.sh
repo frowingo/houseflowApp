@@ -67,10 +67,30 @@ grep -Eq 'public static java\.lang\.String socialCompleteRequestBody\(java\.lang
 grep -Eq 'public static java\.lang\.String socialResponse\(java\.lang\.String action, int status, java\.lang\.String body\)' "$java_file"
 grep -Fq 'SwiftLibraries.loadLibraryWithFallbacks(LIB_NAME);' "$java_file"
 
+grep -Eq 'public static int fausSwitchBotCreate\(\)' "$java_file"
+grep -Eq 'public static boolean fausSwitchBotDestroy\(int handle\)' "$java_file"
+grep -Eq 'public static java\.lang\.String fausSwitchBotViewport\(int handle, double width, double height\)' "$java_file"
+grep -Eq 'public static java\.lang\.String fausSwitchBotStart\(int handle, java\.lang\.String color, int botCount\)' "$java_file"
+grep -Eq 'public static java\.lang\.String fausSwitchBotStep\(int handle, double delta\)' "$java_file"
+grep -Eq 'public static java\.lang\.String fausSwitchBotFlip\(int handle\)' "$java_file"
+grep -Eq 'public static java\.lang\.String fausSwitchBotPause\(int handle\)' "$java_file"
+grep -Eq 'public static java\.lang\.String fausSwitchBotResume\(int handle\)' "$java_file"
+grep -Eq 'public static java\.lang\.String fausSwitchBotRestart\(int handle\)' "$java_file"
+grep -Eq 'public static java\.lang\.String fausSwitchCopy\(java\.lang\.String language\)' "$java_file"
+grep -Eq 'public static java\.lang\.String fausSwitchConstants\(\)' "$java_file"
+grep -Eq 'public static java\.lang\.String fausSwitchCourse\(\)' "$java_file"
+grep -Eq 'public static int fausSwitchOnlineCreate\(java\.lang\.String houseId, java\.lang\.String playerId, java\.lang\.String houseOwnerId, java\.lang\.String excludingSessionId, java\.lang\.String preferredColor\)' "$java_file"
+grep -Eq 'public static boolean fausSwitchOnlineDestroy\(int handle\)' "$java_file"
+grep -Eq 'public static java\.lang\.String fausSwitchOnlineEvent\(int handle, java\.lang\.String eventJSON\)' "$java_file"
+grep -Eq 'public static java\.lang\.String fausSwitchOnlineReceive\(int handle, java\.lang\.String text, int connection, double now\)' "$java_file"
+grep -Eq 'public static java\.lang\.String fausSwitchOnlineViewport\(int handle, double width, double height\)' "$java_file"
+grep -Eq 'public static java\.lang\.String fausSwitchOnlineFrame\(int handle, double now\)' "$java_file"
+grep -Eq 'public static java\.lang\.String fausSwitchCatalogResponse\(java\.lang\.String houseId, int status, java\.lang\.String body\)' "$java_file"
+
 public_methods=$(grep -Ec '^[[:space:]]*public static .*\(' "$java_file")
-if [ "$public_methods" -ne 63 ]; then
-    echo "Expected exactly sixty-three public JNI methods, found ${public_methods}" >&2
+if [ "$public_methods" -ne 82 ]; then
+    echo "Expected exactly eighty-two public JNI methods, found ${public_methods}" >&2
     exit 1
 fi
 
-echo 'Generated JNI API matches the version-14 Kotlin boundary.'
+echo 'Generated JNI API matches the version-16 Kotlin boundary.'

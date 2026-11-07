@@ -95,7 +95,7 @@ components:
 
 **Creative North Star: "Robots on a Mint Sheet"**
 
-Faus Switch is a landscape gravity race inside FausCrew. Up to four robots (demo: you and one to three bots; online: everyone in the house) run on the same scrolling course; a tap on a surface flips gravity between floor and ceiling. The course sits on a pale, grainy mint texture; everything that matters for play — robots, rails, blocks, gap stripes — is dark so it reads instantly against it. Navigation, type and controls stay native iOS.
+Faus Switch is a landscape gravity race inside FausCrew. Up to eight robots (demo: you and one to three bots, up to seven while crowded races are tested; online: everyone in the house, at most eight) run on the same scrolling course; in a race of more than four robots every robot runs and draws at 75 % size so eight start lanes keep room; a tap on a surface flips gravity between floor and ceiling. The course sits on a pale, grainy mint texture; everything that matters for play — robots, rails, blocks, gap stripes — is dark so it reads instantly against it. Navigation, type and controls stay native iOS.
 
 This document is bounded to the Faus Switch surface. It is not authority to restyle other FausCrew screens.
 
@@ -168,6 +168,7 @@ The robot is drawn at the size of its 27.2 × 33.6 physics box (80% of the old h
 - Portal: a short swirling "vwoop" (with the effects) and a warning haptic. Boost: medium haptic. Crash: error notification. Finish: success notification.
 - The background texture scrolls at 28% of the camera speed and becomes static with Reduce Motion.
 - Online corrections ease out within 80 ms; larger jumps snap.
+- Online, the course and the camera never move backward: a late snapshot slows the race clock on screen by at most 10% until the snapshots catch up. The clock jumps only when it is more than 250 ms off, after a stall or a resync.
 
 ## Do's and Don'ts
 

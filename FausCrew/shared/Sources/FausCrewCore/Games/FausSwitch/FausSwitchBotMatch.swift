@@ -114,7 +114,8 @@ public struct FausSwitchBotMatch: Sendable {
         random = FausSwitchRandom(seed: configuration.seed)
         let botColors = FausSwitchColor.free(excluding: [configuration.humanColor], count: configuration.botCount)
         // Seat 0 is the human; every robot starts on its own platform at the same line.
-        let lanes = FausSwitchStartGrid.lanes(count: botColors.count + 1)
+        let lanes = FausSwitchStartGrid.lanes(count: botColors.count + 1,
+                                              runnerScale: FausSwitchStartGrid.runnerScale(runnerCount: botColors.count + 1))
         course = baseCourse.adding(lanes.map(\.platform), kind: .platform)
         runners = [FausSwitchRunner(id: Self.humanID, role: .human, nameKey: "faus_switch_you", displayName: nil,
                                     color: configuration.humanColor, state: lanes[0].spawn)]

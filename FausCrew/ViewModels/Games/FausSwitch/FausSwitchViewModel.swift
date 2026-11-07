@@ -138,7 +138,7 @@ final class FausSwitchViewModel: ObservableObject {
         showsDemoResult = false
         isWatchingDemo = false
         isDemoVisible = true
-        match = Self.demoUI(race.frame(), canFlip: false)
+        match = FausSwitchMatchUI.demo(race.frame(), canFlip: false)
         audio.startMusic()
         prepareHaptics()
     }
@@ -230,7 +230,7 @@ final class FausSwitchViewModel: ObservableObject {
         }
         guard let race = demo else { return nil }
         let frame = race.frame()
-        let ui = Self.demoUI(frame, canFlip: race.phase == .playing && race.human?.state.isRunning == true)
+        let ui = FausSwitchMatchUI.demo(frame, canFlip: race.phase == .playing && race.human?.state.isRunning == true)
         if match != ui { match = ui }
         audio.setMusicDucked(showsDemoResult)
         return frame
@@ -263,30 +263,6 @@ final class FausSwitchViewModel: ObservableObject {
         }
     }
 
-    /// Online frames carry no events: a portal shows as the running robot thrown back
-    /// between two frames (nothing else moves a robot backward), as the demo's
-    /// `humanTeleported` detects it.
-    static func wentThroughPortal(from before: FausSwitchRunnerState?, to after: FausSwitchRunnerState?) -> Bool {
-        guard let before, let after, before.isRunning, after.isRunning else { return false }
-        return after.x < before.x - 20
-    }
-
-    private static func demoUI(_ frame: FausSwitchRenderFrame, canFlip: Bool) -> FausSwitchMatchUI {
-        var ui = FausSwitchMatchUI()
-        ui.phase = frame.phase
-        ui.countdown = frame.countdown
-        ui.standings = FausSwitchMatchUI.standings(from: frame)
-        ui.nameTags = FausSwitchMatchUI.nameTags(from: frame)
-        ui.runnerCount = frame.runners.count
-        ui.canFlip = canFlip
-        if let local = frame.localRunner {
-            ui.localStatus = FausSwitchMatchUI.status(of: local.state)
-            ui.localRank = local.rank
-            ui.localTime = local.state.finishedAtTick.map { FausSwitchMetrics.seconds($0) }
-        }
-        return ui
-    }
-
     private func recordBestTime(_ time: Double) {
         guard time > 0, bestTime.map({ time < $0 }) ?? true else { return }
         bestTime = time
@@ -296,6 +272,11 @@ final class FausSwitchViewModel: ObservableObject {
     // MARK: - Online room
 
     var isOnlineServiceAvailable: Bool { onlineFactory.makeHost != nil }
+
+    /// The room's robot colors as the server holds them (Core decides who has what).
+    var onlineLobbyColors: FausSwitchLobbyColors { onlineState.lobbyColors(localPlayerID: onlineContext?.localPlayerID) }
+    /// The local robot's color in the room: the pick while it is free, else the server's claim.
+    var onlineLocalColor: FausSwitchColor? { onlineLobbyColors.localColor(preferred: robotColor) }
 
     /// Reads the house's catalog. A failed read keeps the last answer: the session
     /// request is still guarded by the server.
@@ -423,31 +404,14 @@ final class FausSwitchViewModel: ObservableObject {
         let now = host.uptime
         let presentation = host.engine.presentation(at: now)
         if let frame = presentation?.frame {
-            if Self.wentThroughPortal(from: lastOnlineFrame?.localRunner?.state, to: frame.localRunner?.state) {
+            if presentation?.events.contains(.humanTeleported) == true {
                 audio.playPortal()
                 notification.notificationOccurred(.warning)
             }
             lastOnlineFrame = frame
         }
-        var ui = FausSwitchMatchUI()
-        if let frame = presentation?.frame ?? lastOnlineFrame {
-            ui = Self.demoUI(frame, canFlip: presentation?.canFlip ?? false)
-        }
-        if let notice = FausSwitchOnlineCopyKeys.matchNotice(onlineState, presentation) {
-            ui.noticeTitleKey = notice.title
-            ui.noticeDetailKey = notice.detail
-            ui.noticeIsBlocking = notice.isBlocking
-        }
-        let raceOver = presentation?.frame.phase == .ended || onlineState.isTerminal
-            || [.ended, .cancelled, .finalizing].contains(onlineState.game?.phase)
-        ui.showsResult = onlineResult.isVisible || (raceOver && !isOnlineRematchRoom)
-        if ui.showsResult {
-            ui.noticeTitleKey = nil
-            ui.noticeDetailKey = nil
-        }
-        ui.showsRematchRoom = isOnlineRematchRoom && !ui.showsResult
-        ui.canRetry = onlineState.connection == .failed && onlineState.canReconnect(at: now)
-        ui.canReclaim = onlineState.controlTransferred && onlineState.connection == .connected
+        let ui = FausSwitchMatchUI.online(state: onlineState, presentation: presentation, lastFrame: lastOnlineFrame,
+                                          result: onlineResult, isRematchRoom: isOnlineRematchRoom, now: now)
         if match != ui { match = ui }
         audio.setMusicDucked(ui.showsResult || ui.noticeTitleKey != nil)
         return presentation?.frame ?? lastOnlineFrame

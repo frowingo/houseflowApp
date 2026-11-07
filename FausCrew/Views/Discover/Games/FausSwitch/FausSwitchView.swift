@@ -170,9 +170,7 @@ struct FausSwitchView: View {
             let track = FausSwitchCourse.standard.track
             let width: CGFloat = 150
             ForEach(tags) { tag in
-                let camera = FausSwitchCamera.view(focus: tag.cameraFocus, track: track, viewport: viewport)
-                let pose = track.pose(x: tag.x + FausSwitchMetrics.runnerWidth / 2 + 6, y: tag.y)
-                let point = camera.screenPoint(worldX: pose.x, worldY: pose.y)
+                let point = tag.anchor(track: track, viewport: viewport)
                 let leading = point.x
                 let centerY = geometry.size.height - point.y
                 Text(verbatim: name(of: tag))
@@ -241,24 +239,20 @@ struct FausSwitchView: View {
         }
     }
 
-    @ViewBuilder
     private func demoResultHeader(_ match: FausSwitchMatchUI) -> some View {
-        switch match.localStatus {
-        case .finished:
-            panelHeader(symbol: "flag.checkered", tint: FausSwitchPalette.green,
-                        title: copy(match.localRank == 1 ? "faus_switch_won" : "faus_switch_finished"),
-                        detail: copy("faus_switch_finished_detail", replacements: [
-                            "rank": "\(match.localRank ?? 0)",
-                            "time": String(format: "%.1f", match.localTime ?? 0),
-                        ]))
-        case .crashed(let reason):
-            panelHeader(symbol: "exclamationmark.triangle.fill", tint: FausSwitchPalette.berry,
-                        title: copy(FausSwitchOnlineCopyKeys.crashReason(reason)),
-                        detail: copy(FausSwitchOnlineCopyKeys.crashDetail(reason)))
-        case .running, nil:
-            panelHeader(symbol: "timer", tint: FausSwitchPalette.deepWine,
-                        title: copy("faus_switch_time_up"), detail: copy("faus_switch_time_up_detail"))
+        let keys = match.demoResultKeys
+        let symbol: String
+        let tint: Color
+        switch match.demoOutcome {
+        case .won, .finished: (symbol, tint) = ("flag.checkered", FausSwitchPalette.green)
+        case .crashed: (symbol, tint) = ("exclamationmark.triangle.fill", FausSwitchPalette.berry)
+        case .timeUp: (symbol, tint) = ("timer", FausSwitchPalette.deepWine)
         }
+        return panelHeader(symbol: symbol, tint: tint, title: copy(keys.title),
+                           detail: copy(keys.detail, replacements: [
+                               "rank": "\(match.localRank ?? 0)",
+                               "time": String(format: "%.1f", match.localTime ?? 0),
+                           ]))
     }
 
     // MARK: - Online panels
@@ -346,21 +340,8 @@ struct FausSwitchView: View {
 
     /// The persisted ranks once available; the race's last frame until then.
     private var onlineResultStandings: [FausSwitchStanding] {
-        let state = model.onlineResult
-        guard let result = state.result, !result.players.isEmpty else { return model.lastOnlineStandings }
-        let localID = appViewModel.currentUserId
-        let live = Dictionary(model.lastOnlineStandings.map { ($0.id, $0) }, uniquingKeysWith: { first, _ in first })
-        return FausSwitchOnlineCopyKeys.orderedResultPlayers(result).map { player in
-            let identity = state.identities[player.playerId]
-            let status: FausSwitchStanding.Status = player.finishedAtTick != nil ? .finished
-                : player.eliminatedAtTick != nil ? .crashed(player.eliminationReason) : .running
-            return FausSwitchStanding(
-                id: player.playerId, nameKey: nil,
-                displayName: identity?.displayName ?? live[player.playerId]?.displayName,
-                color: identity?.color ?? live[player.playerId]?.color ?? .graphite,
-                rank: player.rank, status: status, isLocal: player.playerId == localID,
-                time: player.finishedAtTick.map { FausSwitchMetrics.seconds($0) })
-        }
+        FausSwitchMatchUI.resultStandings(model.onlineResult, live: model.lastOnlineStandings,
+                                          localPlayerID: appViewModel.currentUserId)
     }
 
     // MARK: - Panel pieces
@@ -503,17 +484,11 @@ struct FausSwitchView: View {
         return standing.displayName ?? copy("faus_switch_online_player")
     }
 
-    private func isOut(_ standing: FausSwitchStanding) -> Bool {
-        if case .crashed = standing.status { return true }
-        return false
-    }
+    private func isOut(_ standing: FausSwitchStanding) -> Bool { standing.isOut }
 
     private func statusLine(_ standing: FausSwitchStanding) -> String {
-        switch standing.status {
-        case .finished: return standing.time.map { String(format: "%.1fs", $0) } ?? copy("faus_switch_status_finished")
-        case .crashed(let reason): return copy(FausSwitchOnlineCopyKeys.crashReason(reason) + "_short")
-        case .running: return copy("faus_switch_status_running")
-        }
+        if case .finished = standing.status, let time = standing.time { return String(format: "%.1fs", time) }
+        return copy(standing.statusKey)
     }
 
     // MARK: - Flow

@@ -113,12 +113,12 @@ public struct FausSwitchRunnerDTO: Decodable, Equatable, Sendable {
         controlGeneration = try values.decodeRequiredNullable(String.self, forKey: .controlGeneration)
     }
 
-    /// The physical state at the snapshot's tick.
-    public var state: FausSwitchRunnerState {
+    /// The physical state at the snapshot's tick, at the race's robot size.
+    public func state(scale: Double) -> FausSwitchRunnerState {
         FausSwitchRunnerState(x: x, y: y, velocityY: velocityY, gravity: gravity, boostedUntilTick: boostedUntilTick,
                               usedBoosts: Set(usedBoosts), slowedUntilTick: slowedUntilTick, usedSlows: Set(usedSlows),
                               status: status, finishedAtTick: finishedAtTick,
-                              crashedAtTick: eliminatedAtTick, crashReason: eliminationReason)
+                              crashedAtTick: eliminatedAtTick, crashReason: eliminationReason, scale: scale)
     }
 
     var isValid: Bool {
@@ -138,14 +138,19 @@ public struct FausSwitchSnapshotDTO: Decodable, Equatable, Sendable {
     public let elapsedSeconds: Double
     public let phase: GameRuntimePhase
     public let courseVersion: Int
+    /// Every robot's size this race: 1, or 0.75 with more than four robots (course 7).
+    public let runnerScale: Double
     public let runners: [FausSwitchRunnerDTO]
     public let countdownEndsAt: Date?
     public let winnerId: String?
 
     private enum CodingKeys: String, CodingKey {
         case sessionId, gameKey, runtimeEpoch, stateSequence, tick, elapsedSeconds, phase, courseVersion
-        case runners, countdownEndsAt, winnerId
+        case runnerScale, runners, countdownEndsAt, winnerId
     }
+
+    /// The robots' physical states at `tick`, in seat order.
+    public var runnerStates: [FausSwitchRunnerState] { runners.map { $0.state(scale: runnerScale) } }
 
     public init(from decoder: Decoder) throws {
         let values = try decoder.container(keyedBy: CodingKeys.self)
@@ -157,6 +162,7 @@ public struct FausSwitchSnapshotDTO: Decodable, Equatable, Sendable {
         elapsedSeconds = try values.decode(Double.self, forKey: .elapsedSeconds)
         phase = try values.decode(GameRuntimePhase.self, forKey: .phase)
         courseVersion = try values.decode(Int.self, forKey: .courseVersion)
+        runnerScale = try values.decode(Double.self, forKey: .runnerScale)
         runners = try values.decode([FausSwitchRunnerDTO].self, forKey: .runners)
         countdownEndsAt = try values.decodeRequiredNullable(Date.self, forKey: .countdownEndsAt)
         winnerId = try values.decodeRequiredNullable(String.self, forKey: .winnerId)
@@ -258,7 +264,12 @@ public struct FausSwitchResultDTO: Decodable, Equatable, Sendable {
                 guard players.first(where: { $0.playerId == winnerId })?.rank == 1,
                       players.filter({ $0.rank == 1 }).count == 1 else { throw GameRealtimeError.invalidResponse }
             } else {
-                guard players.filter({ $0.rank == 1 }).count > 1 else { throw GameRealtimeError.invalidResponse }
+                // No winner: either a shared first place, or a lone first who never
+                // finished (the time limit ran out with robots still running).
+                let firsts = players.filter { $0.rank == 1 }
+                guard firsts.count > 1 || (firsts.count == 1 && firsts[0].finishedAtTick == nil) else {
+                    throw GameRealtimeError.invalidResponse
+                }
             }
         }
     }

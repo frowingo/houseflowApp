@@ -16,6 +16,27 @@ final class FausSwitchBotMatchTests: XCTestCase {
         }
     }
 
+    /// The demo has at most four robots, so they keep their full size (crowded races are
+    /// online only); each stands on its own platform without touching, and the race runs
+    /// to the end.
+    func testDemoRobotsStartApartAtFullSizeAndRunToTheEnd() {
+        for botCount in FausSwitchMatchConfiguration.botRange {
+            var match = FausSwitchBotMatch()
+            match.start(configuration: .init(humanColor: .plum, botCount: botCount, seed: 42))
+            XCTAssertTrue(match.runners.allSatisfy { $0.state.scale == 1 })
+            let bodies = match.runners.map(\.state.body)
+            for i in bodies.indices {
+                for j in bodies.indices where j > i { XCTAssertFalse(bodies[i].intersects(bodies[j])) }
+            }
+            XCTAssertTrue(match.runners.indices.allSatisfy {
+                FausSwitchPhysics.isSupported(match.runners.map(\.state), index: $0, course: match.course)
+            })
+            for _ in 0..<(120 * 130) where match.phase != .ended { match.advance(by: 1.0 / 120) }
+            XCTAssertEqual(match.phase, .ended)
+            XCTAssertEqual(match.ranks.count, botCount + 1)
+        }
+    }
+
     func testCountdownThenPhysicsAndPause() {
         var match = FausSwitchBotMatch()
         match.start(configuration: .init(humanColor: .plum, botCount: 1, seed: 3))

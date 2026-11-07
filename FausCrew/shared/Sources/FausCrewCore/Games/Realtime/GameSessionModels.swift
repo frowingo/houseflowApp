@@ -20,8 +20,10 @@ public struct GameSessionDTO: Decodable, Equatable, Sendable {
     public let endedAt: Date?
     public let endReason: String?
     public let version: Int64
+    /// The game's lobby picks (ADR-030); the server writes the field only while it holds any.
+    public let lobbyState: GameLobbyStateDTO?
 
-    public init(sessionId: String, houseId: String, gameKey: String, protocolVersion: Int, mode: String, state: GameSessionState, rules: GameRulesDTO, players: [GameSessionPlayerDTO], createdBy: String, createdAt: Date, updatedAt: Date, readyWindowEndsAt: Date?, countdownEndsAt: Date?, startedAt: Date?, endedAt: Date?, endReason: String?, version: Int64) {
+    public init(sessionId: String, houseId: String, gameKey: String, protocolVersion: Int, mode: String, state: GameSessionState, rules: GameRulesDTO, players: [GameSessionPlayerDTO], createdBy: String, createdAt: Date, updatedAt: Date, readyWindowEndsAt: Date?, countdownEndsAt: Date?, startedAt: Date?, endedAt: Date?, endReason: String?, version: Int64, lobbyState: GameLobbyStateDTO? = nil) {
         self.sessionId = sessionId
         self.houseId = houseId
         self.gameKey = gameKey
@@ -39,6 +41,25 @@ public struct GameSessionDTO: Decodable, Equatable, Sendable {
         self.endedAt = endedAt
         self.endReason = endReason
         self.version = version
+        self.lobbyState = lobbyState
+    }
+}
+
+/// A session's lobby picks: today only `colors` (player id → color raw value, Faus Switch).
+/// Read leniently, like the server: anything unreadable is no pick, so a malformed field
+/// never fails the session. Each game interprets the raw values.
+public struct GameLobbyStateDTO: Decodable, Equatable, Sendable {
+    public let colors: [String: String]
+
+    public init(colors: [String: String] = [:]) {
+        self.colors = colors
+    }
+
+    private enum CodingKeys: String, CodingKey { case colors }
+
+    public init(from decoder: Decoder) throws {
+        let values = try? decoder.container(keyedBy: CodingKeys.self)
+        colors = (try? values?.decodeIfPresent([String: String].self, forKey: .colors)) ?? [:]
     }
 }
 

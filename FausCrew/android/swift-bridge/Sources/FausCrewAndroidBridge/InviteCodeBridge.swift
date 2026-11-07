@@ -2,7 +2,7 @@ import Foundation
 import FausCrewCore
 
 /// Narrow, versioned JNI boundary. HTTP execution and secure storage stay on Android.
-public func bridgeVersion() -> Int32 { 15 }
+public func bridgeVersion() -> Int32 { 16 }
 
 public func normalizeInviteCode(_ input: String) -> String {
     InviteCodeRules.normalized(input)

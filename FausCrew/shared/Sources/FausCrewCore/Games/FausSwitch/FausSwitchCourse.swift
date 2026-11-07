@@ -272,13 +272,14 @@ public struct FausSwitchCourse: Equatable, Sendable {
     }
 
     /// The course a race of `runnerCount` robots runs on: `standard` plus one start
-    /// platform per robot. Built once per count.
+    /// platform per robot, at that race's robot size. Built once per count.
     public static func race(runnerCount: Int) -> FausSwitchCourse {
         raceCourses[FausSwitchStartGrid.clamped(runnerCount) - 1]
     }
 
     private static let raceCourses: [FausSwitchCourse] = (1...FausSwitchStartGrid.maximumRunners).map {
-        standard.adding(FausSwitchStartGrid.lanes(count: $0).map(\.platform), kind: .platform)
+        standard.adding(FausSwitchStartGrid.lanes(count: $0, runnerScale: FausSwitchStartGrid.runnerScale(runnerCount: $0))
+            .map(\.platform), kind: .platform)
     }
 
     // MARK: Course 3
@@ -288,7 +289,8 @@ public struct FausSwitchCourse: Equatable, Sendable {
     /// 4: after the climb it turns again and runs to the left (`secondTurnStartX`).
     /// 5: fair bends (margin share kept through turns, robot contacts by approach side).
     /// 6: portals replace the lasers; slow pads.
-    public static let currentVersion = 6
+    /// 7: races of more than four robots run at 75 % robot size (`FausSwitchStartGrid`).
+    public static let currentVersion = 7
 
     /// Where the band bends upward, and the bends' center-line radius. Bends have no
     /// obstacles; the climb starts at `turnStartX + turnRadius·π/2`.
@@ -474,14 +476,26 @@ public enum FausSwitchStartGrid {
 
     static func clamped(_ count: Int) -> Int { min(maximumRunners, max(1, count)) }
 
+    /// A race of more than this many robots is crowded: every robot runs at
+    /// `crowdedRobotScale` of its size so eight lanes keep room between them (course 7).
+    public static let crowdedRunnerThreshold = 4
+    public static let crowdedRobotScale = 0.75
+
+    /// The robot size of a race of `runnerCount` robots, fixed when it starts (online,
+    /// the server sends it as the snapshot's `runnerScale`).
+    public static func runnerScale(runnerCount: Int) -> Double {
+        runnerCount > crowdedRunnerThreshold ? crowdedRobotScale : 1
+    }
+
     /// Index = seat. Heights are worked out in whole tenths of a unit with integer
-    /// (floor) division, so every platform agrees on them exactly.
-    public static func lanes(count: Int) -> [Lane] {
+    /// (floor) division, so every platform agrees on them exactly. `runnerScale` sizes the
+    /// robots (`runnerScale(runnerCount:)`); only their height changes the platforms.
+    public static func lanes(count: Int, runnerScale: Double = 1) -> [Lane] {
         let count = clamped(count)
         func tenths(_ value: Double) -> Int { Int((value * 10).rounded()) }
         let floor = tenths(FausSwitchMetrics.floorSurface)               // 273
         let band = tenths(FausSwitchMetrics.ceilingSurface) - floor       // 3354
-        let height = tenths(FausSwitchMetrics.runnerHeight)               // 336
+        let height = tenths(FausSwitchMetrics.runnerHeight * runnerScale) // 336
         let thickness = tenths(platformThickness)                         // 60
         let halfBlock = (height + thickness) / 2                          // 198
         let x = FausSwitchMetrics.spawnX
@@ -502,7 +516,8 @@ public enum FausSwitchStartGrid {
             let spawnY = Double(spawnCenter) / 10
             let platform = FausSwitchRect(minX: x - platformBack, minY: platformMinY,
                                           maxX: x + platformAhead, maxY: Double(platformBottom + thickness) / 10)
-            return Lane(gravity: gravity, platform: platform, spawn: FausSwitchRunnerState(x: x, y: spawnY, gravity: gravity))
+            return Lane(gravity: gravity, platform: platform, spawn: FausSwitchRunnerState(x: x, y: spawnY, gravity: gravity,
+                                                                                    scale: runnerScale))
         }
     }
 }

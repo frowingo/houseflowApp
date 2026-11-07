@@ -186,6 +186,7 @@ final class FausSwitchPhysicsTests: XCTestCase {
             let climbing = portal.x > course.track.turns[0].endX && portal.x < course.track.turns[1].startX
             XCTAssertGreaterThanOrEqual(portal.x - portal.exitX, climbing ? 100 : 220, "Portal \(portal.id)")
         }
+    }
 
     func testPortalNeverDropsARobotBehindTheTrail() throws {
         // A robot that reaches a climb portal at the very edge of the view lands just in
@@ -197,19 +198,22 @@ final class FausSwitchPhysicsTests: XCTestCase {
         var tick = FausSwitchMetrics.ticks((focus - FausSwitchMetrics.spawnX) / FausSwitchMetrics.runSpeed)
         var landed = false
         for _ in 0..<40 {
-            let before = runner.x
+            let before = runner.gravity
             FausSwitchPhysics.step(&runner, tick: tick, course: course)
             tick += 1
-            if runner.x < before {
+            // The robot never flips here, so a gravity change is the portal. (Its x need
+            // not go back: the trail can pull the landing up to the portal itself.)
+            if runner.gravity != before {
                 landed = true
+                XCTAssertEqual(runner.gravity, portal.exitGravity)
                 XCTAssertGreaterThan(runner.x, portal.exitX, "Pulled forward of the fixed exit")
+                XCTAssertGreaterThan(runner.body.maxX, course.cameraTrail(atTick: tick), "In front of the trail")
                 break
             }
         }
         XCTAssertTrue(landed)
         for _ in 0..<60 { FausSwitchPhysics.step(&runner, tick: tick, course: course); tick += 1 }
         XCTAssertEqual(runner.status, .running)
-    }
     }
 
     func testSlowPadSlowsOncePerRobot() throws {

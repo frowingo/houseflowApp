@@ -22,11 +22,16 @@ public struct FausSwitchRunnerState: Equatable, Sendable {
     public var finishedAtTick: Int64?
     public var crashedAtTick: Int64?
     public var crashReason: FausSwitchCrashReason?
+    /// Body size against `FausSwitchMetrics.runnerWidth` and `runnerHeight`: 1, or
+    /// `FausSwitchStartGrid.crowdedRobotScale` in a race of more than four robots. It sizes
+    /// the body and the support probe only; portal exits and gap sensors keep full size.
+    public var scale: Double
 
     public init(x: Double, y: Double, velocityY: Double = 0, gravity: FausSwitchGravity,
                 boostedUntilTick: Int64 = 0, usedBoosts: Set<Int> = [], slowedUntilTick: Int64 = 0,
                 usedSlows: Set<Int> = [], status: FausSwitchRunnerStatus = .running,
-                finishedAtTick: Int64? = nil, crashedAtTick: Int64? = nil, crashReason: FausSwitchCrashReason? = nil) {
+                finishedAtTick: Int64? = nil, crashedAtTick: Int64? = nil, crashReason: FausSwitchCrashReason? = nil,
+                scale: Double = 1) {
         self.x = x
         self.y = y
         self.velocityY = velocityY
@@ -39,6 +44,7 @@ public struct FausSwitchRunnerState: Equatable, Sendable {
         self.finishedAtTick = finishedAtTick
         self.crashedAtTick = crashedAtTick
         self.crashReason = crashReason
+        self.scale = scale
     }
 
     /// Standing on the floor (`.down`) or hanging on the ceiling (`.up`) at the start
@@ -50,7 +56,8 @@ public struct FausSwitchRunnerState: Equatable, Sendable {
     }
 
     public var body: FausSwitchRect {
-        FausSwitchRect(centerX: x, centerY: y, width: FausSwitchMetrics.runnerWidth, height: FausSwitchMetrics.runnerHeight)
+        FausSwitchRect(centerX: x, centerY: y, width: FausSwitchMetrics.runnerWidth * scale,
+                       height: FausSwitchMetrics.runnerHeight * scale)
     }
 
     public func isBoosted(atTick tick: Int64) -> Bool { tick < boostedUntilTick }
@@ -80,9 +87,9 @@ public enum FausSwitchPhysics {
 
     /// The thin probe under the feet (in the gravity direction) that must touch a solid.
     public static func supportProbe(of runner: FausSwitchRunnerState) -> FausSwitchRect {
-        let width = FausSwitchMetrics.runnerWidth
+        let width = FausSwitchMetrics.runnerWidth * runner.scale
         let inset = min(7, width * 0.2)
-        let edge = runner.y + runner.gravity.sign * FausSwitchMetrics.runnerHeight / 2
+        let edge = runner.y + runner.gravity.sign * FausSwitchMetrics.runnerHeight * runner.scale / 2
         return FausSwitchRect(minX: runner.x - width / 2 + inset, minY: edge - 0.5,
                               maxX: runner.x + width / 2 - inset, maxY: edge + 0.5)
     }

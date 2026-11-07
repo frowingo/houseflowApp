@@ -46,6 +46,7 @@ import com.fauscrew.ui.house.CreateHouseScreen
 import com.fauscrew.ui.dashboard.DashboardScreen
 import com.fauscrew.ui.games.GamesHubScreen
 import com.fauscrew.ui.games.tanks.HouseTanksScreen
+import com.fauscrew.ui.games.fausswitch.FausSwitchScreen
 import com.fauscrew.ui.games.rockets.HouseRocketsScreen
 import com.fauscrew.ui.house.HouseErrorScreen
 import com.fauscrew.ui.house.HouseLoadingScreen
@@ -107,6 +108,7 @@ class MainActivity : ComponentActivity() {
             var selectedTab by rememberSaveable { mutableStateOf(MainTab.HOME) }
             var showsHouseRockets by rememberSaveable { mutableStateOf(false) }
             var showsHouseTanks by rememberSaveable { mutableStateOf(false) }
+            var showsFausSwitch by rememberSaveable { mutableStateOf(false) }
             // Brand intro on every cold start (not on configuration changes).
             var showsSplash by rememberSaveable { mutableStateOf(coldStart) }
             // Until the splash starts opening, the app underneath is hidden and holds its animations.
@@ -138,6 +140,7 @@ class MainActivity : ComponentActivity() {
                     selectedTab = MainTab.HOME
                     showsHouseRockets = false
                     showsHouseTanks = false
+                    showsFausSwitch = false
                 }
             }
             LaunchedEffect(state.route, showsSplash, theme) {
@@ -280,10 +283,20 @@ class MainActivity : ComponentActivity() {
                         games = { onOverlayChange ->
                             // The game is a full-screen destination of the Games tab, so the
                             // floating tab bar steps aside while it is open.
-                            LaunchedEffect(showsHouseRockets, showsHouseTanks) {
-                                onOverlayChange(showsHouseRockets || showsHouseTanks)
+                            LaunchedEffect(showsHouseRockets, showsHouseTanks, showsFausSwitch) {
+                                onOverlayChange(showsHouseRockets || showsHouseTanks || showsFausSwitch)
                             }
-                            if (showsHouseTanks) {
+                            if (showsFausSwitch) {
+                                FausSwitchScreen(text, houseState.details?.id, state.profile?.userId,
+                                    onExit = { showsFausSwitch = false },
+                                    houseOwnerId = houseState.details?.ownerId?.ifBlank { null },
+                                    members = houseState.details?.members.orEmpty()
+                                        .filter { it.name.isNotBlank() }.associate { it.id to it.name },
+                                    onRequireSignIn = {
+                                        showsFausSwitch = false
+                                        model.logout()
+                                    })
+                            } else if (showsHouseTanks) {
                                 HouseTanksScreen(text, houseState.details?.id, state.profile?.userId,
                                     onExit = { showsHouseTanks = false },
                                     houseOwnerId = houseState.details?.ownerId?.ifBlank { null },
@@ -305,13 +318,14 @@ class MainActivity : ComponentActivity() {
                                     })
                             } else {
                                 GamesHubScreen(text, onOpenHouseRockets = { showsHouseRockets = true },
-                                    onOpenHouseTanks = { showsHouseTanks = true })
+                                    onOpenHouseTanks = { showsHouseTanks = true },
+                                    onOpenFausSwitch = { showsFausSwitch = true })
                             }
                         },
                     )
                     // Profile returns to Home; Home is the root tab and keeps the session screen.
                     // An open game owns Back (pause/exit), so the tab fallback yields to it.
-                    BackHandler(enabled = !(selectedTab == MainTab.GAMES && (showsHouseRockets || showsHouseTanks))) {
+                    BackHandler(enabled = !(selectedTab == MainTab.GAMES && (showsHouseRockets || showsHouseTanks || showsFausSwitch))) {
                         if (selectedTab != MainTab.HOME) selectedTab = MainTab.HOME
                     }
                 }

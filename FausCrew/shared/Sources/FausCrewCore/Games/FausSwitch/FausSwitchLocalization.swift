@@ -1,11 +1,21 @@
 import Foundation
 
-/// Bundled copy keeps Faus Switch usable before the plaintext endpoint is updated.
-/// Remote translations continue to take precedence in LocalizationStore.
-enum FausSwitchLocalization {
-    static func value(for key: String, language: String?) -> String? {
+/// Bundled Faus Switch copy shared by iOS and Android. Remote plaintext overrides these
+/// values; Turkish is the default for every non-English language.
+public enum FausSwitchLocalization {
+    public static func value(for key: String, language: String?) -> String? {
         guard let copy = values[key] else { return nil }
-        return language?.lowercased().hasPrefix("en") == true ? copy.en : copy.tr
+        return isEnglish(language) ? copy.en : copy.tr
+    }
+
+    /// The whole table in one language, for clients that cache it once per screen.
+    public static func table(language: String?) -> [String: String] {
+        let english = isEnglish(language)
+        return values.mapValues { english ? $0.en : $0.tr }
+    }
+
+    private static func isEnglish(_ language: String?) -> Bool {
+        language?.lowercased().hasPrefix("en") == true
     }
 
     private static let values: [String: (tr: String, en: String)] = [
@@ -104,6 +114,11 @@ enum FausSwitchLocalization {
         "faus_switch_online_soon_detail": ("Online yarış bu sürümde henüz açık değil.", "Online racing isn't available in this build yet."),
         "faus_switch_online_closed": ("Bu evde online yarış kapalı", "Online racing is off for this house"),
         "faus_switch_online_closed_detail": ("Sunucu bu ev için Faus Switch'i henüz açmadı. Demo modunda oynayabilirsin.", "The server hasn't enabled Faus Switch for this house yet. You can play demo mode."),
+        "faus_switch_color_taken": ("Başka oyuncuda", "Taken"),
+        "faus_switch_online_awaiting_result": ("Sonuç kesinleşiyor", "Settling the result"),
+        "faus_switch_online_awaiting_result_detail": ("Son anda gelen bir dokunuş yarışı hâlâ değiştirebilir.", "A last-moment tap can still change the race."),
+        "faus_switch_online_color_taken": ("Seçtiğin renk başka bir oyuncuda. Boştaki bir renk seç; seçmezsen yarışta sana boş bir renk verilir.", "Another player has your color. Pick a free one, or you'll get a free color in the race."),
+        "faus_switch_online_color_locked": ("Hazırsın, rengin sabit. Değiştirmek için önce hazırı kaldır.", "You're ready, so your color is set. Take back Ready to change it."),
         "faus_switch_online_color_note": ("Aynı rengi seçen ilk oyuncu alır; diğerlerine boştaki bir renk verilir.", "The first player to pick a color gets it; others get a free color."),
         "faus_switch_online_roster": ("Oyuncular", "Players"),
         "faus_switch_online_ready_count": ("{ready}/{total} hazır", "{ready}/{total} ready"),
@@ -113,6 +128,11 @@ enum FausSwitchLocalization {
         "faus_switch_online_cancel": ("Yarışı iptal et", "Cancel race"),
         "faus_switch_online_retry": ("Yeniden dene", "Try again"),
         "faus_switch_online_seconds": ("{seconds} saniye", "{seconds} seconds"),
+        "faus_switch_online_start_title": ("Başlangıç sayacı", "Start countdown"),
+        "faus_switch_online_start_until": ("YARIŞIN BAŞLAMASINA", "UNTIL THE RACE STARTS"),
+        "faus_switch_online_seconds_unit": ("SN", "S"),
+        "faus_switch_online_start_waiting": ("Sayaç hazır bekliyor", "Countdown standing by"),
+        "faus_switch_online_start_waiting_detail": ("En az {minimum} kişi hazır olunca 30 sn’lik sayaç burada başlar.", "When at least {minimum} players are ready, a 30 s countdown starts here."),
         "faus_switch_online_rematch_room": ("Rövanş odası", "Rematch room"),
         "faus_switch_online_leaving": ("Odadan çıkılıyor…", "Leaving the room…"),
         "faus_switch_online_ended": ("Yarış bitti", "Race over"),

@@ -43,8 +43,6 @@ struct FausSwitchLobbyView: View {
 
             if model.selectedMode == .demo {
                 bottomBar { startButton }
-            } else if showsOnlineActionBar {
-                bottomBar { onlineActions }
             }
         }
     }
@@ -133,17 +131,33 @@ struct FausSwitchLobbyView: View {
 
     // MARK: - Robot color
 
-    private func colorPicker(footnoteKey: String?) -> some View {
-        VStack(alignment: .leading, spacing: AppDesign.Spacing.md) {
+    /// `lobby` is set in the online room: colors other players hold are taken, the
+    /// selection is the color the server gives this player, and a ready player's color is
+    /// locked until they take the ready back.
+    private func colorPicker(footnoteKey: String?, lobby: FausSwitchLobbyColors? = nil) -> some View {
+        let selected = lobby == nil ? model.robotColor : model.onlineLocalColor
+        let isLocked = lobby?.isLocked ?? false
+        return VStack(alignment: .leading, spacing: AppDesign.Spacing.md) {
             sectionTitle("faus_switch_color_title")
             LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: AppDesign.Spacing.sm), count: 4),
                       spacing: AppDesign.Spacing.sm) {
                 ForEach(FausSwitchColor.allCases) { color in
-                    let isSelected = model.robotColor == color
+                    let isSelected = selected == color
+                    let isTaken = lobby?.isTakenByOthers(color) ?? false
                     Button { model.robotColor = color } label: {
                         VStack(spacing: 4) {
                             FausSwitchRobot(color: color)
                                 .frame(width: 44, height: 44)
+                                .overlay(alignment: .topTrailing) {
+                                    if isTaken {
+                                        Image(systemName: "person.fill")
+                                            .font(.caption2.weight(.black))
+                                            .foregroundStyle(FausSwitchPalette.lightSand)
+                                            .padding(4)
+                                            .background(FausSwitchPalette.deepWine, in: Circle())
+                                            .offset(x: 6, y: -4)
+                                    }
+                                }
                             Text(copy(color.titleKey))
                                 .font(.caption2.weight(.semibold))
                                 .foregroundStyle(FausSwitchPalette.ink)
@@ -158,9 +172,23 @@ struct FausSwitchLobbyView: View {
                                     lineWidth: isSelected ? 2 : 1))
                     }
                     .buttonStyle(ScaleButtonStyle())
-                    .accessibilityLabel(copy(color.titleKey))
+                    .disabled(isTaken || isLocked)
+                    .opacity(isTaken || (isLocked && !isSelected) ? 0.5 : 1)
+                    .accessibilityLabel(isTaken ? copy(color.titleKey) + ", " + copy("faus_switch_color_taken")
+                                                : copy(color.titleKey))
                     .accessibilityAddTraits(isSelected ? .isSelected : [])
                 }
+            }
+            if isLocked {
+                Label(copy("faus_switch_online_color_locked"), systemImage: "lock.fill")
+                    .font(.caption.weight(.semibold))
+                    .foregroundStyle(FausSwitchPalette.secondaryInk)
+                    .fixedSize(horizontal: false, vertical: true)
+            } else if let lobby, lobby.isPreferredTaken(model.robotColor) {
+                Label(copy("faus_switch_online_color_taken"), systemImage: "person.2.fill")
+                    .font(.caption.weight(.semibold))
+                    .foregroundStyle(FausSwitchPalette.berry)
+                    .fixedSize(horizontal: false, vertical: true)
             }
             if let footnoteKey {
                 Text(copy(footnoteKey))
@@ -258,8 +286,9 @@ struct FausSwitchLobbyView: View {
         } else {
             VStack(alignment: .leading, spacing: 24) {
                 onlineStatus
-                colorPicker(footnoteKey: "faus_switch_online_color_note")
+                colorPicker(footnoteKey: "faus_switch_online_color_note", lobby: model.onlineLobbyColors)
                 onlineRoster
+                startCountdownCard
             }
             .task(id: roomContext) {
                 guard let context = roomContext, let houseID = context.houseID else { return }
@@ -330,7 +359,6 @@ struct FausSwitchLobbyView: View {
                     }
                 }
                 Spacer(minLength: 0)
-                countdownBadge
             }
             .accessibilityElement(children: .combine)
 
@@ -351,20 +379,67 @@ struct FausSwitchLobbyView: View {
         .switchCard()
     }
 
-    /// The ready window or start countdown, from the server's deadline.
-    private var countdownBadge: some View {
-        TimelineView(.periodic(from: .now, by: 0.25)) { _ in
-            let phase = model.onlineState.session?.state
-            if phase == .readyWindow || phase == .countdown, let seconds = model.onlineCountdown() {
-                Text(verbatim: "\(seconds)")
-                    .font(.system(size: 30, weight: .black, design: .rounded))
-                    .monospacedDigit()
-                    .foregroundStyle(seconds <= 5 ? FausSwitchPalette.danger : FausSwitchPalette.ink)
-                    .frame(minWidth: 52, minHeight: 52)
-                    .background(FausSwitchPalette.lavender, in: Circle())
-                    .accessibilityLabel(copy("faus_switch_online_seconds", replacements: ["seconds": "\(seconds)"]))
+    /// The ready window and the start countdown in large seconds, from the server's
+    /// deadline (like House Tanks' start card); before the window opens, what starts it.
+    private var startCountdownCard: some View {
+        let state = model.onlineState
+        return VStack(alignment: .leading, spacing: AppDesign.Spacing.md) {
+            sectionTitle("faus_switch_online_start_title")
+            TimelineView(.periodic(from: .now, by: 0.25)) { _ in
+                let seconds = state.session?.state == .readyWindow || state.session?.state == .countdown
+                    ? model.onlineCountdown() : nil
+                VStack(spacing: AppDesign.Spacing.xs) {
+                    if let seconds {
+                        Text(copy("faus_switch_online_start_until"))
+                            .font(.caption.weight(.heavy))
+                            .tracking(1.4)
+                            .foregroundStyle(FausSwitchPalette.secondaryInk)
+                        HStack(alignment: .firstTextBaseline, spacing: AppDesign.Spacing.xs) {
+                            Text(verbatim: "\(seconds)")
+                                .font(.system(size: 88, weight: .black, design: .rounded))
+                                .monospacedDigit()
+                                .contentTransition(.numericText(countsDown: true))
+                                .foregroundStyle(seconds <= 5 ? FausSwitchPalette.danger : FausSwitchPalette.ink)
+                            Text(copy("faus_switch_online_seconds_unit"))
+                                .font(.title3.weight(.heavy))
+                                .foregroundStyle(FausSwitchPalette.secondaryInk)
+                        }
+                        .animation(.snappy, value: seconds)
+                        .accessibilityElement(children: .ignore)
+                        .accessibilityLabel(copy("faus_switch_online_seconds", replacements: ["seconds": "\(seconds)"]))
+                    } else {
+                        Image(systemName: "hourglass")
+                            .font(.system(size: 40, weight: .bold))
+                            .foregroundStyle(FausSwitchPalette.accent)
+                        Text(copy("faus_switch_online_start_waiting"))
+                            .font(.headline)
+                            .foregroundStyle(FausSwitchPalette.ink)
+                        Text(copy("faus_switch_online_start_waiting_detail",
+                                  replacements: ["minimum": "\(state.session?.rules.minimumPlayers ?? 2)"]))
+                            .font(.caption)
+                            .foregroundStyle(FausSwitchPalette.secondaryInk)
+                            .multilineTextAlignment(.center)
+                            .fixedSize(horizontal: false, vertical: true)
+                    }
+                    if state.session != nil {
+                        Text(copy("faus_switch_online_ready_count",
+                                  replacements: ["ready": "\(state.readyCount)", "total": "\(state.participants.count)"]))
+                            .font(.caption.weight(.heavy))
+                            .foregroundStyle(FausSwitchPalette.plum)
+                    }
+                }
+                .padding(AppDesign.Spacing.md)
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+                .accessibilityElement(children: .combine)
             }
+            .aspectRatio(872 / 400, contentMode: .fit)
+            .frame(maxWidth: .infinity)
+            .background(FausSwitchPalette.lightSand.opacity(0.75),
+                        in: RoundedRectangle(cornerRadius: AppDesign.CornerRadius.md, style: .continuous))
+            .overlay(RoundedRectangle(cornerRadius: AppDesign.CornerRadius.md, style: .continuous)
+                .stroke(FausSwitchPalette.panelStroke, style: StrokeStyle(lineWidth: 1, dash: [4, 4])))
         }
+        .switchCard()
     }
 
     private var onlineRoster: some View {
@@ -372,6 +447,7 @@ struct FausSwitchLobbyView: View {
         let localID = appViewModel.currentUserId
         let names = Dictionary((appViewModel.currentHouseDetails?.members ?? []).map { ($0.id, $0.fullName) },
                                uniquingKeysWith: { first, _ in first })
+        let colors = model.onlineLobbyColors
         let players = state.participants.sorted { lhs, rhs in
             (lhs.playerId == localID ? 0 : 1) < (rhs.playerId == localID ? 0 : 1)
         }
@@ -395,16 +471,18 @@ struct FausSwitchLobbyView: View {
                 let isLocal = player.playerId == localID
                 rosterRow(name: (names[player.playerId] ?? copy("faus_switch_online_player"))
                                 + (isLocal ? " · " + copy("faus_switch_you") : ""),
-                          color: isLocal ? model.robotColor : nil,
+                          color: isLocal ? model.onlineLocalColor : colors.color(of: player.playerId),
                           trailing: copy(FausSwitchOnlineCopyKeys.playerStatus(player.state)),
                           trailingSymbol: player.state == .ready ? "checkmark.seal.fill" : "clock",
                           highlightsTrailing: player.state == .ready)
             }
+            // Ready and cancel sit at the card's foot while the room is a lobby.
+            if showsOnlineActions { onlineActions }
         }
         .switchCard()
     }
 
-    private var showsOnlineActionBar: Bool {
+    private var showsOnlineActions: Bool {
         model.selectedMode == .online && onlineBlockerKey == nil && model.onlineCatalog != .unavailable
             && model.onlineState.session != nil && model.onlineState.isLobby && !model.onlineState.isTerminal
     }

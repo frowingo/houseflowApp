@@ -39,6 +39,10 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.fauscrew.platform.HouseRocketsNative
 import com.fauscrew.platform.HouseTanksNative
+import com.fauscrew.platform.FausSwitchNative
+import com.fauscrew.ui.games.fausswitch.FausSwitchCoverArtwork
+import com.fauscrew.ui.games.fausswitch.FausSwitchPalette
+import com.fauscrew.ui.games.fausswitch.SwitchCopy
 import com.fauscrew.ui.games.tanks.HouseTanksArenaTank
 import com.fauscrew.ui.games.tanks.HouseTanksMapBackdrop
 import com.fauscrew.ui.games.tanks.HouseTanksPalette
@@ -63,21 +67,25 @@ import com.fauscrew.ui.theme.softShadow
 
 /**
  * `GamesHubView`. Android offers only the games that run on the shared Core, so the grid
- * holds House Rockets and FauseTanks in the same two-column layout as iOS.
+ * holds House Rockets, FauseTanks and Faus Switch in the same two-column layout and order as iOS.
  */
 @Composable
 internal fun GamesHubScreen(
     strings: LocalizedText,
     onOpenHouseRockets: () -> Unit,
     onOpenHouseTanks: () -> Unit = {},
+    onOpenFausSwitch: () -> Unit = {},
     bundledCopy: (String?) -> Map<String, String> = HouseRocketsNative::copy,
     tanksCopy: (String?) -> Map<String, String> = HouseTanksNative::copy,
+    switchCopy: (String?) -> Map<String, String> = FausSwitchNative::copy,
 ) {
     val rocketsCopy = remember(strings) { RocketsCopy(strings, bundledCopy(strings.prefix)) }
     val fauseTanksCopy = remember(strings) { TanksCopy(strings, tanksCopy(strings.prefix)) }
+    val fausSwitchCopy = remember(strings) { SwitchCopy(strings, switchCopy(strings.prefix)) }
     val header = rememberEntrance(50)
     val firstCard = rememberEntrance(100)
     val secondCard = rememberEntrance(180)
+    val thirdCard = rememberEntrance(260)
     Box(Modifier.fillMaxSize().mainScreenBackground()) {
         Column(
             Modifier.fillMaxSize().verticalScroll(rememberScrollState()).statusBarsPadding()
@@ -104,6 +112,10 @@ internal fun GamesHubScreen(
             Row(horizontalArrangement = Arrangement.spacedBy(Spacing.md)) {
                 HouseRocketsCard(rocketsCopy, Modifier.weight(1f).entrance(firstCard, 24.dp), onOpenHouseRockets)
                 HouseTanksCard(fauseTanksCopy, Modifier.weight(1f).entrance(secondCard, 24.dp), onOpenHouseTanks)
+            }
+            Row(horizontalArrangement = Arrangement.spacedBy(Spacing.md)) {
+                FausSwitchCard(fausSwitchCopy, Modifier.weight(1f).entrance(thirdCard, 24.dp), onOpenFausSwitch)
+                Spacer(Modifier.weight(1f))
             }
         }
     }
@@ -171,6 +183,32 @@ private fun HouseTanksCard(copy: TanksCopy, modifier: Modifier, onClick: () -> U
         Column(Modifier.fillMaxWidth().padding(Spacing.md), verticalArrangement = Arrangement.spacedBy(Spacing.xs)) {
             Text(copy("games_house_tanks_title"), style = FausCrewType.headline, color = FausCrewColors.textPrimary)
             Text(copy("games_house_tanks_card_description"), style = FausCrewType.caption,
+                color = FausCrewColors.textSecondary, maxLines = 3, overflow = TextOverflow.Ellipsis)
+        }
+    }
+}
+
+/** `HubGameCard` for Faus Switch: a slice of the course on the light sand cover. */
+@Composable
+private fun FausSwitchCard(copy: SwitchCopy, modifier: Modifier, onClick: () -> Unit) {
+    val shape = RoundedCornerShape(Radius.xl)
+    Column(
+        modifier.scaleButton(onClick = onClick)
+            .softShadow(Color.Black.copy(alpha = .06f), 8.dp, y = 2.dp, shape = shape)
+            .clip(shape)
+            .background(FausCrewColors.cardBackground)
+            .fausCardSheen(),
+    ) {
+        Box(
+            Modifier.fillMaxWidth().height(120.dp).clipToBounds()
+                .background(Brush.linearGradient(listOf(FausSwitchPalette.lightSand, FausSwitchPalette.sand),
+                    start = Offset.Zero, end = Offset.Infinite)),
+        ) {
+            FausSwitchCoverArtwork(Modifier.fillMaxSize())
+        }
+        Column(Modifier.fillMaxWidth().padding(Spacing.md), verticalArrangement = Arrangement.spacedBy(Spacing.xs)) {
+            Text(copy("games_faus_switch_title"), style = FausCrewType.headline, color = FausCrewColors.textPrimary)
+            Text(copy("games_faus_switch_card_description"), style = FausCrewType.caption,
                 color = FausCrewColors.textSecondary, maxLines = 3, overflow = TextOverflow.Ellipsis)
         }
     }

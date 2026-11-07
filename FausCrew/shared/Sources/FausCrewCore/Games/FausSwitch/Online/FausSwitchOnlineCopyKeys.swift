@@ -119,6 +119,10 @@ public enum FausSwitchOnlineCopyKeys {
         if state.connection != .connected || !state.isSynced || presentation?.isSyncing == true {
             return Notice(title: "faus_switch_online_syncing", detail: "faus_switch_online_syncing_detail", isBlocking: false)
         }
+        if presentation?.isAwaitingResult == true {
+            return Notice(title: "faus_switch_online_awaiting_result", detail: "faus_switch_online_awaiting_result_detail",
+                          isBlocking: false)
+        }
         return nil
     }
 
