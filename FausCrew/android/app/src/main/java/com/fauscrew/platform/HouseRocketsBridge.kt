@@ -12,7 +12,17 @@ internal enum class RocketsRole { HUMAN, BOT, REMOTE }
 internal enum class RocketsEffect { BOOST, SLOW }
 
 /** Serialized player colors from Core; the palette lives in the UI. */
-internal enum class RocketsColor { MINT, CORAL, BLUE, GOLD, VIOLET, ORANGE, PINK, TEAL }
+internal enum class RocketsColor {
+    MINT, CORAL, BLUE, GOLD, VIOLET, ORANGE, PINK, TEAL;
+
+    /** The wire name (`mint`, `coral`, …). */
+    val raw: String get() = name.lowercase()
+
+    companion object {
+        /** A wire color, or null for one this build does not know. */
+        fun from(raw: String?): RocketsColor? = entries.firstOrNull { it.raw == raw }
+    }
+}
 
 internal data class RocketsPlayer(
     val id: String,
@@ -153,7 +163,7 @@ internal class RocketsFrameParser {
 
     fun parse(json: String): RocketsUpdate {
         val root = JSONObject(json)
-        check(root.optBoolean("ok", false)) { root.optString("message", "House Rockets bridge failed") }
+        check(root.optBoolean("ok", false)) { root.optString("message", "Faus Rockets bridge failed") }
         val frame = if (root.has("matchId")) frame(root) else null
         return RocketsUpdate(
             frame = frame,

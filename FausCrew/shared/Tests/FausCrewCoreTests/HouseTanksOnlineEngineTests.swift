@@ -2,7 +2,7 @@ import Foundation
 @testable import FausCrewCore
 import XCTest
 
-/// The FauseTanks room through the engine, with a mock server: PUT → socket →
+/// The Faus Tanks room through the engine, with a mock server: PUT → socket →
 /// welcome and session → join → ready → countdown preview, the heartbeat, the
 /// update warning for an unknown map and the server arena.
 final class HouseTanksOnlineEngineTests: XCTestCase {
@@ -33,19 +33,25 @@ final class HouseTanksOnlineEngineTests: XCTestCase {
 
         engine.received(text: try session(version: 7, state: "lobby", localState: "waiting"), connection: socket, now: 0.5)
         XCTAssertTrue(engine.lobby.canChangeReady(playerID: playerID))
+        XCTAssertFalse(engine.canChangeReady, "No ready before the server holds a tank color")
+        engine.setReady(true, now: 0.55)
+        XCTAssertEqual(types(engine), [], "A ready without a color stays on the client")
+        engine.received(text: try session(version: 8, state: "lobby", localState: "waiting", colors: [playerID: "plum"]),
+                        connection: socket, now: 0.56)
+        XCTAssertTrue(engine.canChangeReady)
         XCTAssertEqual(HouseTanksOnlineCopyKeys.roomStatus(engine.lobby), "house_tanks_online_lobby")
         engine.setReady(true, now: 0.6)
         let ready = try XCTUnwrap(sent(engine).first)
         XCTAssertEqual(ready["type"] as? String, "gameSession.setReady")
         XCTAssertEqual((ready["payload"] as? [String: Any])?["ready"] as? Bool, true)
 
-        engine.received(text: try session(version: 8, state: "readyWindow", localState: "ready",
+        engine.received(text: try session(version: 9, state: "readyWindow", localState: "ready",
                                           readyWindowEndsAt: "2026-10-24T12:01:00Z"), connection: socket, now: 0.7)
         XCTAssertEqual(HouseTanksOnlineCopyKeys.roomStatus(engine.lobby), "house_tanks_online_ready_window")
         XCTAssertEqual(engine.lobby.readyCount, 1)
         XCTAssertEqual(engine.roomCountdown(at: 0.7), 30, "The window's end on the server clock")
 
-        engine.received(text: try session(version: 9, state: "countdown", localState: "playing",
+        engine.received(text: try session(version: 10, state: "countdown", localState: "playing",
                                           countdownEndsAt: "2026-10-24T12:00:33Z"), connection: socket, now: 0.8)
         XCTAssertNil(engine.arena, "No map until the countdown snapshot")
         engine.received(text: try fixture("countdown"), connection: socket, now: 0.9)
@@ -138,15 +144,120 @@ final class HouseTanksOnlineEngineTests: XCTestCase {
         XCTAssertTrue(engine.isClosed)
     }
 
+    // MARK: Lobby colors
+
+    func testLobbySendsThePreferredColorAfterJoining() throws {
+        let (engine, socket) = try connectedEngine(color: .sky)
+        _ = engine.drainEffects()
+        engine.received(text: try session(version: 7, state: "lobby", localState: "waiting"), connection: socket, now: 1)
+        let claim = try XCTUnwrap(sent(engine).first)
+        XCTAssertEqual(claim["type"] as? String, "houseTanks.selectColor")
+        XCTAssertNil(claim["controlGeneration"])
+        XCTAssertEqual((claim["payload"] as? [String: Any])?["color"] as? String, "sky")
+
+        // The same pick is not repeated; a new pick is sent.
+        engine.received(text: try session(version: 8, state: "lobby", localState: "waiting"), connection: socket, now: 1.1)
+        XCTAssertTrue(try sent(engine).isEmpty)
+        engine.selectColor(.olive, now: 1.2)
+        XCTAssertEqual((try sent(engine).first?["payload"] as? [String: Any])?["color"] as? String, "olive")
+    }
+
+    /// A server without lobby colors rejects the claim; the room goes on with seat colors.
+    func testRejectedColorClaimKeepsTheRoom() throws {
+        let (engine, socket) = try connectedEngine(color: .sky)
+        _ = engine.drainEffects()
+        engine.received(text: try session(version: 7, state: "lobby", localState: "waiting"), connection: socket, now: 1)
+        let id = try XCTUnwrap(sent(engine).first?["messageId"] as? String)
+        engine.received(text: try rejection(id: id, code: "game.error.invalid_command"), connection: socket, now: 1.1)
+        XCTAssertNil(engine.lobby.issue)
+        XCTAssertEqual(engine.lobby.connection, .connected)
+        XCTAssertFalse(engine.isClosed)
+        engine.received(text: try session(version: 8, state: "lobby", localState: "waiting"), connection: socket, now: 1.2)
+        XCTAssertTrue(try sent(engine).isEmpty, "Not resent on the same connection")
+        XCTAssertEqual(engine.lobbyColors.localColor(preferred: engine.preferredColor), .sky)
+    }
+
+    func testColorHeldByAnotherPlayerIsAskedForOnceItIsFree() throws {
+        let (engine, socket) = try connectedEngine(color: .plum)
+        _ = engine.drainEffects()
+        engine.received(text: try session(version: 7, state: "lobby", localState: "waiting", colors: [otherID: "plum"]),
+                        connection: socket, now: 1)
+        XCTAssertTrue(try sent(engine).isEmpty, "Plum is held: the claim would change nothing")
+        XCTAssertTrue(engine.lobbyColors.isPreferredTaken(engine.preferredColor))
+        XCTAssertNil(engine.lobbyColors.localColor(preferred: engine.preferredColor))
+        XCTAssertEqual(engine.lobbyColors.color(of: otherID), .plum)
+
+        engine.received(text: try session(version: 8, state: "lobby", localState: "waiting", colors: [otherID: "plum"],
+                                          otherState: "left"), connection: socket, now: 1.1)
+        XCTAssertEqual((try sent(engine).first?["payload"] as? [String: Any])?["color"] as? String, "plum")
+
+        // Once the server shows the claim, it is not sent again.
+        engine.received(text: try session(version: 9, state: "lobby", localState: "waiting", colors: [playerID: "plum"]),
+                        connection: socket, now: 1.2)
+        engine.selectColor(.plum, now: 1.3)
+        XCTAssertTrue(try sent(engine).isEmpty)
+        XCTAssertEqual(engine.lobbyColors.localClaim, .plum)
+    }
+
+    func testReadyLocksTheColorUntilTheReadyIsTakenBack() throws {
+        let (engine, socket) = try connectedEngine(color: .plum)
+        _ = engine.drainEffects()
+        engine.received(text: try session(version: 7, state: "lobby", localState: "ready",
+                                          colors: [otherID: "plum", playerID: "sky"]), connection: socket, now: 1)
+        XCTAssertTrue(engine.lobbyColors.isLocked)
+        XCTAssertEqual(try claims(engine), [])
+
+        // A pick while ready changes nothing, and the freed color is not claimed either.
+        engine.selectColor(.olive, now: 1.1)
+        XCTAssertEqual(engine.preferredColor, .plum)
+        engine.received(text: try session(version: 8, state: "lobby", localState: "ready",
+                                          colors: [otherID: "plum", playerID: "sky"], otherState: "left"),
+                        connection: socket, now: 1.2)
+        XCTAssertEqual(try claims(engine), [])
+
+        // Not ready again: the wished color is asked for, and picks go through.
+        engine.received(text: try session(version: 9, state: "lobby", localState: "waiting",
+                                          colors: [otherID: "plum", playerID: "sky"], otherState: "left"),
+                        connection: socket, now: 1.3)
+        XCTAssertFalse(engine.lobbyColors.isLocked)
+        XCTAssertEqual(try claims(engine), ["plum"])
+        engine.selectColor(.olive, now: 1.4)
+        XCTAssertEqual(try claims(engine), ["olive"])
+    }
+
+    func testNoColorIsAskedForWithoutAPick() throws {
+        let (engine, socket) = try connectedEngine()
+        _ = engine.drainEffects()
+        engine.received(text: try session(version: 7, state: "lobby", localState: "waiting"), connection: socket, now: 1)
+        XCTAssertTrue(try sent(engine).isEmpty)
+        XCTAssertNil(engine.lobbyColors.localColor(preferred: engine.preferredColor))
+    }
+
     // MARK: Helpers
 
-    private func makeEngine() -> HouseTanksOnlineEngine {
-        HouseTanksOnlineEngine(context: .init(houseID: houseID, localPlayerID: playerID),
+    private var otherID: String { "507f1f77bcf86cd799439022" }
+
+    /// The colors claimed since the last drain (other room messages are left out).
+    private func claims(_ engine: HouseTanksOnlineEngine) throws -> [String] {
+        try sent(engine).filter { $0["type"] as? String == "houseTanks.selectColor" }
+            .compactMap { ($0["payload"] as? [String: Any])?["color"] as? String }
+    }
+
+    private func rejection(id: String, code: String) throws -> String {
+        let message: [String: Any] = [
+            "protocolVersion": 2, "type": "gameSession.commandRejected", "sentAt": "2026-10-24T12:00:50.125Z",
+            "messageId": id, "error": ["code": code, "args": [String](), "retryable": false],
+        ]
+        return String(decoding: try JSONSerialization.data(withJSONObject: message), as: UTF8.self)
+    }
+
+    private func makeEngine(color: HouseTanksColor? = nil) -> HouseTanksOnlineEngine {
+        HouseTanksOnlineEngine(context: .init(houseID: houseID, localPlayerID: playerID), preferredColor: color,
                                policy: .init(jitter: { 1 }), makeID: { [unowned self] in ids += 1; return "id\(ids)" })
     }
 
-    private func connectedEngine() throws -> (HouseTanksOnlineEngine, Int) {
-        let engine = makeEngine()
+    private func connectedEngine(color: HouseTanksColor? = nil) throws -> (HouseTanksOnlineEngine, Int) {
+        let engine = makeEngine(color: color)
         engine.start(isForeground: true, isLandscape: false, now: 0)
         guard case .ensureSession(_, let connection) = try XCTUnwrap(engine.drainEffects().first) else { throw XCTSkip("No ensure") }
         engine.sessionResponse(try envelope(sessionPayload(version: 5, state: "lobby", localState: nil)),
@@ -179,17 +290,19 @@ final class HouseTanksOnlineEngineTests: XCTestCase {
 
     /// The shared session DTO with the local player in `localState` and a second member.
     private func sessionPayload(version: Int64, state: String, localState: String?,
-                                readyWindowEndsAt: String? = nil, countdownEndsAt: String? = nil) -> [String: Any] {
-        let other = state == "countdown" || state == "running" ? "playing" : "waiting"
+                                readyWindowEndsAt: String? = nil, countdownEndsAt: String? = nil,
+                                colors: [String: String]? = nil, otherState: String? = nil) -> [String: Any] {
+        let other = otherState ?? (state == "countdown" || state == "running" ? "playing" : "waiting")
         var players: [[String: Any]] = [
             ["playerId": "507f1f77bcf86cd799439022", "state": other,
-             "joinedAt": "2026-10-24T12:00:00Z", "readyAt": NSNull(), "leftAt": NSNull()],
+             "joinedAt": "2026-10-24T12:00:00Z", "readyAt": NSNull(),
+             "leftAt": other == "left" ? "2026-10-24T12:00:20Z" : NSNull()],
         ]
         if let localState {
             players.insert(["playerId": playerID, "state": localState, "joinedAt": "2026-10-24T12:00:00Z",
                             "readyAt": NSNull(), "leftAt": localState == "left" ? "2026-10-24T12:00:31Z" : NSNull()], at: 0)
         }
-        return [
+        var payload: [String: Any] = [
             "sessionId": sessionID, "houseId": houseID, "gameKey": "houseTanks", "protocolVersion": 2,
             "mode": "realtime", "state": state,
             "rules": ["minimumPlayers": 2, "maximumPlayers": 8, "readyWindowMilliseconds": 30_000, "countdownMilliseconds": 3_000],
@@ -197,14 +310,18 @@ final class HouseTanksOnlineEngineTests: XCTestCase {
             "readyWindowEndsAt": readyWindowEndsAt ?? NSNull(), "countdownEndsAt": countdownEndsAt ?? NSNull(),
             "startedAt": NSNull(), "endedAt": NSNull(), "endReason": NSNull(), "version": version,
         ]
+        if let colors { payload["lobbyState"] = ["colors": colors] }
+        return payload
     }
 
     private func session(version: Int64, state: String, localState: String?,
-                         readyWindowEndsAt: String? = nil, countdownEndsAt: String? = nil) throws -> String {
+                         readyWindowEndsAt: String? = nil, countdownEndsAt: String? = nil,
+                         colors: [String: String]? = nil, otherState: String? = nil) throws -> String {
         let message: [String: Any] = [
             "protocolVersion": 2, "type": "gameSession.snapshot", "sentAt": "2026-10-24T12:00:30.125Z", "sequence": version,
             "payload": sessionPayload(version: version, state: state, localState: localState,
-                                      readyWindowEndsAt: readyWindowEndsAt, countdownEndsAt: countdownEndsAt),
+                                      readyWindowEndsAt: readyWindowEndsAt, countdownEndsAt: countdownEndsAt,
+                                      colors: colors, otherState: otherState),
         ]
         return String(decoding: try JSONSerialization.data(withJSONObject: message), as: UTF8.self)
     }

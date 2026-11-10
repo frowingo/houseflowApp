@@ -1,6 +1,6 @@
 import Foundation
 
-/// Platform-free 2D math for the FauseTanks engine. Coordinates are arena points with
+/// Platform-free 2D math for the Faus Tanks engine. Coordinates are arena points with
 /// SpriteKit's convention (origin bottom-left, y up); renderers flip for y-down canvases.
 public struct HouseTanksVector: Codable, Equatable, Hashable, Sendable {
     public var x: Double

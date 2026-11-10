@@ -32,10 +32,10 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.fauscrew.platform.HouseTanksNative
 import com.fauscrew.platform.LocalizedText
+import com.fauscrew.platform.OnlineLobbyUi
 import com.fauscrew.platform.TanksMap
 import com.fauscrew.platform.TanksMapPreview
 import com.fauscrew.ui.games.rockets.rememberReduceMotion
-import com.fauscrew.platform.OnlineLobbyUi
 import com.fauscrew.viewmodel.HouseTanksViewModel
 import com.fauscrew.viewmodel.HouseTanksViewModelFactory
 import com.fauscrew.viewmodel.TanksHaptic
@@ -67,6 +67,7 @@ internal fun HouseTanksScreen(
     val onlineSession by model.onlineSession.collectAsStateWithLifecycle()
     val onlineLobby: State<OnlineLobbyUi?> = (onlineSession?.lobby ?: NoLobby).collectAsStateWithLifecycle()
     val onlinePreview = (onlineSession?.preview ?: NoPreview).collectAsStateWithLifecycle()
+    val onlineColors = (onlineSession?.colors ?: NoColors).collectAsStateWithLifecycle()
     val frameState = model.frame.collectAsStateWithLifecycle()
     val hasMatch = frameState.value != null
     val onlineFrameState = model.onlineFrame.collectAsStateWithLifecycle()
@@ -275,7 +276,7 @@ internal fun HouseTanksScreen(
                 onSelectColor = model::selectColor, onSelectDifficulty = model::selectDifficulty,
                 onStart = ::requestLandscape,
                 online = TanksOnlineRoomUi(onlineLobby.value.takeIf { onlineSession != null }, onlinePreview.value,
-                    uptime = { onlineSession?.uptime() ?: 0.0 }),
+                    colors = onlineColors.value, uptime = { onlineSession?.uptime() ?: 0.0 }),
                 onOnlineReady = model::setOnlineReady,
                 onOnlineRetry = model::retryOnline,
                 onOnlineCancel = model::cancelOnlineMatch,
@@ -287,6 +288,7 @@ internal fun HouseTanksScreen(
 private const val LandscapeTimeoutMillis = 2_500L
 private val NoLobby = MutableStateFlow<OnlineLobbyUi?>(null)
 private val NoPreview = MutableStateFlow<com.fauscrew.platform.TanksOnlinePreview?>(null)
+private val NoColors = MutableStateFlow(com.fauscrew.platform.TanksLobbyColors())
 
 private tailrec fun Context.findActivity(): Activity? = when (this) {
     is Activity -> this

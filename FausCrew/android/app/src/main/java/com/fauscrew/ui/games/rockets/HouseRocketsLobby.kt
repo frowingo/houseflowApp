@@ -15,7 +15,6 @@ import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
-import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
@@ -26,18 +25,19 @@ import androidx.compose.material.icons.automirrored.rounded.ArrowBackIos
 import androidx.compose.material.icons.outlined.People
 import androidx.compose.material.icons.outlined.ScreenRotation
 import androidx.compose.material.icons.outlined.SportsEsports
-import androidx.compose.material.icons.rounded.Bolt
 import androidx.compose.material.icons.rounded.NorthEast
 import androidx.compose.material.icons.rounded.People
 import androidx.compose.material.icons.rounded.PhoneIphone
-import androidx.compose.material.icons.rounded.Shield
 import androidx.compose.material.icons.rounded.SportsEsports
-import androidx.compose.material.icons.rounded.TouchApp
 import androidx.compose.material.icons.rounded.WifiOff
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -57,6 +57,8 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.fauscrew.platform.OnlineLobbyUi
 import com.fauscrew.platform.RocketsColor
+import com.fauscrew.platform.RocketsLobbyColors
+import com.fauscrew.ui.games.CompactCountdown
 import com.fauscrew.ui.theme.FausCrewColors
 import com.fauscrew.ui.theme.FausCrewType
 import com.fauscrew.ui.theme.Radius
@@ -72,7 +74,7 @@ private val BotNameKeys = listOf("house_rockets_bot_one", "house_rockets_bot_two
 private val NavigationBarHeight = 44.dp
 private val ButtonHeightLarge = 56.dp
 
-/** `HouseRocketsView.lobby`: header, mode choice or setup, the flight guide and Start. */
+/** `HouseRocketsView.lobby`: header, mode choice or setup (the online room), How to play and Start. */
 @Composable
 internal fun HouseRocketsLobby(
     state: HouseRocketsUiState,
@@ -89,10 +91,23 @@ internal fun HouseRocketsLobby(
     onOnlineReady: () -> Unit = {},
     onOnlineRetry: () -> Unit = {},
     onOnlineCancel: () -> Unit = {},
+    onlineColors: RocketsLobbyColors = RocketsLobbyColors(),
+    onSelectColor: (RocketsColor) -> Unit = {},
 ) {
+    // The launch card is on screen; while it is scrolled away the bar carries its seconds.
+    var isStartCardVisible by remember { mutableStateOf(true) }
     Column(Modifier.fillMaxSize().statusBarsPadding().navigationBarsPadding()) {
         // The inline navigation bar of the Games stack: an empty title and a back chevron.
         Box(Modifier.fillMaxWidth().height(NavigationBarHeight)) {
+            val now = rememberOnlineNow()
+            val deadline = online?.takeIf { state.selectedMode == RocketsMode.HOUSEMATES && it.deadlineKind != null && !it.isTerminal }
+                ?.let { if (it.deadlineKind == "countdown") it.flightCountdownUptime ?: it.deadlineUptime else it.deadlineUptime }
+            val seconds = remaining(deadline, now)
+            if (seconds != null && !isStartCardVisible) {
+                CompactCountdown(seconds, HouseRocketsPreparationTheme.ink, HouseRocketsPreparationTheme.danger,
+                    copy.template("house_rockets_online_seconds", "seconds" to "$seconds"),
+                    Modifier.align(Alignment.CenterEnd))
+            }
             Box(
                 Modifier.padding(start = Spacing.sm).size(NavigationBarHeight)
                     .clickable(role = Role.Button, onClick = onBack)
@@ -121,9 +136,9 @@ internal fun HouseRocketsLobby(
                         if (blocker != null) {
                             OnlineBlocker(blocker, copy)
                         } else {
-                            HouseRocketsOnlineLobbyCard(online ?: OnlineLobbyUi(), copy, memberNames,
-                                isWaitingForLandscape, orientationFailed, onOnlineReady, onOnlineRetry,
-                                onOnlineCancel, onBack)
+                            HouseRocketsOnlineRoom(online ?: OnlineLobbyUi(), onlineColors, copy, memberNames,
+                                orientationFailed, onOnlineReady, onOnlineRetry,
+                                onOnlineCancel, onSelectColor) { isStartCardVisible = it }
                         }
                     }
                 } else {
@@ -131,7 +146,7 @@ internal fun HouseRocketsLobby(
                         RocketsMode.entries.forEach { ModeButton(it, copy) { onSelectMode(it) } }
                     }
                 }
-                FlightGuide(copy)
+                RocketsFlightGuide(copy, if (mode == RocketsMode.HOUSEMATES && state.onlineBlocker == null) "04" else null)
                 if (mode == RocketsMode.LOCAL_BOTS || (orientationFailed && mode == null)) {
                     RocketsLabel(
                         Icons.Outlined.ScreenRotation,
@@ -284,45 +299,6 @@ private fun OnlineBlocker(blocker: RocketsOnlineBlocker, copy: RocketsCopy) {
             }),
             style = FausCrewType.subheadline, color = HouseRocketsPreparationTheme.muted,
         )
-    }
-}
-
-@Composable
-private fun FlightGuide(copy: RocketsCopy) {
-    Column(verticalArrangement = Arrangement.spacedBy(Spacing.lg)) {
-        Text(copy("house_rockets_how_to_play"), style = FausCrewType.title2, color = HouseRocketsPreparationTheme.ink)
-        Column {
-            GuideStep(copy, "house_rockets_step_steer", "house_rockets_rule_aim", Icons.Rounded.TouchApp,
-                HouseRocketsPalette.navy, HouseRocketsPalette.cream)
-            GuideStep(copy, "house_rockets_step_thrust", "house_rockets_rule_drive", Icons.Rounded.NorthEast,
-                HouseRocketsPalette.burgundy, HouseRocketsPalette.cream)
-            GuideStep(copy, "house_rockets_step_fields", "house_rockets_rule_fields", Icons.Rounded.Bolt,
-                HouseRocketsPalette.blue, HouseRocketsPalette.navy)
-            GuideStep(copy, "house_rockets_step_survive", "house_rockets_rule_survive", Icons.Rounded.Shield,
-                HouseRocketsPalette.red, HouseRocketsPalette.cream, isLast = true)
-        }
-    }
-}
-
-@Composable
-private fun GuideStep(
-    copy: RocketsCopy, title: String, detail: String, icon: ImageVector,
-    tint: Color, symbolInk: Color, isLast: Boolean = false,
-) {
-    Row(horizontalArrangement = Arrangement.spacedBy(Spacing.lg)) {
-        Column(horizontalAlignment = Alignment.CenterHorizontally) {
-            Box(Modifier.size(44.dp).background(tint, CircleShape), contentAlignment = Alignment.Center) {
-                Icon(icon, null, Modifier.size(20.dp), tint = symbolInk)
-            }
-            if (!isLast) Box(Modifier.width(2.dp).height(38.dp).background(HouseRocketsPreparationTheme.hairline))
-        }
-        Column(
-            Modifier.padding(top = 2.dp, bottom = Spacing.lg),
-            verticalArrangement = Arrangement.spacedBy(Spacing.xs),
-        ) {
-            Text(copy(title), style = FausCrewType.headline, color = HouseRocketsPreparationTheme.ink)
-            Text(copy(detail), style = FausCrewType.subheadline, color = HouseRocketsPreparationTheme.muted)
-        }
     }
 }
 

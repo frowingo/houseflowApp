@@ -1,5 +1,6 @@
 package com.fauscrew.ui.games.fausswitch
 
+import java.util.Locale
 import android.graphics.Canvas
 import android.graphics.Paint
 import android.graphics.Path
@@ -73,6 +74,10 @@ internal object FausSwitchPalette {
 /** Faus Switch copy: the remote catalog first, then Core's bundled TR/EN table. */
 internal class SwitchCopy(private val strings: LocalizedText, private val bundled: Map<String, String>) {
     operator fun invoke(key: String): String = strings.values[key] ?: bundled[key] ?: key
+
+    /** Capitals in the app language (Turkish keeps the dotted İ), as iOS draws them; Turkish when none is set. */
+    fun upper(key: String): String =
+        invoke(key).uppercase(Locale.forLanguageTag(strings.prefix?.takeIf(String::isNotBlank) ?: "tr"))
 
     fun template(key: String, vararg replacements: Pair<String, String>): String =
         replacements.fold(invoke(key)) { text, (name, value) -> text.replace("{$name}", value) }

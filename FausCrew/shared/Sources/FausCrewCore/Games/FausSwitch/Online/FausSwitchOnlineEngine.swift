@@ -13,7 +13,7 @@ public final class FausSwitchOnlineEngine {
     public private(set) var lobby = FausSwitchOnlineLobbyState()
     public private(set) var result = FausSwitchOnlineResultState()
     /// The color this player asked for; resent after a reconnect while still in the lobby.
-    public private(set) var preferredColor: FausSwitchColor?
+    public var preferredColor: FausSwitchColor? { colorClaim.preferred }
     /// The lobby's robot colors (`lobbyState`); the local color shown is
     /// `lobbyColors.localColor(preferred: preferredColor)`.
     public var lobbyColors: FausSwitchLobbyColors { lobby.lobbyColors(localPlayerID: context.localPlayerID) }
@@ -26,15 +26,17 @@ public final class FausSwitchOnlineEngine {
     private var lobbyMachine: FausSwitchOnlineLobbyMachine!
     private var resultMachine: FausSwitchOnlineResultMachine!
     private var play: FausSwitchOnlinePlayMachine!
-    private var sentColor: (session: String, color: FausSwitchColor, connection: UUID?)?
+    private var colorClaim: GameLobbyColorClaim<FausSwitchColor>
     private var finished = false
+    /// Play Again: ready as soon as the player sits in the new room.
+    private var readiesOnJoin = false
     private var now: TimeInterval = 0
 
     public init(context: GameLaunchContext, excludingSessionID: String? = nil, preferredColor: FausSwitchColor? = nil,
                 policy: GameReconnectPolicy = .init(), configuration: FausSwitchPlayConfiguration = .init(),
                 makeID: @escaping () -> String = { UUID().uuidString }) {
         self.context = context
-        self.preferredColor = preferredColor
+        colorClaim = GameLobbyColorClaim(preferred: preferredColor)
         let emit: (GameOnlineEffect) -> Void = { [weak self] in self?.effects.append($0) }
         lobbyMachine = FausSwitchOnlineLobbyMachine(context: context, excludingSessionID: excludingSessionID,
                                                     policy: policy, makeID: makeID, emit: emit)
@@ -114,7 +116,18 @@ public final class FausSwitchOnlineEngine {
         resultMachine.tick(now: now)
     }
 
-    public func setReady(_ ready: Bool, now: TimeInterval) { self.now = now; lobbyMachine.setReady(ready, now: now) }
+    /// The ready button works: the lobby takes the change and, to get ready, the server holds
+    /// the local player's color (picked first; never ready without one).
+    public var canChangeReady: Bool {
+        lobby.canChangeReady(playerID: context.localPlayerID) && lobbyColors.allowsReady
+    }
+
+    /// Getting ready waits for the color claim; taking ready back always goes out.
+    public func setReady(_ ready: Bool, now: TimeInterval) {
+        self.now = now
+        if ready, !lobbyColors.allowsReady { return }
+        lobbyMachine.setReady(ready, now: now)
+    }
     public func setLandscape(_ landscape: Bool, now: TimeInterval) { self.now = now; lobbyMachine.setLandscape(landscape, now: now) }
     public func setForeground(_ active: Bool, now: TimeInterval) { self.now = now; lobbyMachine.setForeground(active, now: now) }
     public func retry(now: TimeInterval) { self.now = now; lobbyMachine.retry(now: now) }
@@ -135,9 +148,17 @@ public final class FausSwitchOnlineEngine {
     /// soon as they do. A ready player's color is locked: the pick is ignored.
     public func selectColor(_ color: FausSwitchColor, now: TimeInterval) {
         self.now = now
-        guard !lobbyColors.isLocked else { return }
-        preferredColor = color
+        guard colorClaim.select(color, colors: lobbyColors) else { return }
         sendColorIfNeeded()
+    }
+
+    /// Play Again from the result: the player is made ready once they sit in the new room
+    /// (after the join and with the color asked for first), so the race starts as soon as
+    /// the room is ready without another tap. Taking ready back afterwards is the player's.
+    public func readyOnJoin(now: TimeInterval) {
+        self.now = now
+        readiesOnJoin = true
+        readyIfAsked()
     }
 
     /// Cleanup only (screen closed); explicit business leave is `leave(now:)`.
@@ -176,21 +197,20 @@ public final class FausSwitchOnlineEngine {
         lobby = state
         resultMachine.consume(state, now: now)
         sendColorIfNeeded()
+        readyIfAsked()
     }
 
+    private func readyIfAsked() {
+        guard readiesOnJoin, lobby.isLobby, let player = lobby.localPlayer(context.localPlayerID),
+              canChangeReady else { return }
+        readiesOnJoin = false
+        if player.state != .ready { lobbyMachine.setReady(true, now: now) }
+    }
+
+    /// A ready player keeps their color, even when the one they asked for frees up.
     private func sendColorIfNeeded() {
-        guard let color = preferredColor, let sessionID = lobby.session?.sessionId,
-              lobby.connection == .connected, lobby.isSynced, lobby.isLobby,
-              lobby.localPlayer(context.localPlayerID) != nil else { return }
-        // Already ours, or held by another player (the claim would change nothing; it is
-        // sent once the holder leaves and the color is free again).
-        // A ready player keeps their color, even when the one they asked for frees up.
-        let colors = lobbyColors
-        if colors.isLocked || colors.localClaim == color || colors.isTakenByOthers(color) { return }
-        if let sent = sentColor, sent.session == sessionID, sent.color == color,
-           sent.connection == lobby.connectionGeneration { return }
-        if lobbyMachine.sendLobbyIntent(.selectColor(color), now: now) {
-            sentColor = (sessionID, color, lobby.connectionGeneration)
+        colorClaim.update(lobby: lobby, localPlayerID: context.localPlayerID, colors: lobbyColors) { color in
+            lobbyMachine.sendLobbyIntent(.selectColor(color), now: now)
         }
     }
 

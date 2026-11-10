@@ -101,7 +101,9 @@ struct FausSwitchView: View {
             if match.phase == .countdown, let count = match.countdown {
                 countdown(count)
             }
-            if model.isOnlineMatchVisible {
+            if model.isOnlineReplayRoom {
+                replayRoomPanel
+            } else if model.isOnlineMatchVisible {
                 onlineOverlays(match)
             } else {
                 demoOverlays(match)
@@ -113,9 +115,10 @@ struct FausSwitchView: View {
         VStack(spacing: 0) {
             HStack(alignment: .top, spacing: AppDesign.Spacing.sm) {
                 if model.isOnlineMatchVisible {
+                    let hidesLeave = match.showsResult || model.isOnlineReplayRoom
                     hudButton("xmark", label: "faus_switch_online_leave") { confirmsLeave = true }
-                        .disabled(match.showsResult)
-                        .opacity(match.showsResult ? 0 : 1)
+                        .disabled(hidesLeave)
+                        .opacity(hidesLeave ? 0 : 1)
                 } else {
                     hudButton("pause.fill", label: "faus_switch_pause", action: model.pauseDemo)
                         .disabled(match.phase == .ended || model.showsDemoResult)
@@ -328,13 +331,93 @@ struct FausSwitchView: View {
             if isWaiting { ProgressView().tint(FausSwitchPalette.wine).frame(maxWidth: .infinity) }
             standingsTable(onlineResultStandings)
         } actions: {
+            // Play Again stays on this screen with the room; Back to Lobby is the portrait room.
             if state.canRematch {
-                panelButton("faus_switch_online_rematch", symbol: "arrow.clockwise", action: model.rematchOnline)
+                panelButton("faus_switch_online_play_again", symbol: "arrow.clockwise", action: model.playOnlineAgain)
                     .accessibilityFocused($isPanelActionFocused)
-            } else if state.phase == .failed, state.canRetry(at: ProcessInfo.processInfo.systemUptime) {
-                panelButton("faus_switch_online_retry", symbol: "arrow.clockwise", action: model.retryOnlineResult)
+                secondaryButton("faus_switch_online_back_to_lobby", action: model.returnToOnlineLobby)
+            } else {
+                if state.phase == .failed, state.canRetry(at: ProcessInfo.processInfo.systemUptime) {
+                    panelButton("faus_switch_online_retry", symbol: "arrow.clockwise", action: model.retryOnlineResult)
+                }
+                secondaryButton("faus_switch_online_back_to_modes", action: leaveOnlineRace)
             }
-            secondaryButton("faus_switch_online_back_to_modes", action: leaveOnlineRace)
+        }
+    }
+
+    /// Play Again's new room over the finished race's frozen last frame, until the new race's
+    /// countdown: who is in and ready (the player is made ready on joining), the room's
+    /// deadline, the ready toggle and Back to Lobby.
+    private var replayRoomPanel: some View {
+        let state = model.onlineState
+        let localID = appViewModel.currentUserId
+        let isReady = state.localPlayer(localID)?.state == .ready
+        let inRoom = state.isLobby && state.connection == .connected && state.isSynced
+        let detail = inRoom ? (isReady ? "faus_switch_online_replay_detail" : "faus_switch_online_replay_not_ready")
+            : FausSwitchOnlineCopyKeys.roomDetail(state)
+        let names = Dictionary((appViewModel.currentHouseDetails?.members ?? []).map { ($0.id, $0.fullName) },
+                               uniquingKeysWith: { first, _ in first })
+        let colors = model.onlineLobbyColors
+        let players = state.participants.sorted { ($0.playerId == localID ? 0 : 1) < ($1.playerId == localID ? 0 : 1) }
+        return panel {
+            panelHeader(symbol: "arrow.clockwise", tint: FausSwitchPalette.wine,
+                        title: copy("faus_switch_online_replay_title"),
+                        detail: copy(detail, replacements: ["minimum": "\(state.session?.rules.minimumPlayers ?? 2)"]))
+            HStack(spacing: AppDesign.Spacing.sm) {
+                Text(copy(FausSwitchOnlineCopyKeys.roomStatus(state)))
+                    .font(.subheadline.weight(.bold))
+                    .foregroundStyle(state.connection == .failed ? FausSwitchPalette.danger : FausSwitchPalette.ink)
+                Spacer(minLength: 0)
+                TimelineView(.periodic(from: .now, by: 0.25)) { _ in
+                    if let seconds = model.onlineCountdown() {
+                        Label(copy("faus_switch_online_seconds", replacements: ["seconds": "\(seconds)"]), systemImage: "timer")
+                            .font(.caption.weight(.heavy).monospacedDigit())
+                            .foregroundStyle(FausSwitchPalette.ink)
+                    }
+                }
+                if state.session != nil {
+                    Text(copy("faus_switch_online_ready_count",
+                              replacements: ["ready": "\(state.readyCount)", "total": "\(state.participants.count)"]))
+                        .font(.caption.weight(.heavy))
+                        .foregroundStyle(FausSwitchPalette.secondaryInk)
+                }
+            }
+            let columns = Array(repeating: GridItem(.flexible(), spacing: 6), count: players.count > 4 ? 2 : 1)
+            LazyVGrid(columns: columns, spacing: 4) {
+                ForEach(players, id: \.playerId) { player in
+                    let isLocal = player.playerId == localID
+                    let ready = player.state == .ready
+                    HStack(spacing: AppDesign.Spacing.sm) {
+                        FausSwitchRobot(color: (isLocal ? model.onlineLocalColor : colors.color(of: player.playerId)) ?? .ocean)
+                            .frame(width: 22, height: 22)
+                        Text(verbatim: isLocal ? copy("faus_switch_you") : (names[player.playerId] ?? copy("faus_switch_online_player")))
+                            .font(.subheadline.weight(isLocal ? .bold : .semibold))
+                            .foregroundStyle(FausSwitchPalette.ink)
+                            .lineLimit(1)
+                        Spacer(minLength: 0)
+                        Image(systemName: ready ? "checkmark.seal.fill" : "clock")
+                            .foregroundStyle(ready ? FausSwitchPalette.green : FausSwitchPalette.secondaryInk)
+                            .accessibilityLabel(copy(FausSwitchOnlineCopyKeys.playerStatus(player.state)))
+                    }
+                    .padding(.horizontal, AppDesign.Spacing.sm)
+                    .frame(minHeight: 32)
+                    .background(isLocal ? FausSwitchPalette.lavender.opacity(0.55) : FausSwitchPalette.lightSand.opacity(0.8),
+                                in: RoundedRectangle(cornerRadius: AppDesign.CornerRadius.sm, style: .continuous))
+                    .accessibilityElement(children: .combine)
+                }
+            }
+        } actions: {
+            if state.connection == .failed, state.canReconnect(at: .infinity) {
+                panelButton("faus_switch_online_retry", symbol: "arrow.clockwise", action: model.retryOnline)
+            } else {
+                panelButton(isReady ? "faus_switch_online_not_ready" : "faus_switch_online_ready",
+                            symbol: isReady ? "xmark.circle" : "checkmark.circle.fill") { model.setOnlineReady(!isReady) }
+                    .disabled(!model.canChangeOnlineReady(playerID: localID))
+                    .opacity(model.canChangeOnlineReady(playerID: localID) ? 1 : 0.5)
+                    .accessibilityFocused($isPanelActionFocused)
+            }
+            secondaryButton("faus_switch_online_back_to_lobby", action: model.returnToOnlineLobby)
+                .disabled(state.isLeaving)
         }
     }
 

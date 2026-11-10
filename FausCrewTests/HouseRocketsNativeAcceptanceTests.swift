@@ -96,7 +96,7 @@ final class HouseRocketsNativeAcceptanceTests: XCTestCase {
             ("PadResultLandscape", CGSize(width: 1180, height: 820), .large)
         ] {
             let root = HouseRocketsOnlineResultView(state: state, localPlayerID: nil, memberNames: [:],
-                onRetry: {}, onRematch: {}, onExit: {})
+                canReturnToLobby: true, onRetry: {}, onBackToLobby: {}, onPlayAgain: {})
                 .environmentObject(app.model).environment(\.dynamicTypeSize, textSize)
             try await capture(root, size: size, name: name)
         }
@@ -107,7 +107,7 @@ final class HouseRocketsNativeAcceptanceTests: XCTestCase {
         defer { app.cleanup() }
         var onlineConstructions = 0
         let factory = HouseRocketsSessionFactory(makeBotSession: { DemoHouseRocketsSession() },
-            makeOnlineHost: { _, _ in onlineConstructions += 1; preconditionFailure("Offline bot mode must not construct online services") })
+            makeOnlineHost: { _, _, _ in onlineConstructions += 1; preconditionFailure("Offline bot mode must not construct online services") })
         let model = HouseRocketsViewModel(sessionFactory: factory, context: .init(houseID: nil, localPlayerID: nil))
         model.selectMode(.localBots)
         await model.startMatch()

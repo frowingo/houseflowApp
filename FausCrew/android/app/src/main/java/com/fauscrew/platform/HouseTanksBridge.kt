@@ -14,7 +14,11 @@ internal enum class TanksRole(val raw: String) { HUMAN("human"), BOT("bot") }
 /** Serialized tank colors from Core; the inks live in the UI palette. */
 internal enum class TanksColor(val raw: String) {
     PLUM("plum"), ORANGE("orange"), BLUE("blue"), OLIVE("olive"),
-    MUSTARD("mustard"), CRIMSON("crimson"), SKY("sky"), IVORY("ivory"),
+    MUSTARD("mustard"), CRIMSON("crimson"), SKY("sky"), IVORY("ivory");
+
+    companion object {
+        fun from(raw: String?): TanksColor? = entries.firstOrNull { it.raw == raw }
+    }
 }
 
 internal enum class TanksMap(val raw: String) {
@@ -169,7 +173,7 @@ internal data class TanksMapPreview(
 }
 
 /**
- * The shared FauseTanks demo match (FausCrewCore) behind a handle. Android owns the clock:
+ * The shared Faus Tanks demo match (FausCrewCore) behind a handle. Android owns the clock:
  * it steps the countdown and advances the arena once per rendered frame.
  */
 internal interface HouseTanksEngine {
@@ -245,7 +249,7 @@ internal class TanksFrameParser {
 
     fun parse(json: String): TanksUpdate {
         val root = JSONObject(json)
-        check(root.optBoolean("ok", false)) { root.optString("message", "FauseTanks bridge failed") }
+        check(root.optBoolean("ok", false)) { root.optString("message", "Faus Tanks bridge failed") }
         val frame = if (root.has("matchId")) frame(root) else null
         return TanksUpdate(frame, started = root.optBoolean("started", false), changed = root.optBoolean("changed", false))
     }

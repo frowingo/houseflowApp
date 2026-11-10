@@ -2,7 +2,7 @@ import FausCrewCore
 import Foundation
 import SpriteKit
 
-/// iOS host for the shared FauseTanks demo match (FausCrewCore). The rules, physics and
+/// iOS host for the shared Faus Tanks demo match (FausCrewCore). The rules, physics and
 /// bots run in `HouseTanksBotMatch`; this type only schedules them — a countdown timer and
 /// one engine step per SpriteKit frame — and hands the result to the scene and the view model.
 @MainActor

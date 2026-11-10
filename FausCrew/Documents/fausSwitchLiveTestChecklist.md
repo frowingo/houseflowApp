@@ -33,7 +33,7 @@ Her senaryoyu üç eşleşmede dene. Sütunlar:
 | L3 | B, A'nın rengini hatırlanan renk olarak açar (önce demoda o rengi seç, sonra Online) | B'ye başka renk verilir, "renk başkasında" uyarısı görünür | | | |
 | L4 | A odadan çıkar | B'nin istediği renk boşalınca B'ye geçer | | | |
 | L5 | A "Hazırım" der | Hazır sayısı 1/2 olur; A'nın satırında yeşil onay. A'nın renk seçici kilitlenir (kilit notu görünür, renklere dokunmak bir şey yapmaz); hazırı kaldırınca açılır | | | |
-| L6 | İkisi de hazır | En üstteki durum kartı "Başlamak üzere" der. Oyuncular ile Kurallar arasındaki "Başlangıç sayacı" kartı (hazırdan önce kum saati ve "Sayaç hazır bekliyor") büyük saniye sayacına geçer (≤5 sn'de kırmızı), sonra yarış ekranı açılır | | | |
+| L6 | İkisi de hazır | En üstteki durum kartı "Başlamak üzere" der. Oyuncular ile Kurallar arasındaki "Başlangıç sayacı" kartı (hazırdan önce kum saati ve "Sayaç hazır bekliyor") büyük saniye sayacına geçer (≤5 sn'de kırmızı), sonra yarış ekranı açılır. Sayaç kartı ekrandan kaydırılınca üst çubuğun sağında küçük sayaç görünür; kart geri gelince kaybolur | | | |
 | L7 | Sahip olmayan oyuncu | "Maçı iptal et" görünmez; sahipte görünür | | | |
 | L8 | Sahip lobide iptal eder | İki cihazda da oda kapandı bildirimi; sonuç paneli açılmaz | | | |
 

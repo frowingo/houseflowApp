@@ -3,7 +3,7 @@ import FausCrewCore
 import Foundation
 import UIKit
 
-/// Faus Switch in two modes, like FauseTanks and House Rockets: a demo race against
+/// Faus Switch in two modes, like Faus Tanks and House Rockets: a demo race against
 /// local bots (FausCrewCore's `FausSwitchBotMatch`) and an online race run by the
 /// server through `FausSwitchOnlineEngine`. One scene draws both; it asks this model
 /// for a frame on every display refresh.
@@ -41,6 +41,9 @@ final class FausSwitchViewModel: ObservableObject {
     /// turns to landscape and draws the server's race.
     @Published private(set) var isOnlineMatchVisible = false
     @Published private(set) var isOnlineRematchRoom = false
+    /// Play Again's new room, drawn over the finished race's frozen last frame until the new
+    /// race's first snapshot (its countdown).
+    @Published private(set) var isOnlineReplayRoom = false
 
     let scene = FausSwitchScene()
     private let audio: FausSwitchAudio
@@ -275,6 +278,12 @@ final class FausSwitchViewModel: ObservableObject {
 
     /// The room's robot colors as the server holds them (Core decides who has what).
     var onlineLobbyColors: FausSwitchLobbyColors { onlineState.lobbyColors(localPlayerID: onlineContext?.localPlayerID) }
+
+    /// The ready button works: the lobby takes the change and, to get ready, the server holds
+    /// this player's color (Core's `allowsReady`; the engine ignores a ready without one).
+    func canChangeOnlineReady(playerID: String?) -> Bool {
+        onlineState.canChangeReady(playerID: playerID) && onlineLobbyColors.allowsReady
+    }
     /// The local robot's color in the room: the pick while it is free, else the server's claim.
     var onlineLocalColor: FausSwitchColor? { onlineLobbyColors.localColor(preferred: robotColor) }
 
@@ -314,6 +323,13 @@ final class FausSwitchViewModel: ObservableObject {
                 self.prepareHaptics()
             }
             if self.isOnlineRematchRoom, state.game != nil { self.isOnlineRematchRoom = false }
+            if self.isOnlineReplayRoom, state.game != nil {
+                // The new race replaces the frozen one on the same landscape screen.
+                self.scene.reset()
+                self.lastOnlineFrame = nil
+                self.isOnlineReplayRoom = false
+                self.audio.startMusic()
+            }
         }
         host.onResultChange = { [weak self] state in
             guard let self, self.onlineGeneration == expected, self.onlineResult != state else { return }
@@ -353,8 +369,43 @@ final class FausSwitchViewModel: ObservableObject {
         return onlineState.canCancel(context: context)
     }
 
-    /// A new session that excludes the finished one; the race screen stays and shows the
-    /// new room until its first snapshot.
+    /// Play Again from the result: a new room without the finished session while the race
+    /// screen stays landscape over the frozen last frame; the player is ready as soon as they
+    /// sit in it, and the server's countdown starts the new race once the room is ready.
+    func playOnlineAgain() {
+        guard onlineResult.canRematch, let context = onlineContext, let old = onlineHost,
+              let makeHost = onlineFactory.makeHost,
+              let excluded = old.engine.rematchExcludedSessionID ?? onlineResult.sessionID else { return }
+        old.onLobbyChange = nil
+        old.onResultChange = nil
+        old.onHaptic = nil
+        old.dispose()
+        onlineHost = nil
+        onlineState = FausSwitchOnlineLobbyState()
+        onlineResult = FausSwitchOnlineResultState()
+        audio.stopMusic()
+        isOnlineReplayRoom = true
+        connectOnlineHost(makeHost: makeHost, context: context, excludingSessionID: excluded)
+        onlineHost?.perform { $0.readyOnJoin(now: $1) }
+    }
+
+    /// Back to Lobby from the result or Play Again's room: the portrait online room. From the
+    /// result it is a new session without the finished one; Play Again's room is already new.
+    func returnToOnlineLobby() {
+        if isOnlineReplayRoom {
+            isOnlineReplayRoom = false
+            isOnlineMatchVisible = false
+            isOnlineRematchRoom = true
+            match = nil
+            lastOnlineFrame = nil
+            scene.reset()
+            return
+        }
+        rematchOnline()
+    }
+
+    /// A new session that excludes the finished one, in the portrait room ("Rematch room")
+    /// until its first snapshot.
     func rematchOnline() {
         guard onlineResult.canRematch, let context = onlineContext, let old = onlineHost,
               let makeHost = onlineFactory.makeHost,
@@ -427,6 +478,7 @@ final class FausSwitchViewModel: ObservableObject {
         onlineResult = FausSwitchOnlineResultState()
         isOnlineMatchVisible = false
         isOnlineRematchRoom = false
+        isOnlineReplayRoom = false
         lastOnlineFrame = nil
         if !isDemoVisible { match = nil; audio.stopMusic() }
         scene.reset()

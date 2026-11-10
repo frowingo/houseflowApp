@@ -2,7 +2,7 @@ import Foundation
 @testable import FausCrewCore
 import XCTest
 
-/// The playing FauseTanks match through the engine with a mock server: the button gate
+/// The playing Faus Tanks match through the engine with a mock server: the button gate
 /// (grant, epoch, generation, landscape), press/release on change with a per-generation
 /// sequence, late and duplicate frames, grant/snapshot order, ACK, interpolation,
 /// own-tank prediction, shots and event replay; between rounds the vote; and the F5

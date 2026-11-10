@@ -11,7 +11,9 @@ import com.fauscrew.platform.PlatformHttpResponse
 import com.fauscrew.platform.RealtimeSocket
 import com.fauscrew.platform.RealtimeSocketFactory
 import com.fauscrew.platform.RealtimeSocketListener
+import com.fauscrew.platform.RocketsColor
 import com.fauscrew.platform.RocketsFrame
+import com.fauscrew.platform.RocketsLobbyColors
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.test.StandardTestDispatcher
@@ -79,6 +81,34 @@ class HouseRocketsOnlineSessionTest {
             http = { requests += it; PlatformHttpResponse(status, mapOf("retry-after" to "2"), """{"success":true}""".toByteArray()) },
             token = { "token-1" }, sockets = sockets, onHaptic = {}, clock = { 1.0 }, tickMillis = 25,
         )
+
+    @Test fun followsTheLobbyColorsAndSendsTheColorPick() = runTest(dispatcher) {
+        val picked = RocketsLobbyColors(preferred = RocketsColor.TEAL, local = RocketsColor.TEAL,
+            takenByOthers = setOf(RocketsColor.CORAL))
+        val fields = mutableListOf<Pair<String, Map<String, Any?>>>()
+        val engine = object : HouseRocketsOnlineEngine {
+            override var colors = RocketsLobbyColors()
+            override fun event(type: String, now: Double, fields: Map<String, Any?>): OnlineOutput {
+                log(type, fields)
+                if (type == "selectColor") colors = picked
+                return OnlineOutput(emptyList(), OnlineLobbyUi(), null, false, null)
+            }
+            private fun log(type: String, values: Map<String, Any?>) { fields += type to values }
+            override fun receive(text: String, connection: Int, now: Double) = OnlineOutput(emptyList(), null, null, false, null)
+            override fun viewport(width: Float, height: Float, hudWidth: Float, hudHeight: Float) = Unit
+            override fun frame(now: Double): Pair<RocketsFrame, OnlineFlightUi>? = null
+            override fun close() = Unit
+        }
+        val session = HouseRocketsOnlineSession(
+            scope = this, engine = engine, http = { PlatformHttpResponse(200, emptyMap(), "{}".toByteArray()) },
+            token = { null }, sockets = { _, _, _, _ -> error("No socket") }, onHaptic = {}, clock = { 1.0 },
+        )
+        assertEquals(RocketsLobbyColors(), session.colors.value)
+        session.selectColor(RocketsColor.TEAL)
+        assertEquals("selectColor" to mapOf<String, Any?>("color" to "teal"), fields.last())
+        assertEquals(picked, session.colors.value)
+        session.dispose()
+    }
 
     @Test fun performsEnsureSocketSendAndReportsOutcomesWithTags() = runTest(dispatcher) {
         val engine = ScriptedEngine()

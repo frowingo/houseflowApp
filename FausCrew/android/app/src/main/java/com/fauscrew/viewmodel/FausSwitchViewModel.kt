@@ -90,6 +90,11 @@ internal data class FausSwitchUiState(
     val isOnlineMatchVisible: Boolean = false,
     /** A rematch's new session before its first snapshot: the lobby shows the new room. */
     val isOnlineRematchRoom: Boolean = false,
+    /**
+     * Play Again: the next session's room shown over the finished race until its first
+     * snapshot with a game, when the new race starts in place (no portrait room between).
+     */
+    val isOnlineReplayRoom: Boolean = false,
 )
 
 /**
@@ -406,6 +411,34 @@ internal class FausSwitchViewModel(
         openOnlineSession(excludingSessionId = excluded)
     }
 
+    /**
+     * Play Again from the result panel: the room's next session, joined and readied (after
+     * the color) without leaving the arena; the race starts in place from its countdown.
+     */
+    fun playOnlineAgain() {
+        val old = mutableOnline.value ?: return
+        val result = mutableOnlineMatch.value?.result ?: return
+        if (!result.canRematch) return
+        val excluded = old.rematchExcludedSessionId ?: result.sessionId ?: return
+        lobbyJob?.cancel()
+        lobbyJob = null
+        mutableOnline.value = null
+        old.dispose()
+        audio.stopMusic()
+        mutableState.update { it.copy(isOnlineReplayRoom = true, isOnlineRematchRoom = false) }
+        openOnlineSession(excludingSessionId = excluded)
+        mutableOnline.value?.intent("readyOnJoin")
+    }
+
+    /** Back to Lobby: the portrait online room, in the next session (or the one being joined). */
+    fun returnToOnlineLobby() {
+        if (!state.value.isOnlineReplayRoom) return rematchOnline()
+        clearOnlineRace()
+        mutableState.update {
+            it.copy(isOnlineMatchVisible = false, isOnlineReplayRoom = false, isOnlineRematchRoom = true)
+        }
+    }
+
     /** The explicit, permanent leave from a running race; the screen returns to the modes. */
     fun leaveOnlineMatch() {
         leaveOnlineRoom()
@@ -461,7 +494,11 @@ internal class FausSwitchViewModel(
         lobbyJob = viewModelScope.launch {
             session.lobby.collect { lobby ->
                 if (!lobby.hasGame) return@collect
-                if (!mutableState.value.isOnlineMatchVisible) {
+                if (mutableState.value.isOnlineReplayRoom) {
+                    clearOnlineRace()
+                    mutableState.update { it.copy(isOnlineReplayRoom = false, isOnlineRematchRoom = false) }
+                    audio.startMusic()
+                } else if (!mutableState.value.isOnlineMatchVisible) {
                     clearOnlineRace()
                     mutableState.update { it.copy(isOnlineMatchVisible = true, isOnlineRematchRoom = false) }
                     audio.startMusic()
@@ -509,7 +546,9 @@ internal class FausSwitchViewModel(
         lobbyJob = null
         val finished = mutableOnlineMatch.value?.result?.canRematch == true
         clearOnlineRace()
-        mutableState.update { it.copy(isOnlineMatchVisible = false, isOnlineRematchRoom = false) }
+        mutableState.update {
+            it.copy(isOnlineMatchVisible = false, isOnlineRematchRoom = false, isOnlineReplayRoom = false)
+        }
         val session = mutableOnline.value ?: return
         mutableOnline.value = null
         // A finished race (result final) has nothing to leave: its socket is already done.

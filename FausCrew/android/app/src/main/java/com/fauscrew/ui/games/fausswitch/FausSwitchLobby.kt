@@ -47,6 +47,11 @@ import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
@@ -74,6 +79,8 @@ import com.fauscrew.platform.OnlineLobbyUi
 import com.fauscrew.platform.SwitchColor
 import com.fauscrew.platform.SwitchConstants
 import com.fauscrew.platform.SwitchRoom
+import com.fauscrew.ui.games.CompactCountdown
+import com.fauscrew.ui.games.reportsOnScreen
 import com.fauscrew.ui.games.tanks.rememberSecondsUntil
 import com.fauscrew.ui.theme.FausCrewType
 import com.fauscrew.ui.theme.Radius
@@ -121,6 +128,8 @@ internal fun FausSwitchLobby(
     onSelectBotCount: (Int) -> Unit,
     onStart: () -> Unit,
 ) {
+    // While the start countdown card is scrolled away, the top bar carries its seconds.
+    var isStartCardVisible by remember { mutableStateOf(true) }
     Column(Modifier.fillMaxSize().windowInsetsPadding(WindowInsets.safeDrawing)) {
         Row(Modifier.fillMaxWidth().padding(horizontal = Spacing.sm), verticalAlignment = Alignment.CenterVertically) {
             Box(
@@ -128,6 +137,15 @@ internal fun FausSwitchLobby(
                     .semantics { contentDescription = copy("faus_switch_exit") },
                 contentAlignment = Alignment.Center,
             ) { Icon(Icons.AutoMirrored.Rounded.ArrowBack, null, tint = FausSwitchPalette.ink) }
+            Spacer(Modifier.weight(1f))
+            val lobby = online.lobby
+            val seconds = rememberSecondsUntil(
+                lobby?.deadlineUptime?.takeIf { state.selectedMode == SwitchMode.ONLINE && lobby.deadlineKind != null },
+                online.uptime)
+            if (seconds != null && !isStartCardVisible) {
+                CompactCountdown(seconds, FausSwitchPalette.ink, FausSwitchPalette.danger,
+                    copy.template("faus_switch_online_seconds", "seconds" to "$seconds"))
+            }
         }
         Column(
             Modifier.weight(1f).fillMaxWidth().verticalScroll(rememberScrollState()),
@@ -145,7 +163,7 @@ internal fun FausSwitchLobby(
                     if (mode == SwitchMode.DEMO) {
                         DemoSetup(state, copy, constants, onSelectColor, onSelectBotCount)
                     } else {
-                        OnlineRoom(state, copy, constants, userId, houseId, online, onSelectColor)
+                        OnlineRoom(state, copy, constants, userId, houseId, online, onSelectColor) { isStartCardVisible = it }
                     }
                 } else {
                     Column(verticalArrangement = Arrangement.spacedBy(Spacing.md)) {
@@ -242,7 +260,7 @@ private fun ModeBar(mode: SwitchMode, copy: SwitchCopy, onChange: () -> Unit) {
 
 @Composable
 private fun SectionTitle(key: String, copy: SwitchCopy, modifier: Modifier = Modifier) {
-    Text(copy(key).uppercase(), style = FausCrewType.caption.copy(fontWeight = FontWeight.Black, letterSpacing = 1.2.sp),
+    Text(copy.upper(key), style = FausCrewType.caption.copy(fontWeight = FontWeight.Black, letterSpacing = 1.2.sp),
         color = FausSwitchPalette.accent, modifier = modifier.semantics { heading() })
 }
 
@@ -439,6 +457,7 @@ private fun OnlineRoom(
     houseId: String?,
     online: SwitchOnlineRoomUi,
     onSelectColor: (SwitchColor) -> Unit,
+    onStartCardVisible: (Boolean) -> Unit,
 ) {
     val blocker = onlineBlocker(state, userId, houseId)
     when {
@@ -450,12 +469,12 @@ private fun OnlineRoom(
                 detailKey = "faus_switch_online_connecting_detail")
             val colors = online.room.colors
             OnlineStatus(lobby, state.isOnlineRematchRoom, copy, online)
+            StartCountdown(lobby, copy, online.uptime, onStartCardVisible)
             ColorPicker(colors.local ?: state.color, copy, constants, taken = colors.takenByOthers,
                 showsPreferredTaken = colors.isPreferredTaken, isLocked = colors.isLocked,
                 footnoteKey = "faus_switch_online_color_note", onSelect = onSelectColor)
             OnlineRoster(lobby, colors.local ?: state.color, copy, online,
                 showsActions = online.lobby?.let { it.sessionState != null && it.isLobby && !it.isTerminal } == true)
-            StartCountdown(lobby, copy, online.uptime)
         }
     }
 }
@@ -465,10 +484,12 @@ private fun OnlineRoom(
  * House Tanks' start card); before the window opens, what starts it.
  */
 @Composable
-private fun StartCountdown(lobby: OnlineLobbyUi, copy: SwitchCopy, uptime: () -> Double) {
+private fun StartCountdown(lobby: OnlineLobbyUi, copy: SwitchCopy, uptime: () -> Double, onVisible: (Boolean) -> Unit) {
     val seconds = rememberSecondsUntil(lobby.deadlineUptime.takeIf { lobby.deadlineKind != null }, uptime)
     val shape = RoundedCornerShape(Radius.md)
-    Column(Modifier.fillMaxWidth().switchCard(), verticalArrangement = Arrangement.spacedBy(Spacing.md)) {
+    DisposableEffect(Unit) { onDispose { onVisible(true) } }
+    Column(Modifier.fillMaxWidth().switchCard().reportsOnScreen(onChange = onVisible),
+        verticalArrangement = Arrangement.spacedBy(Spacing.md)) {
         SectionTitle("faus_switch_online_start_title", copy)
         Column(
             Modifier.fillMaxWidth().aspectRatio(872f / 400f).clip(shape)

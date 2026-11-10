@@ -64,6 +64,46 @@ final class FausSwitchOnlineEngineTests: XCTestCase {
         }
     }
 
+    /// Never ready without a robot color the server holds: a pick another player has stays
+    /// unready until a free color is claimed; taking ready back is always allowed.
+    func testReadyWaitsForTheColorClaim() throws {
+        let (engine, socket) = try connectedLobby(color: .ocean)
+        _ = engine.drainEffects()
+        try receive(engine, socket, session(version: 7, state: "lobby", localState: "waiting",
+                                            colors: [other: "ocean"]), at: 1)
+        XCTAssertFalse(engine.canChangeReady)
+        engine.setReady(true, now: 1.01)
+        XCTAssertFalse(try sent(engine).contains { $0["type"] as? String == "gameSession.setReady" })
+
+        engine.selectColor(.plum, now: 1.02)
+        try receive(engine, socket, session(version: 8, state: "lobby", localState: "waiting",
+                                            colors: [other: "ocean", playerID: "plum"]), at: 1.1)
+        XCTAssertTrue(engine.canChangeReady)
+        engine.setReady(true, now: 1.11)
+        XCTAssertEqual(try sent(engine).map { $0["type"] as? String }.last, "gameSession.setReady")
+    }
+
+    /// Play Again: the color goes first, then ready, once the player sits in the new room;
+    /// a later room change does not ask again.
+    func testPlayAgainReadiesOnceSeatedAfterTheColor() throws {
+        let (engine, socket) = try connectedLobby(color: .ocean)
+        engine.readyOnJoin(now: 0.9)
+        _ = engine.drainEffects()
+        try receive(engine, socket, session(version: 7, state: "lobby", localState: "waiting"), at: 1)
+        XCTAssertEqual(try sent(engine).map { $0["type"] as? String }, ["fausSwitch.selectColor"],
+                       "Ready waits until the server holds the color")
+        try receive(engine, socket, session(version: 8, state: "lobby", localState: "waiting",
+                                            colors: [playerID: "ocean"]), at: 1.05)
+        XCTAssertEqual(try sent(engine).map { $0["type"] as? String }, ["gameSession.setReady"])
+
+        try receive(engine, socket, session(version: 9, state: "lobby", localState: "ready",
+                                            colors: [playerID: "ocean"]), at: 1.1)
+        try receive(engine, socket, session(version: 10, state: "lobby", localState: "waiting",
+                                            colors: [playerID: "ocean"]), at: 1.2)
+        XCTAssertFalse(try sent(engine).contains { $0["type"] as? String == "gameSession.setReady" },
+                       "Taking ready back afterwards stays the player's choice")
+    }
+
     func testLobbySendsThePreferredColorAfterJoining() throws {
         let (engine, socket) = try connectedLobby(color: .ocean)
         _ = engine.drainEffects()

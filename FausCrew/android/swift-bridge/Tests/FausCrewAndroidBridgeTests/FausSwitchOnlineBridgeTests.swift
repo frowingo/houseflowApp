@@ -181,6 +181,13 @@ final class FausSwitchOnlineBridgeTests: XCTestCase {
                        true)
     }
 
+    /// Play Again's ready-on-join is an event, so the JNI boundary stays the same.
+    func testPlayAgainReadyOnJoinIsAccepted() throws {
+        let handle = fausSwitchOnlineCreate(house, player, player, "previous-session", "")
+        defer { XCTAssertTrue(fausSwitchOnlineDestroy(handle)) }
+        XCTAssertEqual(try event(handle, ["type": "readyOnJoin", "now": 0])["ok"] as? Bool, true)
+    }
+
     func testCatalogSaysWhetherTheRoomIsOpen() throws {
         let settings = String(decoding: try JSONSerialization.data(withJSONObject: Self.fixture["settings"] ?? [:]),
                               as: UTF8.self)

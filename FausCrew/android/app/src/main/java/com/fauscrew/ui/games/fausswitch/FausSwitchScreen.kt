@@ -249,9 +249,15 @@ internal fun FausSwitchScreen(
                     onExit = ::exitGame, onToggleMusic = model::toggleMusic, onToggleSound = model::toggleSound,
                 ),
                 online = if (state.isOnlineMatchVisible) SwitchOnlineRaceUi(
-                    match = onlineMatch, members = members, onLeave = ::leaveOnlineRace, onRematch = model::rematchOnline,
+                    match = onlineMatch, members = members, onLeave = ::leaveOnlineRace,
+                    onPlayAgain = model::playOnlineAgain, onBackToLobby = model::returnToOnlineLobby,
                     onRetry = { model.retryOnline() }, onRetryResult = { model.retryOnlineResult() },
                     onReclaim = { model.reclaimOnlineControl() },
+                    replay = if (state.isOnlineReplayRoom) SwitchReplayRoomUi(
+                        lobby = lobby, localColor = room?.colors?.local ?: state.color,
+                        uptime = { onlineSession?.uptime() ?: 0.0 },
+                        onReady = { model.setOnlineReady(it) }, onRetry = { model.retryOnline() },
+                    ) else null,
                 ) else null,
             )
         } else {

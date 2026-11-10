@@ -294,6 +294,54 @@ class FausSwitchOnlineViewModelTest {
     }
 
     @Test
+    fun playAgainReadiesTheNextSessionOverTheFinishedRace() = runTest(dispatcher) {
+        val model = model().also { this@FausSwitchOnlineViewModelTest.model = it }
+        val first = openRoom(model)!!
+        startRace(first)
+        first.match = SwitchOnlineMatch(ui(phase = SwitchPhase.ENDED, showsResult = true), null, result(canRematch = true))
+        model.onFrame(1)
+
+        model.playOnlineAgain()
+        runCurrent()
+        assertTrue(first.isClosed)
+        assertEquals("old-session", created.last().excluding)
+        // The arena stays (landscape, last frame) with the replay room over it; the ready goes out.
+        assertTrue(model.state.value.isOnlineMatchVisible)
+        assertTrue(model.state.value.isOnlineReplayRoom)
+        assertFalse(model.state.value.isOnlineRematchRoom)
+        assertNotNull(model.frame.value)
+        assertTrue("readyOnJoin" in engines.last().types())
+
+        // The new race's first snapshot starts it in place.
+        startRace(engines.last())
+        assertTrue(model.state.value.isOnlineMatchVisible)
+        assertFalse(model.state.value.isOnlineReplayRoom)
+        assertEquals("start", sound.log.last())
+        model.stop()
+    }
+
+    @Test
+    fun backToLobbyFromThePlayAgainRoomShowsThePortraitRoom() = runTest(dispatcher) {
+        val model = model().also { this@FausSwitchOnlineViewModelTest.model = it }
+        val first = openRoom(model)!!
+        startRace(first)
+        first.match = SwitchOnlineMatch(ui(phase = SwitchPhase.ENDED, showsResult = true), null, result(canRematch = true))
+        model.onFrame(1)
+        model.playOnlineAgain()
+        runCurrent()
+
+        model.returnToOnlineLobby()
+        assertFalse(model.state.value.isOnlineMatchVisible)
+        assertFalse(model.state.value.isOnlineReplayRoom)
+        assertTrue(model.state.value.isOnlineRematchRoom)
+        assertNull(model.frame.value)
+        // The joined session stays: the lobby shows it.
+        assertEquals(2, engines.size)
+        assertNotNull(model.onlineSession.value)
+        model.stop()
+    }
+
+    @Test
     fun leavingSendsALeaveAndClosesOnTheServersAnswer() = runTest(dispatcher) {
         val model = model().also { this@FausSwitchOnlineViewModelTest.model = it }
         val engine = openRoom(model)!!

@@ -14,6 +14,13 @@ public enum FausSwitchLocalization {
         return values.mapValues { english ? $0.en : $0.tr }
     }
 
+    /// Capitals in the app language, not the device's (Turkish keeps the dotted İ), so
+    /// section titles read the same on iOS and Android; Turkish when no language is set.
+    public static func uppercased(_ text: String, language: String?) -> String {
+        let identifier = language.flatMap { $0.isEmpty ? nil : $0 } ?? "tr"
+        return text.uppercased(with: Locale(identifier: identifier))
+    }
+
     private static func isEnglish(_ language: String?) -> Bool {
         language?.lowercased().hasPrefix("en") == true
     }
@@ -181,6 +188,11 @@ public enum FausSwitchLocalization {
         "faus_switch_online_leave_detail": ("Robotun yarıştan çekilir ve geri dönemezsin.", "Your robot forfeits and can't rejoin."),
         "faus_switch_online_rematch": ("Rövanş", "Rematch"),
         "faus_switch_online_back_to_modes": ("Modlara dön", "Back to modes"),
+        "faus_switch_online_back_to_lobby": ("Lobiye dön", "Back to Lobby"),
+        "faus_switch_online_play_again": ("Tekrar oyna", "Play Again"),
+        "faus_switch_online_replay_title": ("Yeni yarış", "Next race"),
+        "faus_switch_online_replay_detail": ("Hazırsın. Odadakiler de hazır olunca yarış 3'ten geri sayımla başlar.", "You're ready. Once the room is ready too, the race starts from a 3-second countdown."),
+        "faus_switch_online_replay_not_ready": ("Yarışa katılmak için hazır ol.", "Get ready to join the race."),
         "faus_switch_online_finalizing": ("Sonuç kaydediliyor", "Saving the result"),
         "faus_switch_online_finalizing_detail": ("Sunucu sıralamayı onaylıyor.", "The server is confirming the standings."),
         "faus_switch_online_result_unavailable": ("Sonuç alınamadı", "Result unavailable"),

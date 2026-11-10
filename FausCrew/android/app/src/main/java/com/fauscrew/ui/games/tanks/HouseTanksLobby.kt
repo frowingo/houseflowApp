@@ -1,22 +1,17 @@
 package com.fauscrew.ui.games.tanks
 
-import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.animateFloatAsState
-import androidx.compose.animation.expandVertically
-import androidx.compose.animation.fadeIn
-import androidx.compose.animation.fadeOut
-import androidx.compose.animation.shrinkVertically
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.IntrinsicSize
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -38,25 +33,22 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.rounded.ArrowBackIos
 import androidx.compose.material.icons.automirrored.rounded.ArrowForward
 import androidx.compose.material.icons.rounded.ArrowCircleDown
-import androidx.compose.material.icons.rounded.ArrowUpward
-import androidx.compose.material.icons.rounded.Bolt
-import androidx.compose.material.icons.rounded.Casino
 import androidx.compose.material.icons.rounded.Cancel
+import androidx.compose.material.icons.rounded.Casino
 import androidx.compose.material.icons.rounded.CheckCircle
-import androidx.compose.material.icons.rounded.ExpandMore
 import androidx.compose.material.icons.rounded.Flag
 import androidx.compose.material.icons.rounded.GpsFixed
-import androidx.compose.material.icons.rounded.Inventory2
+import androidx.compose.material.icons.rounded.Group
+import androidx.compose.material.icons.rounded.HourglassTop
 import androidx.compose.material.icons.rounded.Lock
 import androidx.compose.material.icons.rounded.Map
 import androidx.compose.material.icons.rounded.PanoramaFishEye
-import androidx.compose.material.icons.rounded.Refresh
 import androidx.compose.material.icons.rounded.People
+import androidx.compose.material.icons.rounded.Person
+import androidx.compose.material.icons.rounded.Refresh
 import androidx.compose.material.icons.rounded.Schedule
 import androidx.compose.material.icons.rounded.ScreenRotation
-import androidx.compose.material.icons.rounded.Shield
 import androidx.compose.material.icons.rounded.SystemUpdate
-import androidx.compose.material.icons.rounded.HourglassTop
 import androidx.compose.material.icons.rounded.TouchApp
 import androidx.compose.material.icons.rounded.Verified
 import androidx.compose.material.icons.rounded.Wifi
@@ -65,6 +57,7 @@ import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -74,6 +67,7 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.draw.rotate
@@ -99,27 +93,29 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import com.fauscrew.platform.TanksColor
-import com.fauscrew.platform.TanksDifficulty
-import com.fauscrew.platform.TanksJoker
-import com.fauscrew.platform.TanksMap
-import com.fauscrew.platform.TanksMapPreview
 import com.fauscrew.platform.LocalizedText
 import com.fauscrew.platform.OnlineLobbyUi
+import com.fauscrew.platform.TanksColor
+import com.fauscrew.platform.TanksDifficulty
+import com.fauscrew.platform.TanksLobbyColors
+import com.fauscrew.platform.TanksMap
+import com.fauscrew.platform.TanksMapPreview
 import com.fauscrew.platform.TanksOnlinePreview
+import com.fauscrew.ui.games.CompactCountdown
+import com.fauscrew.ui.games.reportsOnScreen
 import com.fauscrew.ui.theme.FausCrewType
 import com.fauscrew.ui.theme.Radius
 import com.fauscrew.ui.theme.Spacing
 import com.fauscrew.ui.theme.scaleButton
-import com.fauscrew.viewmodel.HouseTanksUiState
 import com.fauscrew.viewmodel.DEMO_TANKS
+import com.fauscrew.viewmodel.HouseTanksUiState
 import com.fauscrew.viewmodel.TanksMode
 import com.fauscrew.viewmodel.TanksSetupStep
 import kotlin.math.ceil
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
-/** Remote plaintext first, then Core's bundled FauseTanks copy, then the key. */
+/** Remote plaintext first, then Core's bundled Faus Tanks copy, then the key. */
 internal class TanksCopy(private val strings: LocalizedText, private val bundled: Map<String, String>) {
     operator fun invoke(key: String): String = strings.values[key] ?: bundled[key] ?: key
 
@@ -133,6 +129,8 @@ private val ButtonHeightLarge = 56.dp
 internal data class TanksOnlineRoomUi(
     val lobby: OnlineLobbyUi? = null,
     val preview: TanksOnlinePreview? = null,
+    /** Who holds which tank color; the local tank's color and the ready lock. */
+    val colors: TanksLobbyColors = TanksLobbyColors(),
     val uptime: () -> Double = { 0.0 },
 )
 private val BotNameKeys = listOf("house_tanks_bot_one", "house_tanks_bot_two", "house_tanks_bot_three",
@@ -177,6 +175,8 @@ internal fun HouseTanksLobby(
         }
     }
 
+    // While the start card is scrolled away, the top bar carries the room's seconds.
+    var isStartCardVisible by remember { mutableStateOf(true) }
     Column(Modifier.fillMaxSize().statusBarsPadding().navigationBarsPadding()) {
         Box(Modifier.fillMaxWidth().height(44.dp)) {
             Box(
@@ -184,6 +184,19 @@ internal fun HouseTanksLobby(
                     .semantics { contentDescription = copy("house_tanks_exit") },
                 contentAlignment = Alignment.Center,
             ) { Icon(Icons.AutoMirrored.Rounded.ArrowBackIos, null, Modifier.size(20.dp), tint = HouseTanksFieldTheme.accent) }
+            val lobby = online.lobby
+            val deadline = when {
+                state.selectedMode != TanksMode.ONLINE || lobby == null || lobby.isTerminal -> null
+                lobby.hasGame -> lobby.flightCountdownUptime
+                lobby.deadlineKind != null -> lobby.deadlineUptime
+                else -> null
+            }
+            val seconds = rememberSecondsUntil(deadline, online.uptime)
+            if (seconds != null && !isStartCardVisible) {
+                CompactCountdown(seconds, HouseTanksFieldTheme.ink, HouseTanksFieldTheme.danger,
+                    copy.template("house_tanks_online_seconds", "seconds" to "$seconds"),
+                    Modifier.align(Alignment.CenterEnd).padding(end = Spacing.sm))
+            }
         }
         Column(
             Modifier.weight(1f).fillMaxWidth().verticalScroll(rememberScrollState()),
@@ -205,7 +218,8 @@ internal fun HouseTanksLobby(
                             DemoSetup(state, copy, maps, requesters, highlighted, enabled = !isWaitingForLandscape,
                                 onSelectMap, onSelectColor, onSelectDifficulty)
                         } else {
-                            OnlineRoom(state, copy, maps, userId, houseId, members, online, onOnlineRetry)
+                            OnlineRoom(state, copy, maps, userId, houseId, members, online, onOnlineRetry, onOnlineReady,
+                                onOnlineCancel, onSelectColor) { isStartCardVisible = it }
                         }
                     }
                 }
@@ -222,8 +236,6 @@ internal fun HouseTanksLobby(
                 highlighted = step
                 scope.launch { requesters.getValue(step).bringIntoView() }
             }
-        } else if (state.selectedMode == TanksMode.ONLINE && online.lobby?.let { it.sessionState != null && it.isLobby && !it.isTerminal } == true) {
-            OnlineBar(online, copy, onOnlineReady, onOnlineCancel)
         }
     }
 }
@@ -451,14 +463,21 @@ private fun MapTile(
 
 /** The player's own tank in each color, as it will look on the arena. */
 @Composable
-private fun TankSwatch(color: TanksColor, copy: TanksCopy, selected: Boolean, enabled: Boolean, modifier: Modifier, onClick: () -> Unit) {
+private fun TankSwatch(
+    color: TanksColor, copy: TanksCopy, selected: Boolean, enabled: Boolean, modifier: Modifier,
+    taken: Boolean = false, dimmed: Boolean = false, onClick: () -> Unit,
+) {
     val shape = RoundedCornerShape(Radius.sm)
+    val name = copy(color.nameKey)
     Box(
-        modifier.clip(shape)
+        modifier.alpha(if (dimmed) .5f else 1f).clip(shape)
             .background(if (selected) HouseTanksPalette.paper else HouseTanksPalette.sand.copy(alpha = .35f), shape)
             .border(if (selected) 2.dp else 1.dp, if (selected) color.ink else HouseTanksFieldTheme.hairline, shape)
             .clickable(enabled = enabled, role = Role.RadioButton, onClick = onClick)
-            .semantics { this.selected = selected; contentDescription = copy(color.nameKey) },
+            .semantics {
+                this.selected = selected
+                contentDescription = if (taken) "$name, ${copy("house_tanks_color_taken")}" else name
+            },
     ) {
         Column(Modifier.fillMaxWidth().padding(vertical = Spacing.sm), horizontalAlignment = Alignment.CenterHorizontally,
             verticalArrangement = Arrangement.spacedBy(Spacing.xs)) {
@@ -468,6 +487,11 @@ private fun TankSwatch(color: TanksColor, copy: TanksCopy, selected: Boolean, en
         }
         if (selected) {
             Icon(Icons.Rounded.CheckCircle, null, Modifier.align(Alignment.TopEnd).padding(5.dp).size(14.dp), tint = color.ink)
+        } else if (taken) {
+            Box(Modifier.align(Alignment.TopEnd).padding(4.dp).size(18.dp).clip(CircleShape).background(HouseTanksFieldTheme.ink),
+                contentAlignment = Alignment.Center) {
+                Icon(Icons.Rounded.Person, null, Modifier.size(11.dp), tint = HouseTanksPalette.paper)
+            }
         }
     }
 }
@@ -612,6 +636,8 @@ internal fun rememberSecondsUntil(deadline: Double?, uptime: () -> Double): Int?
 private fun OnlineRoom(
     state: HouseTanksUiState, copy: TanksCopy, maps: Map<TanksMap, TanksMapPreview>, userId: String?, houseId: String?,
     members: List<Pair<String, String>>, online: TanksOnlineRoomUi, onRetry: () -> Unit,
+    onReady: (Boolean) -> Unit, onCancel: () -> Unit, onSelectColor: (TanksColor) -> Unit,
+    onStartCardVisible: (Boolean) -> Unit,
 ) {
     val blocker = when {
         userId.isNullOrEmpty() -> "house_tanks_online_sign_in"
@@ -631,7 +657,8 @@ private fun OnlineRoom(
         detailKey = "house_tanks_online_connecting_detail")
     Column(verticalArrangement = Arrangement.spacedBy(28.dp)) {
         OnlineStatus(lobby, copy, onRetry)
-        Column(verticalArrangement = Arrangement.spacedBy(Spacing.md)) {
+        DisposableEffect(Unit) { onDispose { onStartCardVisible(true) } }
+        Column(Modifier.reportsOnScreen(onChange = onStartCardVisible), verticalArrangement = Arrangement.spacedBy(Spacing.md)) {
             val preview = online.preview
             val map = preview?.map
             // Before the draw the card counts down to the match; then it shows the drawn map.
@@ -674,9 +701,10 @@ private fun OnlineRoom(
                 }
             }
         }
+        OnlineColorPicker(online.colors, copy, onSelectColor)
         Column(verticalArrangement = Arrangement.spacedBy(Spacing.md)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
-                SectionHeader("02", copy("house_tanks_online_roster"), Modifier.weight(1f))
+                SectionHeader("03", copy("house_tanks_online_roster"), Modifier.weight(1f))
                 if (lobby.sessionState != null) {
                     Text(copy.template("house_tanks_online_ready_count", "ready" to "${lobby.readyCount}",
                         "total" to "${lobby.participants.size}"), style = HouseTanksFieldTheme.stencil, color = HouseTanksFieldTheme.muted)
@@ -694,7 +722,14 @@ private fun OnlineRoom(
                     Row(Modifier.clearAndSetSemantics {
                         contentDescription = "${player.name ?: names[player.playerId] ?: copy("house_tanks_online_player")}, ${copy(player.statusKey)}"
                     }, verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(Spacing.sm)) {
-                        Box(Modifier.size(10.dp).clip(CircleShape).background(color?.ink ?: HouseTanksPalette.slate.copy(alpha = .5f)))
+                        // The member's tank in their color, like Faus Switch's robots.
+                        if (color != null) {
+                            HouseTanksArenaTank(color, Modifier.size(30.dp))
+                        } else {
+                            Box(Modifier.size(30.dp), contentAlignment = Alignment.Center) {
+                                Box(Modifier.size(20.dp).clip(CircleShape).background(HouseTanksPalette.slate.copy(alpha = .35f)))
+                            }
+                        }
                         Text(player.name ?: names[player.playerId] ?: copy("house_tanks_online_player"),
                             style = FausCrewType.subheadline.copy(fontWeight = FontWeight.SemiBold), color = HouseTanksFieldTheme.ink,
                             maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f, fill = false))
@@ -706,7 +741,43 @@ private fun OnlineRoom(
                             HouseTanksFieldTheme.stencil, if (player.isReady) HouseTanksPalette.steel else HouseTanksFieldTheme.muted)
                     }
                 }
+                // Ready and the creator's cancel sit right under the players while the room is a lobby.
+                online.lobby?.takeIf { it.sessionState != null && it.isLobby && !it.isTerminal }?.let {
+                    OnlineActions(it, copy, onReady, onCancel)
+                }
             }
+        }
+    }
+}
+
+/**
+ * The online room's tank color (Faus Switch's rules, from Core): colors other players hold are
+ * taken, the selection is the color the server gives this player, and a ready player's color
+ * is locked until they take the ready back.
+ */
+@Composable
+private fun OnlineColorPicker(colors: TanksLobbyColors, copy: TanksCopy, onSelectColor: (TanksColor) -> Unit) {
+    Column(verticalArrangement = Arrangement.spacedBy(Spacing.md)) {
+        SectionHeader("02", copy("house_tanks_online_color_title"))
+        Column(Modifier.fieldCard(), verticalArrangement = Arrangement.spacedBy(Spacing.sm)) {
+            TanksColor.entries.chunked(4).forEach { row ->
+                Row(horizontalArrangement = Arrangement.spacedBy(Spacing.sm)) {
+                    row.forEach { color ->
+                        val selected = colors.local == color
+                        val taken = color in colors.takenByOthers
+                        TankSwatch(color, copy, selected, enabled = !taken && !colors.isLocked, Modifier.weight(1f), taken = taken,
+                            dimmed = taken || (colors.isLocked && !selected)) { onSelectColor(color) }
+                    }
+                }
+            }
+            if (colors.isLocked) {
+                IconLabel(Icons.Rounded.Lock, copy("house_tanks_online_color_locked"),
+                    FausCrewType.caption.copy(fontWeight = FontWeight.SemiBold), HouseTanksFieldTheme.muted, iconSize = 14.dp)
+            } else if (colors.isPreferredTaken) {
+                IconLabel(Icons.Rounded.Group, copy("house_tanks_online_color_taken"),
+                    FausCrewType.caption.copy(fontWeight = FontWeight.SemiBold), HouseTanksFieldTheme.danger, iconSize = 14.dp)
+            }
+            Text(copy("house_tanks_online_color_note"), style = FausCrewType.caption, color = HouseTanksFieldTheme.muted)
         }
     }
 }
@@ -803,14 +874,10 @@ private fun OnlineStatus(lobby: OnlineLobbyUi, copy: TanksCopy, onRetry: () -> U
 }
 
 /** Ready toggle and the creator's cancel, pinned under the room; the window counts down in the room. */
+/** Ready toggle and the creator's cancel; the window counts down in the start card. */
 @Composable
-private fun OnlineBar(online: TanksOnlineRoomUi, copy: TanksCopy, onReady: (Boolean) -> Unit, onCancel: () -> Unit) {
-    val lobby = online.lobby ?: return
-    Column(
-        Modifier.fillMaxWidth().background(HouseTanksPalette.paper.copy(alpha = .94f))
-            .padding(horizontal = Spacing.xl, vertical = Spacing.lg),
-        verticalArrangement = Arrangement.spacedBy(Spacing.sm),
-    ) {
+private fun OnlineActions(lobby: OnlineLobbyUi, copy: TanksCopy, onReady: (Boolean) -> Unit, onCancel: () -> Unit) {
+    Column(Modifier.fillMaxWidth().padding(top = Spacing.xs), verticalArrangement = Arrangement.spacedBy(Spacing.sm)) {
         val enabled = lobby.canChangeReady
         Row(
             Modifier.fillMaxWidth().heightIn(min = ButtonHeightLarge).clip(RoundedCornerShape(Radius.md))
@@ -835,85 +902,32 @@ private fun OnlineBar(online: TanksOnlineRoomUi, copy: TanksCopy, onReady: (Bool
 
 // MARK: - Field manual
 
+/**
+ * How to play as tiny looping clips with a few words each (two jokers stand in for all of them;
+ * the rest is learned in play). The full sentence stays for TalkBack.
+ */
 @Composable
 private fun FieldManual(copy: TanksCopy, mode: TanksMode?, setupStepCount: Int) {
-    var showsJokers by remember { mutableStateOf(false) }
+    val reduceMotion = com.fauscrew.ui.games.rockets.rememberReduceMotion()
     Column(verticalArrangement = Arrangement.spacedBy(Spacing.lg)) {
-        SectionHeader(when (mode) { TanksMode.DEMO -> "%02d".format(setupStepCount + 1); TanksMode.ONLINE -> "03"; null -> "01" },
+        SectionHeader(when (mode) { TanksMode.DEMO -> "%02d".format(setupStepCount + 1); TanksMode.ONLINE -> "04"; null -> "01" },
             copy("house_tanks_rules_title"))
-        Column {
-            GuideStep(copy("house_tanks_rule_fire"), copy("house_tanks_rule_fire_detail"), Icons.Rounded.GpsFixed, HouseTanksPalette.steel)
-            GuideStep(copy("house_tanks_rule_drive"), copy("house_tanks_rule_drive_detail"), Icons.Rounded.ArrowUpward, HouseTanksPalette.deepSteel)
-            GuideStep(copy("house_tanks_rule_survive"), copy("house_tanks_rule_survive_detail"), Icons.Rounded.Shield, HouseTanksPalette.rust)
-            GuideStep(copy("house_tanks_rule_crates"), copy("house_tanks_rule_crates_detail"), Icons.Rounded.Inventory2, HouseTanksPalette.khaki)
-            GuideStep(copy("house_tanks_rule_jokers"), copy("house_tanks_rule_jokers_detail"), Icons.Rounded.Bolt, HouseTanksPalette.olive,
-                isLast = true) { JokerAccordion(copy, showsJokers) { showsJokers = !showsJokers } }
-        }
-    }
-}
-
-@Composable
-private fun GuideStep(
-    title: String, detail: String, icon: ImageVector, tint: Color, isLast: Boolean = false,
-    accessory: @Composable () -> Unit = {},
-) {
-    Row(Modifier.height(IntrinsicSize.Min), horizontalArrangement = Arrangement.spacedBy(Spacing.lg)) {
-        Column(horizontalAlignment = Alignment.CenterHorizontally) {
-            Box(Modifier.size(44.dp).background(tint, RoundedCornerShape(Radius.sm)), contentAlignment = Alignment.Center) {
-                Icon(icon, null, Modifier.size(22.dp), tint = HouseTanksPalette.paper)
-            }
-            if (!isLast) Box(Modifier.width(1.5.dp).weight(1f).heightIn(min = 30.dp).background(HouseTanksFieldTheme.hairline))
-        }
-        Column(Modifier.padding(top = 2.dp, bottom = Spacing.lg), verticalArrangement = Arrangement.spacedBy(Spacing.xs)) {
-            Text(title, style = FausCrewType.headline, color = HouseTanksFieldTheme.ink)
-            Text(detail, style = FausCrewType.subheadline, color = HouseTanksFieldTheme.muted)
-            accessory()
-        }
-    }
-}
-
-/** Every joker with its arena glyph, name and effect, folded under "Collect a joker". */
-@Composable
-private fun JokerAccordion(copy: TanksCopy, expanded: Boolean, onToggle: () -> Unit) {
-    val shape = RoundedCornerShape(Radius.sm)
-    val chevron by animateFloatAsState(if (expanded) 180f else 0f, label = "chevron")
-    Column(
-        Modifier.padding(top = Spacing.xs).fillMaxWidth().clip(shape).background(HouseTanksPalette.paper.copy(alpha = .9f), shape)
-            .border(1.dp, if (expanded) HouseTanksFieldTheme.accent.copy(alpha = .5f) else HouseTanksFieldTheme.hairline, shape),
-    ) {
-        Row(
-            Modifier.fillMaxWidth().heightIn(min = 48.dp).clickable(role = Role.Button, onClick = onToggle)
-                .semantics { stateDescription = copy("house_tanks_jokers_hint") }
-                .padding(horizontal = Spacing.md),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(Spacing.sm),
-        ) {
-            Row(horizontalArrangement = Arrangement.spacedBy((-5).dp)) {
-                TanksJoker.entries.forEach { joker ->
-                    Box(Modifier.size(22.dp).clip(CircleShape).background(joker.tint).border(1.5.dp, HouseTanksPalette.paper, CircleShape),
-                        contentAlignment = Alignment.Center) { JokerGlyph(joker, 10.dp, Modifier.size(22.dp)) }
-                }
-            }
-            Text(if (expanded) copy("house_tanks_jokers_hide") else copy.template("house_tanks_jokers_show", "count" to TanksJoker.entries.size.toString()),
-                style = FausCrewType.subheadline.copy(fontWeight = FontWeight.SemiBold), color = HouseTanksFieldTheme.ink,
-                modifier = Modifier.weight(1f))
-            Icon(Icons.Rounded.ExpandMore, null, Modifier.size(20.dp).rotate(chevron), tint = HouseTanksFieldTheme.accent)
-        }
-        AnimatedVisibility(expanded, enter = expandVertically() + fadeIn(), exit = shrinkVertically() + fadeOut()) {
-            Column {
-                Box(Modifier.fillMaxWidth().height(1.dp).background(HouseTanksFieldTheme.hairline))
-                Column(Modifier.padding(Spacing.md), verticalArrangement = Arrangement.spacedBy(Spacing.md)) {
-                    TanksJoker.entries.forEach { joker ->
-                        Row(horizontalArrangement = Arrangement.spacedBy(Spacing.md)) {
-                            Box(Modifier.size(36.dp).background(joker.tint, RoundedCornerShape(Radius.xs)), contentAlignment = Alignment.Center) {
-                                JokerGlyph(joker, 17.dp, Modifier.size(36.dp))
-                            }
-                            Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
-                                Text(copy(joker.titleKey), style = FausCrewType.subheadline.copy(fontWeight = FontWeight.Bold), color = HouseTanksFieldTheme.ink)
-                                Text(copy(joker.detailKey), style = FausCrewType.caption, color = HouseTanksFieldTheme.muted)
-                            }
+        Column(Modifier.fieldCard(), verticalArrangement = Arrangement.spacedBy(Spacing.lg)) {
+            TanksRuleClip.entries.chunked(2).forEach { row ->
+                Row(horizontalArrangement = Arrangement.spacedBy(Spacing.md)) {
+                    row.forEach { clip ->
+                        Column(
+                            Modifier.weight(1f).clearAndSetSemantics {
+                                contentDescription = "${copy(clip.titleKey)}. ${copy(clip.detailKey)}"
+                            },
+                            verticalArrangement = Arrangement.spacedBy(6.dp),
+                        ) {
+                            HouseTanksRuleClipView(clip, reduceMotion)
+                            Text(copy(clip.titleKey), style = FausCrewType.subheadline.copy(fontWeight = FontWeight.Bold),
+                                color = HouseTanksFieldTheme.ink, maxLines = 2)
                         }
                     }
+                    if (row.size == 1) Spacer(Modifier.weight(1f))
                 }
             }
         }

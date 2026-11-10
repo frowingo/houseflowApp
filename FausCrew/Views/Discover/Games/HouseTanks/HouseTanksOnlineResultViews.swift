@@ -260,7 +260,7 @@ struct HouseTanksOnlineRematchRoom: View {
         let state = model.onlineState
         let localID = appViewModel.currentUserId
         let isReady = state.localPlayer(localID)?.state == .ready
-        let canChange = state.canChangeReady(playerID: localID)
+        let canChange = model.canChangeOnlineReady(playerID: localID)
         let canRetry = state.connection == .failed && state.canReconnect(at: .infinity)
         return VStack(spacing: AppDesign.Spacing.xs) {
             HStack(spacing: AppDesign.Spacing.md) {

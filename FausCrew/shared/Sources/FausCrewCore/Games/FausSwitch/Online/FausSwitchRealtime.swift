@@ -13,8 +13,6 @@ public enum FausSwitchRealtime: GameRealtimeGame {
     }
 
     public static let gameKey = GameKey.fausSwitch
-    /// The room is portrait; the screen turns to landscape when the countdown starts.
-    public static let readyRequiresLandscape = false
 
     public static func checkCompatibility(_ welcome: FausSwitchWelcomeDTO) throws {
         try checkGame(welcome.gameKey, protocolVersion: welcome.protocolVersion, courseVersion: welcome.courseVersion)

@@ -1,6 +1,6 @@
 import Foundation
 
-/// Presentation budgets of online FauseTanks, not wire rules or gameplay authority.
+/// Presentation budgets of online Faus Tanks, not wire rules or gameplay authority.
 /// The delay starts at 100 ms and is meant to be tuned from device measurements.
 public struct HouseTanksPlayConfiguration: Sendable {
     /// Other tanks, crates and shots are drawn this far behind the server.

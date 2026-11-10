@@ -11,6 +11,9 @@ struct FausSwitchLobbyView: View {
     let isWaitingForLandscape: Bool
     let orientationRequestFailed: Bool
     let onStartDemo: () -> Void
+    /// The start countdown card is on screen; while it is scrolled away the navigation bar
+    /// carries a small copy of its seconds.
+    @State private var isStartCardVisible = true
 
     var body: some View {
         VStack(spacing: 0) {
@@ -43,6 +46,38 @@ struct FausSwitchLobbyView: View {
 
             if model.selectedMode == .demo {
                 bottomBar { startButton }
+            }
+        }
+        .toolbar {
+            // Only while it has seconds to show: an empty item still draws its glass circle.
+            if showsCompactCountdown {
+                ToolbarItem(placement: .topBarTrailing) { compactCountdown }
+            }
+        }
+    }
+
+    /// The start card is scrolled away while the room counts down (ready window or start).
+    private var showsCompactCountdown: Bool {
+        let phase = model.onlineState.session?.state
+        return model.selectedMode == .online && !isStartCardVisible && (phase == .readyWindow || phase == .countdown)
+    }
+
+    /// The start countdown's seconds in the navigation bar, only while its card is off screen.
+    private var compactCountdown: some View {
+        TimelineView(.periodic(from: .now, by: 0.25)) { _ in
+            if let seconds = model.onlineCountdown() {
+                Label {
+                    Text(verbatim: "\(seconds)")
+                        .monospacedDigit()
+                        .contentTransition(.numericText(countsDown: true))
+                } icon: {
+                    Image(systemName: "timer")
+                }
+                .font(.subheadline.weight(.heavy))
+                .foregroundStyle(seconds <= 5 ? FausSwitchPalette.danger : FausSwitchPalette.ink)
+                .animation(.snappy, value: seconds)
+                .accessibilityElement(children: .ignore)
+                .accessibilityLabel(copy("faus_switch_online_seconds", replacements: ["seconds": "\(seconds)"]))
             }
         }
     }
@@ -286,9 +321,9 @@ struct FausSwitchLobbyView: View {
         } else {
             VStack(alignment: .leading, spacing: 24) {
                 onlineStatus
+                startCountdownCard
                 colorPicker(footnoteKey: "faus_switch_online_color_note", lobby: model.onlineLobbyColors)
                 onlineRoster
-                startCountdownCard
             }
             .task(id: roomContext) {
                 guard let context = roomContext, let houseID = context.houseID else { return }
@@ -434,6 +469,8 @@ struct FausSwitchLobbyView: View {
             }
             .aspectRatio(872 / 400, contentMode: .fit)
             .frame(maxWidth: .infinity)
+            .onScrollVisibilityChange(threshold: 0.3) { isStartCardVisible = $0 }
+            .onDisappear { isStartCardVisible = true }
             .background(FausSwitchPalette.lightSand.opacity(0.75),
                         in: RoundedRectangle(cornerRadius: AppDesign.CornerRadius.md, style: .continuous))
             .overlay(RoundedRectangle(cornerRadius: AppDesign.CornerRadius.md, style: .continuous)
@@ -491,7 +528,7 @@ struct FausSwitchLobbyView: View {
         let state = model.onlineState
         let localID = appViewModel.currentUserId
         let isReady = state.localPlayer(localID)?.state == .ready
-        let canChange = state.canChangeReady(playerID: localID)
+        let canChange = model.canChangeOnlineReady(playerID: localID)
         return VStack(spacing: AppDesign.Spacing.sm) {
             Button { model.setOnlineReady(!isReady) } label: {
                 HStack(spacing: AppDesign.Spacing.sm) {
@@ -562,10 +599,9 @@ struct FausSwitchLobbyView: View {
     }
 
     private func sectionTitle(_ key: String) -> some View {
-        Text(copy(key))
+        Text(verbatim: FausSwitchLocalization.uppercased(copy(key), language: appViewModel.localizationLanguagePrefix))
             .font(.caption.weight(.heavy))
             .tracking(1.2)
-            .textCase(.uppercase)
             .foregroundStyle(FausSwitchPalette.accent)
             .accessibilityAddTraits(.isHeader)
     }

@@ -1,6 +1,6 @@
 import Foundation
 
-/// Bundled FauseTanks copy shared by iOS and Android. Remote plaintext overrides these
+/// Bundled Faus Tanks copy shared by iOS and Android. Remote plaintext overrides these
 /// values; Turkish is the default for every non-English language.
 public enum HouseTanksLocalization {
     public static func value(for key: String, language: String?) -> String? {
@@ -19,10 +19,10 @@ public enum HouseTanksLocalization {
     }
 
     private static let values: [String: (tr: String, en: String)] = [
-        "games_house_tanks_title": ("FauseTanks", "FauseTanks"),
+        "games_house_tanks_title": ("Faus Tanks", "Faus Tanks"),
         "games_house_tanks_card_description": ("Ateş et, basılı tutarak ilerle ve üç bota karşı ev arenasını ele geçir.", "Fire, hold to advance, and take the home arena from three bots."),
         "games_house_tanks_badge": ("1 OYUNCU · DEMO", "1 PLAYER · DEMO"),
-        "house_tanks_title": ("FauseTanks", "FauseTanks"),
+        "house_tanks_title": ("Faus Tanks", "Faus Tanks"),
         "house_tanks_subtitle": ("Dokun, ateş et; basılı tut ve ilerle.", "Press to fire; hold to advance."),
         "house_tanks_demo_badge": ("DEMO", "DEMO"),
         "house_tanks_kicker": ("SAHA HARİTASI · EV CEPHESİ", "FIELD MAP · HOME FRONT"),
@@ -59,6 +59,11 @@ public enum HouseTanksLocalization {
         "house_tanks_online_map_detail": ("Online odalarda harita seçilmez; her maç için rastgele atanır.", "Online rooms don’t pick a map; one is assigned at random for each match."),
         "house_tanks_random_stamp": ("RASTGELE", "RANDOM"),
         "house_tanks_online_roster": ("Oda kadrosu", "Room roster"),
+        "house_tanks_online_color_title": ("Tankının rengi", "Tank color"),
+        "house_tanks_color_taken": ("Başka oyuncuda", "Taken"),
+        "house_tanks_online_color_taken": ("Seçtiğin renk başka bir oyuncuda. Boştaki bir renk seç; seçmezsen maçta sana boş bir renk verilir.", "Another player has your color. Pick a free one, or you'll get a free color in the match."),
+        "house_tanks_online_color_locked": ("Hazırsın, rengin sabit. Değiştirmek için önce hazırı kaldır.", "You're ready, so your color is set. Take back Ready to change it."),
+        "house_tanks_online_color_note": ("Aynı rengi seçen ilk oyuncu alır; diğerlerine boştaki bir renk verilir.", "The first player to pick a color gets it; others get a free color."),
         "house_tanks_online_waiting": ("BEKLİYOR", "WAITING"),
         "house_tanks_online_ready": ("Hazırım", "I’m ready"),
         "house_tanks_online_soon_detail": ("Online arena sunucusu yakında açılıyor. Şimdilik demo tatbikatla oynayabilirsin.", "The online arena server opens soon. Until then, play the demo drill."),
@@ -69,7 +74,7 @@ public enum HouseTanksLocalization {
         "house_tanks_online_reconnecting_detail": ("Bağlantı koptu; odadaki yerin korunuyor.", "The connection dropped; your place in the room is kept."),
         "house_tanks_online_syncing": ("Oda eşitleniyor…", "Syncing the room…"),
         "house_tanks_online_connecting": ("Odaya bağlanıyor…", "Connecting to the room…"),
-        "house_tanks_online_connecting_detail": ("Evin FauseTanks odası açılıyor.", "Opening your house’s FauseTanks room."),
+        "house_tanks_online_connecting_detail": ("Evin Faus Tanks odası açılıyor.", "Opening your house’s Faus Tanks room."),
         "house_tanks_online_connection_failed": ("Bağlantı kurulamadı", "Couldn’t connect"),
         "house_tanks_online_connection_failed_detail": ("Oda sunucusuna ulaşılamadı. Tekrar dene.", "The room server couldn’t be reached. Try again."),
         "house_tanks_online_joining": ("Odaya katılıyor…", "Joining the room…"),
@@ -138,7 +143,7 @@ public enum HouseTanksLocalization {
         "house_tanks_online_room_unavailable": ("Oyun oturumu bulunamadı ya da online oyun şu an kullanılamıyor.", "The game session wasn’t found or online play is unavailable right now."),
         "house_tanks_online_busy": ("Oyun sunucusu şu an meşgul. Biraz sonra tekrar dene.", "The game server is busy. Try again shortly."),
         "house_tanks_online_closed": ("Oda kapalı", "Room closed"),
-        "house_tanks_online_closed_detail": ("FauseTanks bu evde şu an açık değil. Demo tatbikatla oynayabilirsin.", "FauseTanks isn’t open for this house right now. You can play the demo drill."),
+        "house_tanks_online_closed_detail": ("Faus Tanks bu evde şu an açık değil. Demo tatbikatla oynayabilirsin.", "Faus Tanks isn’t open for this house right now. You can play the demo drill."),
         "house_tanks_online_start_title": ("Başlangıç sayacı", "Start countdown"),
         "house_tanks_online_start_until": ("MAÇIN BAŞLAMASINA", "UNTIL THE MATCH STARTS"),
         "house_tanks_online_seconds_unit": ("SN", "S"),
@@ -211,10 +216,9 @@ public enum HouseTanksLocalization {
         "house_tanks_rule_crates": ("Kasaları it, yol aç", "Push crates, open a route"),
         "house_tanks_rule_crates_detail": ("Tahta kasaları tankınla itebilirsin. Tek füze kasayı parçalar; diğer engeller sabit kalır.", "Push wooden crates with your tank. One missile breaks a crate; other obstacles stay fixed."),
         "house_tanks_rule_jokers": ("Jokeri yakala", "Collect a joker"),
-        "house_tanks_rule_jokers_detail": ("Arenaya düşen tokenların üstünden geç. Her joker 8 saniye sürer; yenisi eskisinin yerini alır, yerdeki token 12 saniyede kaybolur. Jokerler her turda karışık sırayla gelir.", "Drive over the tokens that drop into the arena. Each joker lasts 8 seconds; a new one replaces the old, and unclaimed tokens vanish after 12 seconds. Jokers arrive in a shuffled order."),
-        "house_tanks_jokers_show": ("{count} jokeri gör", "See all {count} jokers"),
-        "house_tanks_jokers_hide": ("Jokerleri gizle", "Hide jokers"),
-        "house_tanks_jokers_hint": ("Joker listesini açar veya kapatır.", "Opens or closes the joker list."),
+        "house_tanks_rule_jokers_detail": ("Arenaya düşen tokenın üstünden geçince joker senin olur; örneğin yelpaze atış her atışta beş mermi açar. Yerdeki token 12 saniyede kaybolur, jokerler her turda karışık sırayla gelir.", "Drive over a token that drops into the arena and its joker is yours; a spread shot, for one, fans every shot into five shells. Unclaimed tokens vanish after 12 seconds, and jokers arrive in a shuffled order."),
+        "house_tanks_rule_joker_time": ("Joker 8 saniye sürer", "A joker lasts 8 seconds"),
+        "house_tanks_rule_joker_time_detail": ("Kalkan gibi jokerler 8 saniye işe yarar; kalkan bu sürede gelen mermileri durdurur. Yeni bir joker eskisinin yerini alır.", "Jokers like the shield work for 8 seconds; the shield stops incoming shells meanwhile. A new joker replaces the old one."),
         "house_tanks_joker_rocket_detail": ("Normal mermi yerine dev bir roket atar. İsabet ettiği tankı zırhı ne olursa olsun tek seferde yok eder.", "Fires a giant rocket instead of a shell. Any tank it hits is destroyed at once, whatever armor it has left."),
         "house_tanks_joker_rapidFire_detail": ("Basılı tuttuğun sürece seri ateş eder.", "Fires continuously while you hold."),
         "house_tanks_joker_spreadShot_detail": ("Her atışta beş mermi yelpaze gibi açılır.", "Every shot fans out into five shells."),
@@ -238,7 +242,7 @@ public enum HouseTanksLocalization {
         "house_tanks_armor": ("Zırh", "Armor"),
         "house_tanks_round_score": ("Tur skoru", "Round score"),
         "house_tanks_tap_hint": ("Ateş etmek için dokun · İlerlemek için basılı tut", "Press to fire · Hold to advance"),
-        "house_tanks_playfield_accessibility": ("FauseTanks oyun alanı", "FauseTanks playfield"),
+        "house_tanks_playfield_accessibility": ("Faus Tanks oyun alanı", "Faus Tanks playfield"),
         "house_tanks_playfield_hint": ("Etkinleştirince tank ateş eder ve kısa süre namlu yönünde ilerler.", "Activate to fire and briefly advance in the barrel direction."),
         "house_tanks_countdown_go": ("BAŞLA!", "GO!"),
         "house_tanks_round_won": ("Bu tur senin!", "You took the round!"),

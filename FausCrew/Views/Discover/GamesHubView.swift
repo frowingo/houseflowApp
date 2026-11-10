@@ -160,7 +160,7 @@ private struct HubGameCard: View {
 
                 HubGameCoverBackdrop(gameID: game.id)
 
-                // The FauseTanks and Faus Switch covers are artwork only: no symbol, no badge.
+                // The Faus Rockets, Faus Tanks and Faus Switch covers are artwork only: no symbol, no badge.
                 if !isArtworkOnlyCover {
                     VStack(spacing: AppDesign.Spacing.sm) {
                         coverSymbol
@@ -202,7 +202,7 @@ private struct HubGameCard: View {
         .frame(maxHeight: .infinity, alignment: .top)
     }
 
-    private var isArtworkOnlyCover: Bool { game.id == 6 || game.id == 5 }
+    private var isArtworkOnlyCover: Bool { [5, 6, 7].contains(game.id) }
 
     @ViewBuilder
     private var coverSymbol: some View {
@@ -213,9 +213,6 @@ private struct HubGameCard: View {
                 CoverToken(symbol: "scissors", rotation: -5)
             }
             .accessibilityHidden(true)
-        } else if game.id == 7 {
-            // The rocket artwork is drawn in the same cover slot as other game icons.
-            Color.clear.frame(height: 40)
         } else {
             Image(systemName: game.icon)
                 .font(.system(size: 40, weight: .medium))
@@ -454,7 +451,7 @@ struct ScaleButtonStyle: ButtonStyle {
 }
 
 /// A tiny race in progress: a rocket threads between opposing wedges.
-/// The FauseTanks cover: one olive arena tank on the field-map sheet.
+/// The Faus Tanks cover: one olive arena tank on the field-map sheet.
 private struct HouseTanksCoverArtwork: View {
     var body: some View {
         GeometryReader { geometry in
@@ -476,7 +473,7 @@ private struct HouseRocketsCoverArtwork: View {
                 HouseRocketsTopography()
                 HouseRocketsRocketMark()
                     .frame(width: 94, height: 94)
-                    .position(x: geometry.size.width * 0.5, y: 42)
+                    .position(x: geometry.size.width * 0.5, y: geometry.size.height * 0.5)
             }
         }
         .accessibilityHidden(true)

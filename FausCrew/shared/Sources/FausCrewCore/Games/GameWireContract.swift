@@ -173,14 +173,14 @@ public struct GameCatalog: Equatable, Sendable {
     /// The client can only offer a game it speaks the protocol of.
     public var houseRockets: GameCatalogEntryDTO? { realtimeEntry(for: GameKey.houseRockets) }
 
-    /// FauseTanks is offered only with its settings; a running match still
+    /// Faus Tanks is offered only with its settings; a running match still
     /// follows its own `welcome.settings` and contract checks.
     public var houseTanks: GameCatalogEntryDTO? {
         guard let entry = realtimeEntry(for: GameKey.houseTanks), entry.houseTanksSettings != nil else { return nil }
         return entry
     }
 
-    /// Faus Switch is offered only with its settings, like FauseTanks.
+    /// Faus Switch is offered only with its settings, like Faus Tanks.
     public var fausSwitch: GameCatalogEntryDTO? {
         guard let entry = realtimeEntry(for: GameKey.fausSwitch), entry.fausSwitchSettings != nil else { return nil }
         return entry

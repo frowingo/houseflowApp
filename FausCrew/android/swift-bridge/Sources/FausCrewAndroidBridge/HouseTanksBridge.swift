@@ -1,7 +1,7 @@
 import Foundation
 import FausCrewCore
 
-// FauseTanks demo match. Rules, physics, bots and jokers stay in FausCrewCore;
+// Faus Tanks demo match. Rules, physics, bots and jokers stay in FausCrewCore;
 // Android owns timers, input and drawing. Gameplay is one JNI call per rendered
 // frame: each step returns the moving state, and the static arena (furniture and
 // crate shapes) is resent only when a round starts. The arena is the fixed 872×400
@@ -56,7 +56,7 @@ public func houseTanksBotStart(_ handle: Int32, _ difficulty: String, _ color: S
     guard let difficulty = HouseTanksDifficulty(rawValue: difficulty),
           let color = HouseTanksColor(rawValue: color),
           let map = HouseTanksMapID(rawValue: map) else {
-        return bridgeJSON(["ok": false, "message": "Unknown FauseTanks setup"])
+        return bridgeJSON(["ok": false, "message": "Unknown Faus Tanks setup"])
     }
     return tanksFrame(handle) { entry in
         entry.match.start(configuration: HouseTanksMatchConfiguration(difficulty: difficulty, humanColor: color, mapID: map,
@@ -109,7 +109,7 @@ public func houseTanksBotResume(_ handle: Int32) -> String {
     tanksFrame(handle) { entry in ["changed": entry.match.resume()] }
 }
 
-/// Bundled TR/EN FauseTanks copy for one language; remote plaintext still overrides it.
+/// Bundled TR/EN Faus Tanks copy for one language; remote plaintext still overrides it.
 public func houseTanksCopy(_ language: String) -> String {
     bridgeJSON(HouseTanksLocalization.table(language: language))
 }

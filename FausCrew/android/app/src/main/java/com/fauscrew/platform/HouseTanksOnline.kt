@@ -1,7 +1,39 @@
 package com.fauscrew.platform
 
 import com.fauscrew.androidbridge.FausCrewAndroidBridge
+import org.json.JSONArray
 import org.json.JSONObject
+
+/** `HouseTanksLobbyColors` as the room draws it: who holds which tank color (Faus Switch's rules). */
+internal data class TanksLobbyColors(
+    /** The pick asked for when seated. */
+    val preferred: TanksColor? = null,
+    /** The local tank's color: the pick while it is free, else the server's claim. */
+    val local: TanksColor? = null,
+    val localClaim: TanksColor? = null,
+    val takenByOthers: Set<TanksColor> = emptySet(),
+    /** The pick is held by someone else, so the match gives another color. */
+    val isPreferredTaken: Boolean = false,
+    /** The local player is ready: the color is fixed until they take the ready back. */
+    val isLocked: Boolean = false,
+) {
+    companion object {
+        /** The lobby output's `colors`; a missing block is no colors. */
+        fun from(lobby: JSONObject): TanksLobbyColors {
+            val json = lobby.optJSONObject("colors") ?: return TanksLobbyColors()
+            fun color(key: String) = if (json.isNull(key)) null else TanksColor.from(json.getString(key))
+            val taken = json.optJSONArray("takenByOthers") ?: JSONArray()
+            return TanksLobbyColors(
+                preferred = color("preferred"),
+                local = color("local"),
+                localClaim = color("localClaim"),
+                takenByOthers = List(taken.length()) { taken.getString(it) }.mapNotNull(TanksColor::from).toSet(),
+                isPreferredTaken = json.optBoolean("isPreferredTaken"),
+                isLocked = json.optBoolean("isLocked"),
+            )
+        }
+    }
+}
 
 /** A tank the server seated, normalized to the arena (y up) like [TanksMapPreview]. */
 internal data class TanksOnlineSeat(val playerId: String, val x: Double, val y: Double, val rotation: Double, val color: TanksColor)
@@ -93,9 +125,11 @@ internal data class TanksOnlineMatch(
  */
 internal data class TanksOnlineFrame(val frame: TanksFrame?, val match: TanksOnlineMatch, val fps: Int? = null)
 
-/** The FauseTanks engine behind JNI: the shared room plus one frame per rendered frame. */
+/** The Faus Tanks engine behind JNI: the shared room plus one frame per rendered frame. */
 internal interface TanksOnlineEngine : OnlineGameEngine {
     fun frame(now: Double): TanksOnlineFrame
+    /** The latest lobby output's tank colors. */
+    val colors: TanksLobbyColors get() = TanksLobbyColors()
 }
 
 internal object HouseTanksOnlineNative {
@@ -119,14 +153,23 @@ internal object HouseTanksOnlineNative {
 private class NativeTanksOnlineEngine(private val handle: Int) : TanksOnlineEngine {
     private val frames = TanksOnlineFrameParser()
 
+    override var colors = TanksLobbyColors()
+        private set
+
     override fun event(type: String, now: Double, fields: Map<String, Any?>): OnlineOutput {
         val json = JSONObject().put("type", type).put("now", now)
         fields.forEach { (key, value) -> json.put(key, value ?: JSONObject.NULL) }
-        return OnlineOutputParser.parse(FausCrewAndroidBridge.houseTanksOnlineEvent(handle, json.toString()))
+        return read(FausCrewAndroidBridge.houseTanksOnlineEvent(handle, json.toString()))
     }
 
     override fun receive(text: String, connection: Int, now: Double): OnlineOutput =
-        OnlineOutputParser.parse(FausCrewAndroidBridge.houseTanksOnlineReceive(handle, text, connection, now))
+        read(FausCrewAndroidBridge.houseTanksOnlineReceive(handle, text, connection, now))
+
+    private fun read(json: String): OnlineOutput {
+        val output = OnlineOutputParser.parse(json)
+        JSONObject(json).optJSONObject("lobby")?.let { colors = TanksLobbyColors.from(it) }
+        return output
+    }
 
     override fun frame(now: Double): TanksOnlineFrame = frames.parse(FausCrewAndroidBridge.houseTanksOnlineFrame(handle, now))
 
@@ -141,7 +184,7 @@ internal class TanksOnlineFrameParser {
 
     fun parse(json: String): TanksOnlineFrame {
         val root = JSONObject(json)
-        check(root.optBoolean("ok", false)) { root.optString("message", "FauseTanks online bridge failed") }
+        check(root.optBoolean("ok", false)) { root.optString("message", "Faus Tanks online bridge failed") }
         val fps = root.optInt("fps", -1).takeIf { it >= 0 }
         return TanksOnlineFrame(root.optJSONObject("frame")?.let(frames::frame), match(root.getJSONObject("match")), fps)
     }

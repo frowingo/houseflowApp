@@ -98,6 +98,7 @@ public func fausSwitchOnlineEvent(_ handle: Int32, _ eventJSON: String) -> Strin
         case "resultFailed": engine.resultFailed(request: request, now: now)
         case "tick": engine.tick(now: now)
         case "setReady": engine.setReady(event["ready"] as? Bool ?? false, now: now)
+        case "readyOnJoin": engine.readyOnJoin(now: now)
         case "setLandscape": engine.setLandscape(event["landscape"] as? Bool ?? false, now: now)
         case "setForeground": engine.setForeground(event["foreground"] as? Bool ?? false, now: now)
         case "retry": engine.retry(now: now)
@@ -248,7 +249,7 @@ enum FausSwitchOnlineJSON {
             "canRetry": state.canReconnect(at: .infinity),
             "requiresAuthentication": state.requiresAuthentication,
             "requiresUpdate": state.requiresUpdate,
-            "canChangeReady": state.canChangeReady(playerID: local),
+            "canChangeReady": state.canChangeReady(playerID: local) && colors.allowsReady,
             "canCancel": state.canCancel(context: context),
             "localReady": state.localPlayer(local)?.state == .ready,
             "readyCount": state.readyCount,

@@ -35,6 +35,8 @@ import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
+import com.fauscrew.platform.OnlineLobbyUi
+import com.fauscrew.platform.RocketsLobbyColors
 import com.fauscrew.platform.HouseRocketsNative
 import com.fauscrew.platform.LocalizedText
 import com.fauscrew.platform.RocketsFrame
@@ -77,13 +79,18 @@ internal fun HouseRocketsScreen(
     val onlineLobby = session?.lobby?.collectAsStateWithLifecycle()?.value
     val onlineResult = session?.result?.collectAsStateWithLifecycle()?.value
     val onlineFlight = session?.flight?.collectAsStateWithLifecycle()?.value
+    val onlineColors = session?.colors?.collectAsStateWithLifecycle()?.value ?: RocketsLobbyColors()
     val noFrame = remember { mutableStateOf<RocketsFrame?>(null) }
     val onlineFrameState = session?.frame?.collectAsStateWithLifecycle() ?: noFrame
     val hasOnlineFrame = onlineFrameState.value != null
     val showsResult = onlineResult?.isVisible == true
     val hasMatch = frameState.value != null
-    val inFlight = hasMatch || (hasOnlineFrame && !showsResult)
+    val isReplayRoom by model.isOnlineReplayRoom.collectAsStateWithLifecycle()
     val isHousemates = state.selectedMode == RocketsMode.HOUSEMATES
+    // The result and Play Again's room sit over the last flight's frozen course.
+    val showsArenaCard = isHousemates && ((showsResult && onlineResult != null) || isReplayRoom)
+    val heldFrame = remember(showsArenaCard) { mutableStateOf(if (showsArenaCard) model.heldOnlineFrame else null) }
+    val inFlight = hasMatch || (hasOnlineFrame && !showsResult) || showsArenaCard
     val copy = remember(strings) { RocketsCopy(strings, bundledCopy(strings.prefix)) }
     val activity = LocalContext.current.findActivity()
     val view = LocalView.current
@@ -106,7 +113,7 @@ internal fun HouseRocketsScreen(
     fun finishLandscapePreparation() {
         isWaitingForLandscape = false
         orientationRequest = 0
-        if (isHousemates) model.setOnlineReady(true) else model.startMatch()
+        if (!isHousemates) model.startMatch()
     }
 
     fun requestLandscape() {
@@ -118,10 +125,11 @@ internal fun HouseRocketsScreen(
         if (isLandscapeLayout) finishLandscapePreparation()
     }
 
+    /** The room is portrait like Faus Tanks' and Faus Switch's: ready never turns the screen. */
     fun onlineReady() {
         val lobby = onlineLobby ?: return
         if (lobby.localReady) model.setOnlineReady(false)
-        else if (lobby.canChangeReady) requestLandscape()
+        else if (lobby.canChangeReady && isForeground) model.setOnlineReady(true)
     }
 
     fun resetOrientationState() {
@@ -154,11 +162,13 @@ internal fun HouseRocketsScreen(
         }
     }
 
-    fun rematchOnline() {
+    /** Back to Lobby: the portrait online room (a new session unless Play Again's room is
+     *  already the new one). */
+    fun returnToOnlineLobby() {
         resetOrientationState()
         confirmsCancel = false
         model.setLandscape(false)
-        model.rematchOnline()
+        model.returnToOnlineLobby()
         returnToPortrait()
     }
 
@@ -196,10 +206,20 @@ internal fun HouseRocketsScreen(
             isForeground && !orientationFailed) finishLandscapePreparation()
     }
 
-    // The online flight runs landscape; returning to the app re-requests it.
-    LaunchedEffect(onlineFrameState.value?.matchId, isForeground) {
-        if (isHousemates && hasOnlineFrame && !showsResult && isForeground && !orientationFailed &&
-            onlineLobby?.isLeaving != true && !isLandscapeLayout) requestLandscape()
+    // The countdown turns the screen and the flight runs landscape until the result; returning
+    // to the app re-requests it, and a countdown that falls back to the room turns it back.
+    val isOnlineFlightStarting = isHousemates && !showsResult && onlineLobby?.isLeaving != true &&
+        (hasOnlineFrame || isReplayRoom || onlineLobby?.isSessionLive == true)
+    LaunchedEffect(isOnlineFlightStarting, isForeground) {
+        if (isOnlineFlightStarting) {
+            if (isForeground && !orientationFailed && !isLandscapeLayout && !isWaitingForLandscape) requestLandscape()
+        } else if (isHousemates && !showsResult && activity?.requestedOrientation ==
+            ActivityInfo.SCREEN_ORIENTATION_SENSOR_LANDSCAPE) {
+            isWaitingForLandscape = false
+            orientationRequest = 0
+            model.setLandscape(false)
+            returnToPortrait()
+        }
     }
 
     // A failed rotation cannot join a live flight: leave like iOS does.
@@ -297,10 +317,19 @@ internal fun HouseRocketsScreen(
                     onRestart = model::restart, onExit = ::exitGame,
                 )
             }
-            showsResult && onlineResult != null -> {
+            showsArenaCard -> {
                 Box(Modifier.fillMaxSize().background(HouseRocketsTheme.background))
-                HouseRocketsOnlineResultScreen(onlineResult, copy, memberNames, model::retryOnlineResult,
-                    ::rematchOnline, ::exitGame)
+                HouseRocketsCourseCanvas(heldFrame, reduceMotion)
+                if (showsResult && onlineResult != null) {
+                    HouseRocketsOnlineResultCard(onlineResult, copy, memberNames,
+                        canReturnToLobby = model.canReturnToOnlineLobby(onlineResult),
+                        onRetry = model::retryOnlineResult, onBackToLobby = ::returnToOnlineLobby,
+                        onPlayAgain = model::playOnlineAgain)
+                } else {
+                    HouseRocketsOnlineReplayRoom(onlineLobby ?: OnlineLobbyUi(), onlineColors, copy, memberNames,
+                        onReady = { model.setOnlineReady(it) }, onRetry = model::retryOnline,
+                        onBackToLobby = ::returnToOnlineLobby)
+                }
             }
             hasOnlineFrame && onlineLobby != null -> {
                 Box(Modifier.fillMaxSize().background(HouseRocketsTheme.background))
@@ -321,6 +350,7 @@ internal fun HouseRocketsScreen(
                     onBotCount = model::setBotCount, onStart = ::requestLandscape,
                     online = onlineLobby, memberNames = memberNames, onOnlineReady = ::onlineReady,
                     onOnlineRetry = model::retryOnline, onOnlineCancel = { confirmsCancel = true },
+                    onlineColors = onlineColors, onSelectColor = model::selectOnlineColor,
                 )
             }
         }

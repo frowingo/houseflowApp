@@ -2,7 +2,7 @@ import Foundation
 @testable import FausCrewCore
 import XCTest
 
-/// The shared online lobby machine running FauseTanks: connection, update
+/// The shared online lobby machine running Faus Tanks: connection, update
 /// checks, HTTP failures, cancellation and the control gate for gameplay.
 final class HouseTanksOnlineLobbyTests: XCTestCase {
     private let houseID = "507f1f77bcf86cd799439012"

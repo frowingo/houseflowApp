@@ -15,6 +15,9 @@ struct HouseRocketsView: View {
     @State private var eliminationNotice: String?
     @State private var noticeID: UUID?
     @State private var showsCancelConfirmation = false
+    /// The online room's launch card is on screen; while it is scrolled away the navigation
+    /// bar carries a small copy of its seconds.
+    @State private var isStartCardVisible = true
 
     init(sessionFactory: HouseRocketsSessionFactory, context: HouseRocketsLaunchContext) {
         _model = StateObject(wrappedValue: HouseRocketsViewModel(
@@ -22,8 +25,12 @@ struct HouseRocketsView: View {
         ))
     }
 
-    private var isPreparing: Bool {
-        model.snapshot == nil && model.onlineFrame == nil && !model.onlineResultState.isVisible
+    private var isPreparing: Bool { model.snapshot == nil && !isOnlineArena }
+
+    /// The online flight's course is on screen: the flight, then the result and Play Again's
+    /// room over its frozen last frame.
+    private var isOnlineArena: Bool {
+        model.onlineFrame != nil || model.onlineResultState.isVisible || model.isOnlineReplayRoom
     }
 
     var body: some View {
@@ -44,16 +51,22 @@ struct HouseRocketsView: View {
                         .ignoresSafeArea()
                         .allowsHitTesting(false)
                     gameLayer(snapshot: snapshot)
-                } else if model.onlineResultState.isVisible {
-                    HouseRocketsOnlineResultView(state: model.onlineResultState,
-                        localPlayerID: model.context.localPlayerID, memberNames: memberNames,
-                        onRetry: model.retryOnlineResult, onRematch: rematchOnline, onExit: exitGame)
-                } else if let frame = model.onlineFrame {
+                } else if isOnlineArena {
                     SpriteView(scene: model.scene, isPaused: scenePhase != .active,
                                preferredFramesPerSecond: model.preferredFramesPerSecond)
                         .ignoresSafeArea()
                         .allowsHitTesting(false)
-                    if model.onlinePresentation?.canSteer == true, scenePhase == .active {
+                    if model.onlineResultState.isVisible {
+                        HouseRocketsOnlineResultView(state: model.onlineResultState,
+                            localPlayerID: model.context.localPlayerID, memberNames: memberNames,
+                            canReturnToLobby: model.canReturnToOnlineLobby,
+                            onRetry: model.retryOnlineResult, onBackToLobby: returnToOnlineLobby,
+                            onPlayAgain: model.playOnlineAgain)
+                    } else if model.isOnlineReplayRoom {
+                        HouseRocketsOnlineReplayRoom(model: model, memberNames: memberNames,
+                                                     onBackToLobby: returnToOnlineLobby)
+                    } else if let frame = model.onlineFrame,
+                              model.onlinePresentation?.canSteer == true, scenePhase == .active {
                         HouseRocketsFloatingJoystick(
                             heading: (frame.players.first(where: { $0.role == .human })?.courseHeading ?? 0) + frame.courseAngle,
                             label: copy("house_rockets_joystick"), hint: copy("house_rockets_joystick_hint"),
@@ -61,7 +74,8 @@ struct HouseRocketsView: View {
                         )
                         .id(geometry.size)
                     }
-                    if let presentation = model.onlinePresentation {
+                    if !model.onlineResultState.isVisible, !model.isOnlineReplayRoom,
+                       let presentation = model.onlinePresentation {
                         HouseRocketsOnlineFlightOverlay(state: model.onlineState, presentation: presentation,
                             canCancel: model.onlineState.canCancel(context: model.context),
                             onRetry: model.retryOnline, onReclaimControl: model.reclaimOnlineControl,
@@ -80,7 +94,7 @@ struct HouseRocketsView: View {
             Button(copy("house_rockets_cancel_flight"), role: .destructive, action: model.cancelOnlineMatch)
         }
         .navigationBarTitleDisplayMode(.inline)
-        .toolbar(model.snapshot == nil && model.onlineFrame == nil ? .visible : .hidden, for: .navigationBar)
+        .toolbar(model.snapshot == nil && !isOnlineArena ? .visible : .hidden, for: .navigationBar)
         .navigationBarBackButtonHidden(model.selectedMode == .housemates)
         .toolbar {
             ToolbarItem(placement: .topBarLeading) {
@@ -89,6 +103,10 @@ struct HouseRocketsView: View {
                         .accessibilityLabel(copy("house_rockets_exit"))
                         .disabled(model.onlineState.isLeaving)
                 }
+            }
+            // Only while it has seconds to show: an empty item still draws its glass circle.
+            if showsCompactCountdown {
+                ToolbarItem(placement: .topBarTrailing) { compactCountdown }
             }
         }
         .onAppear {
@@ -108,8 +126,17 @@ struct HouseRocketsView: View {
             model.pause()
         }
         .task(id: model.context.houseID) { await model.refreshCatalog() }
-        .onChange(of: model.onlineFrame?.sessionID) { _, id in
-            if id != nil { prepareOnlineFlightLandscape() }
+        .onChange(of: isOnlineFlightStarting) { _, starting in
+            // The room is portrait like Faus Tanks' and Faus Switch's; the countdown turns
+            // the screen, and a countdown that falls back to the room turns it back.
+            if starting {
+                prepareOnlineFlightLandscape()
+            } else if model.selectedMode == .housemates, !model.onlineResultState.isVisible {
+                isWaitingForLandscape = false
+                orientationRequestID = nil
+                model.setLandscape(false)
+                GameOrientationController.returnToPortrait()
+            }
         }
         .onChange(of: model.onlineState.session?.state) { _, state in
             if orientationRequestFailed, state == .countdown || state == .running {
@@ -319,18 +346,14 @@ struct HouseRocketsView: View {
                         in: RoundedRectangle(cornerRadius: AppDesign.CornerRadius.xl))
         } else {
             HouseRocketsOnlineLobbyView(
-                state: model.onlineState, localPlayerID: model.context.localPlayerID,
-                memberNames: memberNames,
-                isWaitingForLandscape: isWaitingForLandscape, orientationFailed: orientationRequestFailed,
+                model: model, memberNames: memberNames,
+                orientationFailed: orientationRequestFailed,
                 onReady: {
-                    if model.onlineState.localPlayer(model.context.localPlayerID)?.state == .ready {
-                        model.setOnlineReady(false)
-                    } else {
-                        prepareLandscapeMatch()
-                    }
-                }, onRetry: model.retryOnline,
-                canCancel: model.onlineState.canCancel(context: model.context),
-                onCancel: { showsCancelConfirmation = true }, onExit: exitGame
+                    guard scenePhase == .active else { return }
+                    model.setOnlineReady(model.onlineState.localPlayer(model.context.localPlayerID)?.state != .ready)
+                },
+                onCancel: { showsCancelConfirmation = true },
+                onStartCardVisible: { isStartCardVisible = $0 }
             )
         }
     }
@@ -344,54 +367,57 @@ struct HouseRocketsView: View {
         }
     }
 
+    /// How to play as tiny looping clips with a few words each, like Faus Tanks' field manual;
+    /// the full sentence stays for VoiceOver. In the online room it is section 04.
     private var flightGuide: some View {
         VStack(alignment: .leading, spacing: AppDesign.Spacing.lg) {
-            Text(copy("house_rockets_how_to_play"))
-                .font(.title2.weight(.bold))
-                .foregroundStyle(HouseRocketsPreparationTheme.ink)
-            VStack(alignment: .leading, spacing: 0) {
-                guideStep(title: "house_rockets_step_steer", detail: "house_rockets_rule_aim",
-                          symbol: "hand.draw.fill", tint: Color(HouseRocketsPalette.navy),
-                          symbolInk: Color(HouseRocketsPalette.cream))
-                guideStep(title: "house_rockets_step_thrust", detail: "house_rockets_rule_drive",
-                          symbol: "arrow.up.right", tint: Color(HouseRocketsPalette.burgundy),
-                          symbolInk: Color(HouseRocketsPalette.cream))
-                guideStep(title: "house_rockets_step_fields", detail: "house_rockets_rule_fields",
-                          symbol: "bolt.fill", tint: Color(HouseRocketsPalette.blue),
-                          symbolInk: Color(HouseRocketsPalette.navy))
-                guideStep(title: "house_rockets_step_survive", detail: "house_rockets_rule_survive",
-                          symbol: "shield.fill", tint: Color(HouseRocketsPalette.red),
-                          symbolInk: Color(HouseRocketsPalette.cream), isLast: true)
+            HouseRocketsSectionHeader(code: model.selectedMode == .housemates && model.onlineBlocker == nil ? "04" : nil,
+                                      title: copy("house_rockets_how_to_play"))
+            LazyVGrid(columns: [GridItem(.flexible(), spacing: AppDesign.Spacing.md, alignment: .top),
+                                GridItem(.flexible(), spacing: AppDesign.Spacing.md, alignment: .top)],
+                      alignment: .leading, spacing: AppDesign.Spacing.lg) {
+                ForEach(HouseRocketsRuleClipKind.allCases, id: \.self) { kind in
+                    VStack(alignment: .leading, spacing: 6) {
+                        HouseRocketsRuleClip(kind: kind)
+                        Text(copy(kind.titleKey))
+                            .font(.subheadline.weight(.bold))
+                            .foregroundStyle(HouseRocketsPreparationTheme.ink)
+                            .lineLimit(2)
+                            .fixedSize(horizontal: false, vertical: true)
+                    }
+                    .accessibilityElement(children: .ignore)
+                    .accessibilityLabel(copy(kind.titleKey))
+                    .accessibilityHint(copy(kind.detailKey))
+                }
             }
+            .houseRocketsRoomCard()
         }
     }
 
-    private func guideStep(title: String, detail: String, symbol: String,
-                           tint: Color, symbolInk: Color, isLast: Bool = false) -> some View {
-        HStack(alignment: .top, spacing: AppDesign.Spacing.lg) {
-            VStack(spacing: 0) {
-                Image(systemName: symbol)
-                    .font(.body.weight(.semibold))
-                    .foregroundStyle(symbolInk)
-                    .frame(width: 44, height: 44)
-                    .background(tint, in: Circle())
-                if !isLast {
-                    Rectangle()
-                        .fill(HouseRocketsPreparationTheme.hairline)
-                        .frame(width: 2, height: 38)
+    /// The launch card is scrolled away while the room counts down (ready window or start).
+    private var showsCompactCountdown: Bool {
+        let phase = model.onlineState.session?.state
+        return model.selectedMode == .housemates && !isStartCardVisible && model.snapshot == nil
+            && model.onlineFrame == nil && !model.onlineState.isTerminal && (phase == .readyWindow || phase == .countdown)
+    }
+
+    /// The room's countdown in the navigation bar, only while the launch card is off screen.
+    private var compactCountdown: some View {
+        TimelineView(.periodic(from: .now, by: 0.25)) { _ in
+            if let seconds = model.onlineCountdown() {
+                Label {
+                    Text(verbatim: "\(seconds)")
+                        .monospacedDigit()
+                        .contentTransition(.numericText(countsDown: true))
+                } icon: {
+                    Image(systemName: "timer")
                 }
+                .font(.subheadline.weight(.heavy))
+                .foregroundStyle(seconds <= 5 ? HouseRocketsPreparationTheme.danger : HouseRocketsPreparationTheme.ink)
+                .animation(.snappy, value: seconds)
+                .accessibilityElement(children: .ignore)
+                .accessibilityLabel(copy("house_rockets_online_seconds", replacements: ["seconds": "\(seconds)"]))
             }
-            VStack(alignment: .leading, spacing: AppDesign.Spacing.xs) {
-                Text(copy(title))
-                    .font(.headline)
-                    .foregroundStyle(HouseRocketsPreparationTheme.ink)
-                Text(copy(detail))
-                    .font(.subheadline)
-                    .foregroundStyle(HouseRocketsPreparationTheme.muted)
-                    .fixedSize(horizontal: false, vertical: true)
-            }
-            .padding(.top, 2)
-            .padding(.bottom, AppDesign.Spacing.lg)
         }
     }
 
@@ -606,18 +632,25 @@ struct HouseRocketsView: View {
         }
     }
 
+    /// The bots race turns the screen before it starts.
     private func prepareLandscapeMatch() {
-        guard model.selectedMode != nil, scenePhase == .active else { return }
-        if model.selectedMode == .housemates {
-            guard model.onlineState.canChangeReady(playerID: model.context.localPlayerID) else { return }
-        }
+        guard model.selectedMode == .localBots, scenePhase == .active else { return }
         requestLandscape()
     }
 
-    private func prepareOnlineFlightLandscape() {
+    /// The online countdown or flight is on (or Play Again's room over the last course): the
+    /// screen runs landscape until the result.
+    private var isOnlineFlightStarting: Bool {
         guard model.selectedMode == .housemates, !model.onlineResultState.isVisible,
-              model.onlineFrame != nil, scenePhase == .active,
-              orientationRequestID == nil, !orientationRequestFailed, !model.onlineState.isLeaving else { return }
+              !model.onlineState.isLeaving else { return false }
+        if model.onlineFrame != nil || model.isOnlineReplayRoom { return true }
+        let state = model.onlineState.session?.state
+        return state == .countdown || state == .running
+    }
+
+    private func prepareOnlineFlightLandscape() {
+        guard isOnlineFlightStarting, scenePhase == .active,
+              orientationRequestID == nil, !orientationRequestFailed else { return }
         requestLandscape()
     }
 
@@ -656,7 +689,6 @@ struct HouseRocketsView: View {
         isWaitingForLandscape = false
         if model.selectedMode == .housemates {
             // Keep the request identity to handle a late system rotation failure.
-            model.setOnlineReady(true)
         } else {
             orientationRequestID = nil
             Task { await model.startMatch() }
@@ -701,14 +733,16 @@ struct HouseRocketsView: View {
         }
     }
 
-    private func rematchOnline() {
-        guard model.onlineResultState.canRematch else { return }
+    /// Back to Lobby: the portrait online room (a new session unless Play Again's room is
+    /// already the new one).
+    private func returnToOnlineLobby() {
+        guard model.isOnlineReplayRoom || model.canReturnToOnlineLobby else { return }
         isWaitingForLandscape = false
         orientationRequestID = nil
         orientationRequestFailed = false
         showsCancelConfirmation = false
         model.setLandscape(false)
-        model.rematchOnline()
+        model.returnToOnlineLobby()
         GameOrientationController.returnToPortrait()
     }
 

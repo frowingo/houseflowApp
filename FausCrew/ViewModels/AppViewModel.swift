@@ -325,6 +325,9 @@ class AppViewModel: ObservableObject {
         localizationStore.value(for: key)
     }
 
+    /// The app language's prefix (`nil` before one is chosen).
+    var localizationLanguagePrefix: String? { localizationStore.languagePrefix }
+
     func localized(_ key: String, fallback: String) -> String {
         localizationStore.value(for: key, fallback: fallback)
     }

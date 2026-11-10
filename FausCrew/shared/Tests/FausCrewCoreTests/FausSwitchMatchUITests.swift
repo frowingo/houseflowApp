@@ -78,4 +78,12 @@ final class FausSwitchMatchUITests: XCTestCase {
         XCTAssertEqual(turkish["faus_switch_you"], "Sen")
         XCTAssertEqual(FausSwitchLocalization.table(language: nil)["faus_switch_you"], "Sen", "Turkish by default")
     }
+
+    /// Section titles are capitalized in the app language on both platforms, not the device's.
+    func testSectionTitlesCapitalizeInTheAppLanguage() {
+        XCTAssertEqual(FausSwitchLocalization.uppercased("Robot rengi", language: "tr"), "ROBOT RENGİ")
+        XCTAssertEqual(FausSwitchLocalization.uppercased("Robot rengi", language: nil), "ROBOT RENGİ")
+        XCTAssertEqual(FausSwitchLocalization.uppercased("Robot color", language: "en"), "ROBOT COLOR")
+        XCTAssertEqual(FausSwitchLocalization.uppercased("Start countdown", language: "en-GB"), "START COUNTDOWN")
+    }
 }

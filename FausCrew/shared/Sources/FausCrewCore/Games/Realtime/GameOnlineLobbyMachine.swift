@@ -197,8 +197,9 @@ final class GameOnlineLobbyMachine<Game: GameRealtimeGame> {
 
     func setReady(_ ready: Bool, now: TimeInterval) {
         self.now = now
-        guard state.canChangeReady(playerID: context.localPlayerID),
-              !ready || state.isLandscape || !Game.readyRequiresLandscape else { return }
+        // Every room is portrait: ready counts in any orientation, and the screen turns to
+        // landscape when the countdown starts.
+        guard state.canChangeReady(playerID: context.localPlayerID) else { return }
         guard (state.localPlayer(context.localPlayerID)?.state == .ready) != ready else { return }
         withdrawReady = false
         sendLifecycle(.setReady(ready))

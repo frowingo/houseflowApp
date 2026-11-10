@@ -17,8 +17,12 @@ extension GameOnlineHost where Engine == HouseTanksOnlineEngine {
 
 /// Stores constructors, never an active session: each room visit owns its host.
 struct HouseTanksOnlineFactory {
-    /// One host (and Core engine) per room visit; `excludingSessionID` is set for a rematch.
-    var makeHost: (@MainActor (_ context: GameLaunchContext, _ excludingSessionID: String?) -> HouseTanksOnlineHost)?
+    /// One host (and Core engine) per room visit; `excludingSessionID` is set for a rematch
+    /// and `preferredColor` is the tank color asked for in the lobby.
+    typealias MakeHost = @MainActor (_ context: GameLaunchContext, _ excludingSessionID: String?,
+                                     _ preferredColor: HouseTanksColor?) -> HouseTanksOnlineHost
+
+    var makeHost: MakeHost?
     var loadCatalog: (@MainActor (_ houseID: String) async throws -> GameCatalog)?
 
     static var unavailable: Self { Self(makeHost: nil, loadCatalog: nil) }
@@ -27,8 +31,9 @@ struct HouseTanksOnlineFactory {
     static func live(network: any HTTPRequestExecuting, keychain: any KeychainStoring, baseURL: URL) -> Self {
         let sessions = GameSessionService(network: network, keychain: keychain, baseURL: baseURL)
         let io = LiveGameOnlineIO(network: network, keychain: keychain, baseURL: baseURL)
-        return Self(makeHost: { context, excluded in
-            HouseTanksOnlineHost(engine: HouseTanksOnlineEngine(context: context, excludingSessionID: excluded), io: io)
+        return Self(makeHost: { context, excluded, color in
+            HouseTanksOnlineHost(engine: HouseTanksOnlineEngine(context: context, excludingSessionID: excluded,
+                                                                preferredColor: color), io: io)
         }, loadCatalog: { try await sessions.gameCatalog(houseID: $0) })
     }
 }

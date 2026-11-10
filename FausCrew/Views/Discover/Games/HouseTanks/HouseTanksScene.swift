@@ -118,7 +118,7 @@ extension HouseTanksColor {
     }
 }
 
-/// Draws a FauseTanks world from the shared engine (FausCrewCore). It owns no rules and no
+/// Draws a Faus Tanks world from the shared engine (FausCrewCore). It owns no rules and no
 /// physics: every frame it reports the real delta through `onFrame`, the session advances
 /// the engine, and `render(_:roundKey:events:localPlayerID:)` mirrors the result onto nodes.
 /// The arena is the fixed 872×400 of the online contract. The scene fills the whole view

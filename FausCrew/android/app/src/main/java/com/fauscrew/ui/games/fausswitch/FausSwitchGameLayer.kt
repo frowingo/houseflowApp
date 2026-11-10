@@ -33,8 +33,11 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.rounded.VolumeOff
 import androidx.compose.material.icons.automirrored.rounded.VolumeUp
+import androidx.compose.material.icons.rounded.AccessTime
+import androidx.compose.material.icons.rounded.CheckCircle
 import androidx.compose.material.icons.rounded.Close
 import androidx.compose.material.icons.rounded.Flag
+import androidx.compose.material.icons.rounded.HighlightOff
 import androidx.compose.material.icons.rounded.HourglassTop
 import androidx.compose.material.icons.rounded.MusicNote
 import androidx.compose.material.icons.rounded.MusicOff
@@ -45,6 +48,7 @@ import androidx.compose.material.icons.rounded.Sync
 import androidx.compose.material.icons.rounded.SportsScore
 import androidx.compose.material.icons.rounded.Timer
 import androidx.compose.material.icons.rounded.TouchApp
+import androidx.compose.material.icons.rounded.Verified
 import androidx.compose.material.icons.rounded.Visibility
 import androidx.compose.material.icons.rounded.Warning
 import androidx.compose.material.icons.rounded.WifiOff
@@ -85,6 +89,8 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.sp
+import com.fauscrew.platform.OnlineLobbyUi
+import com.fauscrew.platform.SwitchColor
 import com.fauscrew.platform.SwitchDemoOutcome
 import com.fauscrew.platform.SwitchMatchUi
 import com.fauscrew.platform.SwitchOnlineMatch
@@ -97,6 +103,7 @@ import com.fauscrew.platform.SwitchWorld
 import com.fauscrew.ui.theme.FausCrewType
 import com.fauscrew.ui.theme.Radius
 import com.fauscrew.ui.theme.Spacing
+import com.fauscrew.ui.games.tanks.rememberSecondsUntil
 import com.fauscrew.ui.theme.scaleButton
 import com.fauscrew.viewmodel.FausSwitchUiState
 import kotlinx.coroutines.delay
@@ -122,10 +129,24 @@ internal class SwitchOnlineRaceUi(
     /** House members' names by user id, for the winner when the server sent none. */
     val members: Map<String, String>,
     val onLeave: () -> Unit,
-    val onRematch: () -> Unit,
+    /** Play Again: the room's next session, readied in place; the race starts from its countdown. */
+    val onPlayAgain: () -> Unit,
+    /** Back to Lobby: the portrait online room. */
+    val onBackToLobby: () -> Unit,
     val onRetry: () -> Unit,
     val onRetryResult: () -> Unit,
     val onReclaim: () -> Unit,
+    /** Play Again's room over the finished race, until the next race's first snapshot. */
+    val replay: SwitchReplayRoomUi? = null,
+)
+
+/** The next session's room as Play Again shows it over the arena. */
+internal class SwitchReplayRoomUi(
+    val lobby: OnlineLobbyUi?,
+    val localColor: SwitchColor,
+    val uptime: () -> Double,
+    val onReady: (Boolean) -> Unit,
+    val onRetry: () -> Unit,
 )
 
 /**
@@ -148,11 +169,16 @@ internal fun FausSwitchGameLayer(
     var showsTapHint by remember { mutableStateOf(true) }
     var confirmsLeave by remember { mutableStateOf(false) }
     val isOnline = state.isOnlineMatchVisible && online != null
+    val replay = online?.replay?.takeIf { isOnline }
     // Online the server's result and notices arrive through frames even after the race ends.
     val isRunning = isOnline || (state.isDemoVisible && !state.isPaused && match?.phase != SwitchPhase.ENDED)
     // Back asks before leaving a running race; on the result it goes back to the modes.
     BackHandler(enabled = isOnline) {
-        if (match?.showsResult == true) online?.onLeave?.invoke() else confirmsLeave = true
+        when {
+            replay != null -> online?.onBackToLobby?.invoke()
+            match?.showsResult == true -> online?.onLeave?.invoke()
+            else -> confirmsLeave = true
+        }
     }
     LaunchedEffect(isForeground, isRunning) {
         if (!isForeground || !isRunning) return@LaunchedEffect
@@ -176,9 +202,15 @@ internal fun FausSwitchGameLayer(
                     onClick { actions.onFlip(); true }
                 },
         )
+        if (replay != null && online != null) {
+            match?.let { Hud(it, state, copy, showsTapHint = false, actions, onClose = {}, hidesClose = true) }
+            ReplayRoomPanel(replay, online, copy)
+            return@Box
+        }
         if (match == null) return@Box
         if (match.nameTags.isNotEmpty()) NameTags(match.nameTags, copy)
-        Hud(match, state, copy, showsTapHint, actions, onClose = if (isOnline) ({ confirmsLeave = true }) else null)
+        Hud(match, state, copy, showsTapHint, actions, onClose = if (isOnline) ({ confirmsLeave = true }) else null,
+            hidesClose = match.showsResult)
         LaunchedEffect(match.phase == SwitchPhase.PLAYING && match.canFlip, showsTapHint) {
             if (match.phase == SwitchPhase.PLAYING && match.canFlip && showsTapHint) {
                 delay(3_500)
@@ -196,7 +228,7 @@ internal fun FausSwitchGameLayer(
                     PanelHeader(Icons.Rounded.Pause, FausSwitchPalette.wine, copy("faus_switch_paused"), copy("faus_switch_paused_detail"))
                 },
                 actions = { focus ->
-                    PanelButton(copy("faus_switch_resume"), Icons.Rounded.PlayArrow, focus, actions.onResume)
+                    PanelButton(copy("faus_switch_resume"), Icons.Rounded.PlayArrow, focus, onClick = actions.onResume)
                     SecondaryButton(copy("faus_switch_restart")) { showsTapHint = true; actions.onRestart() }
                     SecondaryButton(copy("faus_switch_change_setup"), actions.onChangeSetup)
                 },
@@ -302,13 +334,106 @@ private fun OnlineResultPanel(result: SwitchOnlineResult, online: SwitchOnlineRa
         },
         actions = { focus ->
             if (result.canRematch) {
-                PanelButton(copy("faus_switch_online_rematch"), Icons.Rounded.Refresh, focus, online.onRematch)
-            } else if (result.isFailed && result.canRetry) {
-                PanelButton(copy("faus_switch_online_retry"), Icons.Rounded.Refresh, focus, online.onRetryResult)
+                PanelButton(copy("faus_switch_online_play_again"), Icons.Rounded.Refresh, focus, onClick = online.onPlayAgain)
+                SecondaryButton(copy("faus_switch_online_back_to_lobby"), online.onBackToLobby)
+            } else {
+                if (result.isFailed && result.canRetry) {
+                    PanelButton(copy("faus_switch_online_retry"), Icons.Rounded.Refresh, focus, onClick = online.onRetryResult)
+                }
+                SecondaryButton(copy("faus_switch_online_back_to_modes"), onLeave)
             }
-            SecondaryButton(copy("faus_switch_online_back_to_modes"), onLeave)
         },
     )
+}
+
+/**
+ * Play Again's room over the finished race: the local player is readied after the color;
+ * once the room is ready (or its ready window ends) the server counts the new race down
+ * from 3 and it starts right here. Back to Lobby goes to the portrait room instead.
+ */
+@Composable
+private fun ReplayRoomPanel(replay: SwitchReplayRoomUi, online: SwitchOnlineRaceUi, copy: SwitchCopy) {
+    val lobby = replay.lobby ?: OnlineLobbyUi(statusKey = "faus_switch_online_connecting",
+        detailKey = "faus_switch_online_connecting_detail")
+    val inRoom = lobby.isLobby && lobby.isConnected && lobby.isSynced
+    val detailKey = when {
+        !inRoom -> lobby.detailKey
+        lobby.localReady -> "faus_switch_online_replay_detail"
+        else -> "faus_switch_online_replay_not_ready"
+    }
+    val seconds = rememberSecondsUntil(lobby.deadlineUptime.takeIf { lobby.deadlineKind != null }, replay.uptime)
+    val players = lobby.participants.sortedBy { if (it.isLocal) 0 else 1 }
+    Panel(
+        info = {
+            PanelHeader(Icons.Rounded.Refresh, FausSwitchPalette.wine, copy("faus_switch_online_replay_title"),
+                copy.template(detailKey, "minimum" to "${lobby.minimumPlayers}"))
+            Row(horizontalArrangement = Arrangement.spacedBy(Spacing.sm), verticalAlignment = Alignment.CenterVertically) {
+                Text(copy(lobby.statusKey), style = FausCrewType.subheadline.copy(fontWeight = FontWeight.Bold),
+                    color = if (lobby.isFailed) FausSwitchPalette.danger else FausSwitchPalette.ink,
+                    maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f))
+                if (seconds != null) {
+                    Row(horizontalArrangement = Arrangement.spacedBy(4.dp), verticalAlignment = Alignment.CenterVertically) {
+                        Icon(Icons.Rounded.Timer, null, Modifier.size(14.dp), tint = FausSwitchPalette.ink)
+                        Text(copy.template("faus_switch_online_seconds", "seconds" to "$seconds"),
+                            style = FausCrewType.caption.copy(fontWeight = FontWeight.ExtraBold, fontFeatureSettings = "tnum"),
+                            color = FausSwitchPalette.ink)
+                    }
+                }
+                if (lobby.sessionState != null) {
+                    Text(copy.template("faus_switch_online_ready_count", "ready" to "${lobby.readyCount}",
+                        "total" to "${lobby.participants.size}"),
+                        style = FausCrewType.caption.copy(fontWeight = FontWeight.ExtraBold), color = FausSwitchPalette.secondaryInk)
+                }
+            }
+            val columns = if (players.size > 4) 2 else 1
+            Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                players.chunked(columns).forEach { row ->
+                    Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                        row.forEach { player ->
+                            ReplayRosterRow(
+                                name = if (player.isLocal) copy("faus_switch_you")
+                                    else online.members[player.playerId] ?: copy("faus_switch_online_player"),
+                                color = if (player.isLocal) replay.localColor else SwitchColor.from(player.color),
+                                isLocal = player.isLocal, isReady = player.isReady, status = copy(player.statusKey),
+                                modifier = Modifier.weight(1f),
+                            )
+                        }
+                        repeat(columns - row.size) { Spacer(Modifier.weight(1f)) }
+                    }
+                }
+            }
+        },
+        actions = { focus ->
+            if (lobby.isFailed && lobby.canRetry) {
+                PanelButton(copy("faus_switch_online_retry"), Icons.Rounded.Refresh, focus, onClick = replay.onRetry)
+            } else {
+                PanelButton(copy(if (lobby.localReady) "faus_switch_online_not_ready" else "faus_switch_online_ready"),
+                    if (lobby.localReady) Icons.Rounded.HighlightOff else Icons.Rounded.CheckCircle, focus,
+                    onClick = { replay.onReady(!lobby.localReady) }, enabled = lobby.canChangeReady)
+            }
+            if (!lobby.isLeaving) SecondaryButton(copy("faus_switch_online_back_to_lobby"), online.onBackToLobby)
+        },
+    )
+}
+
+@Composable
+private fun ReplayRosterRow(name: String, color: SwitchColor?, isLocal: Boolean, isReady: Boolean, status: String,
+                            modifier: Modifier) {
+    Row(
+        modifier.heightIn(min = 32.dp)
+            .background(if (isLocal) FausSwitchPalette.lavender.copy(alpha = .55f) else FausSwitchPalette.lightSand.copy(alpha = .8f),
+                RoundedCornerShape(Radius.sm))
+            .padding(horizontal = Spacing.sm)
+            .semantics(mergeDescendants = true) { contentDescription = "$name, $status" },
+        horizontalArrangement = Arrangement.spacedBy(Spacing.sm),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        FausSwitchRobot(color ?: SwitchColor.OCEAN, Modifier.size(22.dp))
+        Text(name, style = FausCrewType.subheadline.copy(fontWeight = if (isLocal) FontWeight.Bold else FontWeight.SemiBold),
+            color = FausSwitchPalette.ink, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f))
+        Icon(if (isReady) Icons.Rounded.Verified else Icons.Rounded.AccessTime, null, Modifier.size(16.dp),
+            tint = if (isReady) FausSwitchPalette.green else FausSwitchPalette.secondaryInk)
+    }
 }
 
 /** `FausSwitchOnlineCopyKeys.crashReason`. */
@@ -388,6 +513,7 @@ private fun Hud(
     showsTapHint: Boolean,
     actions: SwitchRaceActions,
     onClose: (() -> Unit)?,
+    hidesClose: Boolean,
 ) {
     Column(Modifier.fillMaxSize().windowInsetsPadding(WindowInsets.safeDrawing)) {
         Row(
@@ -395,8 +521,8 @@ private fun Hud(
             horizontalArrangement = Arrangement.spacedBy(Spacing.sm),
         ) {
             if (onClose != null) {
-                Box(Modifier.alpha(if (match.showsResult) 0f else 1f)) {
-                    HudButton(Icons.Rounded.Close, copy("faus_switch_online_leave"), enabled = !match.showsResult, onClick = onClose)
+                Box(Modifier.alpha(if (hidesClose) 0f else 1f)) {
+                    HudButton(Icons.Rounded.Close, copy("faus_switch_online_leave"), enabled = !hidesClose, onClick = onClose)
                 }
             } else {
                 val canPause = match.phase != SwitchPhase.ENDED && !state.showsDemoResult
@@ -544,8 +670,9 @@ private fun StandingRow(standing: SwitchStanding, copy: SwitchCopy, modifier: Mo
 }
 
 @Composable
-private fun PanelButton(title: String, icon: ImageVector, focus: FocusRequester, onClick: () -> Unit) {
-    PrimarySwitchButton(Modifier.focusRequester(focus), height = 48.dp, onClick = onClick) {
+private fun PanelButton(title: String, icon: ImageVector, focus: FocusRequester, enabled: Boolean = true, onClick: () -> Unit) {
+    PrimarySwitchButton(Modifier.focusRequester(focus).alpha(if (enabled) 1f else .5f), height = 48.dp, enabled = enabled,
+        onClick = onClick) {
         Icon(icon, null, Modifier.size(18.dp), tint = FausSwitchPalette.lightSand)
         Text(title, style = FausCrewType.headline, color = FausSwitchPalette.lightSand, maxLines = 1)
     }

@@ -1,7 +1,7 @@
 import XCTest
 @testable import FausCrewAndroidBridge
 
-/// The FauseTanks room over JNI: effects carry the tanks routes, the lobby model uses
+/// The Faus Tanks room over JNI: effects carry the tanks routes, the lobby model uses
 /// the shared keys, and the countdown snapshot sends the drawn arena once.
 final class HouseTanksOnlineBridgeTests: XCTestCase {
     private let house = "507f1f77bcf86cd799439012"
@@ -53,6 +53,21 @@ final class HouseTanksOnlineBridgeTests: XCTestCase {
         let message: [String: Any] = ["protocolVersion": 2, "type": "gameSession.snapshot", "sequence": version,
                                       "sentAt": "2026-10-24T12:00:30.125Z", "payload": sessionPayload(state: state, version: version)]
         return String(decoding: try JSONSerialization.data(withJSONObject: message), as: UTF8.self)
+    }
+
+    /// The pick is taken before the room opens (Android sends it right after create) and
+    /// comes back in the lobby colors; an unknown color is refused.
+    func testColorPickComesBackInTheLobbyColors() throws {
+        let handle = houseTanksOnlineCreate(house, player, "", "")
+        defer { XCTAssertTrue(houseTanksOnlineDestroy(handle)) }
+        let picked = try event(handle, ["type": "selectColor", "color": "sky", "now": 0])
+        XCTAssertEqual(picked["ok"] as? Bool, true)
+        let colors = try XCTUnwrap((picked["lobby"] as? [String: Any])?["colors"] as? [String: Any])
+        XCTAssertEqual(colors["preferred"] as? String, "sky")
+        XCTAssertEqual(colors["local"] as? String, "sky")
+        XCTAssertEqual(colors["takenByOthers"] as? [String], [])
+        XCTAssertEqual(colors["isLocked"] as? Bool, false)
+        XCTAssertEqual(try event(handle, ["type": "selectColor", "color": "neon", "now": 0.1])["ok"] as? Bool, false)
     }
 
     func testRoomFlowSendsTanksRoutesAndTheDrawnArena() throws {

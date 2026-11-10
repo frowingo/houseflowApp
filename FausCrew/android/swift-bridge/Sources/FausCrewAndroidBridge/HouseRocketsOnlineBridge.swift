@@ -1,7 +1,7 @@
 import Foundation
 import FausCrewCore
 
-// Online House Rockets behind a handle. The engine (FausCrewCore) decides every
+// Online Faus Rockets behind a handle. The engine (FausCrewCore) decides every
 // lobby, reconnect, control and result rule; Android only performs the returned
 // effects with OkHttp and reports their outcome. Calls are coarse (one per socket
 // message, user intent or 25 ms tick) except `houseRocketsOnlineFrame`, which samples
@@ -21,6 +21,7 @@ final class OnlineMatchRegistry: @unchecked Sendable {
         var frameRevision = 0
         var lastLobby: HouseRocketsOnlineLobbyState?
         var lastResult: HouseRocketsOnlineResultState?
+        var lastPreferred: HouseRocketsColor?
         init(engine: HouseRocketsOnlineEngine) { self.engine = engine }
     }
 
@@ -87,6 +88,7 @@ public func houseRocketsOnlineEvent(_ handle: Int32, _ eventJSON: String) -> Str
         case "resultFailed": engine.resultFailed(request: request, now: now)
         case "tick": engine.tick(now: now)
         case "setReady": engine.setReady(event["ready"] as? Bool ?? false, now: now)
+        case "readyOnJoin": engine.readyOnJoin(now: now)
         case "setLandscape": engine.setLandscape(event["landscape"] as? Bool ?? false, now: now)
         case "setForeground": engine.setForeground(event["foreground"] as? Bool ?? false, now: now)
         case "retry": engine.retry(now: now)
@@ -98,6 +100,9 @@ public func houseRocketsOnlineEvent(_ handle: Int32, _ eventJSON: String) -> Str
         case "endSteering": engine.endSteering()
         case "adjust": engine.adjustHeading(by: event["amount"] as? Double ?? 0, now: now)
         case "reduceMotion": engine.setReduceMotion(event["enabled"] as? Bool ?? false)
+        case "selectColor":
+            guard let color = (event["color"] as? String).flatMap(HouseRocketsColor.init(rawValue:)) else { return false }
+            engine.selectColor(color, now: now)
         case "disconnect": engine.disconnect()
         default: return false
         }
@@ -153,9 +158,12 @@ private func onlineOutput(_ handle: Int32, _ action: (OnlineMatchRegistry.Entry)
         let engine = entry.engine
         var object: [String: Any] = ["ok": true, "effects": engine.drainEffects().map { onlineEffectObject($0, gameKey: GameKey.houseRockets) }]
         // Deadlines are sent as host uptimes, so countdown labels need no refresh here.
-        if engine.lobby != entry.lastLobby {
+        // The color pick changes what the lobby shows before the server answers it.
+        if engine.lobby != entry.lastLobby || engine.preferredColor != entry.lastPreferred {
             entry.lastLobby = engine.lobby
-            object["lobby"] = HouseRocketsOnlineJSON.lobby(engine.lobby, context: engine.context)
+            entry.lastPreferred = engine.preferredColor
+            object["lobby"] = HouseRocketsOnlineJSON.lobby(engine.lobby, context: engine.context,
+                                                           preferredColor: engine.preferredColor)
         }
         if engine.result != entry.lastResult {
             entry.lastResult = engine.result
@@ -211,9 +219,13 @@ func onlineEffectObject(_ effect: GameOnlineEffect, gameKey: String) -> [String:
 
 /// Screen-ready lobby and result models; the copy rules come from Core.
 enum HouseRocketsOnlineJSON {
-    static func lobby(_ state: HouseRocketsOnlineLobbyState, context: HouseRocketsLaunchContext) -> [String: Any] {
+    /// Participants carry their rocket color (the server's once the flight seats them, the
+    /// lobby claim before) and the lobby colors, as Faus Tanks sends them.
+    static func lobby(_ state: HouseRocketsOnlineLobbyState, context: HouseRocketsLaunchContext,
+                      preferredColor: HouseRocketsColor? = nil) -> [String: Any] {
         let local = context.localPlayerID
         let session = state.session
+        let colors = state.lobbyColors(localPlayerID: local)
         func uptime(_ date: Date?) -> Any {
             guard let date, let clock = state.serverClock else { return NSNull() }
             return clock.localUptime + date.timeIntervalSince(clock.serverTime)
@@ -240,7 +252,7 @@ enum HouseRocketsOnlineJSON {
             "retryNotBefore": state.retryNotBefore ?? NSNull(),
             "canRetry": state.canReconnect(at: .infinity),
             "requiresAuthentication": state.requiresAuthentication,
-            "canChangeReady": state.canChangeReady(playerID: local),
+            "canChangeReady": state.canChangeReady(playerID: local) && colors.allowsReady,
             "canCancel": state.canCancel(context: context),
             "localReady": state.localPlayer(local)?.state == .ready,
             "readyCount": state.readyCount,
@@ -249,7 +261,17 @@ enum HouseRocketsOnlineJSON {
                 "statusKey": HouseRocketsOnlineCopyKeys.playerStatus($0.state),
                 "ready": $0.state == .ready,
                 "isLocal": $0.playerId == local,
+                "color": state.memberColor(of: $0.playerId, localPlayerID: local, preferred: preferredColor)?.rawValue
+                    ?? NSNull(),
             ] as [String: Any] },
+            "colors": [
+                "preferred": preferredColor?.rawValue ?? NSNull(),
+                "local": colors.localColor(preferred: preferredColor)?.rawValue ?? NSNull(),
+                "localClaim": colors.localClaim?.rawValue ?? NSNull(),
+                "takenByOthers": HouseRocketsColor.allCases.filter(colors.isTakenByOthers).map(\.rawValue),
+                "isPreferredTaken": colors.isPreferredTaken(preferredColor),
+                "isLocked": colors.isLocked,
+            ] as [String: Any],
             "deadlineKind": (session?.state == .countdown ? "countdown" : session?.state == .readyWindow ? "ready" : nil)
                 ?? NSNull() as Any,
             "deadlineUptime": uptime(deadline),
@@ -286,7 +308,7 @@ enum HouseRocketsOnlineJSON {
     }
 }
 
-/// `GET /game/catalog` for one house, reduced to what the House Rockets screen needs.
+/// `GET /game/catalog` for one house, reduced to what the Faus Rockets screen needs.
 /// `available` is null when the catalog could not be read (the server still guards).
 public func gameCatalogResponse(_ houseId: String, _ status: Int32, _ body: String) -> String {
     do {

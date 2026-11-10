@@ -8,15 +8,17 @@ public typealias GameRealtimeServerPayload = GameRealtimeServerPayloadOf<HouseRo
 public typealias GameRealtimeServerMessage = GameRealtimeServerMessageOf<HouseRocketsRealtime>
 public typealias GameRealtimeReceivedMessage = GameRealtimeReceivedMessageOf<HouseRocketsRealtime>
 
-/// House Rockets on the shared realtime protocol: course 1, steer intents.
+/// Faus Rockets on the shared realtime protocol: course 1, steer intents and a rocket
+/// color asked for in the lobby (`selectColor`).
 public enum HouseRocketsRealtime: GameRealtimeGame {
     public enum Intent: Equatable, Sendable {
         case steer(controlGeneration: String, inputSequence: Int64, courseHeading: Double)
+        /// Lobby only: the color this player asks for. The server keeps the first claim
+        /// per color and gives the rest the first free color by seat order (ADR-030).
+        case selectColor(HouseRocketsColor)
     }
 
     public static let gameKey = GameKey.houseRockets
-
-    public static let readyRequiresLandscape = true
 
     public static func checkCompatibility(_ welcome: HouseRocketsWelcomeDTO) throws {
         try GameRealtimeCodec.validateCompatibility(protocolVersion: welcome.protocolVersion,
@@ -32,7 +34,12 @@ public enum HouseRocketsRealtime: GameRealtimeGame {
             courseVersion: result.courseVersion, gameKey: result.gameKey)
     }
 
-    public static func type(of intent: Intent) -> String { "houseRockets.steer" }
+    public static func type(of intent: Intent) -> String {
+        switch intent {
+        case .steer: return "houseRockets.steer"
+        case .selectColor: return "houseRockets.selectColor"
+        }
+    }
 
     public static func payload(of intent: Intent) throws -> any Encodable {
         switch intent {
@@ -40,12 +47,15 @@ public enum HouseRocketsRealtime: GameRealtimeGame {
             try GameRealtimeCodec.validateIdentifier(generation)
             guard sequence > 0, heading.isFinite else { throw GameRealtimeError.invalidInput }
             return Steer(controlGeneration: generation, inputSequence: sequence, heading: atan2(sin(heading), cos(heading)))
+        case .selectColor(let color):
+            return SelectColor(color: color.rawValue)
         }
     }
 
     public static func controlGeneration(of intent: Intent) -> String? {
         switch intent {
         case .steer(let generation, _, _): return generation
+        case .selectColor: return nil
         }
     }
 
@@ -67,6 +77,10 @@ public enum HouseRocketsRealtime: GameRealtimeGame {
         let controlGeneration: String
         let inputSequence: Int64
         let heading: Double
+    }
+
+    private struct SelectColor: Encodable {
+        let color: String
     }
 }
 

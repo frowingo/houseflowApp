@@ -1,6 +1,6 @@
 import Foundation
 
-/// FauseTanks demo match shared by iOS and Android: one human against bots, rounds until
+/// Faus Tanks demo match shared by iOS and Android: one human against bots, rounds until
 /// one tank is left, three round wins for the match. It owns phases, bots and the arena,
 /// but no clock: the host calls `advanceCountdown()` every `countdownStepSeconds` while
 /// counting down and `advance(by:)` with the real frame delta while playing; the arena

@@ -48,7 +48,7 @@ final class HouseTanksBridgeTests: XCTestCase {
     }
 
     func testCopyMapsAndConstants() throws {
-        XCTAssertEqual(try object(houseTanksCopy("en"))["house_tanks_title"] as? String, "FauseTanks")
+        XCTAssertEqual(try object(houseTanksCopy("en"))["house_tanks_title"] as? String, "Faus Tanks")
         XCTAssertEqual(try object(houseTanksCopy("tr"))["house_tanks_power_rocket"] as? String, "Dev roket")
         let maps = try XCTUnwrap(try object(houseTanksMaps())["maps"] as? [[String: Any]])
         XCTAssertEqual(maps.map { $0["id"] as? String }, ["livingRoom", "corridors", "warehouse", "courtyard", "basement"])

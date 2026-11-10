@@ -69,7 +69,7 @@ internal data class HouseTanksUiState(
     val houseId: String? = null,
     val userId: String? = null,
     val houseOwnerId: String? = null,
-    /** Server catalog: `false` when FauseTanks is closed for this house; `null` = unknown. */
+    /** Server catalog: `false` when Faus Tanks is closed for this house; `null` = unknown. */
     val catalogAvailable: Boolean? = null,
     /** This build can open rooms (the live dependencies are present). */
     val onlineServiceAvailable: Boolean = false,
@@ -251,7 +251,7 @@ internal class HouseTanksViewModel(
         mutableOnline.value?.intent("setForeground", mapOf("foreground" to active))
     }
 
-    /** Reads the catalog, then opens the room unless the house has FauseTanks closed. */
+    /** Reads the catalog, then opens the room unless the house has Faus Tanks closed. */
     private fun enterOnlineRoom() {
         val deps = online ?: return
         val current = mutableState.value
@@ -281,6 +281,8 @@ internal class HouseTanksViewModel(
             onHaptic = { mutableHaptics.tryEmit(if (it) TanksHaptic.WIN else TanksHaptic.LOSS) },
         )
         mutableOnline.value = session
+        // The pick goes in before the room opens; the engine claims it once seated.
+        current.color?.let(session::selectColor)
         previewJob = viewModelScope.launch {
             session.preview.collect { preview -> mutableState.update { it.copy(onlineMap = preview?.map) } }
         }
@@ -347,7 +349,14 @@ internal class HouseTanksViewModel(
     }
 
     fun selectMap(map: TanksMap) = mutableState.update { it.copy(map = map) }
-    fun selectColor(color: TanksColor) = mutableState.update { it.copy(color = color) }
+    /** The demo tank and the online request (first claim wins). A ready online player's color is locked. */
+    fun selectColor(color: TanksColor) {
+        if (color == state.value.color) return
+        val session = mutableOnline.value
+        if (state.value.selectedMode == TanksMode.ONLINE && session?.colors?.value?.isLocked == true) return
+        mutableState.update { it.copy(color = color) }
+        session?.selectColor(color)
+    }
     fun selectDifficulty(difficulty: TanksDifficulty) = mutableState.update { it.copy(difficulty = difficulty) }
 
     /** Starts a demo match once every pick is made. */

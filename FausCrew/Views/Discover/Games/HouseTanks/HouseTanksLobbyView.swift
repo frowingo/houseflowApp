@@ -12,7 +12,9 @@ struct HouseTanksLobbyView: View {
     let onStart: () -> Void
     /// Briefly marks the step the start button sent the player to.
     @State private var highlightedStep: HouseTanksSetupStep?
-    @State private var showsJokers = false
+    /// The start card (countdown, then the drawn map) is on screen; while it is scrolled away
+    /// the navigation bar carries a small copy of its seconds.
+    @State private var isStartCardVisible = true
 
     var body: some View {
         ScrollViewReader { proxy in
@@ -51,10 +53,41 @@ struct HouseTanksLobbyView: View {
 
             if model.selectedMode == .demo {
                 startButton(proxy: proxy)
-            } else if showsOnlineActionBar {
-                onlineActionBar
             }
         }
+        }
+        .toolbar {
+            // Only while it has seconds to show: an empty item still draws its glass circle.
+            if showsCompactCountdown {
+                ToolbarItem(placement: .topBarTrailing) { compactCountdown }
+            }
+        }
+    }
+
+    /// The start card is scrolled away while the room counts down (ready window or start).
+    private var showsCompactCountdown: Bool {
+        let phase = model.onlineState.session?.state
+        return model.selectedMode == .online && !isStartCardVisible && !model.onlineState.isTerminal
+            && (phase == .readyWindow || phase == .countdown)
+    }
+
+    /// The room's countdown in the navigation bar, only while the start card is off screen.
+    private var compactCountdown: some View {
+        TimelineView(.periodic(from: .now, by: 0.25)) { _ in
+            if let seconds = model.onlineCountdown() {
+                Label {
+                    Text(verbatim: "\(seconds)")
+                        .monospacedDigit()
+                        .contentTransition(.numericText(countsDown: true))
+                } icon: {
+                    Image(systemName: "timer")
+                }
+                .font(.subheadline.weight(.heavy))
+                .foregroundStyle(seconds <= 5 ? HouseTanksFieldTheme.danger : HouseTanksFieldTheme.ink)
+                .animation(.snappy, value: seconds)
+                .accessibilityElement(children: .ignore)
+                .accessibilityLabel(copy("house_tanks_online_seconds", replacements: ["seconds": "\(seconds)"]))
+            }
         }
     }
 
@@ -322,9 +355,44 @@ struct HouseTanksLobbyView: View {
         }
     }
 
-    /// The player's own tank in each color, as it will look on the arena.
-    private func tankSwatch(_ color: HouseTanksColor) -> some View {
-        let selected = model.humanColor == color
+    /// The online room's tank color: colors other players hold are taken, the selection is
+    /// the color the server gives this player, and a ready player's color is locked until
+    /// they take the ready back (Faus Switch's rules, from Core).
+    private var onlineColorPicker: some View {
+        let lobby = model.onlineLobbyColors
+        return VStack(alignment: .leading, spacing: AppDesign.Spacing.md) {
+            sectionHeader(code: "02", key: "house_tanks_online_color_title")
+            VStack(alignment: .leading, spacing: AppDesign.Spacing.sm) {
+                LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: AppDesign.Spacing.sm), count: 4),
+                          spacing: AppDesign.Spacing.sm) {
+                    ForEach(HouseTanksColor.allCases) { color in tankSwatch(color, lobby: lobby) }
+                }
+                if lobby.isLocked {
+                    Label(copy("house_tanks_online_color_locked"), systemImage: "lock.fill")
+                        .font(.caption.weight(.semibold))
+                        .foregroundStyle(HouseTanksFieldTheme.muted)
+                        .fixedSize(horizontal: false, vertical: true)
+                } else if lobby.isPreferredTaken(model.humanColor) {
+                    Label(copy("house_tanks_online_color_taken"), systemImage: "person.2.fill")
+                        .font(.caption.weight(.semibold))
+                        .foregroundStyle(HouseTanksFieldTheme.danger)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+                Text(copy("house_tanks_online_color_note"))
+                    .font(.caption)
+                    .foregroundStyle(HouseTanksFieldTheme.muted)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+            .houseTanksFieldCard()
+        }
+    }
+
+    /// The player's own tank in each color, as it will look on the arena. `lobby` is set in
+    /// the online room (taken colors and the ready lock).
+    private func tankSwatch(_ color: HouseTanksColor, lobby: HouseTanksLobbyColors? = nil) -> some View {
+        let selected = (lobby == nil ? model.humanColor : model.onlineLocalColor) == color
+        let isTaken = lobby?.isTakenByOthers(color) ?? false
+        let isLocked = lobby?.isLocked ?? false
         return Button { model.humanColor = color } label: {
             VStack(spacing: AppDesign.Spacing.xs) {
                 HouseTanksArenaTank(color: color)
@@ -349,13 +417,22 @@ struct HouseTanksLobbyView: View {
                         .font(.caption)
                         .foregroundStyle(swatch(color))
                         .padding(5)
+                } else if isTaken {
+                    Image(systemName: "person.fill")
+                        .font(.caption2.weight(.black))
+                        .foregroundStyle(HouseTanksMapPalette.paper)
+                        .padding(4)
+                        .background(HouseTanksFieldTheme.ink, in: Circle())
+                        .padding(4)
                 }
             }
             .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
+        .disabled(isTaken || isLocked)
+        .opacity(isTaken || (isLocked && !selected) ? 0.5 : 1)
         .accessibilityElement(children: .ignore)
-        .accessibilityLabel(colorName(color))
+        .accessibilityLabel(isTaken ? colorName(color) + ", " + copy("house_tanks_color_taken") : colorName(color))
         .accessibilityAddTraits(selected ? [.isButton, .isSelected] : .isButton)
     }
 
@@ -504,6 +581,9 @@ struct HouseTanksLobbyView: View {
             VStack(alignment: .leading, spacing: 28) {
                 onlineStatus
                 drawnMap
+                    .onScrollVisibilityChange(threshold: 0.3) { isStartCardVisible = $0 }
+                    .onDisappear { isStartCardVisible = true }
+                onlineColorPicker
                 onlineRoster
             }
             .task(id: roomContext) {
@@ -740,7 +820,7 @@ struct HouseTanksLobbyView: View {
         let state = model.onlineState
         return VStack(alignment: .leading, spacing: AppDesign.Spacing.md) {
             HStack(alignment: .firstTextBaseline) {
-                sectionHeader(code: "02", key: "house_tanks_online_roster")
+                sectionHeader(code: "03", key: "house_tanks_online_roster")
                 Spacer(minLength: AppDesign.Spacing.sm)
                 if state.session != nil {
                     Text(copy("house_tanks_online_ready_count",
@@ -758,9 +838,16 @@ struct HouseTanksLobbyView: View {
                 }
                 ForEach(onlineMembers) { member in
                     HStack(spacing: AppDesign.Spacing.sm) {
-                        Circle()
-                            .fill(member.color.map(swatch) ?? HouseTanksMapPalette.slate.opacity(0.5))
-                            .frame(width: 10, height: 10)
+                        // The member's tank in their color, like Faus Switch's robots.
+                        if let color = member.color {
+                            HouseTanksArenaTank(color: color)
+                                .frame(width: 30, height: 30)
+                        } else {
+                            Circle()
+                                .fill(HouseTanksMapPalette.slate.opacity(0.35))
+                                .frame(width: 20, height: 20)
+                                .frame(width: 30, height: 30)
+                        }
                         Text(verbatim: member.name)
                             .font(.subheadline.weight(.semibold))
                             .foregroundStyle(HouseTanksFieldTheme.ink)
@@ -778,13 +865,15 @@ struct HouseTanksLobbyView: View {
                     }
                     .accessibilityElement(children: .combine)
                 }
+                // Ready and the creator's cancel sit right under the players while the room is a lobby.
+                if showsOnlineActions { onlineActions }
             }
             .houseTanksFieldCard()
         }
     }
 
-    /// Ready toggle and the creator's cancel, pinned under the room; the window counts down in the room.
-    private var onlineActionBar: some View {
+    /// Ready toggle and the creator's cancel; the window counts down in the start card.
+    private var onlineActions: some View {
         let state = model.onlineState
         let localID = appViewModel.currentUserId
         let isReady = state.localPlayer(localID)?.state == .ready
@@ -801,24 +890,20 @@ struct HouseTanksLobbyView: View {
                             in: RoundedRectangle(cornerRadius: AppDesign.CornerRadius.md, style: .continuous))
             }
             .buttonStyle(ScaleButtonStyle())
-            .disabled(!state.canChangeReady(playerID: localID))
-            .opacity(state.canChangeReady(playerID: localID) ? 1 : 0.5)
+            .disabled(!model.canChangeOnlineReady(playerID: localID))
+            .opacity(model.canChangeOnlineReady(playerID: localID) ? 1 : 0.5)
 
             if model.onlineState.canCancel(context: roomContext ?? GameLaunchContext(houseID: nil, localPlayerID: nil)) {
                 Button(copy("house_tanks_online_cancel"), role: .destructive, action: model.cancelOnlineMatch)
                     .font(.subheadline.weight(.semibold))
                     .foregroundStyle(HouseTanksFieldTheme.danger)
+                    .frame(minHeight: 44)
             }
         }
-        .padding(.horizontal, AppDesign.Spacing.xl)
-        .padding(.vertical, AppDesign.Spacing.lg)
-        .frame(maxWidth: 620)
-        .frame(maxWidth: .infinity)
-        .background(HouseTanksMapPalette.paper.opacity(0.94))
-        .overlay(alignment: .top) { HouseTanksFieldTheme.hairline.frame(height: 1) }
+        .padding(.top, AppDesign.Spacing.xs)
     }
 
-    private var showsOnlineActionBar: Bool {
+    private var showsOnlineActions: Bool {
         model.selectedMode == .online && onlineBlockerKey == nil && model.onlineCatalog != .unavailable
             && model.onlineState.session != nil && model.onlineState.isLobby && !model.onlineState.isTerminal
     }
@@ -831,8 +916,8 @@ struct HouseTanksLobbyView: View {
         let color: HouseTanksColor?
     }
 
-    /// The session's players, the local one first, named from the house roster and
-    /// colored once the server seats them.
+    /// The session's players, the local one first, named from the house roster and colored
+    /// from the lobby claims (the server's tanks once it seats them).
     private var onlineMembers: [OnlineMember] {
         let localID = appViewModel.currentUserId
         let names = Dictionary((appViewModel.currentHouseDetails?.members ?? []).map { ($0.id, $0.fullName) },
@@ -843,145 +928,36 @@ struct HouseTanksLobbyView: View {
             OnlineMember(id: player.playerId,
                          name: seated[player.playerId]?.displayName ?? names[player.playerId] ?? copy("house_tanks_online_player"),
                          isLocal: player.playerId == localID, state: player.state,
-                         color: seated[player.playerId]?.color)
+                         color: model.onlineColor(of: player.playerId))
         }
         return members.filter(\.isLocal) + members.filter { !$0.isLocal }
     }
 
     // MARK: - Field manual
 
+    /// How to play as tiny looping clips with a few words each (two jokers stand in for all
+    /// of them; the rest is learned in play). The full sentence stays for VoiceOver.
     private var fieldManual: some View {
         VStack(alignment: .leading, spacing: AppDesign.Spacing.lg) {
             sectionHeader(code: fieldManualCode, key: "house_tanks_rules_title")
-            VStack(alignment: .leading, spacing: 0) {
-                guideStep(title: "house_tanks_rule_fire", detail: "house_tanks_rule_fire_detail",
-                          symbol: "scope", tint: HouseTanksMapPalette.steel)
-                guideStep(title: "house_tanks_rule_drive", detail: "house_tanks_rule_drive_detail",
-                          symbol: "arrow.up", tint: HouseTanksMapPalette.deepSteel)
-                guideStep(title: "house_tanks_rule_survive", detail: "house_tanks_rule_survive_detail",
-                          symbol: "shield.lefthalf.filled", tint: HouseTanksMapPalette.rust)
-                guideStep(title: "house_tanks_rule_crates", detail: "house_tanks_rule_crates_detail",
-                          symbol: "shippingbox.fill", tint: HouseTanksMapPalette.khaki)
-                guideStep(title: "house_tanks_rule_jokers", detail: "house_tanks_rule_jokers_detail",
-                          symbol: "bolt.fill", tint: HouseTanksMapPalette.olive, isLast: true) {
-                    jokerAccordion
-                }
-            }
-        }
-    }
-
-    private func guideStep(title: String, detail: String, symbol: String,
-                           tint: Color, isLast: Bool = false) -> some View {
-        guideStep(title: title, detail: detail, symbol: symbol, tint: tint, isLast: isLast) { EmptyView() }
-    }
-
-    /// Every joker with its arena glyph, name and effect, folded under "Collect a joker".
-    private var jokerAccordion: some View {
-        VStack(alignment: .leading, spacing: 0) {
-            Button {
-                withAnimation(.easeInOut(duration: 0.25)) { showsJokers.toggle() }
-            } label: {
-                HStack(spacing: AppDesign.Spacing.sm) {
-                    HStack(spacing: -5) {
-                        ForEach(HouseTanksPowerUp.allCases, id: \.self) { kind in
-                            jokerGlyph(kind, side: 10)
-                                .frame(width: 22, height: 22)
-                                .background(Color(uiColor: kind.tint), in: Circle())
-                                .overlay(Circle().stroke(HouseTanksMapPalette.paper, lineWidth: 1.5))
-                        }
+            LazyVGrid(columns: [GridItem(.flexible(), spacing: AppDesign.Spacing.md, alignment: .top),
+                                GridItem(.flexible(), spacing: AppDesign.Spacing.md, alignment: .top)],
+                      alignment: .leading, spacing: AppDesign.Spacing.lg) {
+                ForEach(HouseTanksRuleClipKind.allCases, id: \.self) { kind in
+                    VStack(alignment: .leading, spacing: 6) {
+                        HouseTanksRuleClip(kind: kind)
+                        Text(copy(kind.titleKey))
+                            .font(.subheadline.weight(.bold))
+                            .foregroundStyle(HouseTanksFieldTheme.ink)
+                            .lineLimit(2)
+                            .fixedSize(horizontal: false, vertical: true)
                     }
-                    Text(copy(showsJokers ? "house_tanks_jokers_hide" : "house_tanks_jokers_show",
-                              replacements: ["count": "\(HouseTanksPowerUp.allCases.count)"]))
-                        .font(.subheadline.weight(.semibold))
-                        .foregroundStyle(HouseTanksFieldTheme.ink)
-                    Spacer(minLength: AppDesign.Spacing.xs)
-                    Image(systemName: "chevron.down")
-                        .font(.subheadline.weight(.bold))
-                        .foregroundStyle(HouseTanksFieldTheme.accent)
-                        .rotationEffect(.degrees(showsJokers ? 180 : 0))
-                }
-                .padding(.horizontal, AppDesign.Spacing.md)
-                .frame(minHeight: 48)
-                .contentShape(Rectangle())
-            }
-            .buttonStyle(.plain)
-            .accessibilityHint(copy("house_tanks_jokers_hint"))
-
-            if showsJokers {
-                HouseTanksFieldTheme.hairline.frame(height: 1)
-                VStack(alignment: .leading, spacing: AppDesign.Spacing.md) {
-                    ForEach(HouseTanksPowerUp.allCases, id: \.self) { kind in
-                        HStack(alignment: .top, spacing: AppDesign.Spacing.md) {
-                            jokerGlyph(kind, side: 17)
-                                .frame(width: 36, height: 36)
-                                .background(Color(uiColor: kind.tint),
-                                            in: RoundedRectangle(cornerRadius: AppDesign.CornerRadius.xs, style: .continuous))
-                            VStack(alignment: .leading, spacing: 2) {
-                                Text(copy(kind.titleKey))
-                                    .font(.subheadline.weight(.bold))
-                                    .foregroundStyle(HouseTanksFieldTheme.ink)
-                                Text(copy("house_tanks_joker_\(kind.rawValue)_detail"))
-                                    .font(.caption)
-                                    .foregroundStyle(HouseTanksFieldTheme.muted)
-                                    .fixedSize(horizontal: false, vertical: true)
-                            }
-                        }
-                        .accessibilityElement(children: .combine)
-                    }
-                }
-                .padding(AppDesign.Spacing.md)
-                .transition(.opacity.combined(with: .move(edge: .top)))
-            }
-        }
-        .background(HouseTanksMapPalette.paper.opacity(0.9),
-                    in: RoundedRectangle(cornerRadius: AppDesign.CornerRadius.sm, style: .continuous))
-        .overlay {
-            RoundedRectangle(cornerRadius: AppDesign.CornerRadius.sm, style: .continuous)
-                .stroke(showsJokers ? HouseTanksFieldTheme.accent.opacity(0.5) : HouseTanksFieldTheme.hairline, lineWidth: 1)
-        }
-        .clipShape(RoundedRectangle(cornerRadius: AppDesign.CornerRadius.sm, style: .continuous))
-        .padding(.top, AppDesign.Spacing.xs)
-    }
-
-    private func jokerGlyph(_ kind: HouseTanksPowerUp, side: CGFloat) -> some View {
-        Image(uiImage: kind.glyph(pointSize: 18) ?? UIImage())
-            .renderingMode(.template)
-            .resizable()
-            .scaledToFit()
-            .frame(width: side, height: side)
-            .foregroundStyle(HouseTanksMapPalette.paper)
-    }
-
-    private func guideStep<Accessory: View>(title: String, detail: String, symbol: String,
-                                            tint: Color, isLast: Bool = false,
-                                            @ViewBuilder accessory: () -> Accessory) -> some View {
-        HStack(alignment: .top, spacing: AppDesign.Spacing.lg) {
-            VStack(spacing: 0) {
-                Image(systemName: symbol)
-                    .font(.body.weight(.semibold))
-                    .foregroundStyle(HouseTanksMapPalette.paper)
-                    .frame(width: 44, height: 44)
-                    .background(tint, in: RoundedRectangle(cornerRadius: AppDesign.CornerRadius.sm, style: .continuous))
-                    .accessibilityHidden(true)
-                if !isLast {
-                    Rectangle()
-                        .fill(HouseTanksFieldTheme.hairline)
-                        .frame(width: 1.5)
-                        .frame(minHeight: 30, maxHeight: .infinity)
+                    .accessibilityElement(children: .ignore)
+                    .accessibilityLabel(copy(kind.titleKey))
+                    .accessibilityHint(copy(kind.detailKey))
                 }
             }
-            VStack(alignment: .leading, spacing: AppDesign.Spacing.xs) {
-                Text(copy(title))
-                    .font(.headline)
-                    .foregroundStyle(HouseTanksFieldTheme.ink)
-                Text(copy(detail))
-                    .font(.subheadline)
-                    .foregroundStyle(HouseTanksFieldTheme.muted)
-                    .fixedSize(horizontal: false, vertical: true)
-                accessory()
-            }
-            .padding(.top, 2)
-            .padding(.bottom, AppDesign.Spacing.lg)
+            .houseTanksFieldCard()
         }
     }
 
@@ -1028,7 +1004,7 @@ struct HouseTanksLobbyView: View {
     private var fieldManualCode: String {
         switch model.selectedMode {
         case .demo: String(format: "%02d", model.setupSteps.count + 1)
-        case .online: "03"
+        case .online: "04"
         case nil: "01"
         }
     }
