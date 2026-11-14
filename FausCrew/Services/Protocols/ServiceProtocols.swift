@@ -105,6 +105,14 @@ protocol HouseServicing: AnyObject {
     ) async throws -> HouseAnnouncementDTO
 }
 
+/// `GET` / `PUT chore/catalog`. Failures are `ChoreCatalogFailure`.
+@MainActor
+protocol ChoreCatalogServicing: AnyObject {
+    func fetchCatalog() async throws -> [ChoreCatalogRecord]
+    /// Sends `records` in one PUT and returns `local` patched with the response.
+    func upsertCatalog(_ records: [ChoreCatalogRecord], local: [ChoreCatalogRecord]) async throws -> [ChoreCatalogRecord]
+}
+
 protocol ChoreServicing: AnyObject {
     func createChore(
         assignedTo: String,
@@ -114,7 +122,8 @@ protocol ChoreServicing: AnyObject {
         isRecurring: Bool,
         level: ChoreLevel,
         recurringInterval: Int,
-        title: String
+        title: String,
+        category: ChoreCategoryKind
     ) async throws -> ChoreResponse
     func updateChoreStatus(
         houseId: String,

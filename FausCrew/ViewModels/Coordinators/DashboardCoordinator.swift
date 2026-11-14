@@ -100,6 +100,7 @@ final class DashboardCoordinator {
         }
     }
 
+    @discardableResult
     func createChore(
         assignedToId: String,
         description: String,
@@ -108,8 +109,9 @@ final class DashboardCoordinator {
         isRecurring: Bool,
         level: ChoreLevel,
         recurringInterval: Int,
-        title: String
-    ) async {
+        title: String,
+        category: ChoreCategoryKind
+    ) async -> Bool {
         do {
             applyHouseDetailsIfNeeded(try await choreStore.createChore(
                 assignedToId: assignedToId,
@@ -120,12 +122,15 @@ final class DashboardCoordinator {
                 level: level,
                 recurringInterval: recurringInterval,
                 title: title,
+                category: category,
                 currentHouseDetails: houseStore.currentHouseDetails,
                 dashboardMembers: members
             ))
             toastStore.show(message: localized("chore_created_toast"), isError: false)
+            return true
         } catch {
             toastStore.show(message: error.localizedDescription, isError: true)
+            return false
         }
     }
 

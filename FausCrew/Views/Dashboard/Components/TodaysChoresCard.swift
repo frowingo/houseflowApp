@@ -8,7 +8,9 @@ struct TodaysChoresCard: View {
 
     let chores: [Chore]
     let onChoreDetailTap: (Chore) -> Void
-    
+    /// Opens the chore catalog from the empty state; `nil` hides the button.
+    var onAddChore: (() -> Void)? = nil
+
     @State private var pulseAnimation = false
     @State private var iconPressed = false
     
@@ -150,12 +152,16 @@ struct TodaysChoresCard: View {
                     }
                 }
                 
-                Spacer()
-                
+                Spacer(minLength: AppDesign.Spacing.sm)
+
                 // Circular Progress Ring
                 if totalCount > 0 {
                     CircularProgressView(progress: progressPercentage)
-                        .frame(width: 50, height: 50)
+                        .frame(width: 46, height: 46)
+                }
+
+                if let onAddChore {
+                    ChoreCatalogMosaicButton(action: onAddChore)
                 }
             }
             
@@ -268,6 +274,24 @@ struct TodaysChoresCard: View {
                     .foregroundColor(AppDesign.Colors.textSecondary)
                     .multilineTextAlignment(.center)
             }
+
+            if let onAddChore {
+                Button {
+                    UIImpactFeedbackGenerator(style: .light).impactOccurred()
+                    onAddChore()
+                } label: {
+                    Label(
+                        appViewModel.catalogText("todays_tasks_empty_add", tr: "Katalogdan iş ekle", en: "Add from the catalog"),
+                        systemImage: "square.grid.2x2.fill"
+                    )
+                    .font(.system(size: 14, weight: .semibold))
+                    .foregroundStyle(HouseJourneyTheme.accentOrangeInk)
+                    .padding(.horizontal, AppDesign.Spacing.lg)
+                    .frame(height: 38)
+                    .background(HouseJourneyTheme.accentOrange.opacity(0.12), in: Capsule())
+                }
+                .buttonStyle(CatalogPressStyle(scale: 0.96))
+            }
         }
         .frame(maxWidth: .infinity)
         .padding(.vertical, AppDesign.Spacing.huge)
@@ -359,6 +383,8 @@ struct ModernChoreRow: View {
 
                 // Task details
                 VStack(alignment: .leading, spacing: 4) {
+                    ChoreCategoryTag(kind: chore.categoryKind)
+
                     Text(chore.title)
                         .font(AppDesign.Typography.bodyBold)
                         .foregroundColor(isClosed ? AppDesign.Colors.textSecondary : AppDesign.Colors.textPrimary)

@@ -329,7 +329,11 @@ struct ChoreDetailPopup: View {
         VStack(spacing: AppDesign.Spacing.md) {
             // Title + description
             VStack(alignment: .leading, spacing: AppDesign.Spacing.sm) {
-                sectionLabel(icon: "text.badge.checkmark", text: appViewModel.localized("chore_detail_task_label"))
+                HStack(alignment: .center, spacing: AppDesign.Spacing.sm) {
+                    sectionLabel(icon: "text.badge.checkmark", text: appViewModel.localized("chore_detail_task_label"))
+                    Spacer(minLength: AppDesign.Spacing.sm)
+                    ChoreCategoryTag(kind: displayedChore.categoryKind, style: .pill)
+                }
                 Text(displayedChore.title)
                     .font(AppDesign.Typography.title3)
                     .foregroundColor(AppDesign.Colors.textPrimary)

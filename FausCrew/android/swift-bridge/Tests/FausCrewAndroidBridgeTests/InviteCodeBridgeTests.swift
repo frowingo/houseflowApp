@@ -3,7 +3,7 @@ import XCTest
 
 final class InviteCodeBridgeTests: XCTestCase {
     func testVersionAndCoreRule() {
-        XCTAssertEqual(bridgeVersion(), 16)
+        XCTAssertEqual(bridgeVersion(), 18)
         XCTAssertEqual(normalizeInviteCode("ab-12 cd34xyz"), "AB12CD34")
         XCTAssertEqual(normalizeInviteCode(""), "")
         XCTAssertEqual(normalizeInviteCode("１２３４５６７８ 12345678"), "12345678")
@@ -56,10 +56,16 @@ final class InviteCodeBridgeTests: XCTestCase {
     func testDashboardFacadeUsesCoreRequestAndRejectsMalformedResult() throws {
         let body = try XCTUnwrap(JSONSerialization.jsonObject(with: Data(dashboardRequestBody(
             "create", "h", "", "u", "Kitchen", "Dishes", "2026-10-12T00:00:00Z",
-            true, 20, 7, 0, false
+            true, 20, 7, 0, false, 2
         ).utf8)) as? [String: Any])
         XCTAssertEqual(body["houseId"] as? String, "h")
         XCTAssertEqual(body["recurringInterval"] as? Int, 7)
+        XCTAssertEqual(body["category"] as? Int, 2)
+        let update = try XCTUnwrap(JSONSerialization.jsonObject(with: Data(dashboardRequestBody(
+            "update", "h", "c", "u", "Kitchen", "Dishes", "2026-10-12T00:00:00Z",
+            true, 20, 7, 0, false, 0
+        ).utf8)) as? [String: Any])
+        XCTAssertNil(update["category"], "0 leaves category out, so the chore keeps its category")
         let denied = try XCTUnwrap(JSONSerialization.jsonObject(with: Data(dashboardResponse(
             "announcement", 200, #"{"success":false,"error":"Denied"}"#
         ).utf8)) as? [String: Any])
@@ -73,7 +79,7 @@ final class InviteCodeBridgeTests: XCTestCase {
         )) as? [String: Any])
         XCTAssertEqual(profile["isChoreReviewPhotoRequired"] as? Bool, true)
         XCTAssertEqual(
-            dashboardRequestBody("statusPhoto", "h", "c", "", "", "", "", false, 0, 0, 2, false),
+            dashboardRequestBody("statusPhoto", "h", "c", "", "", "", "", false, 0, 0, 2, false, 0),
             #"[{"choreId":"c","status":2}]"#
         )
         let signed = #"{"url":"https://signed.example/p","expiresAt":"2026-10-29T10:20:00Z"}"#

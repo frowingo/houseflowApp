@@ -1,0 +1,142 @@
+{
+  "_source": "Catalog shelves shared by iOS (ChoreCatalog.swift) and Android (ChoreCatalog.kt). The chores on the shelves come from GET chore/catalog; the former built-in templates are in Documents/choreCatalogSeed.json.",
+  "repeatPresets": [
+    0,
+    1,
+    2,
+    3,
+    7,
+    14,
+    30
+  ],
+  "endOfDay": "23:59:59",
+  "defaultCustomCategory": "kitchen",
+  "categories": [
+    {
+      "id": "kitchen",
+      "icon": "fork.knife",
+      "tint": "#F07A3A",
+      "deep": "#B8461A",
+      "name": {
+        "tr": "Mutfak",
+        "en": "Kitchen"
+      },
+      "tagline": {
+        "tr": "Ortak sofranın, temiz tezgahın işleri.",
+        "en": "Shared meals and clean counters."
+      }
+    },
+    {
+      "id": "bath_laundry",
+      "icon": "shower.fill",
+      "tint": "#3A8FD6",
+      "deep": "#1D5A99",
+      "name": {
+        "tr": "Banyo & Çamaşır",
+        "en": "Bath & Laundry"
+      },
+      "tagline": {
+        "tr": "Parlayan fayanslar, mis kokulu çamaşırlar.",
+        "en": "Shiny tiles and fresh laundry."
+      }
+    },
+    {
+      "id": "toilet",
+      "icon": "toilet.fill",
+      "tint": "#21A79B",
+      "deep": "#11695F",
+      "name": {
+        "tr": "Tuvalet",
+        "en": "Toilet"
+      },
+      "tagline": {
+        "tr": "Kimsenin sevmediği ama herkesin istediği temizlik.",
+        "en": "Nobody's favourite, everybody's wish."
+      }
+    },
+    {
+      "id": "rooms",
+      "icon": "bed.double.fill",
+      "tint": "#6C63D9",
+      "deep": "#3F379A",
+      "name": {
+        "tr": "Odalar",
+        "en": "Rooms"
+      },
+      "tagline": {
+        "tr": "Yatak odası, salon ve ortak alanlar.",
+        "en": "Bedrooms, living room and shared spaces."
+      }
+    },
+    {
+      "id": "floors",
+      "icon": "bubbles.and.sparkles.fill",
+      "tint": "#2F9E5B",
+      "deep": "#1B6539",
+      "name": {
+        "tr": "Zemin & Genel",
+        "en": "Floors & General"
+      },
+      "tagline": {
+        "tr": "Süpürge, paspas ve evin genel düzeni.",
+        "en": "Vacuuming, mopping and keeping things in order."
+      }
+    },
+    {
+      "id": "pets",
+      "icon": "pawprint.fill",
+      "tint": "#D99A2B",
+      "deep": "#9A6410",
+      "name": {
+        "tr": "Evcil hayvan",
+        "en": "Pets"
+      },
+      "tagline": {
+        "tr": "Evin tüylü üyeleri de bakım bekliyor.",
+        "en": "The furry housemates need care too."
+      }
+    },
+    {
+      "id": "trash",
+      "icon": "trash.fill",
+      "tint": "#6E8A73",
+      "deep": "#3F5944",
+      "name": {
+        "tr": "Çöp & Geri dönüşüm",
+        "en": "Trash & Recycling"
+      },
+      "tagline": {
+        "tr": "Çöp kapıda beklemesin.",
+        "en": "Don't let the bags pile up."
+      }
+    },
+    {
+      "id": "plants",
+      "icon": "leaf.fill",
+      "tint": "#5FA83A",
+      "deep": "#386E1C",
+      "name": {
+        "tr": "Bitki & Balkon",
+        "en": "Plants & Balcony"
+      },
+      "tagline": {
+        "tr": "Yeşil köşeler ve açık alanlar.",
+        "en": "Green corners and outdoor space."
+      }
+    },
+    {
+      "id": "shopping",
+      "icon": "cart.fill",
+      "tint": "#E0517A",
+      "deep": "#A02A4E",
+      "name": {
+        "tr": "Alışveriş & Ev",
+        "en": "Shopping & Home"
+      },
+      "tagline": {
+        "tr": "Dolap boşalmadan, fatura gecikmeden.",
+        "en": "Before the cupboards empty and bills go late."
+      }
+    }
+  ]
+}

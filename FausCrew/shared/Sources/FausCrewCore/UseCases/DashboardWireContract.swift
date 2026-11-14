@@ -3,26 +3,33 @@ import Foundation
 /// Chore and announcement wire rules shared by the two clients. The Android
 /// bridge crosses once per request/response, never once per rendered row.
 public enum DashboardWireContract {
+    /// `category` is a `ChoreCategoryKind` raw value; anything outside 1–9 is left out of the
+    /// body, since the backend answers `0` and unknown values with 400.
     public static func choreBody(
         assignedTo: String, description: String, dueDate: String, houseId: String,
-        isRecurring: Bool, level: Int, recurringInterval: Int, title: String
+        isRecurring: Bool, level: Int, recurringInterval: Int, title: String, category: Int? = nil
     ) throws -> Data {
         try JSONEncoder().encode(CreateChoreRequest(
             assignedTo: assignedTo, description: description, dueDate: dueDate,
             houseId: houseId, isRecurring: isRecurring, level: level,
-            recurringInterval: recurringInterval, title: title
+            recurringInterval: recurringInterval, title: title, category: assignable(category)
         ))
     }
 
+    /// A `nil` (or unassignable) `category` is left out, so the chore keeps its category.
     public static func updateChoreBody(
         assignedTo: String, description: String, dueDate: String, houseId: String,
-        isRecurring: Bool, level: Int, recurringInterval: Int, title: String
+        isRecurring: Bool, level: Int, recurringInterval: Int, title: String, category: Int? = nil
     ) throws -> Data {
         try JSONEncoder().encode(UpdateChoreRequest(
             assignedTo: assignedTo, description: description, dueDate: dueDate,
             houseId: houseId, isRecurring: isRecurring, level: level,
-            recurringInterval: recurringInterval, title: title
+            recurringInterval: recurringInterval, title: title, category: assignable(category)
         ))
+    }
+
+    private static func assignable(_ category: Int?) -> Int? {
+        category.flatMap { ChoreCategoryKind(rawValue: $0) }.flatMap { $0.isAssignable ? $0.rawValue : nil }
     }
 
     public static func statusBody(choreId: String, houseId: String, status: Int) throws -> Data {

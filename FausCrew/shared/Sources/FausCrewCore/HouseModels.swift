@@ -531,6 +531,10 @@ public struct HouseChoreDTO: Decodable, Identifiable, Equatable, Sendable {
     public let reviewRound: Int
     public let reviewVotes: [ChoreReviewVote]
     public let reviewPhotoRounds: [Int]
+    /// Raw `ChoreCategoryKind`; `0` when absent (backends before categories) or uncategorized.
+    public let category: Int
+
+    public var categoryKind: ChoreCategoryKind { ChoreCategoryKind(apiValue: category) }
 
     public init(
         id: String,
@@ -551,7 +555,8 @@ public struct HouseChoreDTO: Decodable, Identifiable, Equatable, Sendable {
         statusHistories: [ChoreStatusHistory],
         reviewRound: Int,
         reviewVotes: [ChoreReviewVote],
-        reviewPhotoRounds: [Int] = []
+        reviewPhotoRounds: [Int] = [],
+        category: Int = 0
     ) {
         self.id = id
         self.title = title
@@ -572,13 +577,14 @@ public struct HouseChoreDTO: Decodable, Identifiable, Equatable, Sendable {
         self.reviewRound = reviewRound
         self.reviewVotes = reviewVotes
         self.reviewPhotoRounds = reviewPhotoRounds
+        self.category = category
     }
 
     private enum CodingKeys: String, CodingKey {
         case id, title, description, houseId, houseOwnerId, assignedTo
         case dueDate, isCompleted, isRecurring, level, recurringInterval
         case status, createdOn, completedAt, completedBy, statusHistories
-        case reviewRound, reviewVotes, reviewPhotoRounds
+        case reviewRound, reviewVotes, reviewPhotoRounds, category
     }
 
     public init(from decoder: Decoder) throws {
@@ -602,6 +608,7 @@ public struct HouseChoreDTO: Decodable, Identifiable, Equatable, Sendable {
         reviewRound = try container.decode(Int.self, forKey: .reviewRound)
         reviewVotes = try container.decode([ChoreReviewVote].self, forKey: .reviewVotes)
         reviewPhotoRounds = try container.decodeIfPresent([Int].self, forKey: .reviewPhotoRounds) ?? []
+        category = try container.decodeIfPresent(Int.self, forKey: .category) ?? 0
     }
 }
 

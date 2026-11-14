@@ -10,12 +10,15 @@ import org.json.JSONObject
 internal data class ChoreInput(
     val houseId: String, val assignedTo: String, val title: String, val description: String,
     val dueDate: String, val isRecurring: Boolean, val level: Int, val recurringInterval: Int,
+    /** `ChoreCategoryKind` raw value; `null` leaves it out (an update keeps the chore's category). */
+    val category: Int? = null,
 )
 
 internal interface DashboardWire {
     fun body(action: String, houseId: String = "", choreId: String = "", assignedTo: String = "",
         title: String = "", description: String = "", dueDate: String = "", isRecurring: Boolean = false,
-        level: Int = 10, recurringInterval: Int = 0, status: Int = 0, isApproved: Boolean = false): String
+        level: Int = 10, recurringInterval: Int = 0, status: Int = 0, isApproved: Boolean = false,
+        category: Int = 0): String
     fun response(action: String, status: Int, body: String): String
 }
 
@@ -24,10 +27,10 @@ private object NativeDashboardWire : DashboardWire {
 
     override fun body(action: String, houseId: String, choreId: String, assignedTo: String, title: String,
         description: String, dueDate: String, isRecurring: Boolean, level: Int, recurringInterval: Int,
-        status: Int, isApproved: Boolean): String {
+        status: Int, isApproved: Boolean, category: Int): String {
         checked
         return FausCrewAndroidBridge.dashboardRequestBody(action, houseId, choreId, assignedTo, title,
-            description, dueDate, isRecurring, level, recurringInterval, status, isApproved)
+            description, dueDate, isRecurring, level, recurringInterval, status, isApproved, category)
     }
 
     override fun response(action: String, status: Int, body: String): String {
@@ -57,7 +60,7 @@ internal class DashboardRepository(
             choreId = if (action == "update") path.substringAfterLast('/') else "",
             assignedTo = input.assignedTo, title = input.title, description = input.description,
             dueDate = input.dueDate, isRecurring = input.isRecurring, level = input.level,
-            recurringInterval = input.recurringInterval))
+            recurringInterval = input.recurringInterval, category = input.category ?: 0))
         return JSONObject(data).toHouseChore()
     }
 

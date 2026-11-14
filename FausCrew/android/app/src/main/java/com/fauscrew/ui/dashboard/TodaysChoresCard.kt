@@ -1,5 +1,10 @@
 package com.fauscrew.ui.dashboard
 
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.rounded.GridView
+import com.fauscrew.ui.dashboard.catalog.ChoreCatalogMosaicButton
+import com.fauscrew.ui.dashboard.catalog.catalog
+import com.fauscrew.ui.dashboard.catalog.catalogPress
 import com.fauscrew.ui.components.fausCardSheen
 import androidx.compose.animation.core.RepeatMode
 import androidx.compose.animation.core.animateFloat
@@ -19,6 +24,7 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
@@ -83,6 +89,8 @@ internal fun TodaysChoresCard(
     strings: LocalizedText,
     onChoreTap: (HouseChore) -> Unit,
     modifier: Modifier = Modifier,
+    /** Opens the chore catalog (header tile and empty state); `null` hides both entries. */
+    onAddChore: (() -> Unit)? = null,
 ) {
     val completed = chores.count { ChoreStatusUi.of(it.status) == ChoreStatusUi.COMPLETED }
     val progress = if (chores.isEmpty()) 0f else completed.toFloat() / chores.size
@@ -100,10 +108,10 @@ internal fun TodaysChoresCard(
                 FausCrewColors.primary.copy(alpha = .3f), FausCrewColors.secondary.copy(alpha = .3f),
             )), shape),
     ) {
-        ChoresHeader(strings, completed, chores.size, progress)
+        ChoresHeader(strings, completed, chores.size, progress, onAddChore)
         HorizontalDivider(Modifier.padding(horizontal = Spacing.xl), thickness = .5.dp, color = FausCrewColors.separator)
         if (chores.isEmpty()) {
-            ChoresEmptyState(strings)
+            ChoresEmptyState(strings, onAddChore)
         } else {
             // Active chores first; Completed and Failed (and unknown) follow as the history.
             val (active, history) = chores.splitByHistory()
@@ -126,7 +134,7 @@ internal fun TodaysChoresCard(
 }
 
 @Composable
-private fun ChoresHeader(strings: LocalizedText, completed: Int, total: Int, progress: Float) {
+private fun ChoresHeader(strings: LocalizedText, completed: Int, total: Int, progress: Float, onAddChore: (() -> Unit)?) {
     val haptics = LocalHapticFeedback.current
     var iconPressed by remember { mutableStateOf(false) }
     LaunchedEffect(iconPressed) { if (iconPressed) { delay(1_000); iconPressed = false } }
@@ -154,7 +162,8 @@ private fun ChoresHeader(strings: LocalizedText, completed: Int, total: Int, pro
                         style = FausCrewType.caption, color = FausCrewColors.textSecondary)
                 }
             }
-            if (total > 0) CircularProgress(progress, strings, Modifier.size(50.dp))
+            if (total > 0) CircularProgress(progress, strings, Modifier.padding(start = Spacing.sm).size(46.dp))
+            onAddChore?.let { ChoreCatalogMosaicButton(strings, it, Modifier.padding(start = Spacing.sm)) }
         }
         if (total > 0) {
             val animated by animateFloatAsState(progress, Motion.spring(), label = "choreProgress")
@@ -182,7 +191,7 @@ private fun CircularProgress(progress: Float, strings: LocalizedText, modifier: 
     Box(modifier, contentAlignment = Alignment.Center) {
         val track = FausCrewColors.textSecondary.copy(alpha = .2f)
         val ring = listOf(FausCrewColors.indigo, FausCrewColors.teal)
-        Canvas(Modifier.size(50.dp)) {
+        Canvas(Modifier.fillMaxSize()) {
             val stroke = 4.dp.toPx()
             val inset = stroke / 2
             val arcSize = Size(size.width - stroke, size.height - stroke)
@@ -198,7 +207,7 @@ private fun CircularProgress(progress: Float, strings: LocalizedText, modifier: 
 }
 
 @Composable
-private fun ChoresEmptyState(strings: LocalizedText) {
+private fun ChoresEmptyState(strings: LocalizedText, onAddChore: (() -> Unit)?) {
     val pulse = rememberInfiniteTransition(label = "emptyPulse")
     val phase by pulse.animateFloat(0f, 1f, infiniteRepeatable(tween(700), RepeatMode.Reverse), label = "phase")
     Column(Modifier.fillMaxWidth().padding(vertical = 40.dp), horizontalAlignment = Alignment.CenterHorizontally,
@@ -217,6 +226,20 @@ private fun ChoresEmptyState(strings: LocalizedText) {
             Text(strings.get("todays_tasks_empty_title"), style = FausCrewType.title3, color = FausCrewColors.textPrimary)
             Text(strings.get("todays_tasks_empty_subtitle"), style = FausCrewType.subheadline,
                 color = FausCrewColors.textSecondary, textAlign = TextAlign.Center)
+        }
+        onAddChore?.let { open ->
+            val haptics = LocalHapticFeedback.current
+            Row(
+                Modifier.height(38.dp).clip(CircleShape).background(FausCrewColors.accentOrange.copy(alpha = .12f))
+                    .catalogPress(.96f) { haptics.performHapticFeedback(HapticFeedbackType.TextHandleMove); open() }
+                    .padding(horizontal = Spacing.lg),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(6.dp),
+            ) {
+                Icon(Icons.Rounded.GridView, null, Modifier.size(16.dp), tint = FausCrewColors.accentOrangeInk)
+                Text(strings.catalog("todays_tasks_empty_add", "Katalogdan iş ekle", "Add from the catalog"),
+                    fontSize = 14.sp, fontWeight = FontWeight.SemiBold, color = FausCrewColors.accentOrangeInk)
+            }
         }
     }
 }
@@ -264,6 +287,7 @@ private fun ModernChoreRow(chore: HouseChore, assignee: HouseMember?, strings: L
             }
         }
         Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(Spacing.xs)) {
+            ChoreCategoryTag(chore.categoryKind, strings)
             Text(chore.title, style = FausCrewType.bodyBold,
                 color = if (closed) FausCrewColors.textSecondary else FausCrewColors.textPrimary,
                 textDecoration = if (completed) TextDecoration.LineThrough else null,

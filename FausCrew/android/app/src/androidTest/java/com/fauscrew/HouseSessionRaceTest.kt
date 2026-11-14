@@ -54,7 +54,7 @@ class HouseSessionRaceTest {
             wire = object : DashboardWire {
                 override fun body(action: String, houseId: String, choreId: String, assignedTo: String,
                     title: String, description: String, dueDate: String, isRecurring: Boolean, level: Int,
-                    recurringInterval: Int, status: Int, isApproved: Boolean) = "{}"
+                    recurringInterval: Int, status: Int, isApproved: Boolean, category: Int) = "{}"
                 override fun response(action: String, status: Int, body: String) =
                     """{"ok":true,"data":${org.json.JSONObject.quote(body)}}"""
             },

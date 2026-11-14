@@ -13,6 +13,8 @@ struct AppDependencies {
     let userService: any UserServicing
     let houseService: any HouseServicing
     let choreService: any ChoreServicing
+    /// `chore/catalog`; nil in tests that do not need it (the catalog then shows its error state).
+    var choreCatalogService: (any ChoreCatalogServicing)? = nil
     let localizationService: any LocalizationServicing
     let userDefaults: any PreferencesStore
     let localizationCache: any LocalizationCacheStore
@@ -47,6 +49,7 @@ struct AppDependencies {
             userService: UserService(network: network, keychain: keychain),
             houseService: HouseService(network: network, keychain: keychain),
             choreService: ChoreService(network: network, keychain: keychain),
+            choreCatalogService: ChoreCatalogService(http: network, keychain: keychain),
             localizationService: LocalizationService(network: network),
             userDefaults: UserDefaults.standard,
             localizationCache: LocalizationDiskCache(),

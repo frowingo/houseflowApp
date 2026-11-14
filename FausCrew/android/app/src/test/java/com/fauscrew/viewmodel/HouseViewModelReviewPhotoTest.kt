@@ -107,7 +107,7 @@ class HouseViewModelReviewPhotoTest {
     private val passthroughDashboardWire = object : DashboardWire {
         override fun body(action: String, houseId: String, choreId: String, assignedTo: String, title: String,
             description: String, dueDate: String, isRecurring: Boolean, level: Int, recurringInterval: Int,
-            status: Int, isApproved: Boolean): String = JSONObject().put("action", action).toString()
+            status: Int, isApproved: Boolean, category: Int): String = JSONObject().put("action", action).toString()
         override fun response(action: String, status: Int, body: String): String =
             JSONObject().put("ok", true).put("data", body).toString()
     }

@@ -35,6 +35,7 @@ import com.fauscrew.platform.SocialActivityHolder
 import com.fauscrew.platform.AppVisibility
 import com.fauscrew.viewmodel.AppEventsRequest
 import com.fauscrew.viewmodel.AppEventsViewModel
+import com.fauscrew.viewmodel.ChoreCatalogViewModel
 import com.fauscrew.platform.AuthDestination
 import com.fauscrew.ui.auth.AuthScreen
 import com.fauscrew.ui.auth.BirthdaySetupScreen
@@ -99,6 +100,7 @@ class MainActivity : ComponentActivity() {
             CompositionLocalProvider(LocalFausThemeController provides themeController) {
             val model: AuthViewModel = viewModel(factory = AuthViewModel.Factory(applicationContext))
             val houseModel: HouseViewModel = viewModel(factory = HouseViewModel.Factory(applicationContext))
+            val catalogModel: ChoreCatalogViewModel = viewModel(factory = ChoreCatalogViewModel.Factory(applicationContext))
             authViewModel = model
             val state by model.state.collectAsStateWithLifecycle()
             val houseState by houseModel.state.collectAsStateWithLifecycle()
@@ -278,7 +280,7 @@ class MainActivity : ComponentActivity() {
                             DashboardScreen(houseState, text, houseModel::createAnnouncement, houseModel::createChore,
                                 houseModel::updateChoreStatus, houseModel::reviewChore,
                                 houseModel::clearMutationMessage, onOverlayChange,
-                                onLoadReviewPhoto = houseModel::reviewPhoto)
+                                onLoadReviewPhoto = houseModel::reviewPhoto, catalog = catalogModel)
                         },
                         games = { onOverlayChange ->
                             // The game is a full-screen destination of the Games tab, so the

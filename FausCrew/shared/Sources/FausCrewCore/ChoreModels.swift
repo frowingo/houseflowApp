@@ -8,6 +8,32 @@ public enum ChoreLevel: Int, Codable, Sendable {
     case hard = 30
 }
 
+/// Wire `ChoreCategory`. `0` means no category: chores created before categories existed
+/// come back with it, and any value this build does not know is read as uncategorized too.
+/// Names are localized by the platforms, never by Core.
+public enum ChoreCategoryKind: Int, CaseIterable, Sendable {
+    case uncategorized = 0
+    case kitchen = 1
+    case bathLaundry = 2
+    case toilet = 3
+    case rooms = 4
+    case floorsGeneral = 5
+    case pets = 6
+    case trashRecycling = 7
+    case plantsBalcony = 8
+    case shoppingHome = 9
+
+    /// Maps the API's raw `category` without failing.
+    public init(apiValue: Int?) {
+        self = apiValue.flatMap(ChoreCategoryKind.init(rawValue:)) ?? .uncategorized
+    }
+
+    /// The values a request may carry (1–9); `0` is rejected by the backend.
+    public var isAssignable: Bool { self != .uncategorized }
+
+    public static let assignable: [ChoreCategoryKind] = allCases.filter(\.isAssignable)
+}
+
 public enum ChoreStatus: Int, Codable, Sendable {
     case draft = 0
     case progress = 1
@@ -116,6 +142,9 @@ public struct CreateChoreRequest: Encodable, Equatable, Sendable {
     public let level: Int
     public let recurringInterval: Int
     public let title: String
+    /// `ChoreCategoryKind` raw value (1–9). `nil` leaves the key out of the body: a new chore
+    /// stays uncategorized and an update keeps the chore's current category.
+    public let category: Int?
 
     public init(
         assignedTo: String,
@@ -125,7 +154,8 @@ public struct CreateChoreRequest: Encodable, Equatable, Sendable {
         isRecurring: Bool,
         level: Int,
         recurringInterval: Int,
-        title: String
+        title: String,
+        category: Int? = nil
     ) {
         self.assignedTo = assignedTo
         self.description = description
@@ -135,6 +165,7 @@ public struct CreateChoreRequest: Encodable, Equatable, Sendable {
         self.level = level
         self.recurringInterval = recurringInterval
         self.title = title
+        self.category = category
     }
 }
 
@@ -147,6 +178,9 @@ public struct UpdateChoreRequest: Encodable, Equatable, Sendable {
     public let level: Int
     public let recurringInterval: Int
     public let title: String
+    /// `ChoreCategoryKind` raw value (1–9). `nil` leaves the key out of the body: a new chore
+    /// stays uncategorized and an update keeps the chore's current category.
+    public let category: Int?
 
     public init(
         assignedTo: String,
@@ -156,7 +190,8 @@ public struct UpdateChoreRequest: Encodable, Equatable, Sendable {
         isRecurring: Bool,
         level: Int,
         recurringInterval: Int,
-        title: String
+        title: String,
+        category: Int? = nil
     ) {
         self.assignedTo = assignedTo
         self.description = description
@@ -166,6 +201,7 @@ public struct UpdateChoreRequest: Encodable, Equatable, Sendable {
         self.level = level
         self.recurringInterval = recurringInterval
         self.title = title
+        self.category = category
     }
 }
 
@@ -230,11 +266,16 @@ public struct ChoreResponse: Decodable, Identifiable, Equatable, Sendable {
     public let reviewVotes: [ChoreReviewVote]
     /// Review rounds that carry a photo. Object keys are never sent to clients.
     public let reviewPhotoRounds: [Int]
+    /// Raw `ChoreCategoryKind`; `0` when absent (backends before categories) or uncategorized.
+    public let category: Int
+
+    public var categoryKind: ChoreCategoryKind { ChoreCategoryKind(apiValue: category) }
 
     private enum CodingKeys: String, CodingKey {
         case id, title, description, houseId, houseOwnerId, assignedTo, dueDate
         case isCompleted, isRecurring, level, recurringInterval, status, createdOn
         case completedAt, completedBy, statusHistories, reviewRound, reviewVotes, reviewPhotoRounds
+        case category
     }
 
     public init(from decoder: Decoder) throws {
@@ -258,6 +299,7 @@ public struct ChoreResponse: Decodable, Identifiable, Equatable, Sendable {
         reviewRound = try container.decode(Int.self, forKey: .reviewRound)
         reviewVotes = try container.decode([ChoreReviewVote].self, forKey: .reviewVotes)
         reviewPhotoRounds = try container.decodeIfPresent([Int].self, forKey: .reviewPhotoRounds) ?? []
+        category = try container.decodeIfPresent(Int.self, forKey: .category) ?? 0
     }
 }
 
@@ -295,8 +337,11 @@ public struct Chore: Identifiable, Codable, Equatable, Sendable {
     public let reviewPhotoRounds: [Int]
     /// Set for Failed chores only.
     public let failureReason: ChoreFailureReason?
+    /// Raw value of `ChoreCategoryKind`; `0` is uncategorized.
+    public let category: Int
 
     public var choreStatus: ChoreStatus { ChoreStatus(apiValue: status) }
+    public var categoryKind: ChoreCategoryKind { ChoreCategoryKind(apiValue: category) }
 
     public init(
         id: String? = nil,
@@ -314,7 +359,8 @@ public struct Chore: Identifiable, Codable, Equatable, Sendable {
         reviewRound: Int = 0,
         reviewVotes: [ChoreReviewVote] = [],
         reviewPhotoRounds: [Int] = [],
-        failureReason: ChoreFailureReason? = nil
+        failureReason: ChoreFailureReason? = nil,
+        category: Int = 0
     ) {
         self.id = choreApiId ?? id ?? UUID().uuidString
         self.choreApiId = choreApiId
@@ -332,6 +378,7 @@ public struct Chore: Identifiable, Codable, Equatable, Sendable {
         self.reviewVotes = reviewVotes
         self.reviewPhotoRounds = reviewPhotoRounds
         self.failureReason = failureReason
+        self.category = category
     }
 }
 
