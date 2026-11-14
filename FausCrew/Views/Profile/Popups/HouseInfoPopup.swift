@@ -28,7 +28,7 @@ struct HouseInfoPopup: View {
     @AccessibilityFocusState private var headerAccessibilityFocused: Bool
 
     private let houseTint = Color(red: 0.42, green: 0.27, blue: 0.67)
-    private let ownerTint = Color(red: 0.92, green: 0.47, blue: 0.18)
+    private let ownerTint = HouseJourneyTheme.tintOwner
 
     var body: some View {
         GeometryReader { proxy in

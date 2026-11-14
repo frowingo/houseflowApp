@@ -16,6 +16,7 @@
 - House wire tarihleri API'nin kullandığı ISO-8601 string ve `{ "time.Time": "..." }` biçimlerini kabul eder; Core bu değerleri string olarak normalize eder.
 - House details payload'ının nested member, announcement ve chore kayıtları Core wire DTO'larıdır.
 - Chore request-response DTO'ları, `ChoreLevel`/`ChoreStatus` raw enum'ları ve saf `Chore` domain modeli Core'dadır.
+- Görev kategorisi (`ChoreCategoryKind`, 0 = kategorisiz) ve görev kataloğu (`ChoreCatalogRecord`, sunucu doğrulama kuralları, PUT yanıtıyla yerel listenin patch'lenmesi, `ChoreCatalogWireContract`) Core'dadır. Sözleşme: `Documents/choreCatalogBackendContract.md`; fixture: `shared/Fixtures/choreCatalogApi.json`. Kategori adları ve raf görünümü platformlardadır (`shared/Fixtures/choreCatalog.json`); sistem şablonları sunucudan gelir, backend'e verilen seed `Documents/choreCatalogSeed.json`'dadır.
 - Chore localization anahtarları, response-to-house adapter'ı ve `FausCrewDateFormatter` içindeki parse/encode/display/due-label davranışı iOS uygulamasındadır. Core tarihleri wire `String` değeri olarak taşır ve kullanıcıya gösterilecek metin üretmez.
 - HTTP request/response ve hata zarfı sözleşmeleri ile secure session, preferences ve localization cache portları Core'dadır.
 - Açılışta token ile `auth/isAuth` profil doğrulaması `RestoreSessionUseCase` ile Core'dadır; rota ve görünür hata eşlemesi iOS'tadır.

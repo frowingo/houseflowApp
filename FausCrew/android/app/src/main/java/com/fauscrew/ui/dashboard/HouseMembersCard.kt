@@ -1,5 +1,6 @@
 package com.fauscrew.ui.dashboard
 
+import com.fauscrew.ui.components.fausCardSheen
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
@@ -56,6 +57,7 @@ internal fun HouseMembersCard(members: List<HouseMember>, strings: LocalizedText
             .softShadow(FausCrewColors.deepIndigo.copy(alpha = .09f), 14.dp, y = 6.dp, shape = shape)
             .clip(shape)
             .background(FausCrewColors.surface)
+            .fausCardSheen()
             .background(Brush.linearGradient(listOf(
                 FausCrewColors.indigo.copy(alpha = .075f), FausCrewColors.teal.copy(alpha = .035f), Color.Transparent,
             )))

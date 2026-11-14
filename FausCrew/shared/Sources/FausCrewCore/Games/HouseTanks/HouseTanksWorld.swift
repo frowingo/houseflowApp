@@ -1,6 +1,6 @@
 import Foundation
 
-/// The FauseTanks arena: tanks, crates, shells, rockets and jokers in one deterministic
+/// The Faus Tanks arena: tanks, crates, shells, rockets and jokers in one deterministic
 /// simulation of whole 1/120 s ticks on a fixed 872×400 arena (origin bottom-left, y up).
 /// The backend's Go engine (`houseTanks/world.go`) is the reference; every step, timer and
 /// event here follows it, and `houseTanksSimulation.json` pins the two together. Renderers

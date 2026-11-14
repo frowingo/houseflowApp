@@ -211,6 +211,7 @@ final class FakeChoreService: ChoreServicing {
     }
     private(set) var updateStatusCallCount = 0
     private(set) var updateStatusWithReviewPhotoCallCount = 0
+    private(set) var lastCreatedCategory: ChoreCategoryKind?
 
     func createChore(
         assignedTo: String,
@@ -220,9 +221,11 @@ final class FakeChoreService: ChoreServicing {
         isRecurring: Bool,
         level: ChoreLevel,
         recurringInterval: Int,
-        title: String
+        title: String,
+        category: ChoreCategoryKind
     ) async throws -> ChoreResponse {
-        try await createChoreHandler(
+        lastCreatedCategory = category
+        return try await createChoreHandler(
             assignedTo,
             description,
             dueDate,

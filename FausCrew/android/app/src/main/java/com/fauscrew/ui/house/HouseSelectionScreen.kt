@@ -100,7 +100,7 @@ private fun HeaderCard(strings: LocalizedText) {
                 spotColor = FausCrewColors.deepBerry)
                 .background(LocalFausTheme.current.decor.badgeFill.let { if (it.size == 1) SolidColor(it.first()) else Brush.linearGradient(it) }, CircleShape)
                 .border(1.5.dp, LocalFausTheme.current.decor.badgeBorder, CircleShape))
-            run { val markColors = FausMarkColors; Canvas(Modifier.size(58.dp)) { drawFausMark(fausMarkBrush(size.minDimension / 1024f, markColors)) } }
+            run { val markColors = FausMarkColors; val webDot = LocalFausTheme.current.decor.webDotMark; Canvas(Modifier.size(58.dp)) { drawFausMark(fausMarkBrush(size.minDimension / 1024f, markColors), webDot = webDot) } }
             LocalFausTheme.current.decor.badgeBlossom?.let {
                 FausBadgeBlossom(it, 26.dp, Modifier.offset(x = 26.dp, y = (-24).dp))
             }

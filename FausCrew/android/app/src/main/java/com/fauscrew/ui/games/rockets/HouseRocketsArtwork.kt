@@ -259,3 +259,38 @@ internal fun HouseRocketsRocketMark(modifier: Modifier = Modifier) {
         }
     }
 }
+
+/**
+ * `HouseRocketsColorRocket`: a player's rocket as the course draws it (tinted hull and fins,
+ * cream outline), tilted up to the right like the mark; the room's picker and crew show it on navy.
+ */
+@Composable
+internal fun HouseRocketsColorRocket(color: RocketsColor, modifier: Modifier = Modifier) {
+    Canvas(modifier) {
+        drawIntoCanvas { canvas ->
+            val native = canvas.nativeCanvas
+            native.save()
+            native.translate(size.width / 2, size.height / 2)
+            val scale = minOf(size.width, size.height) / 40f
+            native.scale(scale, -scale)
+            native.rotate(40f)
+            native.translate(-5f, 0f)
+            val cream = strokePaint(HouseRocketsPalette.cream, 1.6f, round = true)
+            val tint = HouseRocketsPalette.player(color)
+            listOf(
+                Triple(HouseRocketsArtwork.flame, HouseRocketsPalette.cream, strokePaint(HouseRocketsPalette.red, 1.6f, round = true)),
+                Triple(HouseRocketsArtwork.fins, tint, cream),
+                Triple(HouseRocketsArtwork.hull, tint, cream),
+                Triple(HouseRocketsArtwork.collar, HouseRocketsPalette.burgundy, cream),
+                Triple(HouseRocketsArtwork.nose, HouseRocketsPalette.red, cream),
+            ).forEach { (path, fill, stroke) ->
+                native.drawPath(path, fillPaint(fill))
+                native.drawPath(path, stroke)
+            }
+            native.drawPath(HouseRocketsArtwork.window, fillPaint(HouseRocketsPalette.navy))
+            native.drawPath(HouseRocketsArtwork.window,
+                if (color == RocketsColor.MINT) strokePaint(HouseRocketsPalette.navy, 1.6f) else cream)
+            native.restore()
+        }
+    }
+}

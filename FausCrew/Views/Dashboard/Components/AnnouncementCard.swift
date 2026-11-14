@@ -64,6 +64,7 @@ struct AnnouncementCard: View {
         .background(
             ZStack {
                 HouseJourneyTheme.surface
+                FausCardSheen()
                 LinearGradient(
                     colors: [
                         HouseJourneyTheme.purple.opacity(0.075),

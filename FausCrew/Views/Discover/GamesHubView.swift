@@ -17,16 +17,19 @@ struct GamesHubView: View {
     @State private var appeared = false
     let houseRocketsSessionFactory: HouseRocketsSessionFactory
 
+    /// iOS system orange in light mode, fixed so the cards ignore the system and the theme.
+    private static let gameOrange = Color(hex: "FF9500")
+
     private let games: [GameInfo] = [
         GameInfo(id: 7, titleKey: "games_house_rockets_title",
                  descriptionKey: "games_house_rockets_card_description",
                  icon: "arrow.up.right", color: Color(HouseRocketsPalette.red), badgeKey: "games_house_rockets_badge"),
         GameInfo(id: 6, titleKey: "games_house_tanks_title",
                  descriptionKey: "games_house_tanks_card_description",
-                 icon: "scope", color: .orange, badgeKey: "games_house_tanks_badge"),
-        GameInfo(id: 5, titleKey: "games_house_switch_title",
-                 descriptionKey: "games_house_switch_card_description",
-                 icon: "arrow.up.arrow.down.circle.fill", color: .teal, badgeKey: "games_house_switch_badge"),
+                 icon: "scope", color: Self.gameOrange, badgeKey: "games_house_tanks_badge"),
+        GameInfo(id: 5, titleKey: "games_faus_switch_title",
+                 descriptionKey: "games_faus_switch_card_description",
+                 icon: "arrow.up.arrow.down.circle.fill", color: FausSwitchPalette.wine, badgeKey: "games_faus_switch_badge"),
         GameInfo(id: 3, titleKey: "games_skyline_dash_title",
                  descriptionKey: "games_skyline_dash_card_description",
                  icon: "paperplane.fill", color: .cyan, badgeKey: "games_skyline_dash_badge"),
@@ -38,7 +41,7 @@ struct GamesHubView: View {
                  icon: "building.columns.fill", color: Color(hex: "0F172A"), badgeKey: "games_vault_rush_badge"),
         GameInfo(id: 0, titleKey: "games_lucky_spin_title",
                  descriptionKey: "games_lucky_spin_card_description",
-                 icon: "arrow.2.circlepath", color: .orange, badgeKey: "games_lucky_spin_badge"),
+                 icon: "arrow.2.circlepath", color: Self.gameOrange, badgeKey: "games_lucky_spin_badge"),
     ]
 
     private let columns = [
@@ -123,7 +126,7 @@ struct GamesHubView: View {
         case 2: VaultRushView()
         case 3: SkylineDashView()
         case 4: RockPaperScissorsView()
-        case 5: HouseSwitchView()
+        case 5: FausSwitchView(onlineFactory: appViewModel.fausSwitchOnlineFactory)
         case 6: HouseTanksView(onlineFactory: appViewModel.houseTanksOnlineFactory)
         case 7:
             HouseRocketsView(
@@ -157,7 +160,7 @@ private struct HubGameCard: View {
 
                 HubGameCoverBackdrop(gameID: game.id)
 
-                // The FauseTanks cover is artwork only: no symbol, no badge.
+                // The Faus Rockets, Faus Tanks and Faus Switch covers are artwork only: no symbol, no badge.
                 if !isArtworkOnlyCover {
                     VStack(spacing: AppDesign.Spacing.sm) {
                         coverSymbol
@@ -188,13 +191,18 @@ private struct HubGameCard: View {
             .padding(AppDesign.Spacing.md)
             .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
         }
-        .background(AppDesign.Colors.cardBackground)
+        .background {
+            ZStack {
+                AppDesign.Colors.cardBackground
+                FausCardSheen()
+            }
+        }
         .clipShape(RoundedRectangle(cornerRadius: AppDesign.CornerRadius.xl))
         .shadow(color: AppDesign.Colors.shadow.opacity(0.06), radius: 8, x: 0, y: 2)
         .frame(maxHeight: .infinity, alignment: .top)
     }
 
-    private var isArtworkOnlyCover: Bool { game.id == 6 }
+    private var isArtworkOnlyCover: Bool { [5, 6, 7].contains(game.id) }
 
     @ViewBuilder
     private var coverSymbol: some View {
@@ -205,9 +213,6 @@ private struct HubGameCard: View {
                 CoverToken(symbol: "scissors", rotation: -5)
             }
             .accessibilityHidden(true)
-        } else if game.id == 7 {
-            // The rocket artwork is drawn in the same cover slot as other game icons.
-            Color.clear.frame(height: 40)
         } else {
             Image(systemName: game.icon)
                 .font(.system(size: 40, weight: .medium))
@@ -236,11 +241,7 @@ private struct HubGameCard: View {
             ]
         }
         if game.id == 5 {
-            return [
-                Color(hex: "071827"),
-                Color(hex: "0E5B63"),
-                Color(hex: "F28A3A"),
-            ]
+            return [FausSwitchPalette.lightSand, FausSwitchPalette.sand]
         }
         if game.id == 6 {
             return [HouseTanksMapPalette.paper, HouseTanksMapPalette.sand]
@@ -278,7 +279,7 @@ private struct HubGameCoverBackdrop: View {
             case 4:
                 rpsArtwork
             case 5:
-                houseSwitchArtwork
+                fausSwitchArtwork
             case 6:
                 houseTanksArtwork
             case 7:
@@ -400,24 +401,10 @@ private struct HubGameCoverBackdrop: View {
         }
     }
 
-    private var houseSwitchArtwork: some View {
-        ZStack {
-            Image(systemName: "house.fill")
-                .font(.system(size: 76, weight: .black))
-                .foregroundStyle(Color.white.opacity(0.09))
-                .offset(x: 52, y: 28)
-
-            VStack(spacing: 34) {
-                Capsule()
-                    .fill(Color.white.opacity(0.15))
-                    .frame(width: 128, height: 8)
-                Capsule()
-                    .fill(Color.white.opacity(0.15))
-                    .frame(width: 128, height: 8)
-            }
-            .rotationEffect(.degrees(-8))
-            .offset(x: -48, y: -2)
-        }
+    private var fausSwitchArtwork: some View {
+        FausSwitchCoverArtwork()
+            .frame(height: 120)
+            .clipped()
     }
 
     private var houseTanksArtwork: some View {
@@ -464,7 +451,7 @@ struct ScaleButtonStyle: ButtonStyle {
 }
 
 /// A tiny race in progress: a rocket threads between opposing wedges.
-/// The FauseTanks cover: one olive arena tank on the field-map sheet.
+/// The Faus Tanks cover: one olive arena tank on the field-map sheet.
 private struct HouseTanksCoverArtwork: View {
     var body: some View {
         GeometryReader { geometry in
@@ -486,7 +473,7 @@ private struct HouseRocketsCoverArtwork: View {
                 HouseRocketsTopography()
                 HouseRocketsRocketMark()
                     .frame(width: 94, height: 94)
-                    .position(x: geometry.size.width * 0.5, y: 42)
+                    .position(x: geometry.size.width * 0.5, y: geometry.size.height * 0.5)
             }
         }
         .accessibilityHidden(true)

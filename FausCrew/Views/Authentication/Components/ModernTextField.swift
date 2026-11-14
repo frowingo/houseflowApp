@@ -10,6 +10,8 @@ struct ModernTextField: View {
     let keyboardType: UIKeyboardType
     @FocusState.Binding var focusedField: AuthField?
     let fieldType: AuthField
+    /// The label above the field sits on the screen, not the field: auth's sheet passes `pageText`.
+    var titleColor: Color = AppDesign.Colors.text
     
     var body: some View {
         VStack(alignment: .leading, spacing: AppDesign.Spacing.xs) {
@@ -23,7 +25,7 @@ struct ModernTextField: View {
     private var titleLabel: some View {
         Text(title)
             .font(AppDesign.Typography.subheadline)
-            .foregroundColor(AppDesign.Colors.text)
+            .foregroundColor(titleColor)
     }
     
     private var inputField: some View {

@@ -73,6 +73,7 @@ struct ProfilePersonalInfoCard: View {
         .background(
             ZStack {
                 AppDesign.Colors.cardBackground
+                FausCardSheen()
                 LinearGradient(
                     colors: [
                         personalTeal.opacity(0.065),
@@ -185,7 +186,7 @@ struct ProfileSettingsCard: View {
         ) {
             ProfileSettingsRow(
                 icon: "bell.badge.fill",
-                tint: Color(red: 0.95, green: 0.45, blue: 0.1),
+                tint: HouseJourneyTheme.tintNotifications,
                 label: notificationsLabel
             )
             ProfileCardDivider().overlay(AppDesign.Colors.separator)

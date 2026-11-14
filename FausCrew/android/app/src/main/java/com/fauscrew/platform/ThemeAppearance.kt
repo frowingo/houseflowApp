@@ -1,11 +1,13 @@
 package com.fauscrew.platform
 
+import android.app.Activity
 import android.content.ComponentName
 import android.content.Context
 import android.content.pm.PackageManager
+import android.os.Build
 import com.fauscrew.ui.theme.FausThemeId
 
-/** Carries the Faus theme to the launcher icon (iOS alternate app icons). */
+/** Carries the Faus theme to the launcher icon (iOS alternate app icons) and the launch window. */
 internal object ThemeAppearance {
     /**
      * Enables the theme's launcher alias and disables the rest. Called when the app leaves the
@@ -31,5 +33,15 @@ internal object ThemeAppearance {
                 PackageManager.DONT_KILL_APP,
             )
         }
+    }
+
+    /**
+     * Makes the system launch window of the next cold start show the theme's color
+     * ([FausThemeId.launchColor]) instead of the manifest default. The system persists the style
+     * for the whole app. Android 11 has no such API and keeps the neutral black window.
+     */
+    fun applyLaunchScreen(activity: Activity, theme: FausThemeId) {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.S) return
+        activity.splashScreen.setSplashScreenTheme(theme.launchStyle)
     }
 }

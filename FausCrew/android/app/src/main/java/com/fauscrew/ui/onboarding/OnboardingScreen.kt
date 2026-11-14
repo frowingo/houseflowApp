@@ -1,5 +1,6 @@
 package com.fauscrew.ui.onboarding
 
+import com.fauscrew.ui.theme.LocalFausTheme
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.LinearEasing
@@ -82,7 +83,7 @@ import com.fauscrew.ui.theme.FausCrewIcons
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
-private val ink: Color @Composable @ReadOnlyComposable get() = FausCrewColors.textPrimary
+private val ink: Color @Composable @ReadOnlyComposable get() = FausCrewColors.pageText
 private val muted = Color(0xFF6B6B70)
 private val markBerry = Color(0xFF8A2440)
 
@@ -163,7 +164,7 @@ internal fun OnboardingScreen(strings: LocalizedText, busy: Boolean, onComplete:
                 horizontalArrangement = Arrangement.Center,
                 verticalAlignment = Alignment.CenterVertically,
             ) {
-                val content = if (isLastPage) Color.White else FausCrewColors.accentOrangeInk
+                val content = if (isLastPage) Color.White else (LocalFausTheme.current.decor.accentOnCard ?: FausCrewColors.accentOrangeInk)
                 Text(label, color = content, fontSize = 17.sp, fontWeight = FontWeight.Bold)
                 Spacer(Modifier.width(8.dp))
                 Icon(Icons.AutoMirrored.Rounded.ArrowForward, null, Modifier.size(20.dp), tint = content)
@@ -176,14 +177,14 @@ internal fun OnboardingScreen(strings: LocalizedText, busy: Boolean, onComplete:
 private fun Header(modifier: Modifier) {
     Column(modifier, horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(8.dp)) {
         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            run { val markColors = FausMarkColors; Canvas(Modifier.size(36.dp)) { drawFausMark(fausMarkBrush(size.minDimension / 1024f, markColors)) } }
+            run { val markColors = FausMarkColors; val webDot = LocalFausTheme.current.decor.webDotMark; Canvas(Modifier.size(36.dp)) { drawFausMark(fausMarkBrush(size.minDimension / 1024f, markColors), webDot = webDot) } }
             // Brand wordmark stays fixed across languages.
             Row(Modifier.semantics(mergeDescendants = true) { contentDescription = "FausCrew" }) {
                 Text("Faus", style = TextStyle(brush = FausButtonGradient, fontSize = 28.sp, fontWeight = FontWeight.ExtraBold))
                 Text("Crew", color = FausCrewColors.deepBerry, fontSize = 28.sp, fontWeight = FontWeight.Normal)
             }
         }
-        Text("Make living together fun", color = FausCrewColors.textTertiary, fontSize = 14.sp)
+        Text("Make living together fun", color = FausCrewColors.pageTextTertiary, fontSize = 14.sp)
     }
 }
 
@@ -292,6 +293,6 @@ private fun GameChip(icon: ImageVector, x: Dp, y: Dp, progress: Float) {
         }.size(32.dp).shadow(5.dp, CircleShape, spotColor = FausCrewColors.deepBerry).background(FausCrewColors.surface, CircleShape),
         contentAlignment = Alignment.Center,
     ) {
-        Icon(icon, null, Modifier.size(17.dp), tint = FausCrewColors.brandOrange)
+        Icon(icon, null, Modifier.size(17.dp), tint = LocalFausTheme.current.decor.accentOnCard ?: FausCrewColors.brandOrange)
     }
 }

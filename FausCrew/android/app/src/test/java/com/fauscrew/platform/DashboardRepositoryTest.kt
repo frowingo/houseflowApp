@@ -16,11 +16,11 @@ class DashboardRepositoryTest {
     private val wire = object : DashboardWire {
         override fun body(action: String, houseId: String, choreId: String, assignedTo: String,
             title: String, description: String, dueDate: String, isRecurring: Boolean, level: Int,
-            recurringInterval: Int, status: Int, isApproved: Boolean): String =
+            recurringInterval: Int, status: Int, isApproved: Boolean, category: Int): String =
             if (action == "statusPhoto") """[{"choreId":"$choreId","status":$status}]""" else JSONObject().put("action", action).put("houseId", houseId).put("choreId", choreId)
                 .put("assignedTo", assignedTo).put("isRecurring", isRecurring)
                 .put("recurringInterval", recurringInterval).put("status", status)
-                .put("isApproved", isApproved).toString()
+                .put("isApproved", isApproved).put("category", category).toString()
         override fun response(action: String, status: Int, body: String): String =
             if (status >= 400) JSONObject().put("ok", false).put("message", "Denied").toString()
             else JSONObject().put("ok", true).put("data", body).toString()
@@ -46,6 +46,15 @@ class DashboardRepositoryTest {
         assertEquals(7, JSONObject(requests.first().body!!.decodeToString()).getInt("recurringInterval"))
         assertEquals("h", JSONObject(requests[2].body!!.decodeToString()).getString("houseId"))
         assertEquals("Bearer token", requests.first().headers["Authorization"])
+    }
+
+    @Test fun createSendsTheCategoryAndUpdateWithoutOneKeepsIt() = runBlocking {
+        response = JSONObject(chore).put("category", 1).toString()
+        assertEquals(ChoreCategoryKind.KITCHEN, repo.createChore(input.copy(category = 1)).categoryKind)
+        repo.updateChore("c", input)
+        assertEquals(1, JSONObject(requests[0].body!!.decodeToString()).getInt("category"))
+        // 0 tells the bridge to leave `category` out, so the chore keeps its category.
+        assertEquals(0, JSONObject(requests[1].body!!.decodeToString()).getInt("category"))
     }
 
     @Test fun announcementUsesHouseEndpointAndAliases() = runBlocking {

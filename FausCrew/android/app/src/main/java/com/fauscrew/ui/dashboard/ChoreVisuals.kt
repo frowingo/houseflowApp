@@ -1,10 +1,16 @@
 package com.fauscrew.ui.dashboard
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.rounded.LabelOff
 import androidx.compose.material3.Icon
+import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.ReadOnlyComposable
 import androidx.compose.ui.Alignment
@@ -13,12 +19,22 @@ import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
+import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import com.fauscrew.platform.CHORE_STATUS_FAILED
+import com.fauscrew.platform.ChoreCategoryKind
 import com.fauscrew.platform.ChoreFailureReason
 import com.fauscrew.platform.HouseChore
 import com.fauscrew.platform.LocalizedText
 import com.fauscrew.ui.auth.social
+import com.fauscrew.ui.dashboard.catalog.ChoreCatalog
+import com.fauscrew.ui.dashboard.catalog.choreCategoryName
+import com.fauscrew.ui.dashboard.catalog.iconVector
+import com.fauscrew.ui.dashboard.catalog.tintColor
 import com.fauscrew.ui.theme.FausCrewColors
 import com.fauscrew.ui.theme.FausCrewIcons
 import com.fauscrew.ui.theme.gradientForeground
@@ -106,11 +122,17 @@ internal fun ChoreFailureReason?.message(strings: LocalizedText): String = when 
     ChoreFailureReason.UNSPECIFIED -> strings.social("chore_failed_reason_generic", "Görev başarısız oldu.", "The chore failed.")
 }
 
-/** `ChoreLevel` presentation from NewChorePopup.swift. */
-internal enum class ChoreLevelUi(val raw: Int, val key: String, val color: Color, val icon: ImageVector) {
-    EASY(10, "chore_level_easy", Color(0xFF33BF66), FausCrewIcons.leafFill),
-    MEDIUM(20, "chore_level_medium", Color(0xFFFF7A26), FausCrewIcons.flameFill),
-    HARD(30, "chore_level_hard", Color(0xFFE63340), FausCrewIcons.boltFill);
+/** `ChoreLevel` presentation (iOS `ChoreLevelStyle.swift`). */
+internal enum class ChoreLevelUi(val raw: Int, val key: String, val icon: ImageVector) {
+    EASY(10, "chore_level_easy", FausCrewIcons.leafFill),
+    MEDIUM(20, "chore_level_medium", FausCrewIcons.flameFill),
+    HARD(30, "chore_level_hard", FausCrewIcons.boltFill);
+
+    val color: Color @Composable @ReadOnlyComposable get() = when (this) {
+        EASY -> FausCrewColors.levelEasy
+        MEDIUM -> FausCrewColors.levelMedium
+        HARD -> FausCrewColors.levelHard
+    }
 
     companion object {
         fun of(raw: Int): ChoreLevelUi = entries.firstOrNull { it.raw == raw } ?: EASY
@@ -174,3 +196,35 @@ internal fun displayApiDateTime(value: String): String =
 
 internal fun LocalizedText.dueText(value: String): String =
     displayApiDate(value) ?: get(dueLabel(value).key)
+
+/** Inline (icon and name above a row's title) or pill (tinted capsule in the detail sheet). */
+internal enum class ChoreCategoryTagStyle { INLINE, PILL }
+
+/**
+ * A chore's category in the catalog's colours: the shelf icon and name, or a neutral
+ * "Uncategorized" for chores created before categories (`0`) and unknown values
+ * (iOS `ChoreCategoryTag`).
+ */
+@Composable
+internal fun ChoreCategoryTag(
+    kind: ChoreCategoryKind,
+    strings: LocalizedText,
+    style: ChoreCategoryTagStyle = ChoreCategoryTagStyle.INLINE,
+    modifier: Modifier = Modifier,
+) {
+    val category = ChoreCatalog.category(kind)
+    val tint = category?.tintColor ?: FausCrewColors.textSecondary
+    val pill = style == ChoreCategoryTagStyle.PILL
+    val size = if (pill) 11.sp else 10.sp
+    Row(
+        modifier
+            .then(if (pill) Modifier.background(tint.copy(alpha = .12f), CircleShape).padding(horizontal = 8.dp, vertical = 4.dp) else Modifier)
+            .semantics(mergeDescendants = true) {},
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(4.dp),
+    ) {
+        Icon(category?.iconVector ?: Icons.Rounded.LabelOff, null, Modifier.size(if (pill) 12.dp else 11.dp), tint = tint)
+        Text(strings.choreCategoryName(kind), color = tint, fontSize = size, fontWeight = FontWeight.SemiBold,
+            maxLines = 1, overflow = TextOverflow.Ellipsis)
+    }
+}

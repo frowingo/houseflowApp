@@ -74,7 +74,7 @@ import com.fauscrew.ui.theme.Spacing
 import com.fauscrew.ui.theme.softShadow
 
 /**
- * Shared shell for the iOS popup family (NewChorePopup, ChoreDetailPopup, profile popups):
+ * Shared shell for the iOS popup family (ChoreDetailPopup, announcement and profile popups):
  * a dim backdrop that dismisses on tap, a 20dp-inset card on `MainScreenBackground`, a brand
  * header, a height-capped scroll body and an optional white footer. It is a real Dialog so
  * system back, IME insets and accessibility focus behave natively.

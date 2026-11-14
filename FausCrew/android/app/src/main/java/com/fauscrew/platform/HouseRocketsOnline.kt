@@ -12,7 +12,7 @@ import okhttp3.WebSocketListener
 import org.json.JSONArray
 import org.json.JSONObject
 
-/** A lobby participant as the online lobby card shows it; FauseTanks adds the seated name and color. */
+/** A lobby participant as the online lobby card shows it; Faus Tanks adds the seated name and color. */
 internal data class OnlineParticipant(
     val playerId: String, val statusKey: String, val isReady: Boolean, val isLocal: Boolean,
     val name: String? = null, val color: String? = null,
@@ -51,7 +51,7 @@ internal data class OnlineLobbyUi(
     val deadlineKind: String? = null,
     val deadlineUptime: Double? = null,
     val flightCountdownUptime: Double? = null,
-    /** FauseTanks only: the snapshot's core phase (`countdown`, `playing`, …), null before one. */
+    /** Faus Tanks only: the snapshot's core phase (`countdown`, `playing`, …), null before one. */
     val gamePhase: String? = null,
 ) {
     val isFailed: Boolean get() = connection == "failed"
@@ -106,7 +106,7 @@ internal data class OnlineOutput(
     val result: OnlineResultUi?,
     val closed: Boolean,
     val rematchExcludedSessionId: String?,
-    /** FauseTanks: true when [preview] replaces the previous arena (null clears it). */
+    /** Faus Tanks: true when [preview] replaces the previous arena (null clears it). */
     val previewChanged: Boolean = false,
     val preview: TanksOnlinePreview? = null,
 )
@@ -129,10 +129,43 @@ internal interface OnlineGameEngine {
     fun close()
 }
 
-/** House Rockets adds the interpolated flight, sampled once per rendered frame. */
+/** `HouseRocketsLobbyColors` as the room draws it: who holds which rocket color (Faus Tanks' rules). */
+internal data class RocketsLobbyColors(
+    /** The pick asked for when seated. */
+    val preferred: RocketsColor? = null,
+    /** The local rocket's color: the pick while it is free, else the server's claim. */
+    val local: RocketsColor? = null,
+    val localClaim: RocketsColor? = null,
+    val takenByOthers: Set<RocketsColor> = emptySet(),
+    /** The pick is held by someone else, so the flight gives another color. */
+    val isPreferredTaken: Boolean = false,
+    /** The local player is ready: the color is fixed until they take the ready back. */
+    val isLocked: Boolean = false,
+) {
+    companion object {
+        /** The lobby output's `colors`; a missing block is no colors. */
+        fun from(lobby: JSONObject): RocketsLobbyColors {
+            val json = lobby.optJSONObject("colors") ?: return RocketsLobbyColors()
+            fun color(key: String) = if (json.isNull(key)) null else RocketsColor.from(json.getString(key))
+            val taken = json.optJSONArray("takenByOthers") ?: JSONArray()
+            return RocketsLobbyColors(
+                preferred = color("preferred"),
+                local = color("local"),
+                localClaim = color("localClaim"),
+                takenByOthers = List(taken.length()) { taken.getString(it) }.mapNotNull(RocketsColor::from).toSet(),
+                isPreferredTaken = json.optBoolean("isPreferredTaken"),
+                isLocked = json.optBoolean("isLocked"),
+            )
+        }
+    }
+}
+
+/** Faus Rockets adds the interpolated flight, sampled once per rendered frame. */
 internal interface HouseRocketsOnlineEngine : OnlineGameEngine {
     fun viewport(width: Float, height: Float, hudWidth: Float, hudHeight: Float)
     fun frame(now: Double): Pair<RocketsFrame, OnlineFlightUi>?
+    /** The latest lobby output's rocket colors. */
+    val colors: RocketsLobbyColors get() = RocketsLobbyColors()
 }
 
 /** Monotonic seconds shared by the engine, deadlines and frames. */
@@ -161,14 +194,23 @@ internal object HouseRocketsOnlineNative {
 private class NativeOnlineEngine(private val handle: Int) : HouseRocketsOnlineEngine {
     private val frames = RocketsFrameParser()
 
+    override var colors = RocketsLobbyColors()
+        private set
+
     override fun event(type: String, now: Double, fields: Map<String, Any?>): OnlineOutput {
         val json = JSONObject().put("type", type).put("now", now)
         fields.forEach { (key, value) -> json.put(key, value ?: JSONObject.NULL) }
-        return OnlineOutputParser.parse(FausCrewAndroidBridge.houseRocketsOnlineEvent(handle, json.toString()))
+        return read(FausCrewAndroidBridge.houseRocketsOnlineEvent(handle, json.toString()))
     }
 
     override fun receive(text: String, connection: Int, now: Double): OnlineOutput =
-        OnlineOutputParser.parse(FausCrewAndroidBridge.houseRocketsOnlineReceive(handle, text, connection, now))
+        read(FausCrewAndroidBridge.houseRocketsOnlineReceive(handle, text, connection, now))
+
+    private fun read(json: String): OnlineOutput {
+        val output = OnlineOutputParser.parse(json)
+        JSONObject(json).optJSONObject("lobby")?.let { colors = RocketsLobbyColors.from(it) }
+        return output
+    }
 
     override fun viewport(width: Float, height: Float, hudWidth: Float, hudHeight: Float) {
         FausCrewAndroidBridge.houseRocketsOnlineViewport(handle, width.toDouble(), height.toDouble(),
@@ -201,7 +243,7 @@ internal object OnlineOutputParser {
 
     fun frame(parser: RocketsFrameParser, json: String): Pair<RocketsFrame, OnlineFlightUi>? {
         val root = JSONObject(json)
-        check(root.optBoolean("ok", false)) { root.optString("message", "House Rockets online bridge failed") }
+        check(root.optBoolean("ok", false)) { root.optString("message", "Faus Rockets online bridge failed") }
         if (!root.has("matchId")) return null
         val eliminations = root.optJSONArray("eliminations")
         return parser.frame(root) to OnlineFlightUi(

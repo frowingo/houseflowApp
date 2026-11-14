@@ -2,7 +2,7 @@ import Foundation
 import FausCrewCore
 import XCTest
 
-/// The FauseTanks wire layer against the backend's protocol fixture (contract
+/// The Faus Tanks wire layer against the backend's protocol fixture (contract
 /// houseTanks.v2): every server example decodes and re-encodes to the same JSON,
 /// every client example is produced exactly, and no invalid example can be.
 final class HouseTanksWireContractTests: XCTestCase {
@@ -130,11 +130,12 @@ final class HouseTanksWireContractTests: XCTestCase {
         }
 
         // Everything else the client writes has the exact fixture schema: the four
-        // envelope keys, protocol 2, a FauseTanks or shared type and its payload keys.
+        // envelope keys, protocol 2, a Faus Tanks or shared type and its payload keys.
         let schemas: [String: Set<String>] = [
             "gameSession.join": [], "gameSession.leave": [], "gameSession.cancel": [], "houseTanks.resync": [],
             "gameSession.setReady": ["ready"], "realtime.ping": ["pingId"], "houseTanks.roundReady": ["controlGeneration", "ready"],
             "houseTanks.press": ["controlGeneration", "inputSequence", "pressed", "clientTick", "heading"],
+            "houseTanks.selectColor": ["color"],
         ]
         var produced: [[String: Any]] = []
         for sequence in [1, 2, 42, Int64.max] as [Int64] {
@@ -147,7 +148,8 @@ final class HouseTanksWireContractTests: XCTestCase {
         for action in [HouseTanksClientMessage.init(messageId: "a", action: .join), .init(messageId: "a", action: .leave),
                        .init(messageId: "a", action: .cancel), .init(messageId: "a", action: .resync),
                        .init(messageId: "a", action: .setReady(true)), .init(messageId: "a", action: .ping(id: "p")),
-                       .init(messageId: "a", action: .gameplay(.roundReady(controlGeneration: "controlA", ready: false)))] {
+                       .init(messageId: "a", action: .gameplay(.roundReady(controlGeneration: "controlA", ready: false))),
+                       .init(messageId: "a", action: .gameplay(.selectColor(.sky)))] {
             produced.append(try Self.object(action))
         }
         for message in produced {
@@ -242,7 +244,7 @@ final class HouseTanksWireContractTests: XCTestCase {
         try rejects("cancelledBeforeStartResult") { $0["durationSeconds"] = 5 }
     }
 
-    func testCatalogOffersFauseTanksWithItsSettings() throws {
+    func testCatalogOffersFausTanksWithItsSettings() throws {
         let welcome = try XCTUnwrap(try Self.fixture()["serverMessages"] as? [[String: Any]])
             .first { $0["name"] as? String == "welcome" }
         let settings = try XCTUnwrap(((welcome?["message"] as? [String: Any])?["payload"] as? [String: Any])?["settings"])

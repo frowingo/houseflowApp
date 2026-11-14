@@ -20,7 +20,7 @@ struct ProfileHouseInformationCard: View {
 
     private let houseTint = Color(red: 0.42, green: 0.27, blue: 0.67)
     private let joinTint = Color(red: 0.12, green: 0.55, blue: 0.54)
-    private let createTint = Color(red: 0.90, green: 0.38, blue: 0.06)
+    private let createTint = HouseJourneyTheme.tintCreate
 
     var body: some View {
         ProfileModernCard(

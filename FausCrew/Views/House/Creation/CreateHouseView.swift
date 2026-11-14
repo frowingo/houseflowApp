@@ -4,6 +4,7 @@ import SwiftUI
 /// Refactored: Component'lere bölündü, Design System kullanıyor
 struct CreateHouseView: View {
     @EnvironmentObject private var appViewModel: AppViewModel
+    @Environment(\.fausTheme) private var theme
     @State private var houseName = ""
     @State private var selectedHouseType: HouseTypeCard.HouseType = .studentHouse
     @State private var memberCount = 3
@@ -33,10 +34,11 @@ struct CreateHouseView: View {
             
             Text(appViewModel.localized("create_house_title"))
                 .font(.system(size: 34, weight: .bold, design: .rounded))
+                .foregroundColor(AppDesign.Colors.pageText)
             
             Text(appViewModel.localized("create_house_subtitle"))
                 .font(AppDesign.Typography.subheadline)
-                .foregroundColor(AppDesign.Colors.textSecondary)
+                .foregroundColor(AppDesign.Colors.pageTextSecondary)
                 .multilineTextAlignment(.center)
 
             Capsule()
@@ -56,7 +58,7 @@ struct CreateHouseView: View {
             }) {
                 Image(systemName: "chevron.left")
                     .font(.system(size: 17, weight: .semibold))
-                    .foregroundColor(HouseJourneyTheme.accentOrangeInk)
+                    .foregroundColor(theme.decor.accentOnCard ?? HouseJourneyTheme.accentOrangeInk)
                     .frame(width: 40, height: 40)
                     .background(HouseJourneyTheme.surface)
                     .clipShape(Circle())
@@ -92,6 +94,7 @@ struct CreateHouseView: View {
         VStack(alignment: .leading, spacing: AppDesign.Spacing.lg) {
             Text(appViewModel.localized("create_house_name_label"))
                 .font(AppDesign.Typography.headline)
+                .foregroundColor(AppDesign.Colors.pageText)
             
             VStack(alignment: .leading, spacing: AppDesign.Spacing.sm) {
                 houseNameTextField
@@ -142,7 +145,7 @@ struct CreateHouseView: View {
             replacements: ["count": "\(houseName.count)"]
         ))
             .font(AppDesign.Typography.caption2)
-            .foregroundColor(AppDesign.Colors.textSecondary)
+            .foregroundColor(AppDesign.Colors.pageTextSecondary)
             .transition(.opacity.combined(with: .move(edge: .top)))
     }
     
@@ -152,6 +155,7 @@ struct CreateHouseView: View {
         VStack(alignment: .leading, spacing: AppDesign.Spacing.lg) {
             Text(appViewModel.localized("create_house_type_label"))
                 .font(AppDesign.Typography.headline)
+                .foregroundColor(AppDesign.Colors.pageText)
             
             HStack(spacing: AppDesign.Spacing.md) {
                 ForEach(HouseTypeCard.HouseType.allCases, id: \.self) { type in

@@ -1,9 +1,9 @@
 package com.fauscrew.ui.games
 
+import com.fauscrew.ui.components.fausCardSheen
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -16,7 +16,6 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Icon
@@ -38,6 +37,10 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.fauscrew.platform.HouseRocketsNative
 import com.fauscrew.platform.HouseTanksNative
+import com.fauscrew.platform.FausSwitchNative
+import com.fauscrew.ui.games.fausswitch.FausSwitchCoverArtwork
+import com.fauscrew.ui.games.fausswitch.FausSwitchPalette
+import com.fauscrew.ui.games.fausswitch.SwitchCopy
 import com.fauscrew.ui.games.tanks.HouseTanksArenaTank
 import com.fauscrew.ui.games.tanks.HouseTanksMapBackdrop
 import com.fauscrew.ui.games.tanks.HouseTanksPalette
@@ -62,21 +65,25 @@ import com.fauscrew.ui.theme.softShadow
 
 /**
  * `GamesHubView`. Android offers only the games that run on the shared Core, so the grid
- * holds House Rockets and FauseTanks in the same two-column layout as iOS.
+ * holds Faus Rockets, Faus Tanks and Faus Switch in the same two-column layout and order as iOS.
  */
 @Composable
 internal fun GamesHubScreen(
     strings: LocalizedText,
     onOpenHouseRockets: () -> Unit,
     onOpenHouseTanks: () -> Unit = {},
+    onOpenFausSwitch: () -> Unit = {},
     bundledCopy: (String?) -> Map<String, String> = HouseRocketsNative::copy,
     tanksCopy: (String?) -> Map<String, String> = HouseTanksNative::copy,
+    switchCopy: (String?) -> Map<String, String> = FausSwitchNative::copy,
 ) {
     val rocketsCopy = remember(strings) { RocketsCopy(strings, bundledCopy(strings.prefix)) }
     val fauseTanksCopy = remember(strings) { TanksCopy(strings, tanksCopy(strings.prefix)) }
+    val fausSwitchCopy = remember(strings) { SwitchCopy(strings, switchCopy(strings.prefix)) }
     val header = rememberEntrance(50)
     val firstCard = rememberEntrance(100)
     val secondCard = rememberEntrance(180)
+    val thirdCard = rememberEntrance(260)
     Box(Modifier.fillMaxSize().mainScreenBackground()) {
         Column(
             Modifier.fillMaxSize().verticalScroll(rememberScrollState()).statusBarsPadding()
@@ -104,11 +111,15 @@ internal fun GamesHubScreen(
                 HouseRocketsCard(rocketsCopy, Modifier.weight(1f).entrance(firstCard, 24.dp), onOpenHouseRockets)
                 HouseTanksCard(fauseTanksCopy, Modifier.weight(1f).entrance(secondCard, 24.dp), onOpenHouseTanks)
             }
+            Row(horizontalArrangement = Arrangement.spacedBy(Spacing.md)) {
+                FausSwitchCard(fausSwitchCopy, Modifier.weight(1f).entrance(thirdCard, 24.dp), onOpenFausSwitch)
+                Spacer(Modifier.weight(1f))
+            }
         }
     }
 }
 
-/** `HubGameCard` for House Rockets: navy → blue cover with terrain and the rocket. */
+/** `HubGameCard` for Faus Rockets: artwork only — terrain and the rocket, centered, on navy → blue. */
 @Composable
 private fun HouseRocketsCard(copy: RocketsCopy, modifier: Modifier, onClick: () -> Unit) {
     val shape = RoundedCornerShape(Radius.xl)
@@ -116,25 +127,17 @@ private fun HouseRocketsCard(copy: RocketsCopy, modifier: Modifier, onClick: () 
         modifier.scaleButton(onClick = onClick)
             .softShadow(Color.Black.copy(alpha = .06f), 8.dp, y = 2.dp, shape = shape)
             .clip(shape)
-            .background(FausCrewColors.cardBackground),
+            .background(FausCrewColors.cardBackground)
+            .fausCardSheen(),
     ) {
-        BoxWithConstraints(
+        Box(
             Modifier.fillMaxWidth().height(120.dp).clipToBounds()
                 .background(Brush.linearGradient(listOf(HouseRocketsPalette.navy, HouseRocketsPalette.blue),
                     start = Offset.Zero, end = Offset.Infinite)),
             contentAlignment = Alignment.Center,
         ) {
             HouseRocketsTopography(Modifier.fillMaxSize())
-            HouseRocketsRocketMark(
-                Modifier.align(Alignment.TopStart).offset(x = maxWidth / 2 - 47.dp, y = 42.dp - 47.dp).size(94.dp),
-            )
-            Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(Spacing.sm)) {
-                Spacer(Modifier.height(40.dp))
-                Text(copy("games_house_rockets_badge"), style = FausCrewType.caption,
-                    color = Color.White.copy(alpha = .9f),
-                    modifier = Modifier.clip(CircleShape).background(Color.White.copy(alpha = .2f))
-                        .padding(horizontal = Spacing.sm, vertical = 3.dp))
-            }
+            HouseRocketsRocketMark(Modifier.size(94.dp))
         }
         Column(Modifier.fillMaxWidth().padding(Spacing.md), verticalArrangement = Arrangement.spacedBy(Spacing.xs)) {
             Text(copy("games_house_rockets_title"), style = FausCrewType.headline,
@@ -146,7 +149,7 @@ private fun HouseRocketsCard(copy: RocketsCopy, modifier: Modifier, onClick: () 
     }
 }
 
-/** `HubGameCard` for FauseTanks: artwork only — one olive arena tank on the field-map sheet. */
+/** `HubGameCard` for Faus Tanks: artwork only — one olive arena tank on the field-map sheet. */
 @Composable
 private fun HouseTanksCard(copy: TanksCopy, modifier: Modifier, onClick: () -> Unit) {
     val shape = RoundedCornerShape(Radius.xl)
@@ -154,7 +157,8 @@ private fun HouseTanksCard(copy: TanksCopy, modifier: Modifier, onClick: () -> U
         modifier.scaleButton(onClick = onClick)
             .softShadow(Color.Black.copy(alpha = .06f), 8.dp, y = 2.dp, shape = shape)
             .clip(shape)
-            .background(FausCrewColors.cardBackground),
+            .background(FausCrewColors.cardBackground)
+            .fausCardSheen(),
     ) {
         Box(
             Modifier.fillMaxWidth().height(120.dp).clipToBounds()
@@ -168,6 +172,32 @@ private fun HouseTanksCard(copy: TanksCopy, modifier: Modifier, onClick: () -> U
         Column(Modifier.fillMaxWidth().padding(Spacing.md), verticalArrangement = Arrangement.spacedBy(Spacing.xs)) {
             Text(copy("games_house_tanks_title"), style = FausCrewType.headline, color = FausCrewColors.textPrimary)
             Text(copy("games_house_tanks_card_description"), style = FausCrewType.caption,
+                color = FausCrewColors.textSecondary, maxLines = 3, overflow = TextOverflow.Ellipsis)
+        }
+    }
+}
+
+/** `HubGameCard` for Faus Switch: a slice of the course on the light sand cover. */
+@Composable
+private fun FausSwitchCard(copy: SwitchCopy, modifier: Modifier, onClick: () -> Unit) {
+    val shape = RoundedCornerShape(Radius.xl)
+    Column(
+        modifier.scaleButton(onClick = onClick)
+            .softShadow(Color.Black.copy(alpha = .06f), 8.dp, y = 2.dp, shape = shape)
+            .clip(shape)
+            .background(FausCrewColors.cardBackground)
+            .fausCardSheen(),
+    ) {
+        Box(
+            Modifier.fillMaxWidth().height(120.dp).clipToBounds()
+                .background(Brush.linearGradient(listOf(FausSwitchPalette.lightSand, FausSwitchPalette.sand),
+                    start = Offset.Zero, end = Offset.Infinite)),
+        ) {
+            FausSwitchCoverArtwork(Modifier.fillMaxSize())
+        }
+        Column(Modifier.fillMaxWidth().padding(Spacing.md), verticalArrangement = Arrangement.spacedBy(Spacing.xs)) {
+            Text(copy("games_faus_switch_title"), style = FausCrewType.headline, color = FausCrewColors.textPrimary)
+            Text(copy("games_faus_switch_card_description"), style = FausCrewType.caption,
                 color = FausCrewColors.textSecondary, maxLines = 3, overflow = TextOverflow.Ellipsis)
         }
     }

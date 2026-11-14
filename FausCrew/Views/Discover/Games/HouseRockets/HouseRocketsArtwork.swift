@@ -221,3 +221,35 @@ struct HouseRocketsRocketMark: View {
         .accessibilityHidden(true)
     }
 }
+
+/// A player's rocket as the course draws it (tinted hull and fins, cream outline), tilted up
+/// to the right like the mark; the room's color picker and roster show it on navy.
+struct HouseRocketsColorRocket: View {
+    let color: HouseRocketsColor
+
+    var body: some View {
+        Canvas { context, size in
+            context.translateBy(x: size.width / 2, y: size.height / 2)
+            let scale = min(size.width, size.height) / 40
+            context.scaleBy(x: scale, y: -scale)
+            context.rotate(by: .degrees(40))
+            context.translateBy(x: -5, y: 0)
+            let cream = Color(HouseRocketsPalette.cream)
+            let navy = Color(HouseRocketsPalette.navy)
+            let tint = Color(HouseRocketsPalette.player(color))
+            let red = Color(HouseRocketsPalette.red)
+            for (path, fill, stroke) in [(HouseRocketsArtwork.flame, cream, red),
+                                         (HouseRocketsArtwork.fins, tint, cream),
+                                         (HouseRocketsArtwork.hull, tint, cream),
+                                         (HouseRocketsArtwork.collar, Color(HouseRocketsPalette.burgundy), cream),
+                                         (HouseRocketsArtwork.nose, red, cream)] {
+                context.fill(Path(path), with: .color(fill))
+                context.stroke(Path(path), with: .color(stroke),
+                               style: StrokeStyle(lineWidth: 1.6, lineCap: .round, lineJoin: .round))
+            }
+            context.fill(Path(HouseRocketsArtwork.window), with: .color(navy))
+            context.stroke(Path(HouseRocketsArtwork.window), with: .color(color == .mint ? navy : cream), lineWidth: 1.6)
+        }
+        .accessibilityHidden(true)
+    }
+}

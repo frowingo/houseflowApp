@@ -93,7 +93,8 @@ extension ChoreResponse {
             statusHistories: statusHistories.map(\.houseStatusHistory),
             reviewRound: reviewRound,
             reviewVotes: reviewVotes,
-            reviewPhotoRounds: reviewPhotoRounds
+            reviewPhotoRounds: reviewPhotoRounds,
+            category: category
         )
     }
 }

@@ -11,10 +11,13 @@ class AppViewModel: ObservableObject {
     private let dashboardStore: DashboardStore
     private let choreStore: ChoreStore
     private let localizationStore: LocalizationStore
+    /// System templates and the user's drafts for the chore catalog popup.
+    let choreCatalogStore: ChoreCatalogStore
     let router: AppRouter
     let authenticationViewModel: AuthenticationViewModel
     let houseRocketsSessionFactory: HouseRocketsSessionFactory
     let houseTanksOnlineFactory: HouseTanksOnlineFactory
+    let fausSwitchOnlineFactory: FausSwitchOnlineFactory
     private let sessionCoordinator: AppSessionCoordinator
     private let fausCrewCoordinator: FausCrewCoordinator
     private let dashboardCoordinator: DashboardCoordinator
@@ -119,8 +122,10 @@ class AppViewModel: ObservableObject {
                 cache: dependencies.localizationCache
             ),
             userDefaults: dependencies.userDefaults,
+            choreCatalogStore: ChoreCatalogStore(service: dependencies.choreCatalogService),
             houseRocketsSessionFactory: dependencies.houseRocketsSessionFactory,
             houseTanksOnlineFactory: dependencies.houseTanksOnlineFactory,
+            fausSwitchOnlineFactory: dependencies.fausSwitchOnlineFactory,
             appEvents: dependencies.appEvents
         )
     }
@@ -135,8 +140,10 @@ class AppViewModel: ObservableObject {
         choreStore: ChoreStore,
         localizationStore: LocalizationStore,
         userDefaults: any PreferencesStore,
+        choreCatalogStore: ChoreCatalogStore? = nil,
         houseRocketsSessionFactory: HouseRocketsSessionFactory? = nil,
         houseTanksOnlineFactory: HouseTanksOnlineFactory = .unavailable,
+        fausSwitchOnlineFactory: FausSwitchOnlineFactory = .unavailable,
         appEvents: AppEventsService? = nil
     ) {
         self.appEvents = appEvents
@@ -147,8 +154,10 @@ class AppViewModel: ObservableObject {
         self.dashboardStore = dashboardStore
         self.choreStore = choreStore
         self.localizationStore = localizationStore
+        self.choreCatalogStore = choreCatalogStore ?? ChoreCatalogStore(service: nil)
         self.houseRocketsSessionFactory = houseRocketsSessionFactory ?? .localOnly
         self.houseTanksOnlineFactory = houseTanksOnlineFactory
+        self.fausSwitchOnlineFactory = fausSwitchOnlineFactory
 
         let router = AppRouter(
             hasAuthToken: keychain.authToken != nil,
@@ -320,6 +329,9 @@ class AppViewModel: ObservableObject {
     func localized(_ key: String) -> String {
         localizationStore.value(for: key)
     }
+
+    /// The app language's prefix (`nil` before one is chosen).
+    var localizationLanguagePrefix: String? { localizationStore.languagePrefix }
 
     func localized(_ key: String, fallback: String) -> String {
         localizationStore.value(for: key, fallback: fallback)
@@ -548,6 +560,8 @@ class AppViewModel: ObservableObject {
     // MARK: - Chore API
 
     /// Creates a chore via the API, then merges the returned chore into dashboard state.
+    /// Returns whether the backend accepted it (failures are also surfaced as a toast).
+    @discardableResult
     func createChore(
         assignedToId: String,
         description: String,
@@ -556,8 +570,9 @@ class AppViewModel: ObservableObject {
         isRecurring: Bool,
         level: ChoreLevel,
         recurringInterval: Int,
-        title: String
-    ) async {
+        title: String,
+        category: ChoreCategoryKind
+    ) async -> Bool {
         await dashboardCoordinator.createChore(
             assignedToId: assignedToId,
             description: description,
@@ -566,7 +581,8 @@ class AppViewModel: ObservableObject {
             isRecurring: isRecurring,
             level: level,
             recurringInterval: recurringInterval,
-            title: title
+            title: title,
+            category: category
         )
     }
 

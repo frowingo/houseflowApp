@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Faus Web launcher icon, used by the LauncherFausWeb alias. -->
+<adaptive-icon xmlns:android="http://schemas.android.com/apk/res/android">
+    <background android:drawable="@drawable/ic_launcher_web_background" />
+    <foreground android:drawable="@drawable/ic_launcher_web_foreground" />
+    <monochrome android:drawable="@drawable/ic_launcher_web_foreground" />
+</adaptive-icon>

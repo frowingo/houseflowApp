@@ -3,7 +3,7 @@ import SpriteKit
 import XCTest
 @testable import FausCrew
 
-/// iOS host tests. The FauseTanks rules, physics and bots are covered in FausCrewCore
+/// iOS host tests. The Faus Tanks rules, physics and bots are covered in FausCrewCore
 /// (`HouseTanksEngineTests`); these check the session, view model, scene and glyphs.
 @MainActor
 final class HouseTanksTests: XCTestCase {

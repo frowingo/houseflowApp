@@ -2,7 +2,7 @@ import Foundation
 import FausCrewCore
 
 /// Narrow, versioned JNI boundary. HTTP execution and secure storage stay on Android.
-public func bridgeVersion() -> Int32 { 15 }
+public func bridgeVersion() -> Int32 { 18 }
 
 public func normalizeInviteCode(_ input: String) -> String {
     InviteCodeRules.normalized(input)
@@ -186,24 +186,27 @@ public func houseRequestBody(
 
 /// action: create, update, status, statusPhoto, review, announcement.
 /// `statusPhoto` returns the multipart `chores` field value, not a JSON body.
+/// `category` is a `ChoreCategoryKind` raw value; `0` leaves it out of the body.
 public func dashboardRequestBody(
     _ action: String, _ houseId: String, _ choreId: String, _ assignedTo: String,
     _ title: String, _ description: String, _ dueDate: String, _ isRecurring: Bool,
-    _ level: Int32, _ recurringInterval: Int32, _ status: Int32, _ isApproved: Bool
+    _ level: Int32, _ recurringInterval: Int32, _ status: Int32, _ isApproved: Bool,
+    _ category: Int32
 ) -> String {
     let data: Data?
+    let category = category > 0 ? Int(category) : nil
     switch action {
     case "create":
         data = try? DashboardWireContract.choreBody(
             assignedTo: assignedTo, description: description, dueDate: dueDate,
             houseId: houseId, isRecurring: isRecurring, level: Int(level),
-            recurringInterval: Int(recurringInterval), title: title
+            recurringInterval: Int(recurringInterval), title: title, category: category
         )
     case "update":
         data = try? DashboardWireContract.updateChoreBody(
             assignedTo: assignedTo, description: description, dueDate: dueDate,
             houseId: houseId, isRecurring: isRecurring, level: Int(level),
-            recurringInterval: Int(recurringInterval), title: title
+            recurringInterval: Int(recurringInterval), title: title, category: category
         )
     case "status":
         data = try? DashboardWireContract.statusBody(choreId: choreId, houseId: houseId, status: Int(status))

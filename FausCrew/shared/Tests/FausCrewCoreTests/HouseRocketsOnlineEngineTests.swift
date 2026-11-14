@@ -16,9 +16,9 @@ final class HouseRocketsOnlineEngineTests: XCTestCase {
         let join = try XCTUnwrap(sent(engine).first)
         XCTAssertEqual(join["type"] as? String, "gameSession.join")
 
-        try receive(engine, socket, session(version: 7, state: "lobby", localState: "waiting"), at: 1)
+        try receive(engine, socket, session(version: 7, state: "lobby", localState: "waiting", colors: [playerID: "teal"]), at: 1)
         XCTAssertNil(engine.lobby.pendingCommand, "Roster proof confirms the join")
-        XCTAssertTrue(engine.lobby.canChangeReady(playerID: playerID))
+        XCTAssertTrue(engine.canChangeReady)
 
         engine.setReady(true, now: 1.1)
         XCTAssertEqual(try sent(engine).first?["type"] as? String, "gameSession.setReady")
@@ -44,6 +44,18 @@ final class HouseRocketsOnlineEngineTests: XCTestCase {
         let message = try XCTUnwrap(sent(engine).first)
         XCTAssertEqual(message["type"] as? String, "gameSession.setReady")
         XCTAssertEqual((message["payload"] as? [String: Any])?["ready"] as? Bool, false)
+    }
+
+    func testReadyCountsInThePortraitRoom() throws {
+        let (engine, socket) = try connectedLobby()
+        engine.setLandscape(false, now: 1)
+        _ = engine.drainEffects()
+        try receive(engine, socket, session(version: 7, state: "lobby", localState: "waiting", colors: [playerID: "teal"]), at: 1.05)
+        engine.setReady(true, now: 1.1)
+        let message = try XCTUnwrap(sent(engine).first)
+        XCTAssertEqual(message["type"] as? String, "gameSession.setReady")
+        XCTAssertEqual((message["payload"] as? [String: Any])?["ready"] as? Bool, true,
+                       "The room is portrait; the screen turns only when the countdown starts")
     }
 
     func testFlightStreamsSteeringOnlyWithTheCurrentGrant() throws {
@@ -237,7 +249,7 @@ final class HouseRocketsOnlineEngineTests: XCTestCase {
 
     func testReadyRejectionKeepsTheServerRosterAndAsksForCorrelatedResync() throws {
         let (engine, socket) = try connectedLobby()
-        try receive(engine, socket, session(version: 7, state: "lobby", localState: "waiting"), at: 1)
+        try receive(engine, socket, session(version: 7, state: "lobby", localState: "waiting", colors: [playerID: "teal"]), at: 1)
         _ = engine.drainEffects()
         engine.setReady(true, now: 1.1)
         let ready = try XCTUnwrap(sent(engine).first)
@@ -258,7 +270,7 @@ final class HouseRocketsOnlineEngineTests: XCTestCase {
 
     func testUnconfirmedLifecycleCommandIsResentOnceThenTimesOut() throws {
         let (engine, socket) = try connectedLobby()
-        try receive(engine, socket, session(version: 7, state: "lobby", localState: "waiting"), at: 1)
+        try receive(engine, socket, session(version: 7, state: "lobby", localState: "waiting", colors: [playerID: "teal"]), at: 1)
         _ = engine.drainEffects()
         engine.setReady(true, now: 1)
         let first = try XCTUnwrap(sent(engine).first)
@@ -460,16 +472,167 @@ final class HouseRocketsOnlineEngineTests: XCTestCase {
         }
     }
 
-    private func makeEngine() -> HouseRocketsOnlineEngine {
+    // MARK: Rocket colors
+
+    /// The color claim matches the backend's fixture message byte for byte, and the
+    /// fixture's claimed-colors snapshot reads back as the lobby's colors.
+    func testColorClaimMatchesTheBackendFixture() throws {
+        let encoded = try GameRealtimeCodec.encode(GameRealtimeClientMessageOf<HouseRocketsRealtime>(
+            messageId: "color1", action: .gameplay(.selectColor(.teal))))
+        let expected = try XCTUnwrap((Self.fixture["clientMessages"] as? [[String: Any]])?
+            .first { $0["name"] as? String == "selectColor" }?["message"] as? NSDictionary)
+        XCTAssertEqual(try JSONSerialization.jsonObject(with: encoded) as? NSDictionary, expected)
+
+        // The fixture's room is counting down; here it is still the lobby, one version on.
+        let (engine, socket) = try connectedLobby()
+        try receive(engine, socket, server("claimedColorsSessionSnapshot") { message in
+            var payload = message["payload"] as! [String: Any]
+            payload["version"] = 50
+            payload["state"] = "lobby"
+            message["payload"] = payload
+        }, at: 1)
+        XCTAssertEqual(engine.lobbyColors.claims["507f1f77bcf86cd799439021"], .teal)
+        XCTAssertEqual(engine.lobbyColors.claims["507f1f77bcf86cd799439022"], .mint)
+    }
+
+    func testLobbySendsThePreferredColorAfterJoining() throws {
+        let (engine, socket) = try connectedLobby(color: .teal)
+        _ = engine.drainEffects()
+        try receive(engine, socket, session(version: 7, state: "lobby", localState: "waiting"), at: 1)
+        let claim = try XCTUnwrap(sent(engine).first)
+        XCTAssertEqual(claim["type"] as? String, "houseRockets.selectColor")
+        XCTAssertNil(claim["controlGeneration"])
+        XCTAssertEqual((claim["payload"] as? [String: Any])?["color"] as? String, "teal")
+
+        // The same pick is not repeated; a new pick is sent.
+        try receive(engine, socket, session(version: 8, state: "lobby", localState: "waiting"), at: 1.1)
+        XCTAssertEqual(try claims(engine), [])
+        engine.selectColor(.violet, now: 1.2)
+        XCTAssertEqual(try claims(engine), ["violet"])
+    }
+
+    /// Play Again: the color goes first, then ready, once the player sits in the new room;
+    /// a later room change does not ask again.
+    func testPlayAgainReadiesOnceSeatedAfterTheColor() throws {
+        let (engine, socket) = try connectedLobby(color: .teal)
+        engine.readyOnJoin(now: 0.9)
+        _ = engine.drainEffects()
+        try receive(engine, socket, session(version: 7, state: "lobby", localState: "waiting"), at: 1)
+        XCTAssertEqual(try sent(engine).map { $0["type"] as? String }, ["houseRockets.selectColor"],
+                       "Ready waits until the server holds the color")
+        try receive(engine, socket, session(version: 8, state: "lobby", localState: "waiting", colors: [playerID: "teal"]), at: 1.05)
+        XCTAssertEqual(try sent(engine).map { $0["type"] as? String }, ["gameSession.setReady"])
+
+        try receive(engine, socket, session(version: 9, state: "lobby", localState: "ready", colors: [playerID: "teal"]), at: 1.1)
+        try receive(engine, socket, session(version: 10, state: "lobby", localState: "waiting", colors: [playerID: "teal"]), at: 1.2)
+        XCTAssertFalse(try sent(engine).contains { $0["type"] as? String == "gameSession.setReady" },
+                       "Taking ready back afterwards stays the player's choice")
+    }
+
+    /// A server without lobby colors rejects the claim; the room goes on with seat colors.
+    func testRejectedColorClaimKeepsTheRoom() throws {
+        let (engine, socket) = try connectedLobby(color: .teal)
+        _ = engine.drainEffects()
+        try receive(engine, socket, session(version: 7, state: "lobby", localState: "waiting"), at: 1)
+        let id = try XCTUnwrap(sent(engine).first?["messageId"] as? String)
+        try receive(engine, socket, rejection(id: id, code: "game.error.invalid_command"), at: 1.1)
+        XCTAssertNil(engine.lobby.issue)
+        XCTAssertEqual(engine.lobby.connection, .connected)
+        XCTAssertFalse(engine.isClosed)
+        try receive(engine, socket, session(version: 8, state: "lobby", localState: "waiting"), at: 1.2)
+        XCTAssertEqual(try claims(engine), [], "Not resent on the same connection")
+        XCTAssertEqual(engine.lobbyColors.localColor(preferred: engine.preferredColor), .teal)
+    }
+
+    func testColorHeldByAnotherPlayerIsAskedForOnceItIsFree() throws {
+        let (engine, socket) = try connectedLobby(color: .coral)
+        _ = engine.drainEffects()
+        try receive(engine, socket, session(version: 7, state: "lobby", localState: "waiting", colors: [otherID: "coral"]), at: 1)
+        XCTAssertEqual(try claims(engine), [], "Coral is held: the claim would change nothing")
+        XCTAssertTrue(engine.lobbyColors.isPreferredTaken(engine.preferredColor))
+        XCTAssertNil(engine.lobbyColors.localColor(preferred: engine.preferredColor))
+        XCTAssertEqual(engine.lobby.memberColor(of: otherID, localPlayerID: playerID, preferred: engine.preferredColor), .coral)
+
+        try receive(engine, socket, session(version: 8, state: "lobby", localState: "waiting", colors: [otherID: "coral"],
+                                            otherState: "left"), at: 1.1)
+        XCTAssertEqual(try claims(engine), ["coral"])
+
+        // Once the server shows the claim, it is not sent again.
+        try receive(engine, socket, session(version: 9, state: "lobby", localState: "waiting", colors: [playerID: "coral"]), at: 1.2)
+        engine.selectColor(.coral, now: 1.3)
+        XCTAssertEqual(try claims(engine), [])
+        XCTAssertEqual(engine.lobbyColors.localClaim, .coral)
+    }
+
+    func testReadyLocksTheColorUntilTheReadyIsTakenBack() throws {
+        let (engine, socket) = try connectedLobby(color: .coral)
+        _ = engine.drainEffects()
+        try receive(engine, socket, session(version: 7, state: "lobby", localState: "ready",
+                                            colors: [otherID: "coral", playerID: "blue"]), at: 1)
+        XCTAssertTrue(engine.lobbyColors.isLocked)
+        XCTAssertEqual(try claims(engine), [])
+
+        // A pick while ready changes nothing, and the freed color is not claimed either.
+        engine.selectColor(.violet, now: 1.1)
+        XCTAssertEqual(engine.preferredColor, .coral)
+        try receive(engine, socket, session(version: 8, state: "lobby", localState: "ready",
+                                            colors: [otherID: "coral", playerID: "blue"], otherState: "left"), at: 1.2)
+        XCTAssertEqual(try claims(engine), [])
+
+        // Not ready again: the wished color is asked for, and picks go through.
+        try receive(engine, socket, session(version: 9, state: "lobby", localState: "waiting",
+                                            colors: [otherID: "coral", playerID: "blue"], otherState: "left"), at: 1.3)
+        XCTAssertFalse(engine.lobbyColors.isLocked)
+        XCTAssertEqual(try claims(engine), ["coral"])
+        engine.selectColor(.violet, now: 1.4)
+        XCTAssertEqual(try claims(engine), ["violet"])
+    }
+
+    func testNoColorIsAskedForWithoutAPick() throws {
+        let (engine, socket) = try connectedLobby()
+        _ = engine.drainEffects()
+        try receive(engine, socket, session(version: 7, state: "lobby", localState: "waiting"), at: 1)
+        XCTAssertEqual(try claims(engine), [])
+        XCTAssertNil(engine.lobbyColors.localColor(preferred: engine.preferredColor))
+    }
+
+    func testSeatedRocketsShowTheServerColor() throws {
+        let (engine, socket) = try connectedLobby(state: "running", color: .teal)
+        try receive(engine, socket, server("playing"), at: 1)
+        let seated = try XCTUnwrap(engine.lobby.game?.players.first { $0.playerId == playerID })
+        XCTAssertEqual(engine.lobby.memberColor(of: playerID, localPlayerID: playerID, preferred: .teal), seated.color)
+    }
+
+    // MARK: Helpers
+
+    private var otherID: String { "507f1f77bcf86cd799439022" }
+
+    /// The colors claimed since the last drain (other room messages are left out).
+    private func claims(_ engine: HouseRocketsOnlineEngine) throws -> [String] {
+        try sent(engine).filter { $0["type"] as? String == "houseRockets.selectColor" }
+            .compactMap { ($0["payload"] as? [String: Any])?["color"] as? String }
+    }
+
+    private func rejection(id: String, code: String) throws -> Data {
+        let message: [String: Any] = [
+            "protocolVersion": 2, "type": "gameSession.commandRejected", "sentAt": "2026-10-03T12:00:50.125Z",
+            "messageId": id, "error": ["code": code, "args": [String](), "retryable": false],
+        ]
+        return try JSONSerialization.data(withJSONObject: message)
+    }
+
+    private func makeEngine(color: HouseRocketsColor? = nil) -> HouseRocketsOnlineEngine {
         HouseRocketsOnlineEngine(
             context: HouseRocketsLaunchContext(houseID: houseID, localPlayerID: playerID, houseOwnerID: playerID),
+            preferredColor: color,
             policy: HouseRocketsReconnectPolicy(jitter: { 0.8 }),
             makeID: { [unowned self] in ids += 1; return "id\(ids)" }
         )
     }
 
-    private func connectedLobby(state: String = "lobby") throws -> (engine: HouseRocketsOnlineEngine, socket: Int) {
-        let engine = makeEngine()
+    private func connectedLobby(state: String = "lobby", color: HouseRocketsColor? = nil) throws
+        -> (engine: HouseRocketsOnlineEngine, socket: Int) {
+        let engine = makeEngine(color: color)
         engine.start(isForeground: true, isLandscape: true, now: 0)
         let connection = try ensureConnection(engine)
         engine.sessionResponse(try http("ensure", state: state), retryAfter: nil, connection: connection, now: 0.1)
@@ -529,6 +692,7 @@ final class HouseRocketsOnlineEngineTests: XCTestCase {
 
     /// A `gameSession.snapshot` with the local player in `localState` (nil = absent).
     private func session(version: Int64, state: String, localState: String?,
+                         colors: [String: String]? = nil, otherState: String? = nil,
                          message extra: (inout [String: Any]) -> Void = { _ in }) throws -> Data {
         try server("sessionSnapshot") { message in
             defer { extra(&message) }
@@ -540,7 +704,12 @@ final class HouseRocketsOnlineEngineTests: XCTestCase {
                 players.insert(["playerId": self.playerID, "state": localState,
                                 "joinedAt": "2026-10-03T12:00:00Z", "readyAt": NSNull(), "leftAt": NSNull()], at: 0)
             }
+            if let otherState, let index = players.firstIndex(where: { $0["playerId"] as? String == self.otherID }) {
+                players[index]["state"] = otherState
+                if otherState == "left" { players[index]["leftAt"] = "2026-10-03T12:00:20Z" }
+            }
             payload["players"] = players
+            if let colors { payload["lobbyState"] = ["colors": colors] }
             if state == "lobby" { payload["countdownEndsAt"] = NSNull() }
             if state == "finished" || state == "cancelled" { payload["endedAt"] = "2026-10-03T12:00:40Z" }
             if state == "cancelled" { payload["startedAt"] = NSNull(); payload["endReason"] = "cancelledByUser" }

@@ -26,6 +26,8 @@ class DashboardScreenTest {
         "todays_tasks_title" to "Today's Tasks", "todays_tasks_empty_title" to "All Done!",
         "todays_tasks_empty_subtitle" to "You've completed all tasks for today",
         "house_members_title" to "House Members", "floating_new_chore_button" to "New Chore",
+        "chore_catalog_open_accessibility" to "Open the chore catalog", "chore_catalog_title" to "Chore Catalog",
+        "todays_tasks_empty_add" to "Add from the catalog",
         "new_announcement_action_accessibility_label" to "Create announcement",
         "new_announcement_title" to "New announcement", "new_announcement_subtitle" to "Share an update",
         "new_announcement_title_label" to "Title", "new_announcement_message_label" to "Message",
@@ -49,11 +51,18 @@ class DashboardScreenTest {
         compose.runOnIdle { assertEquals(0, publishes) }
     }
 
-    @Test fun fabKeepsIosTwoTapFlow() {
+    @Test fun choreCatalogOpensFromTodaysTasksInsteadOfTheFab() {
         compose.setContent { DashboardScreen(state, text, { _, _ -> }, {}, { _, _, _ -> }, { _, _ -> }, {}) }
-        compose.onNodeWithText("New Chore").assertDoesNotExist()
-        compose.onNodeWithContentDescription("New Chore").performClick()
-        compose.onNodeWithText("New Chore").assertExists()
+        compose.onNodeWithContentDescription("New Chore").assertDoesNotExist()
+        compose.onNodeWithText("Chore Catalog").assertDoesNotExist()
+        compose.onNodeWithContentDescription("Open the chore catalog").performClick()
+        compose.onNodeWithText("Chore Catalog").assertExists()
+    }
+
+    @Test fun emptyTodaysTasksOffersTheCatalog() {
+        compose.setContent { DashboardScreen(state, text, { _, _ -> }, {}, { _, _, _ -> }, { _, _ -> }, {}) }
+        compose.onNodeWithText("Add from the catalog").performClick()
+        compose.onNodeWithText("Chore Catalog").assertExists()
     }
 
     @Test fun dashboardReportsPopupAsOverlaySoTheTabBarHides() {

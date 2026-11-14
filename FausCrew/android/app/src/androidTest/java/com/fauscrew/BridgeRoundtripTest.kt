@@ -13,7 +13,7 @@ import org.junit.runner.RunWith
 @RunWith(AndroidJUnit4::class)
 class BridgeRoundtripTest {
     @Test fun authWireRunsThroughGeneratedJni() {
-        assertEquals(10, FausCrewAndroidBridge.bridgeVersion())
+        assertEquals(16, FausCrewAndroidBridge.bridgeVersion())
         val body = FausCrewAndroidBridge.loginRequestBody("ada@example.com", "secret")
         assertEquals("ada@example.com", org.json.JSONObject(body).getString("email"))
         assertEquals("secret", org.json.JSONObject(body).getString("password"))
@@ -51,6 +51,47 @@ class BridgeRoundtripTest {
         assertEquals("AB12CD34", InviteCodeBridge.normalize("ab-12 cd34xyz"))
         assertEquals("", InviteCodeBridge.normalize(""))
         assertEquals("12345678", InviteCodeBridge.normalize("１２３４５６７８ 12345678"))
+    }
+
+    /** A Faus Switch demo race through the generated JNI and the Kotlin parsers. */
+    @Test fun fausSwitchRaceRunsThroughGeneratedJni() {
+        val course = com.fauscrew.platform.FausSwitchNative.course
+        assertTrue(course.sections.isNotEmpty() && course.rails.isNotEmpty())
+        val constants = com.fauscrew.platform.FausSwitchNative.constants
+        assertEquals(constants.colors.size, constants.colorHex.size)
+        val engine = com.fauscrew.platform.FausSwitchNative.engine()
+        try {
+            engine.viewport(844.0, 390.0)
+            val start = engine.start(com.fauscrew.platform.SwitchColor.OCEAN, 3)
+            assertEquals(4, start.world!!.runners.size)
+            assertEquals(4, start.world!!.platforms.size)
+            var update = start
+            repeat(200) { update = engine.step(1.0 / 20.0) }
+            assertTrue(update.world!!.tick > 0)
+            assertTrue(engine.flip().flip != null)
+        } finally {
+            engine.close()
+        }
+    }
+
+    /** The Faus Switch online room: the first effect, the room colors, a flip answer and a frame. */
+    @Test fun fausSwitchOnlineRoomRunsThroughGeneratedJni() {
+        val online = com.fauscrew.platform.FausSwitchOnlineNative
+        assertEquals(null, online.catalogAvailability("h", 503, ""))
+        val engine = online.engine("h", "u", "owner", null, com.fauscrew.platform.SwitchColor.BERRY)
+        try {
+            engine.viewport(844.0, 390.0)
+            val start = engine.event("start", 1.0, mapOf("foreground" to true, "landscape" to false))
+            assertTrue(start.effects.first() is com.fauscrew.platform.OnlineEffect.EnsureSession)
+            assertEquals(com.fauscrew.platform.SwitchColor.BERRY, engine.room.colors.preferred)
+            engine.event("flip", 1.1, emptyMap())
+            assertEquals(com.fauscrew.platform.SwitchFlip.IGNORED, engine.lastFlip)
+            val frame = engine.frame(1.2)
+            assertEquals(null, frame.world)
+            assertEquals(null, frame.match.result)
+        } finally {
+            engine.close()
+        }
     }
 
     @Test fun invalidInputStopsAtKotlinBoundary() {

@@ -1,4 +1,4 @@
-// Fause Bloom ebru texture: warped fractal Perlin noise banded into rose veins on a transparent
+// Faus Bloom ebru texture: warped fractal Perlin noise banded into rose veins on a transparent
 // background. Generates `BloomMarble` (iOS asset catalog) and Android's `bloom_marble`:
 //   swiftc -O Design/Themes/BloomMarble.swift -o /tmp/bloom-marble
 //   /tmp/bloom-marble FausCrew/Assets.xcassets/BloomMarble.imageset/BloomMarble@2x.png 390 844 2 4

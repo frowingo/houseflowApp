@@ -7,7 +7,13 @@ import FausCrewCore
 final class HouseTanksViewModel: ObservableObject {
     @Published private(set) var snapshot: HouseTanksSnapshot?
     @Published var difficulty: HouseTanksDifficulty?
-    @Published var humanColor: HouseTanksColor?
+    /// The tank color: the demo tank, and the online request (first claim wins).
+    @Published var humanColor: HouseTanksColor? {
+        didSet {
+            guard humanColor != oldValue, let humanColor else { return }
+            onlineHost?.perform { $0.selectColor(humanColor, now: $1) }
+        }
+    }
     @Published var mapID: HouseTanksMapID?
     @Published private(set) var selectedMode: HouseTanksMode?
     /// The online room, run by FausCrewCore's engine (shared with Android).
@@ -214,12 +220,12 @@ final class HouseTanksViewModel: ObservableObject {
         connectOnlineHost(makeHost: makeHost, context: context, excludingSessionID: nil)
     }
 
-    private func connectOnlineHost(makeHost: @MainActor (GameLaunchContext, String?) -> HouseTanksOnlineHost,
+    private func connectOnlineHost(makeHost: HouseTanksOnlineFactory.MakeHost,
                                    context: GameLaunchContext, excludingSessionID: String?) {
         onlineContext = context
         onlineGeneration = UUID()
         let expected = onlineGeneration
-        let host = makeHost(context, excludingSessionID)
+        let host = makeHost(context, excludingSessionID, humanColor)
         onlineHost = host
         host.onLobbyChange = { [weak self, weak host] state in
             guard let self, self.onlineGeneration == expected else { return }
@@ -258,6 +264,21 @@ final class HouseTanksViewModel: ObservableObject {
     }
 
     func onlineCountdown() -> Int? { onlineHost?.roomCountdown() }
+
+    /// The lobby's tank colors: taken by others, the local claim, locked while ready.
+    var onlineLobbyColors: HouseTanksLobbyColors { onlineState.lobbyColors(localPlayerID: onlineContext?.localPlayerID) }
+
+    /// The ready button works: the lobby takes the change and, to get ready, the server holds
+    /// this player's color (Core's `allowsReady`; the engine ignores a ready without one).
+    func canChangeOnlineReady(playerID: String?) -> Bool {
+        onlineState.canChangeReady(playerID: playerID) && onlineLobbyColors.allowsReady
+    }
+    /// The local tank's color in the room: the pick while it is free, else the server's claim.
+    var onlineLocalColor: HouseTanksColor? { onlineLobbyColors.localColor(preferred: humanColor) }
+    /// A participant's tank color in the room (the server's once the match seats them).
+    func onlineColor(of playerID: String) -> HouseTanksColor? {
+        onlineState.memberColor(of: playerID, localPlayerID: onlineContext?.localPlayerID, preferred: humanColor)
+    }
 
     // MARK: - Online match
 
@@ -495,7 +516,7 @@ struct HouseTanksOnlineMatchUI: Equatable {
     }
 }
 
-/// Whether the house's catalog lists FauseTanks; unknown until the first read.
+/// Whether the house's catalog lists Faus Tanks; unknown until the first read.
 enum HouseTanksOnlineCatalog: Equatable {
     case unknown
     case available(maximumPlayers: Int)

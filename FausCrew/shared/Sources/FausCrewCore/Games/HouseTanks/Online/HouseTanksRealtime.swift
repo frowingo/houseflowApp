@@ -1,7 +1,8 @@
 import Foundation
 
-/// FauseTanks on the shared realtime protocol (contract houseTanks.v2): one
-/// button (`press`), a vote between rounds (`roundReady`) and `resync`.
+/// Faus Tanks on the shared realtime protocol (contract houseTanks.v2): one
+/// button (`press`), a vote between rounds (`roundReady`), a tank color asked for in
+/// the lobby (`selectColor`) and `resync`.
 public enum HouseTanksRealtime: GameRealtimeGame {
     public enum Intent: Equatable, Sendable {
         /// The single button pressed (`true`) or released. `clientTick` and
@@ -10,10 +11,12 @@ public enum HouseTanksRealtime: GameRealtimeGame {
         case press(controlGeneration: String, inputSequence: Int64, pressed: Bool, clientTick: Int64, heading: Double)
         /// A vote in `roundReady`.
         case roundReady(controlGeneration: String, ready: Bool)
+        /// Lobby only: the color this player asks for. The server keeps the first claim
+        /// per color and gives the rest the first free color by seat order (ADR-030).
+        case selectColor(HouseTanksColor)
     }
 
     public static let gameKey = GameKey.houseTanks
-    public static let readyRequiresLandscape = false
 
     /// A different contract or catalog means this build cannot draw the server's
     /// world; so does a frozen physics rate, arena or round rule it does not run.
@@ -44,6 +47,7 @@ public enum HouseTanksRealtime: GameRealtimeGame {
         switch intent {
         case .press: return "houseTanks.press"
         case .roundReady: return "houseTanks.roundReady"
+        case .selectColor: return "houseTanks.selectColor"
         }
     }
 
@@ -59,12 +63,15 @@ public enum HouseTanksRealtime: GameRealtimeGame {
         case .roundReady(let generation, let ready):
             try GameRealtimeCodec.validateIdentifier(generation)
             return RoundReady(controlGeneration: generation, ready: ready)
+        case .selectColor(let color):
+            return SelectColor(color: color.rawValue)
         }
     }
 
     public static func controlGeneration(of intent: Intent) -> String? {
         switch intent {
         case .press(let generation, _, _, _, _), .roundReady(let generation, _): return generation
+        case .selectColor: return nil
         }
     }
 
@@ -100,6 +107,10 @@ public enum HouseTanksRealtime: GameRealtimeGame {
     private struct RoundReady: Encodable {
         let controlGeneration: String
         let ready: Bool
+    }
+
+    private struct SelectColor: Encodable {
+        let color: String
     }
 }
 

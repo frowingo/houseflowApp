@@ -34,7 +34,8 @@ final class ChoreService {
         isRecurring: Bool,
         level: ChoreLevel,
         recurringInterval: Int,
-        title: String
+        title: String,
+        category: ChoreCategoryKind
     ) async throws -> ChoreResponse {
         guard let token = keychain.authToken else {
             throw NetworkError.serverError("Not authenticated.")
@@ -47,7 +48,8 @@ final class ChoreService {
             isRecurring: isRecurring,
             level: level.rawValue,
             recurringInterval: recurringInterval,
-            title: title
+            title: title,
+            category: category.isAssignable ? category.rawValue : nil
         )
         return try await network.authenticatedRequest(
             path: "chore",
@@ -165,11 +167,13 @@ final class ChoreService {
         isRecurring: Bool,
         level: ChoreLevel,
         recurringInterval: Int,
-        title: String
+        title: String,
+        category: ChoreCategoryKind? = nil
     ) async throws -> ChoreResponse {
         guard let token = keychain.authToken else {
             throw NetworkError.serverError("Not authenticated.")
         }
+        // `nil` (or uncategorized) leaves `category` out, so the chore keeps its category.
         let body = UpdateChoreRequest(
             assignedTo: assignedTo,
             description: description,
@@ -178,7 +182,8 @@ final class ChoreService {
             isRecurring: isRecurring,
             level: level.rawValue,
             recurringInterval: recurringInterval,
-            title: title
+            title: title,
+            category: category.flatMap { $0.isAssignable ? $0.rawValue : nil }
         )
         return try await network.authenticatedRequest(
             path: "chore/\(choreId)",

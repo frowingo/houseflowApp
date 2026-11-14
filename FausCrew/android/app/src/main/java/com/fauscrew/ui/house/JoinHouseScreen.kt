@@ -1,5 +1,7 @@
 package com.fauscrew.ui.house
 
+import com.fauscrew.ui.components.fausCardSheen
+import com.fauscrew.ui.theme.LocalFausTheme
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -94,21 +96,21 @@ internal fun JoinHouseScreen(state: HouseUiState, strings: LocalizedText, onBack
                             .semantics { contentDescription = strings.get("common_back", "Back") },
                         contentAlignment = Alignment.Center,
                     ) {
-                        Icon(FausCrewIcons.arrowLeft, null, Modifier.size(22.dp), tint = FausCrewColors.accentOrangeInk)
+                        Icon(FausCrewIcons.arrowLeft, null, Modifier.size(22.dp), tint = LocalFausTheme.current.decor.accentOnCard ?: FausCrewColors.accentOrangeInk)
                     }
                 }
                 Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(Spacing.md)) {
                     JoinArt()
                     Text(strings.get("join_house_title"), fontSize = 34.sp, fontWeight = FontWeight.Bold,
-                        color = FausCrewColors.textPrimary, textAlign = TextAlign.Center)
+                        color = FausCrewColors.pageText, textAlign = TextAlign.Center)
                     Text(strings.get("join_house_subtitle"), Modifier.padding(horizontal = Spacing.xxxl),
-                        style = FausCrewType.subheadline, color = FausCrewColors.textSecondary, textAlign = TextAlign.Center)
+                        style = FausCrewType.subheadline, color = FausCrewColors.pageTextSecondary, textAlign = TextAlign.Center)
                 }
             }
             Column(Modifier.padding(horizontal = Spacing.xl), verticalArrangement = Arrangement.spacedBy(Spacing.xxl)) {
                 Column(verticalArrangement = Arrangement.spacedBy(Spacing.lg)) {
                     Text(strings.get("invite_code_label"), Modifier.fillMaxWidth(), style = FausCrewType.headline,
-                        color = FausCrewColors.textPrimary)
+                        color = FausCrewColors.pageText)
                     OtpField(code, { code = InviteCodeBridge.normalize(it) }, strings.get("invite_code_label"), false, INVITE_CODE_LENGTH)
                 }
                 HelpBox(strings)
@@ -146,8 +148,13 @@ private fun JoinArt() {
 @Composable
 private fun HelpBox(strings: LocalizedText) {
     val shape = RoundedCornerShape(Radius.md)
+    // Themes with sheened cards (Faus Web) draw the box as a card so its text keeps the card
+    // contrast on a light page.
+    val asCard = LocalFausTheme.current.decor.cardSheen.alpha > 0f
     Column(
-        Modifier.fillMaxWidth().clip(shape).background(FausCrewColors.deepBerry.copy(alpha = .05f))
+        Modifier.fillMaxWidth().clip(shape)
+            .background(if (asCard) FausCrewColors.cardBackground else FausCrewColors.deepBerry.copy(alpha = .05f))
+            .fausCardSheen()
             .border(1.dp, FausCrewColors.deepBerry.copy(alpha = .12f), shape).padding(Spacing.lg),
         verticalArrangement = Arrangement.spacedBy(Spacing.md),
     ) {

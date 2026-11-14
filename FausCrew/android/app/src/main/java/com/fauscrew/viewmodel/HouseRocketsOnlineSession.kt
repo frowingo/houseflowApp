@@ -7,13 +7,15 @@ import com.fauscrew.platform.OnlineOutput
 import com.fauscrew.platform.PlatformHttpRequest
 import com.fauscrew.platform.PlatformHttpResponse
 import com.fauscrew.platform.RealtimeSocketFactory
+import com.fauscrew.platform.RocketsColor
 import com.fauscrew.platform.RocketsFrame
+import com.fauscrew.platform.RocketsLobbyColors
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 
-/** House Rockets' online match: the shared host plus the interpolated flight. */
+/** Faus Rockets' online match: the shared host, the interpolated flight and the lobby colors. */
 internal class HouseRocketsOnlineSession(
     scope: CoroutineScope,
     private val engine: HouseRocketsOnlineEngine,
@@ -29,6 +31,12 @@ internal class HouseRocketsOnlineSession(
     val frame: StateFlow<RocketsFrame?> = mutableFrame.asStateFlow()
     private val mutableFlight = MutableStateFlow<OnlineFlightUi?>(null)
     val flight: StateFlow<OnlineFlightUi?> = mutableFlight.asStateFlow()
+    private val mutableColors = MutableStateFlow(RocketsLobbyColors())
+    /** The lobby's rocket colors (Core's claims), refreshed with every lobby output. */
+    val colors: StateFlow<RocketsLobbyColors> = mutableColors.asStateFlow()
+
+    /** Asks for a rocket color; Core sends it once the player sits in the lobby. */
+    fun selectColor(color: RocketsColor) = intent("selectColor", mapOf("color" to color.raw))
 
     fun viewport(width: Float, height: Float, hudWidth: Float, hudHeight: Float) {
         if (!isDisposed) engine.viewport(width, height, hudWidth, hudHeight)
@@ -42,6 +50,7 @@ internal class HouseRocketsOnlineSession(
     }
 
     override fun applied(output: OnlineOutput) {
+        if (output.lobby != null) mutableColors.value = engine.colors
         if (!lobby.value.hasGame && mutableFrame.value != null) sampleFrame()
     }
 }

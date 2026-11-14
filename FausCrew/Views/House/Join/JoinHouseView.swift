@@ -5,6 +5,7 @@ import FausCrewCore
 /// Refactored: Component'lere bölündü, Design System kullanıyor
 struct JoinHouseView: View {
     @EnvironmentObject var appViewModel: AppViewModel
+    @Environment(\.fausTheme) private var theme
     @State private var inviteCode = ""
     
     var body: some View {
@@ -39,7 +40,7 @@ struct JoinHouseView: View {
             }) {
                 Image(systemName: "arrow.left")
                     .font(.system(size: 17, weight: .semibold))
-                    .foregroundColor(HouseJourneyTheme.accentOrangeInk)
+                    .foregroundColor(theme.decor.accentOnCard ?? HouseJourneyTheme.accentOrangeInk)
                     .frame(width: 40, height: 40)
                     .background(HouseJourneyTheme.surface)
                     .clipShape(Circle())
@@ -77,10 +78,11 @@ struct JoinHouseView: View {
             
             Text(appViewModel.localized("join_house_title"))
                 .font(.system(size: 34, weight: .bold, design: .rounded))
+                .foregroundColor(AppDesign.Colors.pageText)
             
             Text(appViewModel.localized("join_house_subtitle"))
                 .font(AppDesign.Typography.subheadline)
-                .foregroundColor(AppDesign.Colors.textSecondary)
+                .foregroundColor(AppDesign.Colors.pageTextSecondary)
                 .multilineTextAlignment(.center)
                 .padding(.horizontal, AppDesign.Spacing.xxxl)
         }
@@ -101,6 +103,7 @@ struct JoinHouseView: View {
         VStack(spacing: AppDesign.Spacing.lg) {
             Text(appViewModel.localized("invite_code_label"))
                 .font(AppDesign.Typography.headline)
+                .foregroundColor(AppDesign.Colors.pageText)
                 .frame(maxWidth: .infinity, alignment: .leading)
             
             OTPInputView(
@@ -124,7 +127,18 @@ struct JoinHouseView: View {
             }
         }
         .padding(AppDesign.Spacing.lg)
-        .background(FausBrand.deepBerry.opacity(0.05))
+        .background {
+            // Themes with sheened cards (Faus Web) draw the box as a card so its text keeps the
+            // card contrast on a light page.
+            if theme.decor.cardSheen == .clear {
+                FausBrand.deepBerry.opacity(0.05)
+            } else {
+                ZStack {
+                    AppDesign.Colors.cardBackground
+                    FausCardSheen()
+                }
+            }
+        }
         .overlay(
             RoundedRectangle(cornerRadius: AppDesign.CornerRadius.md)
                 .stroke(FausBrand.deepBerry.opacity(0.12), lineWidth: 1)

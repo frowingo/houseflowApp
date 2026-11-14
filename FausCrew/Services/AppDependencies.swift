@@ -13,11 +13,14 @@ struct AppDependencies {
     let userService: any UserServicing
     let houseService: any HouseServicing
     let choreService: any ChoreServicing
+    /// `chore/catalog`; nil in tests that do not need it (the catalog then shows its error state).
+    var choreCatalogService: (any ChoreCatalogServicing)? = nil
     let localizationService: any LocalizationServicing
     let userDefaults: any PreferencesStore
     let localizationCache: any LocalizationCacheStore
     let houseRocketsSessionFactory: HouseRocketsSessionFactory
     var houseTanksOnlineFactory = HouseTanksOnlineFactory.unavailable
+    var fausSwitchOnlineFactory = FausSwitchOnlineFactory.unavailable
     /// The `/api/v1/events` refresh channel; nil in tests that do not need it.
     var appEvents: AppEventsService? = nil
 
@@ -46,11 +49,13 @@ struct AppDependencies {
             userService: UserService(network: network, keychain: keychain),
             houseService: HouseService(network: network, keychain: keychain),
             choreService: ChoreService(network: network, keychain: keychain),
+            choreCatalogService: ChoreCatalogService(http: network, keychain: keychain),
             localizationService: LocalizationService(network: network),
             userDefaults: UserDefaults.standard,
             localizationCache: LocalizationDiskCache(),
             houseRocketsSessionFactory: .live(network: gameNetwork, keychain: keychain, baseURL: gameURL),
             houseTanksOnlineFactory: .live(network: gameNetwork, keychain: keychain, baseURL: gameURL),
+            fausSwitchOnlineFactory: .live(network: gameNetwork, keychain: keychain, baseURL: gameURL),
             appEvents: AppEventsService(baseURL: AppEnvironment.current.baseURL, keychain: keychain)
         )
     }

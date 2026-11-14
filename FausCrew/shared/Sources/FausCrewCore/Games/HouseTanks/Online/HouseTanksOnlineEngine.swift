@@ -1,12 +1,12 @@
 import Foundation
 
-/// Online FauseTanks for one match, shared by iOS and Android, in House Rockets'
+/// Online Faus Tanks for one match, shared by iOS and Android, in House Rockets'
 /// effect model: the platform host performs the `effects` (HTTP, WebSocket,
 /// haptics), reports each outcome with the same `connection`/`request` tag and
 /// calls `tick` about every 25 ms. Time is always the host's monotonic uptime.
 ///
 /// The room and the match start: `PUT` → socket → welcome and session → join →
-/// ready, and the server's arena (`arena`) from the first `countdown` snapshot on.
+/// color → ready, and the server's arena (`arena`) from the first `countdown` snapshot on.
 /// The playing match (button, display timing, events) is `presentation(at:)`, fed by
 /// `press`/`release`; the screen must report landscape for the button to open.
 public final class HouseTanksOnlineEngine {
@@ -20,6 +20,11 @@ public final class HouseTanksOnlineEngine {
     public var isClosed: Bool { lobbyMachine.isClosed && !finished }
     /// The session to exclude when the player asks for a rematch.
     public var rematchExcludedSessionID: String? { result.canRematch ? result.sessionID : nil }
+    /// The tank color this player asked for; resent after a reconnect while still in the lobby.
+    public var preferredColor: HouseTanksColor? { colorClaim.preferred }
+    /// The lobby's tank colors (`lobbyState`); the local color shown is
+    /// `lobbyColors.localColor(preferred: preferredColor)`.
+    public var lobbyColors: HouseTanksLobbyColors { lobby.lobbyColors(localPlayerID: context.localPlayerID) }
 
     private var effects: [GameOnlineEffect] = []
     private var lobbyMachine: HouseTanksOnlineLobbyMachine!
@@ -28,6 +33,7 @@ public final class HouseTanksOnlineEngine {
     private var arenaSnapshot: (epoch: Int64, sequence: Int64)?
     private var finished = false
     private var now: TimeInterval = 0
+    private var colorClaim: GameLobbyColorClaim<HouseTanksColor>
     private let configuration: HouseTanksPlayConfiguration
     private let diagnosticsRecorder = HouseTanksDiagnosticsRecorder()
     /// Debug-build network condition (F6); `.off` delivers everything at once.
@@ -36,13 +42,14 @@ public final class HouseTanksOnlineEngine {
     private var inbound: [(text: String, connection: Int, at: TimeInterval)] = []
     private var outbound: [(effect: GameOnlineEffect, at: TimeInterval)] = []
 
-    public init(context: GameLaunchContext, excludingSessionID: String? = nil,
+    public init(context: GameLaunchContext, excludingSessionID: String? = nil, preferredColor: HouseTanksColor? = nil,
                 policy: GameReconnectPolicy = .init(), configuration: HouseTanksPlayConfiguration = .init(),
                 makeID: @escaping () -> String = { UUID().uuidString },
                 jitter: @escaping () -> Double = { Double.random(in: -1...1) }) {
         self.context = context
         self.configuration = configuration
         self.jitter = jitter
+        colorClaim = GameLobbyColorClaim(preferred: preferredColor)
         let emit: (GameOnlineEffect) -> Void = { [weak self] in self?.effects.append($0) }
         lobbyMachine = HouseTanksOnlineLobbyMachine(context: context, excludingSessionID: excludingSessionID,
                                                     policy: policy, makeID: makeID, emit: emit)
@@ -198,6 +205,15 @@ public final class HouseTanksOnlineEngine {
     /// The vote for the next round in `roundReady`; ignored without control or outside it.
     public func setRoundReady(_ ready: Bool, now: TimeInterval) { self.now = now; play.vote(ready, now: now) }
 
+    /// Asks for a tank color; sent now if the player sits in the lobby, otherwise as soon
+    /// as they do. A ready player's color is locked: the pick is ignored. A server without
+    /// lobby colors rejects the claim and the match keeps the seat colors.
+    public func selectColor(_ color: HouseTanksColor, now: TimeInterval) {
+        self.now = now
+        guard colorClaim.select(color, colors: lobbyColors) else { return }
+        sendColorIfNeeded()
+    }
+
     /// What the game screen draws now; nil before the first snapshot. Each server event is
     /// in exactly one presentation, so call this once per drawn frame.
     public func presentation(at now: TimeInterval) -> HouseTanksOnlinePresentation? {
@@ -205,7 +221,18 @@ public final class HouseTanksOnlineEngine {
         return play.render(at: now)
     }
 
-    public func setReady(_ ready: Bool, now: TimeInterval) { self.now = now; lobbyMachine.setReady(ready, now: now) }
+    /// The ready button works: the lobby takes the change and, to get ready, the server holds
+    /// the local player's color (picked first; never ready without one).
+    public var canChangeReady: Bool {
+        lobby.canChangeReady(playerID: context.localPlayerID) && lobbyColors.allowsReady
+    }
+
+    /// Getting ready waits for the color claim; taking ready back always goes out.
+    public func setReady(_ ready: Bool, now: TimeInterval) {
+        self.now = now
+        if ready, !lobbyColors.allowsReady { return }
+        lobbyMachine.setReady(ready, now: now)
+    }
     /// Portrait and the background close the button; a held press is released first, while
     /// the grant still sends, so the tank does not drive on until the server drops control.
     public func setLandscape(_ landscape: Bool, now: TimeInterval) {
@@ -265,6 +292,14 @@ public final class HouseTanksOnlineEngine {
         lobby = state
         updateArena(state.game)
         resultMachine.consume(state, now: now)
+        sendColorIfNeeded()
+    }
+
+    /// A ready player keeps their color, even when the one they asked for frees up.
+    private func sendColorIfNeeded() {
+        colorClaim.update(lobby: lobby, localPlayerID: context.localPlayerID, colors: lobbyColors) { color in
+            lobbyMachine.sendLobbyIntent(.selectColor(color), now: now)
+        }
     }
 
     /// Rebuilt once per snapshot; a new runtime epoch restarts the sequence.

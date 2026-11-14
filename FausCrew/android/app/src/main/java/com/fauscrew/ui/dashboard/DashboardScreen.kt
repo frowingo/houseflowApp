@@ -1,14 +1,8 @@
 package com.fauscrew.ui.dashboard
 
 import androidx.compose.runtime.getValue
+import com.fauscrew.viewmodel.ChoreCatalogViewModel
 import androidx.compose.runtime.setValue
-import androidx.compose.animation.AnimatedVisibility
-import androidx.compose.animation.animateContentSize
-import androidx.compose.animation.core.animateFloatAsState
-import androidx.compose.animation.fadeIn
-import androidx.compose.animation.fadeOut
-import androidx.compose.animation.scaleIn
-import androidx.compose.animation.scaleOut
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -23,7 +17,6 @@ import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
-import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -44,7 +37,6 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
@@ -62,23 +54,22 @@ import com.fauscrew.ui.components.FausCrewToast
 import com.fauscrew.ui.components.FausHouseIcon
 import com.fauscrew.ui.components.RemoteImage
 import com.fauscrew.ui.components.mainScreenBackground
+import com.fauscrew.ui.dashboard.catalog.ChoreCatalogEntry
+import com.fauscrew.ui.dashboard.catalog.ChoreCatalogPopup
 import com.fauscrew.ui.main.TabBarClearance
 import com.fauscrew.ui.theme.FausCrewColors
 import com.fauscrew.ui.theme.LocalFausTheme
 import com.fauscrew.ui.theme.FausCrewIcons
-import com.fauscrew.ui.theme.FausCrewType
-import com.fauscrew.ui.theme.Motion
 import com.fauscrew.ui.theme.Sizes
 import com.fauscrew.ui.theme.Spacing
 import com.fauscrew.ui.theme.entrance
 import com.fauscrew.ui.theme.rememberEntrance
 import com.fauscrew.ui.theme.softShadow
 import com.fauscrew.viewmodel.HouseUiState
-import kotlinx.coroutines.delay
 
 /**
- * `HouseDashboardView`: hero greeting, announcements, today's chores and members, the
- * two-step new-chore FAB and the dashboard popups. `house/details` is the only data source.
+ * `HouseDashboardView`: hero greeting, announcements, today's chores (with the chore catalog
+ * entry) and members, and the dashboard popups. `house/details` is the only data source.
  */
 @Composable
 internal fun DashboardScreen(
@@ -91,24 +82,23 @@ internal fun DashboardScreen(
     onClearMessage: () -> Unit,
     onOverlayChange: (Boolean) -> Unit = {},
     onLoadReviewPhoto: suspend (String, Int) -> ByteArray? = { _, _ -> null },
+    /** `chore/catalog`; without one (UI tests) the catalog shows its error state. */
+    catalog: ChoreCatalogViewModel = remember { ChoreCatalogViewModel(null) },
 ) {
     val details = state.details ?: return
     var announcementsExpanded by remember { mutableStateOf(false) }
-    var fabExpanded by remember { mutableStateOf(false) }
     var popup by remember { mutableStateOf<DashboardPopup?>(null) }
     var reviewing by remember { mutableStateOf(false) }
     val context = LocalContext.current
     val readStore = remember(context) { AnnouncementReadStore(context) }
     var readIds by remember(details.id, state.userId) { mutableStateOf(readStore.load(details.id, state.userId)) }
 
-    LaunchedEffect(fabExpanded) { if (fabExpanded) { delay(3_000); fabExpanded = false } }
-    LaunchedEffect(details.id) { popup = null; announcementsExpanded = false; fabExpanded = false }
+    LaunchedEffect(details.id) { popup = null; announcementsExpanded = false }
     LaunchedEffect(state.mutationSerial) {
-        if (state.mutationSerial > 0 && state.mutationMessageKey !in listOf("chore_approved_toast", "chore_sent_back_toast"))
+        // The catalog stays open after a create so several chores can be added in a row.
+        if (state.mutationSerial > 0 && popup !is DashboardPopup.Catalog &&
+            state.mutationMessageKey !in listOf("chore_approved_toast", "chore_sent_back_toast"))
             popup = null
-    }
-    LaunchedEffect(state.mutationError) {
-        if (state.mutationError != null && popup == DashboardPopup.NewChore) popup = null
     }
     val overlayCallback by rememberUpdatedState(onOverlayChange)
     LaunchedEffect(popup != null) { overlayCallback(popup != null) }
@@ -138,21 +128,10 @@ internal fun DashboardScreen(
                 modifier = Modifier.padding(horizontal = Spacing.xl).entrance(announcements, 20.dp),
             )
             TodaysChoresCard(details.chores, details.members, strings, { popup = DashboardPopup.Chore(it.id) },
-                Modifier.padding(horizontal = Spacing.xxl).entrance(chores, 26.dp))
+                Modifier.padding(horizontal = Spacing.xxl).entrance(chores, 26.dp),
+                onAddChore = { popup = DashboardPopup.Catalog(ChoreCatalogEntry.Drafts) })
             HouseMembersCard(details.members, strings, Modifier.padding(horizontal = Spacing.xxl).entrance(members, 26.dp))
             Spacer(Modifier.navigationBarsPadding().height(TabBarClearance))
-        }
-        NewChoreFab(
-            expanded = fabExpanded,
-            label = strings.get("floating_new_chore_button"),
-            modifier = Modifier.align(Alignment.BottomEnd).navigationBarsPadding().padding(end = Spacing.xxl, bottom = 76.dp),
-        ) {
-            if (fabExpanded) {
-                fabExpanded = false
-                popup = DashboardPopup.NewChore
-            } else {
-                fabExpanded = true
-            }
         }
         FausCrewToast(
             message = state.mutationError ?: state.mutationMessageKey?.let(strings::get),
@@ -165,8 +144,12 @@ internal fun DashboardScreen(
     when (val shown = popup) {
         DashboardPopup.Announcement -> NewAnnouncementPopup(strings, state.mutationBusy, state.mutationError,
             { popup = null }, onAnnouncement)
-        DashboardPopup.NewChore -> NewChorePopup(details, strings, state.mutationBusy, state.mutationError,
-            { popup = null }, onCreateChore)
+        is DashboardPopup.Catalog -> ChoreCatalogPopup(
+            entry = shown.entry, catalog = catalog, details = details, userId = state.userId, strings = strings,
+            busy = state.mutationBusy, error = state.mutationError,
+            mutationSerial = state.mutationSerial, mutationMessageKey = state.mutationMessageKey,
+            onCreate = onCreateChore, onDismiss = { popup = null },
+        )
         is DashboardPopup.Chore -> details.chores.firstOrNull { it.id == shown.id }?.let { chore ->
             ChoreDetailPopup(
                 chore = chore, members = details.members, userId = state.userId, strings = strings,
@@ -184,7 +167,7 @@ internal fun DashboardScreen(
 
 private sealed interface DashboardPopup {
     data object Announcement : DashboardPopup
-    data object NewChore : DashboardPopup
+    data class Catalog(val entry: ChoreCatalogEntry) : DashboardPopup
     data class Chore(val id: String) : DashboardPopup
 }
 
@@ -245,34 +228,6 @@ private fun DashboardHouseImage(url: String?) {
         RemoteImage(url, Modifier.size(66.dp).clip(RoundedCornerShape(17.dp))) {
             Box(Modifier.fillMaxSize().background(LocalFausTheme.current.decor.heroTile), contentAlignment = Alignment.Center) {
                 FausHouseIcon(32.dp)
-            }
-        }
-    }
-}
-
-/** `FloatingActionButton`: + circle that stretches to "+ New Chore" on the first tap. */
-@Composable
-private fun NewChoreFab(expanded: Boolean, label: String, modifier: Modifier, onClick: () -> Unit) {
-    val scale by animateFloatAsState(if (expanded) 1.05f else 1f, Motion.spring(), label = "fabScale")
-    val shape = RoundedCornerShape(28.dp)
-    Row(
-        modifier
-            .graphicsLayer { scaleX = scale; scaleY = scale }
-            .softShadow(LocalFausTheme.current.decor.fabShadow, 8.dp, y = 4.dp, shape = shape)
-            .clip(shape)
-            .background(Brush.linearGradient(LocalFausTheme.current.decor.fabColors))
-            .clickable(role = Role.Button, onClick = onClick)
-            .semantics { contentDescription = label }
-            .animateContentSize(Motion.spring())
-            .then(if (expanded) Modifier.padding(horizontal = Spacing.xl, vertical = Spacing.lg) else Modifier.size(Sizes.fab)),
-        verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.Center,
-    ) {
-        Icon(FausCrewIcons.plus, null, Modifier.size(if (expanded) 22.dp else 26.dp), tint = FausCrewColors.onAccent)
-        AnimatedVisibility(expanded, enter = fadeIn() + scaleIn(), exit = fadeOut() + scaleOut()) {
-            Row {
-                Spacer(Modifier.width(Spacing.sm))
-                Text(label, style = FausCrewType.headline, color = FausCrewColors.onAccent, maxLines = 1)
             }
         }
     }

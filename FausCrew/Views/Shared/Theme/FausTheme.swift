@@ -17,12 +17,13 @@ struct FausTheme: Identifiable {
     var displayName: String { id.displayName }
 
     /// Picker copy (`ThemeSettingsPopup`); Android uses the same keys and fallbacks.
-    var descriptionKey: String { "theme_\(id.rawValue)_description" }
+    var descriptionKey: String { id.descriptionKey }
     var descriptionFallback: String {
         switch id {
         case .fausLight: "Bright and warm, the classic FausCrew look."
         case .fausDark: "Ember glow on deep berry, easy on the eyes at night."
-        case .fauseBloom: "A calm morning garden of vines and flowers on marbled blush."
+        case .fausBloom: "A calm morning garden of vines and flowers on marbled blush."
+        case .fausWeb: "Imperial blue cards on a sky of webs, lit by a crimson city glow."
         }
     }
 
@@ -32,11 +33,12 @@ struct FausTheme: Identifiable {
         switch id {
         case .fausLight: nil
         case .fausDark: "AppIconDark"
-        case .fauseBloom: "AppIconBloom"
+        case .fausBloom: "AppIconBloom"
+        case .fausWeb: "AppIconWeb"
         }
     }
 
-    static let all: [FausTheme] = [.fausLight, .fausDark, .fauseBloom]
+    static let all: [FausTheme] = [.fausLight, .fausDark, .fausBloom, .fausWeb]
 
     static func theme(for id: AppThemeID) -> FausTheme {
         all.first { $0.id == id } ?? .fausLight
@@ -92,6 +94,17 @@ struct FausPalette {
     let accentOrangeInk: UIColor
     /// Deep end of accent gradients (publish buttons).
     let accentOrangeDeep: UIColor
+    /// Chore difficulty chips (easy, medium, hard).
+    let levelEasy: UIColor
+    let levelMedium: UIColor
+    let levelHard: UIColor
+    /// Profile and house accents: create house, notifications, owner badge, birthday.
+    let tintCreate: UIColor
+    let tintNotifications: UIColor
+    let tintOwner: UIColor
+    let tintBirthday: UIColor
+    /// Email verification hero and buttons (system orange in Faus Light/Dark; Android uses `brandOrange`).
+    let tintVerify: UIColor
     let indigo: UIColor
     let deepIndigo: UIColor
     let blue: UIColor
@@ -119,6 +132,20 @@ struct FausPalette {
     let statusInTest: UIColor
     let statusCompleted: UIColor
     let statusFailed: UIColor
+
+    /// Text drawn straight on the page backdrop (screen titles, empty states, onboarding). Only
+    /// themes whose backdrop and cards contrast differently (Faus Web: sky page, imperial cards)
+    /// set these; `nil` uses the regular text tokens.
+    var pageTextOverride: UIColor? = nil
+    var pageTextSecondaryOverride: UIColor? = nil
+    var pageTextTertiaryOverride: UIColor? = nil
+    /// Links drawn on the page backdrop; `nil` uses `accentOrangeInk`.
+    var pageAccentOverride: UIColor? = nil
+
+    var pageText: UIColor { pageTextOverride ?? textPrimary }
+    var pageTextSecondary: UIColor { pageTextSecondaryOverride ?? textSecondary }
+    var pageTextTertiary: UIColor { pageTextTertiaryOverride ?? textTertiary }
+    var pageAccent: UIColor { pageAccentOverride ?? accentOrangeInk }
 }
 
 // MARK: - Decoration Recipes
@@ -211,14 +238,22 @@ struct FausDecor {
     /// Texture and corner garden of the auth form sheet.
     var sheetMarble: FausMarble?
     var sheetGarden: FausGarden?
+    /// Lighter tone the main cards fade from at their top-trailing corner; `.clear` keeps them flat.
+    var cardSheen: Color = .clear
+    /// The roof-F mark ends in a small orb web instead of a dot (Faus Web).
+    var webDotMark: Bool = false
+    /// Small selected labels, chevrons and chips on dark cards; `nil` keeps the brand orange.
+    var accentOnCard: Color? = nil
 }
 
 /// Decoration family of the hero surfaces.
 enum FausOrnament {
     /// Layered circles and tilted capsules (Faus Light, Faus Dark).
     case geometric
-    /// A large petal flower, its outline, a leaf and a blush sprig (Fause Bloom).
+    /// A large petal flower, its outline, a leaf and a blush sprig (Faus Bloom).
     case bloom
+    /// A corner orb web, an angled silk strand and crimson/sky glows (Faus Web).
+    case web
 }
 
 /// A marbled (ebru) texture image laid over a backdrop base.
@@ -245,19 +280,9 @@ struct FausGarden {
     var blossomHeart: Color
 }
 
-/// How the intro leaves the system launch screen, which is always `LaunchBackground` orange:
-/// iOS caches it and cannot follow an in-app theme, so every theme starts from the same frame.
-enum FausLaunchHandOff {
-    /// The header gradient fades in over the orange (themes whose header is orange).
-    case fade
-    /// The orange condenses into the ember glow behind the mark, uncovering the dark header.
-    case condense
-}
-
-/// Cold-start intro (`FausSplashView`): starts on the `LaunchBackground` launch screen and hands
-/// off to the theme's header gradient.
+/// Cold-start intro (`FausSplashView`): starts on the black `LaunchBackground` launch screen and
+/// fades in the theme's header gradient.
 struct FausSplashStyle {
-    var launchHandOff: FausLaunchHandOff
     /// Roof-F fill, roof to stem foot; one color draws it solid.
     var mark: [Color]
     var markGlow: Color
@@ -292,6 +317,8 @@ struct FausBackdrop {
     var marble: FausMarble?
     /// Vines and flowers over everything else.
     var garden: FausGarden?
+    /// Soft light high in the middle of the page, over the texture; `.clear` turns it off.
+    var centerGlow: Color = .clear
 
     var drawsLines: Bool { apricotStrength + orangeStrength + berryStrength > 0 }
 }
@@ -364,6 +391,14 @@ extension FausTheme {
             accentOrange: UIColor(red: 1.0, green: 0.48, blue: 0.15, alpha: 1),
             accentOrangeInk: UIColor(red: 0.73, green: 0.25, blue: 0.045, alpha: 1),
             accentOrangeDeep: UIColor(red: 0.90, green: 0.34, blue: 0.08, alpha: 1),
+            levelEasy: UIColor(fausHex: 0x33BF66),
+            levelMedium: UIColor(fausHex: 0xFF7A26),
+            levelHard: UIColor(fausHex: 0xE63340),
+            tintCreate: UIColor(fausHex: 0xE5620F),
+            tintNotifications: UIColor(fausHex: 0xF2731A),
+            tintOwner: UIColor(fausHex: 0xEB782E),
+            tintBirthday: UIColor(fausHex: 0xE6731A),
+            tintVerify: .systemOrange,
             indigo: UIColor(red: 0.27, green: 0.34, blue: 0.62, alpha: 1),
             deepIndigo: UIColor(red: 0.20, green: 0.25, blue: 0.48, alpha: 1),
             blue: UIColor(red: 0.24, green: 0.48, blue: 0.72, alpha: 1),
@@ -433,7 +468,6 @@ extension FausTheme {
             framedMarkRing: Color(red: 1.0, green: 0.48, blue: 0.15).opacity(0.55),
             framedMarkGlow: .clear,
             splash: FausSplashStyle(
-                launchHandOff: .fade,
                 mark: [.white],
                 markGlow: .clear,
                 wordmark: .white,
@@ -514,6 +548,14 @@ extension FausTheme {
             accentOrange: UIColor(fausHex: 0xFF7A26),
             accentOrangeInk: UIColor(fausHex: 0xFFB27A),
             accentOrangeDeep: UIColor(red: 0.90, green: 0.34, blue: 0.08, alpha: 1),
+            levelEasy: UIColor(fausHex: 0x33BF66),
+            levelMedium: UIColor(fausHex: 0xFF7A26),
+            levelHard: UIColor(fausHex: 0xE63340),
+            tintCreate: UIColor(fausHex: 0xE5620F),
+            tintNotifications: UIColor(fausHex: 0xF2731A),
+            tintOwner: UIColor(fausHex: 0xEB782E),
+            tintBirthday: UIColor(fausHex: 0xE6731A),
+            tintVerify: .systemOrange,
             indigo: UIColor(fausHex: 0x9FA8FF),
             deepIndigo: UIColor(fausHex: 0xB9BFFF),
             blue: UIColor(fausHex: 0x7DB9F2),
@@ -590,7 +632,6 @@ extension FausTheme {
             framedMarkRing: Color(fausHex: 0xFFA04D).opacity(0.62),
             framedMarkGlow: Color(fausHex: 0xFF6A2A).opacity(0.22),
             splash: FausSplashStyle(
-                launchHandOff: .condense,
                 mark: [Color(fausHex: 0xFFB060), Color(fausHex: 0xFF8A3D), Color(fausHex: 0xFF6A2A)],
                 markGlow: Color(fausHex: 0xFF6A2A).opacity(0.40),
                 wordmark: Color(fausHex: 0xFFF1E8),
@@ -617,7 +658,7 @@ extension FausTheme {
     )
 }
 
-// MARK: - Fause Bloom
+// MARK: - Faus Bloom
 
 /// Flowers, vines and calm: a blush, marbled light theme. Green (#336063) carries and completes,
 /// wine (#6A122F) takes the accent-orange role, and every gradient runs from green to wine.
@@ -674,8 +715,8 @@ extension FausTheme {
         garden: bloomGarden
     )
 
-    static let fauseBloom = FausTheme(
-        id: .fauseBloom,
+    static let fausBloom = FausTheme(
+        id: .fausBloom,
         colorScheme: .light,
         palette: FausPalette(
             background: UIColor(fausHex: 0xF8EBEF),
@@ -708,6 +749,14 @@ extension FausTheme {
             accentOrange: UIColor(fausHex: 0x6A122F),
             accentOrangeInk: UIColor(fausHex: 0x6A122F),
             accentOrangeDeep: UIColor(fausHex: 0x4A0D22),
+            levelEasy: UIColor(fausHex: 0x2F6F5E),
+            levelMedium: UIColor(fausHex: 0xA86F2A),
+            levelHard: UIColor(fausHex: 0x8E1F42),
+            tintCreate: UIColor(fausHex: 0x6A122F),
+            tintNotifications: UIColor(fausHex: 0xA23C5E),
+            tintOwner: UIColor(fausHex: 0x6A122F),
+            tintBirthday: UIColor(fausHex: 0xC0577A),
+            tintVerify: UIColor(fausHex: 0x336063),
             indigo: UIColor(fausHex: 0x333A57),
             deepIndigo: UIColor(fausHex: 0x2A3049),
             blue: UIColor(fausHex: 0x4D869B),
@@ -777,7 +826,6 @@ extension FausTheme {
             framedMarkRing: Color(fausHex: 0x6A122F).opacity(0.45),
             framedMarkGlow: .clear,
             splash: FausSplashStyle(
-                launchHandOff: .fade,
                 mark: [.white],
                 markGlow: Color(fausHex: 0x2A0A1A).opacity(0.25),
                 wordmark: .white,
@@ -807,6 +855,211 @@ extension FausTheme {
             badgeBlossom: bloomGarden,
             sheetMarble: FausMarble(imageName: "BloomMarble", opacity: 0.23),
             sheetGarden: bloomGarden
+        )
+    )
+}
+
+// MARK: - Faus Web
+
+/// Imperial blue (#001D51) cards on a sky page woven with one big orb web, noble crimson reds
+/// (#C8161F → #4E0000) for accents and cream (#FCEBE5) for chips and dividers on the cards.
+/// Runs in the dark scheme so card and popup text is light; text drawn straight on the sky page
+/// uses the `pageText` overrides.
+extension FausTheme {
+    private static let webCream = Color(fausHex: 0xFCEBE5)
+
+    /// The hero card gradient, shared by headers and the splash.
+    private static let webHeroStops: [Gradient.Stop] = [
+        .init(color: Color(fausHex: 0xC8161F), location: 0),
+        .init(color: Color(fausHex: 0xA30F17), location: 0.26),
+        .init(color: Color(fausHex: 0x7A0610), location: 0.46),
+        .init(color: Color(fausHex: 0x4E0000), location: 0.60),
+        .init(color: Color(fausHex: 0x1E0B3A), location: 0.76),
+        .init(color: Color(fausHex: 0x0F3A93), location: 0.92),
+        .init(color: Color(fausHex: 0x2459C4), location: 1)
+    ]
+
+    private static let webSkyStops: [Gradient.Stop] = [
+        .init(color: Color(fausHex: 0x7FA6F7), location: 0),
+        .init(color: Color(fausHex: 0x6690EC), location: 0.5),
+        .init(color: Color(fausHex: 0x5781DE), location: 1)
+    ]
+
+    private static let webBackdrop = FausBackdrop(
+        baseStops: webSkyStops,
+        baseStart: .top,
+        baseEnd: .bottom,
+        wash: [.clear],
+        glow: .clear,
+        apricotInk: .clear,
+        orangeInk: .clear,
+        berryInk: .clear,
+        apricotStrength: 0,
+        orangeStrength: 0,
+        berryStrength: 0,
+        lineWidthBoost: 0,
+        mesh: nil,
+        marble: FausMarble(imageName: "WebOrb", opacity: 1),
+        centerGlow: Color(fausHex: 0xFCEBE5).opacity(0.5)
+    )
+
+    private static let webPopupBackdrop = FausBackdrop(
+        baseStops: [
+            .init(color: Color(fausHex: 0x0D3170), location: 0),
+            .init(color: Color(fausHex: 0x001D51), location: 0.72)
+        ],
+        baseStart: .topTrailing,
+        baseEnd: .bottomLeading,
+        wash: [.clear],
+        glow: Color(fausHex: 0xE23A42).opacity(0.06),
+        apricotInk: .clear,
+        orangeInk: .clear,
+        berryInk: .clear,
+        apricotStrength: 0,
+        orangeStrength: 0,
+        berryStrength: 0,
+        lineWidthBoost: 0,
+        mesh: nil,
+        marble: FausMarble(imageName: "WebScatter", opacity: 0.55)
+    )
+
+    static let fausWeb = FausTheme(
+        id: .fausWeb,
+        colorScheme: .dark,
+        palette: FausPalette(
+            background: UIColor(fausHex: 0x001D51),
+            secondaryBackground: UIColor(fausHex: 0x0A2B68),
+            cardBackground: UIColor(fausHex: 0x001D51),
+            surface: UIColor(fausHex: 0x001D51),
+            elevatedSurface: UIColor(fausHex: 0x0A2B68),
+            groupedBackground: UIColor(fausHex: 0x001D51),
+            groupedSurface: UIColor(fausHex: 0x0A2B68),
+            popupBackground: UIColor(fausHex: 0x001D51),
+            menuBackground: UIColor(fausHex: 0x0A2B68),
+            controlFill: UIColor(fausHex: 0x123A80),
+            controlFillStrong: UIColor(fausHex: 0x1B4790),
+            segmentSelected: UIColor(fausHex: 0x123A80),
+            textPrimary: UIColor(fausHex: 0xF3F6FF),
+            textSecondary: UIColor(fausHex: 0xB8C6E8),
+            textTertiary: UIColor(fausHex: 0x9AAAD6),
+            onAccent: .white,
+            onHero: .white,
+            separator: UIColor(fausHex: 0xFCEBE5, alpha: 0.4),
+            hairline: UIColor(fausHex: 0x8FB2FF, alpha: 0.14),
+            shadow: UIColor(fausHex: 0x000820),
+            scrim: UIColor(fausHex: 0x000820, alpha: 0.62),
+            primary: UIColor(fausHex: 0x8FB2FF),
+            secondary: UIColor(fausHex: 0x4FD6A0),
+            tertiary: UIColor(fausHex: 0xFFB547),
+            success: UIColor(fausHex: 0x4FD6A0),
+            warning: UIColor(fausHex: 0xFFB547),
+            error: UIColor(fausHex: 0xF07F86),
+            accentOrange: UIColor(fausHex: 0xC8161F),
+            accentOrangeInk: UIColor(fausHex: 0xE8757C),
+            accentOrangeDeep: UIColor(fausHex: 0x7A0610),
+            levelEasy: UIColor(fausHex: 0x4FD6A0),
+            levelMedium: UIColor(fausHex: 0xFFB547),
+            levelHard: UIColor(fausHex: 0xC8161F),
+            tintCreate: UIColor(fausHex: 0xC8161F),
+            tintNotifications: UIColor(fausHex: 0xE23A42),
+            tintOwner: UIColor(fausHex: 0xC8161F),
+            tintBirthday: UIColor(fausHex: 0xE8757C),
+            tintVerify: UIColor(fausHex: 0xC8161F),
+            indigo: UIColor(fausHex: 0xA9B8FF),
+            deepIndigo: UIColor(fausHex: 0xB9C6FF),
+            blue: UIColor(fausHex: 0x8FB2FF),
+            teal: UIColor(fausHex: 0x4FD6C2),
+            deepTeal: UIColor(fausHex: 0x36B5A2),
+            buttonBlue: UIColor(fausHex: 0x2E5FC4),
+            purple: UIColor(fausHex: 0xC6A9FF),
+            errorRed: UIColor(fausHex: 0xF07F86),
+            indigoFill: UIColor(fausHex: 0x3F6FD1),
+            deepIndigoFill: UIColor(fausHex: 0x2E5FC4),
+            tealFill: UIColor(fausHex: 0x2FA894),
+            brandOrangeLight: UIColor(fausHex: 0xD42A33),
+            brandOrange: UIColor(fausHex: 0xC8161F),
+            brandDeepBerry: UIColor(fausHex: 0x4E0000),
+            brandMarkBerry: UIColor(fausHex: 0x7A0610),
+            spinnerRed: UIColor(fausHex: 0xE23A42),
+            spinnerBerry: UIColor(fausHex: 0x8FB2FF),
+            statusDraft: UIColor(fausHex: 0xA3ABBF),
+            statusProgress: UIColor(fausHex: 0xFFC46B),
+            statusInTest: UIColor(fausHex: 0xC79BFF),
+            statusCompleted: UIColor(fausHex: 0x6FE0B2),
+            statusFailed: UIColor(fausHex: 0xF07F86),
+            pageTextOverride: UIColor(fausHex: 0x001D51),
+            pageTextSecondaryOverride: UIColor(fausHex: 0x1A3A78),
+            pageTextTertiaryOverride: UIColor(fausHex: 0x2C4C8C),
+            pageAccentOverride: UIColor(fausHex: 0x0F3A93)
+        ),
+        decor: FausDecor(
+            heroStops: webHeroStops,
+            heroGlow: .clear,
+            heroBorder: [webCream.opacity(0.34), webCream.opacity(0.10)],
+            heroOrnament: webCream,
+            heroShadow: Color(fausHex: 0x000820).opacity(0.5),
+            heroAccentText: webCream.opacity(0.88),
+            heroFrame: [.white, webCream],
+            heroTile: Color(fausHex: 0x001D51),
+            headerStops: webHeroStops,
+            headerGlow: Color(fausHex: 0xC8161F).opacity(0.22),
+            tabBarStops: [
+                .init(color: Color(fausHex: 0xC8161F), location: 0),
+                .init(color: Color(fausHex: 0xA30F17), location: 0.35),
+                .init(color: Color(fausHex: 0x7A0610), location: 0.65),
+                .init(color: Color(fausHex: 0x4E0000), location: 1)
+            ],
+            tabBarGlow: Color(fausHex: 0xE23A42).opacity(0.34),
+            tabBarBorder: [Color(fausHex: 0xE23A42).opacity(0.5), Color(fausHex: 0xE23A42).opacity(0.12)],
+            tabBarShadow: Color(fausHex: 0x000820).opacity(0.55),
+            tabItem: Color.white.opacity(0.6),
+            tabItemSelected: .white,
+            tabSelectedFill: webCream.opacity(0.26),
+            tabSelectedBorder: Color.white.opacity(0.24),
+            tabSelectedIconGradient: nil,
+            homeItem: Color.white.opacity(0.66),
+            homeSelectedFill: webCream.opacity(0.26),
+            homeSelectedBorder: Color.white.opacity(0.30),
+            fabColors: [Color(fausHex: 0x3F6FD1), Color(fausHex: 0x0F3A93), Color(fausHex: 0x001D51)],
+            fabShadow: Color(fausHex: 0x001D51).opacity(0.45),
+            popupGlow: Color(fausHex: 0xE23A42).opacity(0.06),
+            popupBorder: Color(fausHex: 0x8FB2FF).opacity(0.18),
+            badgeFill: [Color(fausHex: 0x0F3A93), Color(fausHex: 0x001D51)],
+            badgeHalo: webCream,
+            badgeBorder: webCream.opacity(0.55),
+            framedMarkFill: Color(fausHex: 0x001D51),
+            framedMarkRing: Color(fausHex: 0xC8161F).opacity(0.6),
+            framedMarkGlow: Color(fausHex: 0xE23A42).opacity(0.3),
+            splash: FausSplashStyle(
+                mark: [.white],
+                markGlow: Color(fausHex: 0x1A0000).opacity(0.35),
+                wordmark: .white,
+                wordmarkAccent: webCream,
+                motto: webCream.opacity(0.88),
+                ripple: webCream.opacity(0.3),
+                revealRim: webCream.opacity(0.4)
+            ),
+            sheetStops: webSkyStops,
+            sheetEdge: Color(fausHex: 0xE23A42).opacity(0.55),
+            sheetEdgeGlow: Color(fausHex: 0x000820).opacity(0.3),
+            sheetMesh: nil,
+            backdrop: webBackdrop,
+            popupBackdrop: webPopupBackdrop,
+            ornament: .web,
+            heroSprig: webCream,
+            avatarRing: [
+                Color(fausHex: 0xC8161F),
+                Color(fausHex: 0x8FB2FF),
+                Color(fausHex: 0x4E0000),
+                Color(fausHex: 0xC8161F)
+            ],
+            avatarFallback: [Color(fausHex: 0xC8161F), Color(fausHex: 0x4E0000)],
+            badgeBlossom: nil,
+            sheetMarble: FausMarble(imageName: "WebOrb", opacity: 1),
+            sheetGarden: nil,
+            cardSheen: Color(fausHex: 0x0D3170),
+            webDotMark: true,
+            accentOnCard: webCream
         )
     )
 }

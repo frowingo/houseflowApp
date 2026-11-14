@@ -197,8 +197,9 @@ final class GameOnlineLobbyMachine<Game: GameRealtimeGame> {
 
     func setReady(_ ready: Bool, now: TimeInterval) {
         self.now = now
-        guard state.canChangeReady(playerID: context.localPlayerID),
-              !ready || state.isLandscape || !Game.readyRequiresLandscape else { return }
+        // Every room is portrait: ready counts in any orientation, and the screen turns to
+        // landscape when the countdown starts.
+        guard state.canChangeReady(playerID: context.localPlayerID) else { return }
         guard (state.localPlayer(context.localPlayerID)?.state == .ready) != ready else { return }
         withdrawReady = false
         sendLifecycle(.setReady(ready))
@@ -259,6 +260,17 @@ final class GameOnlineLobbyMachine<Game: GameRealtimeGame> {
               case .gameplay(let intent) = message.action,
               Game.controlGeneration(of: intent) == grant.controlGeneration else { return false }
         return send(message)
+    }
+
+    /// A game intent that needs no control grant (a lobby choice such as a robot color).
+    /// Sent only while this player sits in the open lobby; the server has the last word.
+    @discardableResult
+    func sendLobbyIntent(_ intent: Game.Intent, now: TimeInterval) -> Bool {
+        self.now = now
+        guard !isClosed, !state.isLeaving, state.connection == .connected, state.isSynced, state.isLobby,
+              Game.controlGeneration(of: intent) == nil,
+              state.localPlayer(context.localPlayerID) != nil else { return false }
+        return send(ClientMessage(messageId: makeID(), action: .gameplay(intent)))
     }
 
     func resyncGameplay(now: TimeInterval) {

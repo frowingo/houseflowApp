@@ -12,6 +12,7 @@ import com.fauscrew.platform.RealtimeSocket
 import com.fauscrew.platform.RealtimeSocketFactory
 import com.fauscrew.platform.RealtimeSocketListener
 import com.fauscrew.platform.TanksColor
+import com.fauscrew.platform.TanksLobbyColors
 import com.fauscrew.platform.TanksMap
 import com.fauscrew.platform.TanksOnlinePreview
 import com.fauscrew.platform.TanksOnlineSeat
@@ -28,7 +29,7 @@ import org.junit.Assert.assertNull
 import org.junit.Before
 import org.junit.Test
 
-/** The FauseTanks room host: the shared effect loop plus the drawn arena. */
+/** The Faus Tanks room host: the shared effect loop plus the drawn arena. */
 @OptIn(ExperimentalCoroutinesApi::class)
 class HouseTanksOnlineSessionTest {
     private val dispatcher = StandardTestDispatcher()
@@ -68,6 +69,32 @@ class HouseTanksOnlineSessionTest {
         }
 
         override fun close() = Unit
+    }
+
+    @Test fun followsTheLobbyColorsAndSendsTheColorPick() = runTest(dispatcher) {
+        val picked = TanksLobbyColors(preferred = TanksColor.SKY, local = TanksColor.SKY, takenByOthers = setOf(TanksColor.PLUM))
+        val fields = mutableListOf<Pair<String, Map<String, Any?>>>()
+        val engine = object : TanksOnlineEngine {
+            override var colors = TanksLobbyColors()
+            override fun event(type: String, now: Double, fields: Map<String, Any?>): OnlineOutput {
+                fieldsLog(type, fields)
+                if (type == "selectColor") colors = picked
+                return OnlineOutput(emptyList(), OnlineLobbyUi(), null, false, null)
+            }
+            private fun fieldsLog(type: String, values: Map<String, Any?>) { fields += type to values }
+            override fun receive(text: String, connection: Int, now: Double) = OnlineOutput(emptyList(), null, null, false, null)
+            override fun frame(now: Double) = TanksOnlineFrame(null, TanksOnlineMatch())
+            override fun close() = Unit
+        }
+        val session = HouseTanksOnlineSession(
+            scope = this, engine = engine, http = { PlatformHttpResponse(200, emptyMap(), "{}".toByteArray()) },
+            token = { null }, sockets = { _, _, _, _ -> error("No socket") }, onHaptic = {}, clock = { 1.0 },
+        )
+        assertEquals(TanksLobbyColors(), session.colors.value)
+        session.selectColor(TanksColor.SKY)
+        assertEquals("selectColor" to mapOf<String, Any?>("color" to "sky"), fields.last())
+        assertEquals(picked, session.colors.value)
+        session.dispose()
     }
 
     @Test fun ensuresTheTanksSessionAndFollowsTheDrawnArena() = runTest(dispatcher) {

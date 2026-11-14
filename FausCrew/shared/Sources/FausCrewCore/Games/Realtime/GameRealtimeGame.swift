@@ -14,9 +14,6 @@ public protocol GameRealtimeGame {
     associatedtype ResultIdentity: Equatable & Sendable
 
     static var gameKey: String { get }
-    /// Ready only counts in landscape when the match screen opens with the countdown
-    /// (House Rockets); FauseTanks' room is portrait and rotates at match start.
-    static var readyRequiresLandscape: Bool { get }
 
     /// Throw `GameRealtimeError` for a contract, version or map this client
     /// cannot play: the lobby then asks for an update instead of reconnecting.

@@ -351,7 +351,11 @@ private fun FailedStatusCard(reason: ChoreFailureReason?, strings: LocalizedText
 private fun InfoSection(chore: HouseChore, assignee: HouseMember?, strings: LocalizedText) {
     Column(verticalArrangement = Arrangement.spacedBy(Spacing.md)) {
         SectionCard(spacing = Spacing.sm) {
-            PopupSectionLabel(FausCrewIcons.textBadgeCheckmark, strings.get("chore_detail_task_label"))
+            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(Spacing.sm)) {
+                PopupSectionLabel(FausCrewIcons.textBadgeCheckmark, strings.get("chore_detail_task_label"))
+                Spacer(Modifier.weight(1f))
+                ChoreCategoryTag(chore.categoryKind, strings, ChoreCategoryTagStyle.PILL)
+            }
             Text(chore.title, style = FausCrewType.title3, color = FausCrewColors.textPrimary)
             if (chore.description.isNotBlank()) {
                 Text(chore.description, style = FausCrewType.body, color = FausCrewColors.textSecondary)

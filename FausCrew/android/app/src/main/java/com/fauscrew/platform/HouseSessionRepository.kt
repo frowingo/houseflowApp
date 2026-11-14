@@ -29,12 +29,33 @@ internal data class HouseChore(
     /** Review rounds that carry a photo; storage keys never reach the client. */
     val reviewPhotoRounds: List<Int> = emptyList(),
     val statusHistories: List<HouseStatusHistory> = emptyList(),
+    /** Raw `ChoreCategoryKind`; `0` when absent (backends before categories) or uncategorized. */
+    val category: Int = 0,
 ) {
+    val categoryKind: ChoreCategoryKind get() = ChoreCategoryKind.of(category)
+
     /** Set for Failed chores only (iOS `HouseChoreDTO.failureReason`). */
     val failureReason: ChoreFailureReason?
         get() = if (status == CHORE_STATUS_FAILED) {
             ChoreFailureReason.of(statusHistories, dueDate, reviewRound, reviewVotes)
         } else null
+}
+
+/**
+ * Wire `ChoreCategory` (iOS/Core `ChoreCategoryKind`). `0` means no category; values this build
+ * does not know are read as uncategorized too. Names are localized by the catalog UI.
+ */
+internal enum class ChoreCategoryKind(val raw: Int) {
+    UNCATEGORIZED(0), KITCHEN(1), BATH_LAUNDRY(2), TOILET(3), ROOMS(4), FLOORS_GENERAL(5),
+    PETS(6), TRASH_RECYCLING(7), PLANTS_BALCONY(8), SHOPPING_HOME(9);
+
+    /** The values a request may carry (1–9). */
+    val isAssignable: Boolean get() = this != UNCATEGORIZED
+
+    companion object {
+        fun of(raw: Int?): ChoreCategoryKind = entries.firstOrNull { it.raw == raw } ?: UNCATEGORIZED
+        val assignable: List<ChoreCategoryKind> get() = entries.filter { it.isAssignable }
+    }
 }
 
 /** `ChoreStatus.failed`: terminal and backend-owned; the client never sends it. */
@@ -204,6 +225,7 @@ internal fun JSONObject.toHouseChore() = HouseChore(
     statusHistories = optJSONArray("statusHistories").objects {
         HouseStatusHistory(it.optInt("status", -1), it.optString("updater"), it.apiTime("dateTime"))
     },
+    category = if (isNull("category")) 0 else optInt("category", 0),
 )
 
 internal fun JSONObject.toHouseAnnouncement() = HouseAnnouncement(

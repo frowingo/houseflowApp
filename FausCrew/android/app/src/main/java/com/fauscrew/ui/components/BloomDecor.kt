@@ -23,7 +23,7 @@ import kotlin.math.max
 import kotlin.math.roundToInt
 import kotlin.math.sin
 
-// Fause Bloom decoration, mirroring iOS `FausBloom.swift`: the marbled texture, the edge garden
+// Faus Bloom decoration, mirroring iOS `FausBloom.swift`: the marbled texture, the edge garden
 // of vines and flowers and the petal ornaments of hero surfaces. Coordinates are dp from the Bloom
 // design canvas (a 390×844 screen); each cluster stays pinned to its own corner.
 

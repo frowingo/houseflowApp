@@ -6,17 +6,40 @@ import Foundation
 public enum AppThemeID: String, CaseIterable, Sendable {
     case fausLight = "faus_light"
     case fausDark = "faus_dark"
-    case fauseBloom = "fause_bloom"
+    case fausBloom = "faus_bloom"
+    case fausWeb = "faus_web"
 
     /// First launch, and any stored value this build does not know, use Faus Light.
     public static let defaultTheme: AppThemeID = .fausLight
+
+    /// Reads a stored value, including names a theme was saved under before it was renamed
+    /// (Faus Bloom was "fause_bloom").
+    public init?(storageValue: String) {
+        if let theme = AppThemeID(rawValue: storageValue) {
+            self = theme
+        } else if storageValue == "fause_bloom" {
+            self = .fausBloom
+        } else {
+            return nil
+        }
+    }
+
+    /// Remote copy key of the picker description. Faus Bloom keeps the key it had under its
+    /// former storage value, so copy already published for it stays in use.
+    public var descriptionKey: String {
+        switch self {
+        case .fausBloom: "theme_fause_bloom_description"
+        default: "theme_\(rawValue)_description"
+        }
+    }
 
     /// Product names; they are brand copy and are not localized.
     public var displayName: String {
         switch self {
         case .fausLight: "Faus Light"
         case .fausDark: "Faus Dark"
-        case .fauseBloom: "Fause Bloom"
+        case .fausBloom: "Faus Bloom"
+        case .fausWeb: "Faus Web"
         }
     }
 }
@@ -27,7 +50,7 @@ public enum AppThemePreference {
 
     @MainActor
     public static func load(from store: any PreferencesStore) -> AppThemeID {
-        store.string(forKey: storageKey).flatMap(AppThemeID.init(rawValue:)) ?? .defaultTheme
+        store.string(forKey: storageKey).flatMap(AppThemeID.init(storageValue:)) ?? .defaultTheme
     }
 
     @MainActor

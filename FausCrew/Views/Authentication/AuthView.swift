@@ -111,7 +111,7 @@ struct AuthView: View {
         Button(action: { withAnimation(AppDesign.Animation.standard) { action() } }) {
             Text(title)
                 .font(.system(size: 15, weight: .semibold))
-                .foregroundColor(selected ? FausBrand.orange : AppDesign.Colors.textSecondary)
+                .foregroundColor(selected ? (theme.decor.accentOnCard ?? FausBrand.orange) : AppDesign.Colors.textSecondary)
                 .frame(maxWidth: .infinity)
                 .frame(height: 36)
                 .background(
@@ -140,7 +140,8 @@ struct AuthView: View {
                         icon: "person.fill",
                         keyboardType: .default,
                         focusedField: $focusedField,
-                        fieldType: .firstName
+                        fieldType: .firstName,
+                        titleColor: AppDesign.Colors.pageText
                     )
                     ModernTextField(
                         title: viewModel.localized("auth_last_name_label"),
@@ -149,7 +150,8 @@ struct AuthView: View {
                         icon: "person.fill",
                         keyboardType: .default,
                         focusedField: $focusedField,
-                        fieldType: .lastName
+                        fieldType: .lastName,
+                        titleColor: AppDesign.Colors.pageText
                     )
                 }
                 .transition(.asymmetric(
@@ -165,7 +167,8 @@ struct AuthView: View {
                 icon: "envelope.fill",
                 keyboardType: .emailAddress,
                 focusedField: $focusedField,
-                fieldType: .email
+                fieldType: .email,
+                titleColor: AppDesign.Colors.pageText
             )
 
             ModernSecureField(
@@ -174,7 +177,8 @@ struct AuthView: View {
                 placeholder: viewModel.localized("auth_password_placeholder"),
                 icon: "lock.fill",
                 focusedField: $focusedField,
-                fieldType: .password
+                fieldType: .password,
+                titleColor: AppDesign.Colors.pageText
             )
 
             if !viewModel.isSignUp {
@@ -186,7 +190,7 @@ struct AuthView: View {
                         Text(viewModel.localized("auth_forgot_password_button"))
                     }
                     .font(.system(size: 14, weight: .medium))
-                    .foregroundColor(HouseJourneyTheme.accentOrangeInk)
+                    .foregroundColor(AppDesign.Colors.pageAccent)
                 }
                 .transition(.opacity)
             }
@@ -240,7 +244,7 @@ struct AuthView: View {
             Rectangle().frame(height: 1).foregroundColor(AppDesign.Colors.elevatedSurface)
             Text(viewModel.localized("auth_divider_or"))
                 .font(AppDesign.Typography.caption)
-                .foregroundColor(AppDesign.Colors.textSecondary)
+                .foregroundColor(AppDesign.Colors.pageTextSecondary)
             Rectangle().frame(height: 1).foregroundColor(AppDesign.Colors.elevatedSurface)
         }
     }
@@ -311,7 +315,7 @@ struct AuthView: View {
                 .foregroundColor(AppDesign.Colors.primary)
             Text(message)
                 .font(AppDesign.Typography.subheadline)
-                .foregroundColor(AppDesign.Colors.text)
+                .foregroundColor(AppDesign.Colors.pageText)
                 .multilineTextAlignment(.leading)
             Spacer()
         }

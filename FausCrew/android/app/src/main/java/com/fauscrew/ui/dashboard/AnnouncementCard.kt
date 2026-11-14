@@ -1,5 +1,6 @@
 package com.fauscrew.ui.dashboard
 
+import com.fauscrew.ui.components.fausCardSheen
 import android.content.Context
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.animateColorAsState
@@ -87,6 +88,7 @@ internal fun AnnouncementCard(
                 y = if (expanded) 7.dp else 4.dp, shape = shape)
             .clip(shape)
             .background(FausCrewColors.surface)
+            .fausCardSheen()
             .background(Brush.linearGradient(listOf(
                 FausCrewColors.purple.copy(alpha = .075f), FausCrewColors.teal.copy(alpha = .035f), Color.Transparent,
             )))

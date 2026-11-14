@@ -40,7 +40,8 @@ final class ChoreStore: ObservableObject {
             level: c.level,
             reviewRound: c.reviewRound,
             reviewVotes: c.reviewVotes,
-            reviewPhotoRounds: c.reviewPhotoRounds
+            reviewPhotoRounds: c.reviewPhotoRounds,
+            category: c.category
         )
         setChores(updatedChores)
     }
@@ -87,6 +88,7 @@ final class ChoreStore: ObservableObject {
         level: ChoreLevel,
         recurringInterval: Int,
         title: String,
+        category: ChoreCategoryKind,
         currentHouseDetails: HouseDetailsResponse?,
         dashboardMembers: [User]
     ) async throws -> HouseDetailsResponse? {
@@ -98,7 +100,8 @@ final class ChoreStore: ObservableObject {
             isRecurring: isRecurring,
             level: level,
             recurringInterval: recurringInterval,
-            title: title
+            title: title,
+            category: category
         )
         return apply(response: createdChore, currentHouseDetails: currentHouseDetails, dashboardMembers: dashboardMembers)
     }
@@ -201,7 +204,8 @@ final class ChoreStore: ObservableObject {
             reviewRound: response.reviewRound,
             reviewVotes: response.reviewVotes,
             reviewPhotoRounds: response.reviewPhotoRounds,
-            failureReason: response.houseChoreDTO.failureReason
+            failureReason: response.houseChoreDTO.failureReason,
+            category: response.category
         )
     }
 }

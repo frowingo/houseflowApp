@@ -17,6 +17,8 @@ import com.fauscrew.platform.PlatformHttpResponse
 import com.fauscrew.platform.RealtimeSocketFactory
 import com.fauscrew.platform.SessionField
 import com.fauscrew.platform.SessionReadResult
+import com.fauscrew.platform.OnlineResultUi
+import com.fauscrew.platform.RocketsColor
 import com.fauscrew.platform.RocketsFrame
 import com.fauscrew.platform.RocketsPhase
 import com.fauscrew.platform.RocketsUpdate
@@ -63,8 +65,10 @@ internal data class HouseRocketsUiState(
     val userId: String? = null,
     val houseOwnerId: String? = null,
     val onlineSupported: Boolean = false,
-    /** Server catalog: `false` when House Rockets is closed for this house; `null` = unknown. */
+    /** Server catalog: `false` when Faus Rockets is closed for this house; `null` = unknown. */
     val catalogAvailable: Boolean? = null,
+    /** The rocket color picked for online flights; claimed in the lobby (null = the server's pick). */
+    val onlineColor: RocketsColor? = null,
 ) {
     /** `null` when housemates mode can connect. An unknown catalog never blocks. */
     val onlineBlocker: RocketsOnlineBlocker?
@@ -113,6 +117,14 @@ internal class HouseRocketsViewModel(
     private val mutableOnline = MutableStateFlow<HouseRocketsOnlineSession?>(null)
     /** The current online match (housemates mode), or null. */
     val onlineSession: StateFlow<HouseRocketsOnlineSession?> = mutableOnline.asStateFlow()
+    private val mutableReplayRoom = MutableStateFlow(false)
+    /** Play Again's new room, drawn over the last flight's frozen course until the new
+     *  flight's first frame (the countdown) arrives. */
+    val isOnlineReplayRoom: StateFlow<Boolean> = mutableReplayRoom.asStateFlow()
+    /** The last online course frame, kept under the result and Play Again's room. Read once
+     *  when they open (it changes every frame during a flight). */
+    var heldOnlineFrame: RocketsFrame? = null
+        private set
 
     fun updateContext(houseId: String?, userId: String?, houseOwnerId: String? = null) {
         val current = mutableState.value
@@ -159,13 +171,15 @@ internal class HouseRocketsViewModel(
 
     // ---- Online (housemates) -------------------------------------------------------------
 
-    private fun connectOnline(excludingSessionId: String?) {
+    private fun connectOnline(excludingSessionId: String?, keepsCourse: Boolean = false) {
         val deps = online ?: return
         val current = mutableState.value
         if (current.onlineBlocker != null) return
         val houseId = current.houseId ?: return
         val userId = current.userId ?: return
         disposeOnline()
+        if (!keepsCourse) heldOnlineFrame = null
+        mutableReplayRoom.value = keepsCourse
         val session = HouseRocketsOnlineSession(
             scope = viewModelScope,
             engine = deps.makeEngine(houseId, userId, current.houseOwnerId.orEmpty(), excludingSessionId),
@@ -173,6 +187,8 @@ internal class HouseRocketsViewModel(
             onHaptic = { mutableHaptics.tryEmit(if (it) RocketsHaptic.SUCCESS else RocketsHaptic.WARNING) },
         )
         mutableOnline.value = session
+        // Core holds the pick until the player sits in the lobby, then claims it.
+        current.onlineColor?.let(session::selectColor)
         session.viewport(viewport[0], viewport[1], viewport[2], viewport[3])
         session.start(isForeground, isLandscape)
         closedJob = viewModelScope.launch {
@@ -185,16 +201,47 @@ internal class HouseRocketsViewModel(
         }
     }
 
+    /** A taken color, or any pick while ready, is ignored (Core's lobby rules). */
+    fun selectOnlineColor(color: RocketsColor) {
+        val colors = mutableOnline.value?.colors?.value
+        if (colors != null && (colors.isLocked || color in colors.takenByOthers)) return
+        if (color == state.value.onlineColor) return
+        mutableState.update { it.copy(onlineColor = color) }
+        mutableOnline.value?.selectColor(color)
+    }
+
     fun setOnlineReady(ready: Boolean) = mutableOnline.value?.intent("setReady", mapOf("ready" to ready))
     fun cancelOnlineMatch() = mutableOnline.value?.intent("cancel")
     fun retryOnline() = mutableOnline.value?.intent("retry")
     fun retryOnlineResult() = mutableOnline.value?.intent("retryResult")
     fun reclaimOnlineControl() = mutableOnline.value?.intent("reclaim")
 
-    fun rematchOnline() {
+    /** Back to Lobby from the result: a new room without the finished session, in the
+     *  portrait online screen. A failed result read may leave too. */
+    fun canReturnToOnlineLobby(result: OnlineResultUi): Boolean = result.canRematch || result.isFailed
+
+    fun returnToOnlineLobby() {
         val session = mutableOnline.value ?: return
-        if (!session.result.value.canRematch) return
-        connectOnline(excludingSessionId = session.rematchExcludedSessionId ?: session.result.value.sessionId)
+        if (mutableReplayRoom.value) {
+            // Already in the new room: only the screen changes.
+            mutableReplayRoom.value = false
+            heldOnlineFrame = null
+            return
+        }
+        val result = session.result.value
+        if (!canReturnToOnlineLobby(result)) return
+        connectOnline(excludingSessionId = session.rematchExcludedSessionId ?: result.sessionId)
+    }
+
+    /** Play Again from the result: a new room without the finished session over the frozen
+     *  course; the player is ready as soon as they sit in it, and the server's countdown
+     *  starts the flight once the crew is ready. */
+    fun playOnlineAgain() {
+        val session = mutableOnline.value ?: return
+        val result = session.result.value
+        if (!result.canRematch) return
+        connectOnline(excludingSessionId = session.rematchExcludedSessionId ?: result.sessionId, keepsCourse = true)
+        mutableOnline.value?.intent("readyOnJoin")
     }
 
     /**
@@ -212,7 +259,10 @@ internal class HouseRocketsViewModel(
         session.intent("leave")
     }
 
+    /** Changes only: the engine withdraws ready on every portrait report, and a resize in the
+     *  portrait room must not take ready back. */
     fun setLandscape(landscape: Boolean) {
+        if (isLandscape == landscape) return
         isLandscape = landscape
         mutableOnline.value?.intent("setLandscape", mapOf("landscape" to landscape))
     }
@@ -228,7 +278,11 @@ internal class HouseRocketsViewModel(
 
     /** One rendered frame of the online flight. */
     fun onOnlineFrame() {
-        mutableOnline.value?.sampleFrame()
+        val session = mutableOnline.value ?: return
+        session.sampleFrame()
+        val frame = session.frame.value ?: return
+        heldOnlineFrame = frame
+        if (mutableReplayRoom.value) mutableReplayRoom.value = false
     }
 
     private fun disposeOnline() {
@@ -345,6 +399,8 @@ internal class HouseRocketsViewModel(
 
     fun stop() {
         disposeOnline()
+        mutableReplayRoom.value = false
+        heldOnlineFrame = null
         afterLeave = null
         countdownJob?.cancel()
         countdownJob = null

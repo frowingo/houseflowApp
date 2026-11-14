@@ -1,6 +1,6 @@
 import SwiftUI
 
-// Fause Bloom decoration: the marbled texture, the edge garden of vines and flowers, and the petal
+// Faus Bloom decoration: the marbled texture, the edge garden of vines and flowers, and the petal
 // ornaments of hero surfaces. Coordinates come from the Bloom design canvas, drawn for a
 // 390×844 screen; each cluster stays pinned to its own corner so other sizes keep the layout.
 

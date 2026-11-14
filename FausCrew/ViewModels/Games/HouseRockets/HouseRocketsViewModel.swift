@@ -12,8 +12,18 @@ final class HouseRocketsViewModel: ObservableObject {
     @Published private(set) var onlinePresentation: HouseRocketsOnlinePresentation?
     @Published private(set) var onlineResultState = HouseRocketsOnlineResultState()
     @Published private(set) var catalogAvailability = HouseRocketsCatalogAvailability.unknown
+    /// Play Again's new room, drawn over the last flight's frozen course until the new
+    /// flight's first frame (the countdown) arrives.
+    @Published private(set) var isOnlineReplayRoom = false
     var onlineFrame: HouseRocketsRenderFrame? { onlinePresentation?.frame }
     @Published var botCount = 3
+    /// The rocket color picked for online flights; claimed in the lobby (nil = the server's pick).
+    @Published var onlineColor: HouseRocketsColor? {
+        didSet {
+            guard onlineColor != oldValue, let onlineColor else { return }
+            onlineHost?.perform { $0.selectColor(onlineColor, now: $1) }
+        }
+    }
 
     let scene: HouseRocketsScene
     let preferredFramesPerSecond: Int
@@ -102,7 +112,10 @@ final class HouseRocketsViewModel: ObservableObject {
         onlineHost?.perform { $0.retry(now: $1) }
     }
 
+    /// Changes only: the engine withdraws ready on every portrait report, and a resize in the
+    /// portrait room must not take ready back.
     func setLandscape(_ landscape: Bool) {
+        guard isLandscape != landscape else { return }
         isLandscape = landscape
         onlineHost?.perform { $0.setLandscape(landscape, now: $1) }
     }
@@ -118,10 +131,33 @@ final class HouseRocketsViewModel: ObservableObject {
     func retryOnlineResult() { onlineHost?.perform { $0.retryResult(now: $1) } }
     func reclaimOnlineControl() { onlineHost?.perform { $0.reclaimControl(now: $1) } }
 
-    func rematchOnline() {
+    /// Back to Lobby from the result: a new room without the finished session, in the
+    /// portrait online screen. A failed result read may leave too.
+    var canReturnToOnlineLobby: Bool {
+        onlineResultState.canRematch || onlineResultState.phase == .failed
+    }
+
+    func returnToOnlineLobby() {
+        guard selectedMode == .housemates else { return }
+        if isOnlineReplayRoom {
+            // Already in the new room: only the screen changes.
+            isOnlineReplayRoom = false
+            scene.reset()
+            scene.frameProvider = { [weak self] in self?.sampleOnlineFrame() }
+            return
+        }
+        guard canReturnToOnlineLobby else { return }
+        connectOnline(excludingSessionID: onlineResultState.sessionID ?? onlineState.session?.sessionId)
+    }
+
+    /// Play Again from the result: a new room without the finished session over the frozen
+    /// course; the player is ready as soon as they sit in it, and the server's countdown
+    /// starts the flight once the crew is ready.
+    func playOnlineAgain() {
         guard selectedMode == .housemates, onlineResultState.canRematch,
               let oldSessionID = onlineResultState.sessionID else { return }
-        connectOnline(excludingSessionID: oldSessionID)
+        connectOnline(excludingSessionID: oldSessionID, keepsCourse: true)
+        onlineHost?.perform { $0.readyOnJoin(now: $1) }
     }
 
     /// Explicit exit: a business leave through the engine, then cleanup. Returns false
@@ -141,7 +177,7 @@ final class HouseRocketsViewModel: ObservableObject {
         return true
     }
 
-    private func connectOnline(excludingSessionID: String? = nil) {
+    private func connectOnline(excludingSessionID: String? = nil, keepsCourse: Bool = false) {
         guard onlineBlocker == nil, let makeHost = sessionFactory.makeOnlineHost else { return }
         generation = UUID()
         previousOnlineSessionID = excludingSessionID
@@ -152,8 +188,10 @@ final class HouseRocketsViewModel: ObservableObject {
         if excludingSessionID != nil { acceptanceRecorder?.begin(mode: .housemates) }
         onlineState = HouseRocketsOnlineLobbyState()
         onlineResultState = HouseRocketsOnlineResultState()
-        scene.reset()
-        let host = makeHost(context, excludingSessionID)
+        // The replay room keeps the last frame on screen; the new flight's frame replaces it.
+        if !keepsCourse { scene.reset() }
+        isOnlineReplayRoom = keepsCourse
+        let host = makeHost(context, excludingSessionID, onlineColor)
         onlineHost = host
         let expected = generation
         host.onLobbyChange = { [weak self] state in
@@ -180,8 +218,41 @@ final class HouseRocketsViewModel: ObservableObject {
         host.start(isForeground: isForeground, isLandscape: isLandscape)
     }
 
+    /// The room's rocket colors (Core's lobby claims).
+    var onlineLobbyColors: HouseRocketsLobbyColors { onlineState.lobbyColors(localPlayerID: context.localPlayerID) }
+
+    /// The ready button works: the lobby takes the change and, to get ready, the server holds
+    /// this player's color (Core's `allowsReady`; the engine ignores a ready without one).
+    func canChangeOnlineReady(playerID: String?) -> Bool {
+        onlineState.canChangeReady(playerID: playerID) && onlineLobbyColors.allowsReady
+    }
+    /// The local rocket's color in the room: the pick while it is free, else the server's claim.
+    var onlineLocalColor: HouseRocketsColor? { onlineLobbyColors.localColor(preferred: onlineColor) }
+    /// A participant's rocket color in the room (the server's once the flight seats them).
+    func onlineColor(of playerID: String) -> HouseRocketsColor? {
+        onlineState.memberColor(of: playerID, localPlayerID: context.localPlayerID, preferred: onlineColor)
+    }
+    /// A ready player's pick is locked; the UI ignores taps then.
+    func selectOnlineColor(_ color: HouseRocketsColor) {
+        guard !onlineLobbyColors.isLocked, !onlineLobbyColors.isTakenByOthers(color) else { return }
+        onlineColor = color
+    }
+
+    /// Seconds left on the room's current deadline: the ready window, then the countdown.
+    func onlineCountdown(uptime: TimeInterval = ProcessInfo.processInfo.systemUptime) -> Int? {
+        let session = onlineState.session
+        let deadline: Date?
+        switch session?.state {
+        case .countdown: deadline = onlineState.game?.countdownEndsAt ?? session?.countdownEndsAt
+        case .readyWindow: deadline = session?.readyWindowEndsAt
+        default: return nil
+        }
+        return onlineState.remainingSeconds(until: deadline, uptime: uptime)
+    }
+
     private func sampleOnlineFrame() -> HouseRocketsRenderFrame? {
         let presentation = onlineHost?.presentation()
+        if presentation != nil, isOnlineReplayRoom { isOnlineReplayRoom = false }
         if presentationCadence.shouldPublish(presentation, at: ProcessInfo.processInfo.systemUptime) {
             onlinePresentation = presentation
         }
@@ -295,6 +366,7 @@ final class HouseRocketsViewModel: ObservableObject {
         onlinePresentation = nil
         presentationCadence = .init()
         onlineResultState = HouseRocketsOnlineResultState()
+        isOnlineReplayRoom = false
         snapshot = nil
         previousOnlineSessionID = nil
         selectedMode = nil

@@ -28,6 +28,7 @@ struct HouseMembersCard: View {
         .background(
             ZStack {
                 HouseJourneyTheme.surface
+                FausCardSheen()
 
                 LinearGradient(
                     colors: [

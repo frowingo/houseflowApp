@@ -39,7 +39,7 @@ final class LiveGameOnlineIO: GameOnlineIO {
 }
 
 /// What the host needs from one game's FausCrewCore online engine; House Rockets and
-/// FauseTanks expose the same sans-IO surface.
+/// Faus Tanks expose the same sans-IO surface.
 protocol GameOnlineHostedEngine: AnyObject {
     associatedtype Lobby: Equatable
     associatedtype Result: Equatable

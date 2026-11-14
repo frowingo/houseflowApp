@@ -1,7 +1,7 @@
 import Foundation
 import FausCrewCore
 
-// The FauseTanks online room behind a handle, in House Rockets' shape: the engine
+// The Faus Tanks online room behind a handle, in House Rockets' shape: the engine
 // (FausCrewCore) decides every lobby, reconnect and control rule; Android performs the
 // returned effects with OkHttp and reports their outcome. The output is the one
 // `OnlineOutputParser` reads, plus `preview` (the server's seated arena) whenever it
@@ -17,6 +17,7 @@ final class TanksOnlineRegistry: @unchecked Sendable {
     final class Entry {
         let engine: HouseTanksOnlineEngine
         var lastLobby: HouseTanksOnlineLobbyState?
+        var lastPreferred: HouseTanksColor?
         var lastPreview: [String: Any]?
         var sentPreview = false
         var arenaRoundKey = ""
@@ -97,6 +98,9 @@ public func houseTanksOnlineEvent(_ handle: Int32, _ eventJSON: String) -> Strin
         case "press": engine.press(now: now)
         case "release": engine.release(now: now)
         case "setRoundReady": engine.setRoundReady(event["ready"] as? Bool ?? false, now: now)
+        case "selectColor":
+            guard let color = (event["color"] as? String).flatMap(HouseTanksColor.init(rawValue:)) else { return false }
+            engine.selectColor(color, now: now)
         case "setReduceMotion": engine.setReduceMotion(event["enabled"] as? Bool ?? false)
         case "leave": engine.leave(now: now)
         case "disconnect": engine.disconnect()
@@ -138,7 +142,7 @@ public func houseTanksOnlineFrame(_ handle: Int32, _ now: Double) -> String {
     return bridgeJSON(result ?? ["ok": false, "message": "Unknown match handle"])
 }
 
-/// `GET /game/catalog` for one house, reduced to what the FauseTanks room needs.
+/// `GET /game/catalog` for one house, reduced to what the Faus Tanks room needs.
 /// `available` is null when the catalog could not be read (the server still guards).
 public func houseTanksCatalogResponse(_ houseId: String, _ status: Int32, _ body: String) -> String {
     do {
@@ -159,9 +163,11 @@ private func tanksOnlineOutput(_ handle: Int32, _ action: (TanksOnlineRegistry.E
             "ok": true,
             "effects": engine.drainEffects().map { onlineEffectObject($0, gameKey: GameKey.houseTanks) },
         ]
-        if engine.lobby != entry.lastLobby {
+        if engine.lobby != entry.lastLobby || engine.preferredColor != entry.lastPreferred {
             entry.lastLobby = engine.lobby
-            object["lobby"] = HouseTanksOnlineJSON.lobby(engine.lobby, context: engine.context)
+            entry.lastPreferred = engine.preferredColor
+            object["lobby"] = HouseTanksOnlineJSON.lobby(engine.lobby, context: engine.context,
+                                                         preferredColor: engine.preferredColor)
         }
         let preview = engine.arena.map(HouseTanksOnlineJSON.preview)
         if !entry.sentPreview || !NSDictionary(dictionary: preview ?? [:]).isEqual(to: entry.lastPreview ?? [:])
@@ -179,9 +185,11 @@ private func tanksOnlineOutput(_ handle: Int32, _ action: (TanksOnlineRegistry.E
 
 /// Screen-ready room models; the copy rules come from Core.
 enum HouseTanksOnlineJSON {
-    /// House Rockets' lobby keys (one Kotlin parser reads both) plus the update flag and
-    /// each seated player's name and color.
-    static func lobby(_ state: HouseTanksOnlineLobbyState, context: GameLaunchContext) -> [String: Any] {
+    /// House Rockets' lobby keys (one Kotlin parser reads both) plus the update flag, each
+    /// seated player's name, every participant's tank color (the server's once seated, the
+    /// lobby claim before) and the lobby colors, as Faus Switch sends them.
+    static func lobby(_ state: HouseTanksOnlineLobbyState, context: GameLaunchContext,
+                      preferredColor: HouseTanksColor?) -> [String: Any] {
         let local = context.localPlayerID
         let session = state.session
         func uptime(_ date: Date?) -> Any {
@@ -191,6 +199,7 @@ enum HouseTanksOnlineJSON {
         let deadline: Date? = session?.state == .countdown ? session?.countdownEndsAt
             : session?.state == .readyWindow ? session?.readyWindowEndsAt : nil
         let seated = Dictionary((state.game?.players ?? []).map { ($0.playerId, $0) }, uniquingKeysWith: { first, _ in first })
+        let colors = state.lobbyColors(localPlayerID: local)
         let status = HouseTanksOnlineCopyKeys.roomStatus(state)
         let detail = HouseTanksOnlineCopyKeys.roomDetail(state)
         return [
@@ -216,7 +225,7 @@ enum HouseTanksOnlineJSON {
             "canRetry": state.canReconnect(at: .infinity),
             "requiresAuthentication": state.requiresAuthentication,
             "requiresUpdate": state.requiresUpdate,
-            "canChangeReady": state.canChangeReady(playerID: local),
+            "canChangeReady": state.canChangeReady(playerID: local) && colors.allowsReady,
             "canCancel": state.canCancel(context: context),
             "localReady": state.localPlayer(local)?.state == .ready,
             "readyCount": state.readyCount,
@@ -226,8 +235,17 @@ enum HouseTanksOnlineJSON {
                 "ready": player.state == .ready,
                 "isLocal": player.playerId == local,
                 "name": seated[player.playerId]?.displayName ?? NSNull(),
-                "color": seated[player.playerId]?.color.rawValue ?? NSNull(),
+                "color": state.memberColor(of: player.playerId, localPlayerID: local, preferred: preferredColor)?.rawValue
+                    ?? NSNull(),
             ] },
+            "colors": [
+                "preferred": preferredColor?.rawValue ?? NSNull(),
+                "local": colors.localColor(preferred: preferredColor)?.rawValue ?? NSNull(),
+                "localClaim": colors.localClaim?.rawValue ?? NSNull(),
+                "takenByOthers": HouseTanksColor.allCases.filter(colors.isTakenByOthers).map(\.rawValue),
+                "isPreferredTaken": colors.isPreferredTaken(preferredColor),
+                "isLocked": colors.isLocked,
+            ] as [String: Any],
             "deadlineKind": (session?.state == .countdown ? "countdown" : session?.state == .readyWindow ? "ready" : nil)
                 ?? NSNull() as Any,
             "deadlineUptime": uptime(deadline),

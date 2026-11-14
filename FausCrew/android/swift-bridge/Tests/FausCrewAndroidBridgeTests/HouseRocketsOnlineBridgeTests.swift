@@ -65,6 +65,26 @@ final class HouseRocketsOnlineBridgeTests: XCTestCase {
         XCTAssertEqual(try event(handle, ["type": "mystery", "now": 1])["ok"] as? Bool, false)
     }
 
+    func testColorPickComesBackInTheLobbyColors() throws {
+        let handle = houseRocketsOnlineCreate(house, player, "", "")
+        defer { XCTAssertTrue(houseRocketsOnlineDestroy(handle)) }
+        let picked = try event(handle, ["type": "selectColor", "color": "teal", "now": 0])
+        XCTAssertEqual(picked["ok"] as? Bool, true)
+        let colors = try XCTUnwrap((picked["lobby"] as? [String: Any])?["colors"] as? [String: Any])
+        XCTAssertEqual(colors["preferred"] as? String, "teal")
+        XCTAssertEqual(colors["local"] as? String, "teal")
+        XCTAssertEqual(colors["takenByOthers"] as? [String], [])
+        XCTAssertEqual(colors["isLocked"] as? Bool, false)
+        XCTAssertEqual(try event(handle, ["type": "selectColor", "color": "neon", "now": 0.1])["ok"] as? Bool, false)
+    }
+
+    /// Play Again's ready-on-join is an event, so the JNI boundary stays the same.
+    func testPlayAgainReadyOnJoinIsAccepted() throws {
+        let handle = houseRocketsOnlineCreate(house, player, "", "previous-session")
+        defer { XCTAssertTrue(houseRocketsOnlineDestroy(handle)) }
+        XCTAssertEqual(try event(handle, ["type": "readyOnJoin", "now": 0])["ok"] as? Bool, true)
+    }
+
     func testUnknownHandle() throws {
         XCTAssertEqual(try object(houseRocketsOnlineFrame(-7, 0))["ok"] as? Bool, false)
         XCTAssertFalse(houseRocketsOnlineDestroy(-7))

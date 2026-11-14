@@ -8,10 +8,8 @@ struct HouseDashboardView: View {
     @Environment(\.fausTheme) private var theme
     @State private var selectedChore: Chore? = nil
     @State private var showChoreDetail = false
-    @State private var showNewChore = false
     @State private var showNewAnnouncement = false
-    @State private var buttonState: NewChoreButtonState = .collapsed
-    @State private var buttonTimer: Timer?
+    @State private var catalogEntry: ChoreCatalogEntry?
     @State private var appeared = false
     
     var body: some View {
@@ -32,39 +30,38 @@ struct HouseDashboardView: View {
                         .opacity(appeared ? 1 : 0)
                         .offset(y: appeared ? 0 : 20)
                         .animation(.spring(response: 0.6, dampingFraction: 0.78).delay(0.12), value: appeared)
-                    
+
                     TodaysChoresCard(
                         chores: appViewModel.dashboardChores,
                         onChoreDetailTap: { chore in
                             selectedChore = chore
                             showChoreDetail = true
+                        },
+                        onAddChore: {
+                            catalogEntry = .drafts
                         }
                     )
                     .padding(.horizontal, AppDesign.Spacing.xxl)
                     .opacity(appeared ? 1 : 0)
                     .offset(y: appeared ? 0 : 26)
                     .animation(.spring(response: 0.6, dampingFraction: 0.78).delay(0.22), value: appeared)
-                    
+
                     HouseMembersCard(members: appViewModel.dashboardMembers)
                         .padding(.horizontal, AppDesign.Spacing.xxl)
                         .opacity(appeared ? 1 : 0)
                         .offset(y: appeared ? 0 : 26)
                         .animation(.spring(response: 0.6, dampingFraction: 0.78).delay(0.32), value: appeared)
-                    
-                    // Spacer for floating button + tab bar clearance
-                    Spacer(minLength: 140)
+
+                    // Tab bar clearance
+                    Spacer(minLength: 120)
                 }
             }
-            .overlay(floatingActionButton, alignment: .bottomTrailing)
             .overlay(popupsOverlay)
         }
         .onAppear {
             withAnimation(.spring(response: 0.6, dampingFraction: 0.78).delay(0.05)) {
                 appeared = true
             }
-        }
-        .onDisappear {
-            stopButtonTimer()
         }
     }
     
@@ -155,16 +152,6 @@ struct HouseDashboardView: View {
         }
     }
 
-    // MARK: - Floating Action Button
-    
-    private var floatingActionButton: some View {
-        FloatingActionButton(buttonState: $buttonState) {
-            handleNewChoreButtonTap()
-        }
-        .padding(.trailing, AppDesign.Spacing.xxl)
-        .padding(.bottom, 110)
-    }
-    
     // MARK: - Popups Overlay
     
     private var popupsOverlay: some View {
@@ -179,13 +166,16 @@ struct HouseDashboardView: View {
                 )
             }
 
-            if showNewChore {
-                NewChorePopup(
-                    appViewModel: appViewModel,
+            if let catalogEntry {
+                ChoreCatalogPopup(
+                    entry: catalogEntry,
+                    catalog: appViewModel.choreCatalogStore,
+                    ownerId: appViewModel.currentUserId,
                     onDismiss: {
-                        dismissNewChore()
+                        dismissCatalog()
                     }
                 )
+                .environmentObject(appViewModel)
             }
 
             if showNewAnnouncement {
@@ -204,12 +194,12 @@ struct HouseDashboardView: View {
             }
         }
         .onChange(of: showChoreDetail) { _, _ in syncOverlayPresentation() }
-        .onChange(of: showNewChore) { _, _ in syncOverlayPresentation() }
         .onChange(of: showNewAnnouncement) { _, _ in syncOverlayPresentation() }
+        .onChange(of: catalogEntry) { _, _ in syncOverlayPresentation() }
     }
 
     private func syncOverlayPresentation() {
-        appViewModel.isOverlayPresented = showChoreDetail || showNewChore || showNewAnnouncement
+        appViewModel.isOverlayPresented = showChoreDetail || showNewAnnouncement || catalogEntry != nil
     }
 
     private func dismissChoreDetail() {
@@ -223,15 +213,11 @@ struct HouseDashboardView: View {
         }
     }
 
-    private func dismissNewChore() {
-        UIApplication.shared.sendAction(#selector(UIResponder.resignFirstResponder), to: nil, from: nil, for: nil)
-        DispatchQueue.main.async {
-            var transaction = Transaction()
-            transaction.disablesAnimations = true
-            withTransaction(transaction) {
-                showNewChore = false
-            }
-            resetButtonState()
+    private func dismissCatalog() {
+        var transaction = Transaction()
+        transaction.disablesAnimations = true
+        withTransaction(transaction) {
+            catalogEntry = nil
         }
     }
 
@@ -244,46 +230,6 @@ struct HouseDashboardView: View {
                 showNewAnnouncement = false
             }
         }
-    }
-    
-    // MARK: - Helper Methods
-    
-    private func handleNewChoreButtonTap() {
-        switch buttonState {
-        case .collapsed:
-            // First tap: expand button with stretch animation
-            withAnimation(AppDesign.Animation.spring) {
-                buttonState = .expanded
-            }
-            startButtonTimer()
-            
-        case .expanded:
-            // Second tap: show popup
-            buttonTimer?.invalidate()
-            showNewChore = true
-        }
-    }
-    
-    private func startButtonTimer() {
-        stopButtonTimer()
-        buttonTimer = Timer.scheduledTimer(withTimeInterval: 3.0, repeats: false) { _ in
-            withAnimation(AppDesign.Animation.spring) {
-                buttonState = .collapsed
-            }
-            buttonTimer = nil
-        }
-    }
-    
-    private func resetButtonState() {
-        stopButtonTimer()
-        withAnimation(AppDesign.Animation.spring) {
-            buttonState = .collapsed
-        }
-    }
-
-    private func stopButtonTimer() {
-        buttonTimer?.invalidate()
-        buttonTimer = nil
     }
 }
 
