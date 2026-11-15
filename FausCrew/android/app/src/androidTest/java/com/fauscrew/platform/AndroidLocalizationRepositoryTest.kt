@@ -24,7 +24,7 @@ class AndroidLocalizationRepositoryTest {
     @Before fun setUp() {
         context = InstrumentationRegistry.getInstrumentation().targetContext
         directory = File(context.cacheDir, "Localization-test-${UUID.randomUUID()}")
-        cache = AndroidLocalizationCache(context, directory)
+        cache = AndroidLocalizationCache(directory)
     }
 
     @After fun tearDown() {

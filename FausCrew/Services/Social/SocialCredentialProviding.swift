@@ -19,10 +19,13 @@ protocol SocialCredentialProviding: AnyObject {
     func signOutAll()
     /// The backend accepted this provider's credential (sign-in, completion or link).
     func didAuthenticate(provider: SocialProvider)
+    /// Drops provider data kept on this device (logout). Not called on retryable failures.
+    func clearLocalData()
 }
 
 extension SocialCredentialProviding {
     func didAuthenticate(provider: SocialProvider) {}
+    func clearLocalData() {}
 }
 
 /// Which provider buttons the build shows, and which of them can actually start a sign-in.
@@ -82,6 +85,10 @@ final class SocialCredentialRouter: SocialCredentialProviding {
 
     func signOutAll() {
         adapters.values.forEach { $0.signOutAll() }
+    }
+
+    func clearLocalData() {
+        adapters.values.forEach { $0.clearLocalData() }
     }
 
     func didAuthenticate(provider: SocialProvider) {

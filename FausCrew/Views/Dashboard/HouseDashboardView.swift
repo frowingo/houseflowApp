@@ -159,7 +159,6 @@ struct HouseDashboardView: View {
             if showChoreDetail, let chore = selectedChore {
                 ChoreDetailPopup(
                     chore: chore,
-                    appViewModel: appViewModel,
                     onDismiss: {
                         dismissChoreDetail()
                     }
@@ -180,7 +179,6 @@ struct HouseDashboardView: View {
 
             if showNewAnnouncement {
                 NewAnnouncementPopup(
-                    appViewModel: appViewModel,
                     onPublish: { title, message in
                         await appViewModel.createAnnouncement(
                             title: title,
@@ -235,5 +233,5 @@ struct HouseDashboardView: View {
 
 #Preview {
     HouseDashboardView()
-        .environmentObject(AppViewModel())
+        .environmentObject(AppViewModel.preview)
 }

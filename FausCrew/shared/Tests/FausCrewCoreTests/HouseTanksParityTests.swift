@@ -11,6 +11,7 @@ import CryptoKit
 /// to the backend with the diff; the fixtures are never edited here.
 final class HouseTanksParityTests: XCTestCase {
     /// sha256 of the fixtures as copied from the backend. Update only together with a new copy.
+    /// Also listed in `shared/Fixtures/SHA256SUMS`, which CI checks; update both together.
     private static let fixtureHashes = [
         "houseTanksMaps.json": "fa8d64f37fb35c2e0c737325ac4e5c49acaf038438557a0bffe0a26a131681b9",
         "houseTanksSimulation.json": "4f7b5ce53fd81cf3ef6cf46c127d17ade68d73450699a3e0baf8c3400e19f712",

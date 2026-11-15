@@ -71,6 +71,22 @@ final class AuthServiceTests: XCTestCase {
         )
     }
 
+    func testLogoutClearsTokenEmailAndName() {
+        let keychain = FakeKeychainStore()
+        keychain.authToken = "stored-token"
+        keychain.userEmail = "user@example.com"
+        keychain.userFirstName = "Ada"
+        keychain.userLastName = "Lovelace"
+        let service = makeService(stub: NetworkRequestStub(), keychain: keychain)
+
+        service.logout()
+
+        XCTAssertNil(keychain.authToken)
+        XCTAssertNil(keychain.userEmail)
+        XCTAssertNil(keychain.userFirstName)
+        XCTAssertNil(keychain.userLastName)
+    }
+
     private func makeService(
         stub: NetworkRequestStub,
         keychain: FakeKeychainStore

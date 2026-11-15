@@ -7,20 +7,25 @@ final class HouseSessionStore: ObservableObject {
     @Published var currentHouse: HouseResponse?
     @Published private(set) var currentHouseDetails: HouseDetailsResponse?
     @Published private(set) var houseName = ""
-    @Published var houseIsLoading = false
     @Published var houseError: String?
 
     private let refreshCooldown: TimeInterval = 30
     private let houseService: any HouseServicing
     private let userDefaults: any PreferencesStore
+    private let now: () -> Date
     private var detailsTasks: [String: Task<HouseDetailsResponse, Error>] = [:]
     private var lastDetailsFetchAt: [String: Date] = [:]
 
     private static let chosenHouseKey = "chosenHouse"
 
-    init(houseService: any HouseServicing, userDefaults: any PreferencesStore = UserDefaults.standard) {
+    init(
+        houseService: any HouseServicing,
+        userDefaults: any PreferencesStore = UserDefaults.standard,
+        now: @escaping () -> Date = Date.init
+    ) {
         self.houseService = houseService
         self.userDefaults = userDefaults
+        self.now = now
     }
 
     func setHouseName(_ name: String) {
@@ -50,7 +55,7 @@ final class HouseSessionStore: ObservableObject {
         if !forceRefresh,
            currentHouseDetails?.id == houseId,
            let fetchedAt = lastDetailsFetchAt[houseId],
-           Date().timeIntervalSince(fetchedAt) < refreshCooldown,
+           now().timeIntervalSince(fetchedAt) < refreshCooldown,
            let details = currentHouseDetails {
             return details
         }
@@ -67,7 +72,7 @@ final class HouseSessionStore: ObservableObject {
         do {
             let details = try await task.value
             detailsTasks[houseId] = nil
-            lastDetailsFetchAt[houseId] = Date()
+            lastDetailsFetchAt[houseId] = now()
             return details
         } catch {
             detailsTasks[houseId] = nil

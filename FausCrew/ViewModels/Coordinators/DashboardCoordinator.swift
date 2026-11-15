@@ -43,45 +43,6 @@ final class DashboardCoordinator {
         }
     }
 
-    var sampleUsers: [User] {
-        [
-            User(
-                firstName: localized("demo_user_mahmut_first_name"),
-                lastName: localized("demo_user_mahmut_last_name"),
-                points: 12
-            ),
-            User(
-                firstName: localized("demo_user_jane_first_name"),
-                lastName: localized("demo_user_jane_last_name"),
-                points: 8
-            ),
-            User(
-                firstName: localized("demo_user_abdullatif_first_name"),
-                lastName: localized("demo_user_abdullatif_last_name"),
-                points: 10
-            ),
-            User(
-                firstName: localized("demo_user_katya_first_name"),
-                lastName: localized("demo_user_katya_last_name"),
-                points: 6
-            )
-        ]
-    }
-
-    var sampleChores: [Chore] {
-        [
-            Chore(id: "sample-take-trash", title: localized("demo_chore_take_trash_title"), description: localized("demo_chore_take_trash_description"), assignedTo: sampleUsers[0], dueLabel: "Today"),
-            Chore(id: "sample-kitchen-counter", title: localized("demo_chore_kitchen_counter_title"), description: localized("demo_chore_kitchen_counter_description"), assignedTo: sampleUsers[1], dueLabel: "Today"),
-            Chore(id: "sample-vacuum-living-room", title: localized("demo_chore_vacuum_living_room_title"), description: localized("demo_chore_vacuum_living_room_description"), assignedTo: sampleUsers[2], dueLabel: "Overdue"),
-            Chore(id: "sample-clean-bathroom", title: localized("demo_chore_clean_bathroom_title"), description: localized("demo_chore_clean_bathroom_description"), assignedTo: sampleUsers[3], dueLabel: "This week"),
-            Chore(id: "sample-laundry", title: localized("demo_chore_laundry_title"), description: localized("demo_chore_laundry_description"), assignedTo: sampleUsers[0], dueLabel: "Today", isDone: true)
-        ]
-    }
-
-    var weeklyLeader: User {
-        sampleUsers.max(by: { $0.points < $1.points }) ?? sampleUsers[0]
-    }
-
     @discardableResult
     func createAnnouncement(title: String, description: String) async -> Bool {
         do {
@@ -95,7 +56,7 @@ final class DashboardCoordinator {
             )
             return true
         } catch {
-            toastStore.show(message: error.localizedDescription, isError: true)
+            toastStore.show(message: localizationStore.userMessage(for: error), isError: true)
             return false
         }
     }
@@ -129,7 +90,7 @@ final class DashboardCoordinator {
             toastStore.show(message: localized("chore_created_toast"), isError: false)
             return true
         } catch {
-            toastStore.show(message: error.localizedDescription, isError: true)
+            toastStore.show(message: localizationStore.userMessage(for: error), isError: true)
             return false
         }
     }
@@ -172,7 +133,7 @@ final class DashboardCoordinator {
             )
             return false
         } catch {
-            toastStore.show(message: error.localizedDescription, isError: true)
+            toastStore.show(message: localizationStore.userMessage(for: error), isError: true)
             return false
         }
     }
@@ -210,7 +171,7 @@ final class DashboardCoordinator {
             )
             return true
         } catch {
-            toastStore.show(message: error.localizedDescription, isError: true)
+            toastStore.show(message: localizationStore.userMessage(for: error), isError: true)
             return false
         }
     }
@@ -272,8 +233,7 @@ final class DashboardCoordinator {
     ) {
         dashboardStore.rebuild(
             details: details,
-            fallbackMembers: sampleUsers,
-            fallbackChores: chores.isEmpty ? sampleChores : chores,
+            fallbackChores: chores,
             fallbackUnassignedName: localized("common_unassigned"),
             currentUserId: authStore.currentUserId,
             currentUserProfile: currentUserProfile

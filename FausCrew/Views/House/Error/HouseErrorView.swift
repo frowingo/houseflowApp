@@ -106,5 +106,5 @@ struct HouseErrorView: View {
 
 #Preview {
     HouseErrorView()
-        .environmentObject(AppViewModel())
+        .environmentObject(AppViewModel.preview)
 }

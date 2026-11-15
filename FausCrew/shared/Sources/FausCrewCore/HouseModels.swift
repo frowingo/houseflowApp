@@ -117,6 +117,12 @@ public enum HouseCreationRules: Sendable {
         value.trimmingCharacters(in: .whitespacesAndNewlines)
     }
 
+    /// Cuts a typed name to `nameMaxLength` characters. Characters are grapheme clusters, so an
+    /// emoji sequence or a letter with a combining accent is never split.
+    public static func limitedName(_ value: String) -> String {
+        String(value.prefix(nameMaxLength))
+    }
+
     public static func isValid(name: String, type: Int?, memberCount: Int?) -> Bool {
         let name = normalizedName(name)
         guard !name.isEmpty, name.count <= nameMaxLength,
@@ -133,6 +139,8 @@ public struct HouseAPIResponse<Payload: Decodable>: Decodable {
     public let success: Bool
     public let error: String?
 }
+
+extension HouseAPIResponse: Sendable where Payload: Sendable {}
 
 /// House endpoints return timestamps as either an ISO-8601 string or a
 /// `{ "time.Time": "..." }` object. DTOs retain the normalized wire value.
@@ -621,6 +629,36 @@ public extension HouseChoreDTO {
             dueDate: dueDate,
             reviewRound: reviewRound,
             reviewVotes: reviewVotes
+        )
+    }
+}
+
+public extension HouseChoreDTO {
+    /// A chore from a mutation response, in the shape the house details carry.
+    init(_ response: ChoreResponse) {
+        self.init(
+            id: response.id,
+            title: response.title,
+            description: response.description,
+            houseId: response.houseId,
+            houseOwnerId: response.houseOwnerId,
+            assignedTo: response.assignedTo,
+            dueDate: response.dueDate,
+            isCompleted: response.isCompleted,
+            isRecurring: response.isRecurring,
+            level: response.level,
+            recurringInterval: response.recurringInterval,
+            status: response.status,
+            createdOn: response.createdOn,
+            completedAt: response.completedAt,
+            completedBy: response.completedBy,
+            statusHistories: response.statusHistories.map {
+                ChoreStatusHistory(id: $0.id, choreId: $0.choreId, status: $0.status, updater: $0.updater, dateTime: $0.dateTime)
+            },
+            reviewRound: response.reviewRound,
+            reviewVotes: response.reviewVotes,
+            reviewPhotoRounds: response.reviewPhotoRounds,
+            category: response.category
         )
     }
 }

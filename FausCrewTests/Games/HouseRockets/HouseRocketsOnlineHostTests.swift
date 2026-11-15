@@ -112,6 +112,26 @@ final class HouseRocketsOnlineHostTests: XCTestCase {
         return (host, io, transport)
     }
 
+    func testLogCategoryKeepsStatusCodeButDropsServerValues() {
+        XCTAssertEqual(GameOnlineLogCategory.of(GameRealtimeSessionFailure.http(statusCode: 409, retryAfterSeconds: 5)), "http 409")
+        XCTAssertEqual(
+            GameOnlineLogCategory.of(GameRealtimeSessionFailure.protocolFailure(.unsupportedContract("secret-revision"))),
+            "protocol/unsupportedContract"
+        )
+        XCTAssertEqual(GameOnlineLogCategory.of(GameRealtimeSessionFailure.transport), "transport")
+        XCTAssertEqual(
+            GameOnlineLogCategory.of(GameOnlineLobbyIssue.rejected(
+                GameRealtimeRejection(code: "game.error.member", args: ["Ada"], retryable: false)
+            )),
+            "rejected"
+        )
+        XCTAssertEqual(
+            GameOnlineLogCategory.of(GameOnlineLobbyIssue.connection(.protocolFailure(.unsupportedMap("map-x", 3)))),
+            "connection/protocol/unsupportedMap"
+        )
+        XCTAssertEqual(GameOnlineLogCategory.of(GameOnlineLobbyIssue.timeout), "timeout")
+    }
+
     private func waitFor(timeout: TimeInterval = 2, _ condition: () -> Bool) async throws {
         let deadline = Date().addingTimeInterval(timeout)
         while !condition() {

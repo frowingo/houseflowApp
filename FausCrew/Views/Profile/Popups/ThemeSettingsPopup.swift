@@ -21,48 +21,19 @@ struct ThemeSettingsPopup: View {
                 .ignoresSafeArea()
                 .onTapGesture { requestDismiss() }
 
-            VStack(spacing: 0) {
-                ZStack {
-                    BrandPopupHeaderBackground()
-                    Image(systemName: "paintpalette.fill")
-                        .font(.system(size: 58, weight: .bold))
-                        .foregroundColor(AppDesign.Colors.onHero.opacity(0.12))
-
-                    HStack(spacing: AppDesign.Spacing.sm) {
-                        VStack(alignment: .leading, spacing: 2) {
-                            Text(appViewModel.localized("theme_settings_title", fallback: "Theme"))
-                                .font(.system(size: 15, weight: .bold))
-                                .foregroundColor(AppDesign.Colors.onHero)
-                            Text(appViewModel.localized("theme_settings_subtitle", fallback: "Choose how FausCrew looks"))
-                                .font(.system(size: 12, weight: .medium))
-                                .foregroundColor(AppDesign.Colors.onHero.opacity(0.75))
-                        }
-
-                        Spacer()
-
-                        Button { requestDismiss() } label: {
-                            Image(systemName: "xmark")
-                                .font(.system(size: 13, weight: .bold))
-                                .foregroundColor(AppDesign.Colors.onHero.opacity(0.9))
-                                .frame(width: 26, height: 26)
-                                .background(AppDesign.Colors.onHero.opacity(0.2))
-                                .clipShape(Circle())
-                        }
-                        .accessibilityLabel(appViewModel.localized("common_close"))
-                    }
-                    .padding(.horizontal, AppDesign.Spacing.xl)
-                    .padding(.vertical, 12)
-                }
-                .frame(height: 64)
-                .zIndex(1)
-
+            FausPopupShell(
+                watermark: Image(systemName: "paintpalette.fill"),
+                title: appViewModel.localized("theme_settings_title", fallback: "Theme"),
+                subtitle: appViewModel.localized("theme_settings_subtitle", fallback: "Choose how FausCrew looks"),
+                onClose: requestDismiss
+            ) {
                 VStack(spacing: AppDesign.Spacing.md) {
                     ForEach(FausTheme.all) { theme in
                         themeOption(theme)
                     }
                 }
                 .padding(AppDesign.Spacing.xl)
-
+            } footer: {
                 VStack(spacing: AppDesign.Spacing.sm) {
                     Button(action: save) {
                         HStack(spacing: AppDesign.Spacing.sm) {
@@ -97,9 +68,6 @@ struct ThemeSettingsPopup: View {
                 .padding(.vertical, AppDesign.Spacing.lg)
                 .background(AppDesign.Colors.popupBackground.shadow(color: AppDesign.Colors.shadow.opacity(0.06), radius: 8, x: 0, y: -4))
             }
-            .background(MainScreenBackground(surface: .popup))
-            .clipShape(RoundedRectangle(cornerRadius: AppDesign.CornerRadius.xl, style: .continuous))
-            .shadow(color: AppDesign.Colors.shadow.opacity(0.25), radius: 30, x: 0, y: 16)
             .padding(.horizontal, AppDesign.Spacing.xl)
         }
         .animation(AppDesign.Animation.spring, value: selectedID)

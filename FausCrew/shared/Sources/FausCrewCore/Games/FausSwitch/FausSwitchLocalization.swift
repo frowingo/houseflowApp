@@ -1,28 +1,28 @@
 import Foundation
 
 /// Bundled Faus Switch copy shared by iOS and Android. Remote plaintext overrides these
-/// values; Turkish is the default for every non-English language.
+/// values; Turkish only for a `tr` language;
+/// every other language, and none, is English, as the apps' `APILanguage` resolves it.
 public enum FausSwitchLocalization {
     public static func value(for key: String, language: String?) -> String? {
         guard let copy = values[key] else { return nil }
-        return isEnglish(language) ? copy.en : copy.tr
+        return isTurkish(language) ? copy.tr : copy.en
     }
 
     /// The whole table in one language, for clients that cache it once per screen.
     public static func table(language: String?) -> [String: String] {
-        let english = isEnglish(language)
-        return values.mapValues { english ? $0.en : $0.tr }
+        let turkish = isTurkish(language)
+        return values.mapValues { turkish ? $0.tr : $0.en }
     }
 
     /// Capitals in the app language, not the device's (Turkish keeps the dotted İ), so
-    /// section titles read the same on iOS and Android; Turkish when no language is set.
+    /// section titles read the same on iOS and Android; English when no language is set.
     public static func uppercased(_ text: String, language: String?) -> String {
-        let identifier = language.flatMap { $0.isEmpty ? nil : $0 } ?? "tr"
-        return text.uppercased(with: Locale(identifier: identifier))
+        text.uppercased(with: Locale(identifier: isTurkish(language) ? "tr" : "en"))
     }
 
-    private static func isEnglish(_ language: String?) -> Bool {
-        language?.lowercased().hasPrefix("en") == true
+    private static func isTurkish(_ language: String?) -> Bool {
+        language?.lowercased().hasPrefix("tr") == true
     }
 
     private static let values: [String: (tr: String, en: String)] = [

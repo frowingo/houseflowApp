@@ -6,10 +6,168 @@ import XCTest
 /// welcome and session → join → ready → countdown preview, the heartbeat, the
 /// update warning for an unknown map and the server arena.
 final class HouseTanksOnlineEngineTests: XCTestCase {
+    private struct UnexpectedTestState: Error {}
+
     private let houseID = "507f1f77bcf86cd799439012"
     private let playerID = "507f1f77bcf86cd799439021"
     private let sessionID = "7c51a2f7-3c83-4e76-8f97-2dc3cf3191a0"
     private var ids = 0
+
+    func testSnapshotRejectsUnsafeTicksBeforeWorldArithmetic() throws {
+        for (collection, field) in [("", "tick"), ("projectiles", "spawnTick"),
+                                    ("players", "powerUpExpiresAtTick"), ("token", "expiresAtTick"), ("events", "tick")] {
+            for value in [Int64.min, -1, HouseTanksRealtime.maximumSnapshotTick + 1, Int64.max] {
+                let data = try snapshotData(collection: collection, field: field, value: value)
+                XCTAssertThrowsError(try GameRealtimeCodec.decode(data, as: HouseTanksRealtime.self), "\(collection).\(field)=\(value)") {
+                    XCTAssertEqual($0 as? GameRealtimeError, .invalidResponse)
+                }
+            }
+        }
+    }
+
+    func testSnapshotRejectsDuplicateEmptyAndExcessIdentities() throws {
+        for (collection, field) in [("players", "playerId"), ("tanks", "playerId"),
+                                    ("projectiles", "id"), ("crates", "index")] {
+            XCTAssertThrowsError(try HouseTanksWireContractTests.decode("roundPlaying") { payload in
+                var items = payload[collection] as! [[String: Any]]
+                items[1][field] = items[0][field]
+                payload[collection] = items
+            }, "duplicate \(collection).\(field)") { XCTAssertEqual($0 as? GameRealtimeError, .invalidResponse) }
+        }
+        for (collection, field) in [("players", "playerId"), ("tanks", "playerId"), ("projectiles", "ownerId")] {
+            XCTAssertThrowsError(try GameRealtimeCodec.decode(snapshotData(collection: collection, field: field, value: ""),
+                                                              as: HouseTanksRealtime.self), "empty \(collection).\(field)") {
+                XCTAssertEqual($0 as? GameRealtimeError, .invalidResponse)
+            }
+        }
+        for collection in ["players", "tanks"] {
+            XCTAssertThrowsError(try HouseTanksWireContractTests.decode("roundPlaying") { payload in
+                let template = (payload[collection] as! [[String: Any]])[0]
+                payload[collection] = (0...HouseTanksMapCatalog.maximumPlayers).map { index in
+                    var item = template
+                    item["playerId"] = "player\(index)"
+                    if collection == "players" { item["seat"] = index % HouseTanksMapCatalog.maximumPlayers }
+                    return item
+                }
+            }, "too many \(collection)") { XCTAssertEqual($0 as? GameRealtimeError, .invalidResponse) }
+        }
+    }
+
+    func testSnapshotRejectsNonFinitePhysics() throws {
+        // A permissive decoder exercises DTO validation itself; production's
+        // default decoder rejects these non-JSON numbers before compatibility.
+        let decoder = GameRealtimeCodec.makeDecoder()
+        decoder.nonConformingFloatDecodingStrategy = .convertFromString(
+            positiveInfinity: "Infinity", negativeInfinity: "-Infinity", nan: "NaN")
+        for (collection, fields) in [("tanks", ["x", "y", "vx", "vy", "rotation"]),
+                                     ("projectiles", ["x", "y", "vx", "vy"]), ("crates", ["x", "y"]),
+                                     ("token", ["x", "y"]), ("events", ["x", "y", "angle"])] {
+            for field in fields {
+                for value in ["NaN", "Infinity", "-Infinity"] {
+                    let data = try snapshotData(collection: collection, field: field, value: value)
+                    XCTAssertThrowsError(try decoder.decode(HouseTanksServerMessage.self, from: data), "\(collection).\(field)=\(value)") {
+                        XCTAssertEqual($0 as? GameRealtimeError, .invalidResponse)
+                    }
+                }
+            }
+        }
+        let huge = try snapshotData(collection: "tanks", field: "rotation", value: Double.greatestFiniteMagnitude)
+        XCTAssertThrowsError(try GameRealtimeCodec.decode(huge, as: HouseTanksRealtime.self), "Finite angle must not stall normalization") {
+            XCTAssertEqual($0 as? GameRealtimeError, .invalidResponse)
+        }
+        let overflow = String(decoding: try snapshotData(collection: "tanks", field: "x", value: "OVERFLOW"), as: UTF8.self)
+            .replacingOccurrences(of: "\"OVERFLOW\"", with: "1e400")
+        // JSONDecoder rejects 1e400 as unrepresentable before checkCompatibility.
+        XCTAssertThrowsError(try GameRealtimeCodec.decode(Data(overflow.utf8), as: HouseTanksRealtime.self)) {
+            XCTAssertTrue($0 is DecodingError)
+        }
+    }
+
+    func testSnapshotAllowsWideFiniteFieldsAndOnlyBoundsUnsafeIntegers() throws {
+        for (collection, fields) in [("tanks", ["x", "y", "vx", "vy"]), ("projectiles", ["x", "y", "vx", "vy"]),
+                                     ("crates", ["x", "y"]), ("token", ["x", "y"]), ("events", ["x", "y", "angle"])] {
+            for field in fields {
+                for value in [-Double.greatestFiniteMagnitude, Double.greatestFiniteMagnitude] {
+                    XCTAssertNoThrow(try GameRealtimeCodec.decode(snapshotData(collection: collection, field: field, value: value),
+                                                                 as: HouseTanksRealtime.self), "\(collection).\(field)=\(value)")
+                }
+            }
+        }
+        for (collection, field, values) in [
+            ("players", "seat", [Int.min, Int.max]), ("players", "roundsWon", [Int.min, Int.max]),
+            ("players", "armor", [Int.min / 2, Int.max]), ("players", "lastProcessedInputSequence", [Int.min, Int.max]),
+            ("tanks", "aimLocks", [Int.min, Int.max / 2]), ("tanks", "rotationDirection", [-100_000, 100_000]),
+            ("crates", "index", [Int.min, Int.max]), ("projectiles", "id", [Int.min, Int.max]),
+        ] {
+            for value in values {
+                XCTAssertNoThrow(try GameRealtimeCodec.decode(snapshotData(collection: collection, field: field, value: value),
+                                                             as: HouseTanksRealtime.self), "\(collection).\(field)=\(value)")
+            }
+        }
+        for (collection, field, value) in [("players", "armor", Int.min / 2 - 1),
+                                           ("tanks", "aimLocks", Int.max / 2 + 1),
+                                           ("tanks", "rotationDirection", -100_001), ("tanks", "rotationDirection", 100_001)] {
+            XCTAssertThrowsError(try GameRealtimeCodec.decode(snapshotData(collection: collection, field: field, value: value),
+                                                              as: HouseTanksRealtime.self), "\(collection).\(field)=\(value)") {
+                XCTAssertEqual($0 as? GameRealtimeError, .invalidResponse)
+            }
+        }
+        for rotation in [-HouseTanksTankDTO.maximumRotationMagnitude, HouseTanksTankDTO.maximumRotationMagnitude] {
+            XCTAssertNoThrow(try GameRealtimeCodec.decode(snapshotData(collection: "tanks", field: "rotation", value: rotation),
+                                                         as: HouseTanksRealtime.self))
+            XCTAssertTrue(HouseTanksPlayMath.lerpAngle(rotation, -rotation, 0.5).isFinite)
+            let outside = rotation < 0 ? rotation.nextDown : rotation.nextUp
+            XCTAssertThrowsError(try GameRealtimeCodec.decode(snapshotData(collection: "tanks", field: "rotation", value: outside),
+                                                              as: HouseTanksRealtime.self)) {
+                XCTAssertEqual($0 as? GameRealtimeError, .invalidResponse)
+            }
+        }
+    }
+
+    func testSnapshotAcceptsTickAndSeatBoundariesAndBuildsWorld() throws {
+        let threeHours: Int64 = 3 * 3_600 * 120
+        for tick in [Int64(0), threeHours, HouseTanksRealtime.maximumSnapshotTick] {
+            let snapshot = try XCTUnwrap(HouseTanksWireContractTests.decode("roundPlaying") { payload in
+                payload["tick"] = tick
+                for (collection, field) in [("projectiles", "spawnTick"), ("players", "powerUpExpiresAtTick"), ("events", "tick")] {
+                    var items = payload[collection] as! [[String: Any]]
+                    for index in items.indices {
+                        items[index][field] = field == "spawnTick" && tick == threeHours ? tick - 9 : tick
+                    }
+                    payload[collection] = items
+                }
+                var token = payload["token"] as! [String: Any]
+                token["expiresAtTick"] = tick
+                payload["token"] = token
+                let player = (payload["players"] as! [[String: Any]])[0]
+                let tank = (payload["tanks"] as! [[String: Any]])[0]
+                payload["players"] = (0..<HouseTanksMapCatalog.maximumPlayers).map { index in
+                    var item = player; item["playerId"] = "player\(index)"; item["seat"] = index; return item
+                }
+                payload["tanks"] = (0..<HouseTanksMapCatalog.maximumPlayers).map { index in
+                    var item = tank; item["playerId"] = "player\(index)"; return item
+                }
+            }.payload.snapshot)
+            let world = try XCTUnwrap(HouseTanksWorld(server: snapshot))
+            XCTAssertEqual(world.tick, Int(tick))
+            XCTAssertEqual(world.tanks.count, HouseTanksMapCatalog.maximumPlayers)
+            XCTAssertEqual(world.projectiles.map(\.age), tick == threeHours ? [9, 9] : [0, 0])
+            XCTAssertEqual(world.tokenFraction, 0)
+            XCTAssertTrue(snapshot.events.allSatisfy { HouseTanksPlayMath.event($0) != nil || $0.kind == .roundEnded })
+            var predicted = world.withoutShots
+            predicted.step()
+            XCTAssertEqual(predicted.tick, Int(tick) + 1)
+        }
+        // The widest accepted subtraction (tick - spawnTick) is safe too.
+        let snapshot = try XCTUnwrap(HouseTanksWireContractTests.decode("roundPlaying") { payload in
+            payload["tick"] = HouseTanksRealtime.maximumSnapshotTick
+            var shots = payload["projectiles"] as! [[String: Any]]
+            for index in shots.indices { shots[index]["spawnTick"] = 0 }
+            payload["projectiles"] = shots
+        }.payload.snapshot)
+        XCTAssertEqual(try XCTUnwrap(HouseTanksWorld(server: snapshot)).projectiles.first?.age,
+                       Int(HouseTanksRealtime.maximumSnapshotTick))
+    }
 
     func testRoomFlowFromSessionRequestToTheCountdownPreview() throws {
         let engine = makeEngine()
@@ -235,6 +393,20 @@ final class HouseTanksOnlineEngineTests: XCTestCase {
 
     // MARK: Helpers
 
+    private func snapshotData(collection: String, field: String, value: Any) throws -> Data {
+        try HouseTanksWireContractTests.data("roundPlaying") { payload in
+            if collection.isEmpty { payload[field] = value }
+            else if var items = payload[collection] as? [[String: Any]] {
+                items[0][field] = value
+                payload[collection] = items
+            } else {
+                var item = payload[collection] as! [String: Any]
+                item[field] = value
+                payload[collection] = item
+            }
+        }
+    }
+
     private var otherID: String { "507f1f77bcf86cd799439022" }
 
     /// The colors claimed since the last drain (other room messages are left out).
@@ -259,10 +431,16 @@ final class HouseTanksOnlineEngineTests: XCTestCase {
     private func connectedEngine(color: HouseTanksColor? = nil) throws -> (HouseTanksOnlineEngine, Int) {
         let engine = makeEngine(color: color)
         engine.start(isForeground: true, isLandscape: false, now: 0)
-        guard case .ensureSession(_, let connection) = try XCTUnwrap(engine.drainEffects().first) else { throw XCTSkip("No ensure") }
+        guard case .ensureSession(_, let connection) = try XCTUnwrap(engine.drainEffects().first) else {
+            XCTFail("No ensure effect")
+            throw UnexpectedTestState()
+        }
         engine.sessionResponse(try envelope(sessionPayload(version: 5, state: "lobby", localState: nil)),
                                retryAfter: nil, connection: connection, now: 0.1)
-        guard case .openSocket(_, let socket) = try XCTUnwrap(engine.drainEffects().last) else { throw XCTSkip("No socket") }
+        guard case .openSocket(_, let socket) = try XCTUnwrap(engine.drainEffects().last) else {
+            XCTFail("No socket opened")
+            throw UnexpectedTestState()
+        }
         engine.socketOpened(connection: socket, now: 0.2)
         engine.received(text: try fixture("welcome"), connection: socket, now: 0.3)
         engine.received(text: try session(version: 6, state: "lobby", localState: nil), connection: socket, now: 0.4)

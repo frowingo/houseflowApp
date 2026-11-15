@@ -5,6 +5,7 @@ import FausCrewCore
 final class FausCrewCoordinator {
     private let authStore: AuthSessionStore
     private let houseStore: HouseSessionStore
+    private let localizationStore: LocalizationStore
     private let toastStore: ToastStore
     private let router: AppRouter
     private let completionDelay: Duration
@@ -13,12 +14,14 @@ final class FausCrewCoordinator {
     init(
         authStore: AuthSessionStore,
         houseStore: HouseSessionStore,
+        localizationStore: LocalizationStore,
         toastStore: ToastStore,
         router: AppRouter,
         completionDelay: Duration = .milliseconds(700)
     ) {
         self.authStore = authStore
         self.houseStore = houseStore
+        self.localizationStore = localizationStore
         self.toastStore = toastStore
         self.router = router
         self.completionDelay = completionDelay
@@ -72,10 +75,10 @@ final class FausCrewCoordinator {
             router.navigate(to: .dashboard)
         } catch {
             guard isCurrent(activeFlowID) else { return }
-            houseStore.houseError = error.localizedDescription
+            houseStore.houseError = localizationStore.userMessage(for: error)
             router.navigationDirection = .backward
             router.navigate(to: .createHouse)
-            toastStore.show(message: error.localizedDescription, isError: true)
+            toastStore.show(message: localizationStore.userMessage(for: error), isError: true)
         }
     }
 
@@ -110,10 +113,10 @@ final class FausCrewCoordinator {
             router.navigate(to: .dashboard)
         } catch {
             guard isCurrent(activeFlowID) else { return }
-            houseStore.houseError = error.localizedDescription
+            houseStore.houseError = localizationStore.userMessage(for: error)
             router.navigationDirection = .backward
             router.navigate(to: .joinHouse)
-            toastStore.show(message: error.localizedDescription, isError: true)
+            toastStore.show(message: localizationStore.userMessage(for: error), isError: true)
         }
     }
 
@@ -147,10 +150,10 @@ final class FausCrewCoordinator {
             router.navigate(to: .dashboard)
         } catch {
             guard isCurrent(activeFlowID), authStore.isAuthenticated else { return }
-            houseStore.houseError = error.localizedDescription
+            houseStore.houseError = localizationStore.userMessage(for: error)
             router.navigationDirection = .backward
             router.navigate(to: .dashboard)
-            toastStore.show(message: error.localizedDescription, isError: true)
+            toastStore.show(message: localizationStore.userMessage(for: error), isError: true)
         }
     }
 
@@ -213,10 +216,10 @@ final class FausCrewCoordinator {
         } catch {
             guard isCurrent(activeFlowID), authStore.isAuthenticated else { return }
             houseStore.resetHouseSession()
-            houseStore.houseError = error.localizedDescription
+            houseStore.houseError = localizationStore.userMessage(for: error)
             router.navigationDirection = .backward
             router.navigate(to: .houseError, respectingOnboarding: false)
-            toastStore.show(message: error.localizedDescription, isError: true)
+            toastStore.show(message: localizationStore.userMessage(for: error), isError: true)
         }
     }
 

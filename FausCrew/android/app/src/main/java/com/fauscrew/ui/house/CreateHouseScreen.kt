@@ -44,6 +44,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.ReadOnlyComposable
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
@@ -69,6 +70,7 @@ import androidx.compose.ui.text.input.KeyboardCapitalization
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.fauscrew.platform.HouseCreationRules
 import com.fauscrew.platform.LocalizedText
 import com.fauscrew.ui.components.FausButtonGradient
 import com.fauscrew.ui.components.FausGradientIcon
@@ -87,7 +89,6 @@ import com.fauscrew.ui.theme.Spacing
 import com.fauscrew.ui.theme.softShadow
 import kotlin.math.roundToInt
 
-private const val NAME_LIMIT = 30
 private const val MIN_MEMBERS = 2
 private const val MAX_MEMBERS = 8
 
@@ -145,10 +146,11 @@ internal fun CreateHouseScreen(
             Column(verticalArrangement = Arrangement.spacedBy(Spacing.lg)) {
                 Text(strings.get("create_house_name_label"), style = FausCrewType.headline, color = FausCrewColors.pageText)
                 Column(verticalArrangement = Arrangement.spacedBy(Spacing.sm)) {
-                    HouseNameField(name, { name = it.take(NAME_LIMIT) }, strings)
+                    HouseNameField(name, { name = HouseCreationRules.limitedName(it) }, strings)
+                    val nameLength = remember(name) { HouseCreationRules.nameLength(name) }
                     AnimatedVisibility(name.isNotEmpty(), enter = fadeIn() + expandVertically(),
                         exit = fadeOut() + shrinkVertically()) {
-                        Text(strings.template("create_house_name_count_template", "count" to name.length.toString()),
+                        Text(strings.template("create_house_name_count_template", "count" to nameLength.toString()),
                             style = FausCrewType.caption2, color = FausCrewColors.pageTextSecondary)
                     }
                 }

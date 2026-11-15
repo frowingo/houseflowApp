@@ -252,11 +252,11 @@ enum ChoreCatalog {
 
 extension AppViewModel {
     func catalogText(_ copy: ChoreCatalogCopy, key: String) -> String {
-        social(key, tr: copy.tr, en: copy.en)
+        localized(key, tr: copy.tr, en: copy.en)
     }
 
     func catalogText(_ key: String, tr: String, en: String) -> String {
-        social(key, tr: tr, en: en)
+        localized(key, tr: tr, en: en)
     }
 
     func catalogName(_ category: ChoreCategory) -> String {

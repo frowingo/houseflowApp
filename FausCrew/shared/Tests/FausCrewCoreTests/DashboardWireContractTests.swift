@@ -36,3 +36,27 @@ import Testing
         ))
     }
 }
+
+@Test func dashboardResponsesReturnWhatTheyCarry() throws {
+    func reply(_ body: Data) -> HTTPResponse { HTTPResponse(statusCode: 200, headers: [:], body: body) }
+
+    let chore = try DashboardWireContract.validate(
+        action: "review", response: reply(ChoreFixtures.responseWithMixedISOStringsAndNullOptionals)
+    )
+    guard case .chore(let reviewed) = chore else { Issue.record("expected a chore"); return }
+    #expect(reviewed.reviewVotes.map(\.reviewerId) == ["user-1"])
+
+    let list = try DashboardWireContract.validate(action: "status", response: reply(
+        Data("[".utf8) + ChoreFixtures.responseWithMixedISOStringsAndNullOptionals + Data("]".utf8)
+    ))
+    guard case .chores(let chores) = list else { Issue.record("expected chores"); return }
+    #expect(chores.map(\.id) == ["chore-1"])
+
+    let announcement = try DashboardWireContract.validate(action: "announcement", response: reply(Data("""
+    {"success":true,"data":{"announcementId":"a","title":"Note","description":"Hi","createdAt":"2026-10-12T10:00:00Z",
+     "createdBy":{"id":"u","name":"Ada"}}}
+    """.utf8)))
+    guard case .announcement(let note) = announcement else { Issue.record("expected an announcement"); return }
+    #expect(note.publisherId == "u")
+    #expect(note.publisherName == "Ada")
+}

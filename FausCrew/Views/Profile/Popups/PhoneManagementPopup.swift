@@ -101,32 +101,33 @@ struct PhoneManagementPopup: View {
 
             Image(systemName: "phone.badge.checkmark.fill")
                 .font(.system(size: 58, weight: .bold))
-                .foregroundStyle(Color.white.opacity(0.12))
+                .foregroundStyle(AppDesign.Colors.onHero.opacity(0.12))
                 .offset(x: 85)
 
             HStack(spacing: AppDesign.Spacing.md) {
                 Image(systemName: "phone.fill")
                     .font(.system(size: 15, weight: .semibold))
-                    .foregroundStyle(.white)
+                    .foregroundStyle(AppDesign.Colors.onHero)
                     .frame(width: 34, height: 34)
-                    .background(Color.white.opacity(0.18))
+                    .background(AppDesign.Colors.onHero.opacity(0.18))
                     .clipShape(Circle())
 
                 Text(appViewModel.localized("profile_phone_management_title", fallback: "Phone settings"))
                     .font(AppDesign.Typography.headline)
-                    .foregroundStyle(.white)
+                    .foregroundStyle(AppDesign.Colors.onHero)
 
                 Spacer()
 
                 Button(action: requestDismiss) {
                     Image(systemName: "xmark")
                         .font(.system(size: 13, weight: .bold))
-                        .foregroundStyle(.white)
+                        .foregroundStyle(AppDesign.Colors.onHero)
                         .frame(width: 30, height: 30)
-                        .background(Color.white.opacity(0.18))
+                        .background(AppDesign.Colors.onHero.opacity(0.18))
                         .clipShape(Circle())
                 }
                 .buttonStyle(.plain)
+                .accessibilityLabel(appViewModel.localized("common_close", fallback: "Close"))
             }
             .padding(.horizontal, AppDesign.Spacing.xl)
         }

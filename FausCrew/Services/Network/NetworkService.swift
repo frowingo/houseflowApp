@@ -3,16 +3,21 @@ import FausCrewCore
 
 enum NetworkError: LocalizedError {
     case invalidURL
+    case unauthorized
     case serverError(String)    // 400 / 404 / 500 with { "error": "..." }
     case decodingError(Error)
     case unknown(Int)
 
+    nonisolated static let genericMessage = "Something went wrong. Please try again."
+    nonisolated static let sessionExpiredMessage = "Your session has expired. Please sign in again."
+
     var errorDescription: String? {
         switch self {
-        case .invalidURL:           return "Invalid URL."
+        case .invalidURL:           return Self.genericMessage
+        case .unauthorized:         return Self.sessionExpiredMessage
         case .serverError(let msg): return msg
-        case .decodingError(let e): return "Response decoding failed: \(e.localizedDescription)"
-        case .unknown(let code):    return "Unexpected status code: \(code)."
+        case .decodingError:        return Self.genericMessage
+        case .unknown:              return Self.genericMessage
         }
     }
 }
@@ -21,13 +26,15 @@ enum NetworkError: LocalizedError {
 final class NetworkService: NetworkServicing, HTTPRequestExecuting, HTTPClient {
     typealias RequestExecutor = URLSessionHTTPClient.RequestExecutor
 
+    var onUnauthorized: ((_ rejectedToken: String) -> Void)?
+
     private let encoder: JSONEncoder
     private let decoder: JSONDecoder
     private let client: any HTTPClient
     private let rawClient: URLSessionHTTPClient
 
     convenience init() {
-        self.init(baseURL: AppEnvironment.current.baseURL)
+        self.init(baseURL: AppEnvironment.baseURL)
     }
 
     init(
@@ -54,7 +61,7 @@ final class NetworkService: NetworkServicing, HTTPRequestExecuting, HTTPClient {
     /// Sends a request and returns the decoded success response.
     /// - 200...399 → decoded as `Success`
     /// - 400 / 404 / 500 → decoded as `{ "error": "..." }` → throws `NetworkError.serverError`
-    func request<Body: Encodable, Success: Decodable>(
+    func request<Body: Encodable, Success: Decodable & Sendable>(
         path: String,
         method: String = "POST",
         body: Body,
@@ -70,7 +77,7 @@ final class NetworkService: NetworkServicing, HTTPRequestExecuting, HTTPClient {
 
     // MARK: - Authenticated request (adds Bearer token)
 
-    func authenticatedRequest<Body: Encodable, Success: Decodable>(
+    func authenticatedRequest<Body: Encodable, Success: Decodable & Sendable>(
         path: String,
         method: String = "POST",
         body: Body,
@@ -88,7 +95,7 @@ final class NetworkService: NetworkServicing, HTTPRequestExecuting, HTTPClient {
 
     // MARK: - Authenticated request with query parameters and body
 
-    func authenticatedRequest<Body: Encodable, Success: Decodable>(
+    func authenticatedRequest<Body: Encodable, Success: Decodable & Sendable>(
         path: String,
         method: String = "PUT",
         queryItems: [URLQueryItem],
@@ -109,7 +116,7 @@ final class NetworkService: NetworkServicing, HTTPRequestExecuting, HTTPClient {
     // MARK: - Authenticated multipart request
 
     /// The boundary comes from `form`, so Content-Type always carries it.
-    func authenticatedMultipartRequest<Success: Decodable>(
+    func authenticatedMultipartRequest<Success: Decodable & Sendable>(
         path: String,
         method: String,
         form: MultipartFormData,
@@ -128,7 +135,7 @@ final class NetworkService: NetworkServicing, HTTPRequestExecuting, HTTPClient {
 
     // MARK: - Authenticated GET with query parameters
 
-    func get<Success: Decodable>(
+    func get<Success: Decodable & Sendable>(
         path: String,
         queryItems: [URLQueryItem] = [],
         successType: Success.Type
@@ -141,7 +148,7 @@ final class NetworkService: NetworkServicing, HTTPRequestExecuting, HTTPClient {
         return try await send(request, successType: successType)
     }
 
-    func get<Success: Decodable>(
+    func get<Success: Decodable & Sendable>(
         path: String,
         queryItems: [URLQueryItem] = [],
         successType: Success.Type,
@@ -177,7 +184,7 @@ final class NetworkService: NetworkServicing, HTTPRequestExecuting, HTTPClient {
         )
     }
 
-    private func send<Success: Decodable>(
+    private func send<Success: Decodable & Sendable>(
         _ request: HTTPRequest,
         successType: Success.Type
     ) async throws -> Success {
@@ -192,15 +199,29 @@ final class NetworkService: NetworkServicing, HTTPRequestExecuting, HTTPClient {
 
         if (200...399).contains(response.statusCode) {
             do {
-                return try decoder.decode(Success.self, from: response.body)
+                return try await Self.decode(successType, from: response.body, decoder: decoder)
             } catch {
                 throw NetworkError.decodingError(error)
             }
         } else {
+            if response.statusCode == 401, let authorization = request.headers["Authorization"] {
+                let token = String(authorization.dropFirst("Bearer ".count))
+                onUnauthorized?(token)
+                throw NetworkError.unauthorized
+            }
             let failure = HTTPStatusFailure(response: response, decoder: decoder)
             if let message = failure.message { throw NetworkError.serverError(message) }
             throw NetworkError.unknown(failure.statusCode)
         }
+    }
+
+    @concurrent nonisolated
+    private static func decode<Success: Decodable & Sendable>(
+        _ type: Success.Type,
+        from data: Data,
+        decoder: JSONDecoder
+    ) async throws -> Success {
+        try decoder.decode(type, from: data)
     }
 
     /// Lets Core use cases share the existing iOS HTTP transport/session.

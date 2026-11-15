@@ -18,6 +18,9 @@ final class SessionRestoreAdapter: SessionRestoring {
         } catch SessionRestoreError.invalidProfile {
             throw NetworkError.serverError(invalidMessage)
         } catch let failure as HTTPStatusFailure {
+            if failure.statusCode == 401 {
+                throw NetworkError.unauthorized
+            }
             if let message = failure.message {
                 throw NetworkError.serverError(message)
             }

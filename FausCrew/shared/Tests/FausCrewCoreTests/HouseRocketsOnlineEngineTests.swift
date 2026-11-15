@@ -4,6 +4,8 @@ import XCTest
 
 /// The sans-IO online engine against the shared protocol fixture (also used by iOS).
 final class HouseRocketsOnlineEngineTests: XCTestCase {
+    private struct UnexpectedTestState: Error {}
+
     private let houseID = "507f1f77bcf86cd799439012"
     private let playerID = "507f1f77bcf86cd799439021"
     private let sessionID = "7c51a2f7-3c83-4e76-8f97-2dc3cf3191a0"
@@ -637,7 +639,8 @@ final class HouseRocketsOnlineEngineTests: XCTestCase {
         let connection = try ensureConnection(engine)
         engine.sessionResponse(try http("ensure", state: state), retryAfter: nil, connection: connection, now: 0.1)
         guard case .openSocket(let id, let socket) = try XCTUnwrap(engine.drainEffects().last) else {
-            throw XCTSkip("No socket opened")
+            XCTFail("No socket opened")
+            throw UnexpectedTestState()
         }
         XCTAssertEqual(id, sessionID)
         engine.socketOpened(connection: socket, now: 0.2)
@@ -649,7 +652,8 @@ final class HouseRocketsOnlineEngineTests: XCTestCase {
 
     private func ensureConnection(_ engine: HouseRocketsOnlineEngine) throws -> Int {
         guard case .ensureSession(let house, let connection) = try XCTUnwrap(engine.drainEffects().first) else {
-            throw XCTSkip("No ensure effect")
+            XCTFail("No ensure effect")
+            throw UnexpectedTestState()
         }
         XCTAssertEqual(house, houseID)
         return connection

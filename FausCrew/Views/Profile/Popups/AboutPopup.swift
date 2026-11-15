@@ -16,40 +16,12 @@ struct AboutPopup: View {
                 .ignoresSafeArea()
                 .onTapGesture { requestDismiss() }
 
-            VStack(spacing: 0) {
-                // ── Top bar (identical pattern to EditProfilePopup / AvatarPickerPopup)
-                ZStack {
-                    BrandPopupHeaderBackground()
-                    Image(systemName: "house.fill")
-                        .font(.system(size: 56, weight: .bold))
-                        .foregroundColor(.white.opacity(0.12))
-
-                    HStack(spacing: AppDesign.Spacing.sm) {
-                        VStack(alignment: .leading, spacing: 2) {
-                            Text(appViewModel.localized("profile_about_label"))
-                                .font(.system(size: 15, weight: .bold))
-                                .foregroundColor(.white)
-                            Text(appViewModel.localized("profile_about_version"))
-                                .font(.system(size: 12, weight: .medium))
-                                .foregroundColor(.white.opacity(0.75))
-                        }
-                        Spacer()
-                        Button(action: requestDismiss) {
-                            Image(systemName: "xmark")
-                                .font(.system(size: 13, weight: .bold))
-                                .foregroundColor(.white.opacity(0.9))
-                                .frame(width: 26, height: 26)
-                                .background(Color.white.opacity(0.2))
-                                .clipShape(Circle())
-                        }
-                    }
-                    .padding(.horizontal, AppDesign.Spacing.xl)
-                    .padding(.vertical, 12)
-                }
-                .frame(height: 64)
-                .zIndex(1)
-
-                // ── Body
+            FausPopupShell(
+                watermark: Image(systemName: "house.fill"),
+                title: appViewModel.localized("profile_about_label"),
+                subtitle: appViewModel.localized("profile_about_version"),
+                onClose: requestDismiss
+            ) {
                 VStack(spacing: AppDesign.Spacing.lg) {
                     // Quote card
                     ZStack {
@@ -93,8 +65,7 @@ struct AboutPopup: View {
                 }
                 .padding(.horizontal, AppDesign.Spacing.xl)
                 .padding(.vertical, AppDesign.Spacing.xl)
-
-                // ── Footer (same as AvatarPickerPopup)
+            } footer: {
                 Button(action: requestDismiss) {
                     Text(appViewModel.localized("profile_about_close_button"))
                         .font(AppDesign.Typography.headline)
@@ -111,9 +82,6 @@ struct AboutPopup: View {
                         .shadow(color: AppDesign.Colors.shadow.opacity(0.06), radius: 8, x: 0, y: -4)
                 )
             }
-            .background(MainScreenBackground(surface: .popup))
-            .clipShape(RoundedRectangle(cornerRadius: AppDesign.CornerRadius.xl, style: .continuous))
-            .shadow(color: AppDesign.Colors.shadow.opacity(0.25), radius: 30, x: 0, y: 16)
             .fixedSize(horizontal: false, vertical: true)
             .padding(.horizontal, AppDesign.Spacing.xl)
         }

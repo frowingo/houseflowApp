@@ -8,8 +8,10 @@ private let accentOrange = HouseJourneyTheme.accentOrange
 /// - Status progression is available to the assignee.
 /// - Review voting is available to the other house members.
 struct ChoreDetailPopup: View {
+    @EnvironmentObject private var appViewModel: AppViewModel
+    @Environment(\.displayScale) private var displayScale
+
     let chore: Chore
-    let appViewModel: AppViewModel
     let onDismiss: () -> Void
 
     @State private var isUpdating: Bool = false
@@ -17,15 +19,15 @@ struct ChoreDetailPopup: View {
     @State private var expandedReviewRounds: Set<Int> = []
     @State private var isShowingReviewCamera = false
     @State private var reviewPhotoData: Data?
+    @State private var reviewPhotoPreview: UIImage?
     @State private var isPreparingReviewPhoto = false
     /// Decoded images only; signed URLs are never kept in view state.
     @State private var reviewPhotos: [Int: UIImage] = [:]
     @State private var loadingReviewPhotoRound: Int?
     @State private var viewedReviewPhoto: ViewedReviewPhoto?
 
-    init(chore: Chore, appViewModel: AppViewModel, onDismiss: @escaping () -> Void) {
+    init(chore: Chore, onDismiss: @escaping () -> Void) {
         self.chore = chore
-        self.appViewModel = appViewModel
         self.onDismiss = onDismiss
     }
 
@@ -67,44 +69,15 @@ struct ChoreDetailPopup: View {
         !isBusy && !isPreparingReviewPhoto && (!requiresReviewPhoto || reviewPhotoData != nil)
     }
 
-    private var currentRoundVotes: [ChoreReviewVote] {
-        displayedChore.reviewVotes.filter { $0.reviewRound == displayedChore.reviewRound }
-    }
-
-    private var currentUserVote: ChoreReviewVote? {
-        guard let currentUserId = appViewModel.currentUserId else { return nil }
-        return currentRoundVotes.first { $0.reviewerId == currentUserId }
-    }
-
-    private var canReview: Bool {
-        currentStatus == .inTest
-            && !isAssignedToCurrentUser
-            && appViewModel.currentUserId != nil
-            && currentUserVote == nil
-    }
-
-    private var eligibleReviewerCount: Int {
-        appViewModel.dashboardMembers.filter { $0.apiId != displayedChore.assignedToId }.count
-    }
-
-    private var reviewMembers: [User] {
-        appViewModel.dashboardMembers
-    }
-
-    private var reviewRoundNumbers: [Int] {
-        var rounds = Set(displayedChore.reviewVotes.map(\.reviewRound))
-        if displayedChore.reviewRound > 0 {
-            rounds.insert(displayedChore.reviewRound)
-        }
-        return rounds.sorted(by: >)
-    }
-
-    private var hasReviewRounds: Bool {
-        !reviewRoundNumbers.isEmpty
-    }
-
-    private var activeReviewRound: Int? {
-        currentStatus == .inTest && displayedChore.reviewRound > 0 ? displayedChore.reviewRound : nil
+    private var reviewSummary: ChoreReviewSummary {
+        ChoreReviewSummary(
+            status: currentStatus,
+            reviewRound: displayedChore.reviewRound,
+            votes: displayedChore.reviewVotes,
+            assigneeId: displayedChore.assignedToId,
+            memberIds: appViewModel.dashboardMembers.compactMap(\.apiId),
+            currentUserId: appViewModel.currentUserId
+        )
     }
 
     var body: some View {
@@ -113,9 +86,15 @@ struct ChoreDetailPopup: View {
                 .ignoresSafeArea()
                 .onTapGesture { if !isBusy { requestDismiss() } }
 
-            VStack(spacing: 0) {
-                topBar
-                    .zIndex(1)
+            FausPopupShell(
+                watermark: Image(systemName: "house.fill"),
+                title: displayedChore.title,
+                subtitle: appViewModel.localized(choreLevelObj.localizationKey),
+                isCloseDisabled: isBusy,
+                onClose: requestDismiss,
+                badge: Image(systemName: choreLevelObj.iconName)
+                    .font(.system(size: 15, weight: .semibold))
+            ) {
                 ScrollView(showsIndicators: false) {
                     VStack(spacing: AppDesign.Spacing.xl) {
                         if currentStatus == .failed {
@@ -127,7 +106,7 @@ struct ChoreDetailPopup: View {
                         if nextStatus != nil {
                             statusUpdateSection
                         }
-                        if hasReviewRounds {
+                        if !reviewSummary.rounds.isEmpty {
                             reviewSection
                         }
                     }
@@ -136,11 +115,9 @@ struct ChoreDetailPopup: View {
                 }
                 .frame(maxHeight: 500)
                 .clipped()
+            } footer: {
                 dismissButton
             }
-            .background(MainScreenBackground(surface: .popup))
-            .clipShape(RoundedRectangle(cornerRadius: AppDesign.CornerRadius.xl, style: .continuous))
-            .shadow(color: AppDesign.Colors.shadow.opacity(0.25), radius: 30, x: 0, y: 16)
             .padding(.horizontal, AppDesign.Spacing.xl)
 
             if isBusy {
@@ -160,6 +137,7 @@ struct ChoreDetailPopup: View {
             guard !acceptsActions else { return }
             isShowingReviewCamera = false
             reviewPhotoData = nil
+            reviewPhotoPreview = nil
         }
         .fullScreenCover(isPresented: $isShowingReviewCamera) {
             ChoreReviewCamera(
@@ -187,53 +165,6 @@ struct ChoreDetailPopup: View {
                 onCaptureAttempt: closeReviewPhotoAfterCaptureAttempt
             )
         }
-    }
-
-    // MARK: - Top Bar
-
-    private var topBar: some View {
-        ZStack {
-            BrandPopupHeaderBackground()
-            // Background decorative icon
-            Image(systemName: "house.fill")
-                .font(.system(size: 56, weight: .bold))
-                .foregroundColor(.white.opacity(0.12))
-
-            HStack(spacing: AppDesign.Spacing.sm) {
-                // Level badge
-                HStack(spacing: 4) {
-                    Image(systemName: choreLevelObj.iconName)
-                        .font(.system(size: 11, weight: .bold))
-                    Text(appViewModel.localized(choreLevelObj.localizationKey))
-                        .font(.system(size: 11, weight: .bold))
-                }
-                .foregroundColor(choreLevelObj.color)
-                .padding(.horizontal, 8).padding(.vertical, 4)
-                .background(Color.white.opacity(0.92))
-                .cornerRadius(AppDesign.CornerRadius.circle)
-
-                Text(displayedChore.title)
-                    .font(AppDesign.Typography.subheadline)
-                    .fontWeight(.semibold)
-                    .foregroundColor(.white)
-                    .lineLimit(1)
-                    .truncationMode(.middle)
-
-                Spacer()
-
-                Button { if !isBusy { requestDismiss() } } label: {
-                    Image(systemName: "xmark")
-                        .font(.system(size: 13, weight: .bold))
-                        .foregroundColor(.white.opacity(0.9))
-                        .frame(width: 26, height: 26)
-                        .background(Color.white.opacity(0.2))
-                        .clipShape(Circle())
-                }
-            }
-            .padding(.horizontal, AppDesign.Spacing.xl)
-            .padding(.vertical, 12)
-        }
-        .frame(height: 52)
     }
 
     // MARK: - Status Pipeline
@@ -447,7 +378,7 @@ struct ChoreDetailPopup: View {
             HStack(spacing: AppDesign.Spacing.sm) {
                 if isPreparingReviewPhoto {
                     ProgressView().scaleEffect(0.8)
-                } else if let reviewPhotoData, let preview = UIImage(data: reviewPhotoData) {
+                } else if let preview = reviewPhotoPreview {
                     Image(uiImage: preview)
                         .resizable()
                         .scaledToFill()
@@ -478,9 +409,19 @@ struct ChoreDetailPopup: View {
         VStack(alignment: .leading, spacing: AppDesign.Spacing.md) {
             sectionLabel(icon: "checkmark.seal.fill", text: appViewModel.localized("chore_detail_review_rounds_label"))
 
-            ForEach(reviewRoundNumbers, id: \.self) { round in
-                reviewRoundCard(round)
-            }
+            ChoreReviewRoundList(
+                summary: reviewSummary,
+                members: appViewModel.dashboardMembers,
+                assigneeId: displayedChore.assignedToId,
+                isAssignedToCurrentUser: isAssignedToCurrentUser,
+                photoRounds: displayedChore.reviewPhotoRounds,
+                loadingPhotoRound: loadingReviewPhotoRound,
+                accentColor: currentStatus.color,
+                isBusy: isBusy,
+                expandedRounds: $expandedReviewRounds,
+                onShowPhoto: showReviewPhoto,
+                onReview: submitReview
+            )
         }
         .padding(AppDesign.Spacing.lg)
         .background(
@@ -491,184 +432,6 @@ struct ChoreDetailPopup: View {
                         .stroke(currentStatus.color.opacity(0.2), lineWidth: 1)
                 )
         )
-    }
-
-    private func reviewRoundCard(_ round: Int) -> some View {
-        let isActive = activeReviewRound == round
-        let isExpanded = isActive || expandedReviewRounds.contains(round)
-
-        return VStack(alignment: .leading, spacing: AppDesign.Spacing.md) {
-            Button {
-                guard !isActive else { return }
-                withAnimation(AppDesign.Animation.quick) {
-                    if expandedReviewRounds.contains(round) {
-                        expandedReviewRounds.remove(round)
-                    } else {
-                        expandedReviewRounds.insert(round)
-                    }
-                }
-            } label: {
-                HStack(spacing: AppDesign.Spacing.sm) {
-                    VStack(alignment: .leading, spacing: 2) {
-                        HStack(spacing: 6) {
-                            Text(appViewModel.localized(
-                                "chore_detail_round_template",
-                                replacements: ["round": "\(round)"]
-                            ))
-                                .font(AppDesign.Typography.bodyBold)
-                            Text(appViewModel.localized(isActive ? "chore_detail_round_active" : "chore_detail_round_resulted"))
-                                .font(.system(size: 10, weight: .bold))
-                                .foregroundColor(isActive ? .white : AppDesign.Colors.textSecondary)
-                                .padding(.horizontal, 7)
-                                .padding(.vertical, 3)
-                                .background(isActive ? currentStatus.color : AppDesign.Colors.textSecondary.opacity(0.14))
-                                .cornerRadius(AppDesign.CornerRadius.circle)
-                        }
-                        Text(appViewModel.localized(
-                            "chore_detail_approved_count_template",
-                            replacements: [
-                                "approved": "\(approvedVoteCount(for: round))",
-                                "eligible": "\(eligibleReviewerCount)"
-                            ]
-                        ))
-                            .font(AppDesign.Typography.caption)
-                            .foregroundColor(AppDesign.Colors.textSecondary)
-                    }
-
-                    Spacer()
-
-                    if !isActive {
-                        Image(systemName: isExpanded ? "chevron.up" : "chevron.down")
-                            .font(.system(size: 12, weight: .bold))
-                            .foregroundColor(AppDesign.Colors.textSecondary)
-                    }
-                }
-                .foregroundColor(AppDesign.Colors.textPrimary)
-                .contentShape(Rectangle())
-            }
-            .buttonStyle(.plain)
-
-            if isExpanded {
-                if displayedChore.reviewPhotoRounds.contains(round) {
-                    reviewPhotoArea(for: round)
-                }
-                reviewProgressBar(for: round)
-                reviewSummaryRow(for: round)
-                reviewMemberList(for: round)
-
-                if isActive {
-                    reviewActionArea
-                }
-            }
-        }
-        .padding(AppDesign.Spacing.md)
-        .background(AppDesign.Colors.background.opacity(0.68))
-        .cornerRadius(AppDesign.CornerRadius.md)
-    }
-
-    private func reviewPhotoArea(for round: Int) -> some View {
-        Button { showReviewPhoto(round: round) } label: {
-            HStack(spacing: AppDesign.Spacing.sm) {
-                if loadingReviewPhotoRound == round {
-                    ProgressView().scaleEffect(0.8)
-                } else {
-                    Image(systemName: "photo.fill")
-                        .font(.system(size: 13, weight: .semibold))
-                }
-                Text(appViewModel.localized("chore_review_photo_view", fallback: "View review photo"))
-                    .font(.system(size: 12, weight: .semibold))
-            }
-            .foregroundColor(currentStatus.color)
-            .frame(maxWidth: .infinity)
-            .padding(.vertical, 9)
-            .background(currentStatus.color.opacity(0.1))
-            .cornerRadius(AppDesign.CornerRadius.sm)
-        }
-        .buttonStyle(.plain)
-        .disabled(loadingReviewPhotoRound != nil)
-    }
-
-    private var reviewActionArea: some View {
-        VStack(alignment: .leading, spacing: AppDesign.Spacing.md) {
-            if isAssignedToCurrentUser {
-                Label(appViewModel.localized("chore_detail_assignee_no_vote_message"), systemImage: "person.crop.circle.badge.exclamationmark")
-                    .font(AppDesign.Typography.caption)
-                    .foregroundColor(AppDesign.Colors.textSecondary)
-            } else if let vote = currentUserVote {
-                Label(
-                    appViewModel.localized(vote.isApproved ? "chore_detail_you_approved_message" : "chore_detail_you_rejected_message"),
-                    systemImage: vote.isApproved ? "checkmark.circle.fill" : "xmark.circle.fill"
-                )
-                .font(AppDesign.Typography.bodyBold)
-                .foregroundColor(vote.isApproved ? AppDesign.Colors.success : AppDesign.Colors.error)
-            } else if canReview {
-                Text(appViewModel.localized("chore_detail_review_prompt"))
-                    .font(AppDesign.Typography.caption)
-                    .foregroundColor(AppDesign.Colors.textSecondary)
-
-                HStack(spacing: AppDesign.Spacing.md) {
-                    reviewButton(
-                        title: appViewModel.localized("chore_detail_reject_button"),
-                        icon: "xmark.circle.fill",
-                        color: AppDesign.Colors.error,
-                        isApproved: false
-                    )
-                    reviewButton(
-                        title: appViewModel.localized("chore_detail_approve_button"),
-                        icon: "checkmark.circle.fill",
-                        color: AppDesign.Colors.success,
-                        isApproved: true
-                    )
-                }
-            }
-        }
-    }
-
-    private func reviewProgressBar(for round: Int) -> some View {
-        GeometryReader { geometry in
-            let width = geometry.size.width
-            let approvedWidth = width * CGFloat(eligibleReviewerCount == 0 ? 0 : Double(approvedVoteCount(for: round)) / Double(eligibleReviewerCount))
-            let rejectedWidth = width * CGFloat(eligibleReviewerCount == 0 ? 0 : Double(rejectedVoteCount(for: round)) / Double(eligibleReviewerCount))
-
-            ZStack(alignment: .leading) {
-                RoundedRectangle(cornerRadius: AppDesign.CornerRadius.circle)
-                    .fill(AppDesign.Colors.textSecondary.opacity(0.16))
-
-                RoundedRectangle(cornerRadius: AppDesign.CornerRadius.circle)
-                    .fill(AppDesign.Colors.success)
-                    .frame(width: approvedWidth)
-
-                RoundedRectangle(cornerRadius: AppDesign.CornerRadius.circle)
-                    .fill(AppDesign.Colors.error)
-                    .frame(width: rejectedWidth)
-                    .offset(x: approvedWidth)
-
-                RoundedRectangle(cornerRadius: AppDesign.CornerRadius.circle)
-                    .stroke(AppDesign.Colors.textSecondary.opacity(0.18), lineWidth: 1)
-            }
-        }
-        .frame(height: 10)
-        .accessibilityLabel(Text(appViewModel.localized("chore_detail_review_progress_accessibility")))
-        .accessibilityValue(Text(appViewModel.localized(
-            "chore_detail_review_percent_voted_template",
-            replacements: ["percent": "\(Int(reviewCompletionRatio(for: round) * 100))"]
-        )))
-    }
-
-    private func reviewSummaryRow(for round: Int) -> some View {
-        HStack(spacing: AppDesign.Spacing.sm) {
-            reviewSummaryPill(title: appViewModel.localized("chore_detail_review_approved"), count: approvedVoteCount(for: round), color: AppDesign.Colors.success)
-            reviewSummaryPill(title: appViewModel.localized("chore_detail_review_rejected"), count: rejectedVoteCount(for: round), color: AppDesign.Colors.error)
-            reviewSummaryPill(title: appViewModel.localized("chore_detail_review_waiting"), count: pendingVoteCount(for: round), color: AppDesign.Colors.textSecondary)
-        }
-    }
-
-    private func reviewMemberList(for round: Int) -> some View {
-        VStack(spacing: AppDesign.Spacing.sm) {
-            ForEach(reviewMembers) { member in
-                reviewMemberRow(member, round: round)
-            }
-        }
     }
 
     // MARK: - Dismiss Button
@@ -733,19 +496,27 @@ struct ChoreDetailPopup: View {
 
     private func prepareReviewPhoto(_ image: UIImage) {
         isPreparingReviewPhoto = true
+        let previewScale = 28 * displayScale / max(min(image.size.width, image.size.height), 1)
+        let previewSize = CGSize(
+            width: (image.size.width * previewScale).rounded(.up),
+            height: (image.size.height * previewScale).rounded(.up)
+        )
         Task {
+            defer { isPreparingReviewPhoto = false }
             let prepared = await Task.detached(priority: .userInitiated) {
                 ChoreReviewPhotoEncoder.prepared(from: image)
             }.value
             if let prepared {
+                let preview = await image.byPreparingThumbnail(ofSize: previewSize)
+                guard currentStatus.acceptsActions else { return }
                 reviewPhotoData = prepared
+                reviewPhotoPreview = preview
             } else {
                 appViewModel.showToast(message: appViewModel.localized(
                     "chore_review_photo_too_large",
                     fallback: "The photo must be 3 MB or smaller."
                 ))
             }
-            isPreparingReviewPhoto = false
         }
     }
 
@@ -788,7 +559,7 @@ struct ChoreDetailPopup: View {
     }
 
     private func submitReview(isApproved: Bool) {
-        guard let choreApiId = displayedChore.choreApiId, canReview else { return }
+        guard let choreApiId = displayedChore.choreApiId, reviewSummary.canReview else { return }
         isReviewing = true
         Task {
             _ = await appViewModel.reviewChore(
@@ -833,121 +604,6 @@ struct ChoreDetailPopup: View {
             .padding(.vertical, 10)
             .background(status.color.opacity(0.1))
             .cornerRadius(AppDesign.CornerRadius.md)
-    }
-
-    private func reviewButton(
-        title: String,
-        icon: String,
-        color: Color,
-        isApproved: Bool
-    ) -> some View {
-        Button {
-            submitReview(isApproved: isApproved)
-        } label: {
-            Label(title, systemImage: icon)
-                .font(AppDesign.Typography.bodyBold)
-                .foregroundColor(.white)
-                .frame(maxWidth: .infinity)
-                .frame(height: AppDesign.Size.buttonHeightSmall)
-                .background(color)
-                .cornerRadius(AppDesign.CornerRadius.md)
-        }
-        .disabled(isBusy)
-    }
-
-    private func votes(for round: Int) -> [ChoreReviewVote] {
-        displayedChore.reviewVotes.filter { $0.reviewRound == round }
-    }
-
-    private func vote(for member: User, round: Int) -> ChoreReviewVote? {
-        guard let apiId = member.apiId else { return nil }
-        return votes(for: round).first { $0.reviewerId == apiId }
-    }
-
-    private func approvedVoteCount(for round: Int) -> Int {
-        votes(for: round).filter(\.isApproved).count
-    }
-
-    private func rejectedVoteCount(for round: Int) -> Int {
-        votes(for: round).filter { !$0.isApproved }.count
-    }
-
-    private func pendingVoteCount(for round: Int) -> Int {
-        max(eligibleReviewerCount - votes(for: round).count, 0)
-    }
-
-    private func reviewCompletionRatio(for round: Int) -> Double {
-        guard eligibleReviewerCount > 0 else { return 1 }
-        return min(Double(votes(for: round).count) / Double(eligibleReviewerCount), 1)
-    }
-
-    private func reviewSummaryPill(title: String, count: Int, color: Color) -> some View {
-        HStack(spacing: 5) {
-            Circle()
-                .fill(color)
-                .frame(width: 7, height: 7)
-            Text("\(count)")
-                .font(.system(size: 11, weight: .bold))
-            Text(title)
-                .font(.system(size: 11, weight: .medium))
-                .lineLimit(1)
-                .minimumScaleFactor(0.8)
-        }
-        .foregroundColor(color)
-        .frame(maxWidth: .infinity)
-        .padding(.horizontal, 8)
-        .padding(.vertical, 7)
-        .background(color.opacity(0.1))
-        .cornerRadius(AppDesign.CornerRadius.sm)
-    }
-
-    private func reviewMemberRow(_ member: User, round: Int) -> some View {
-        let isAssignee = member.apiId == displayedChore.assignedToId
-        let vote = vote(for: member, round: round)
-        let status = reviewStatus(forAssignee: isAssignee, vote: vote)
-
-        return HStack(spacing: AppDesign.Spacing.sm) {
-            UserAvatar(user: member, size: 28)
-
-            VStack(alignment: .leading, spacing: 2) {
-                Text(member.name)
-                    .font(AppDesign.Typography.bodyBold)
-                    .foregroundColor(AppDesign.Colors.textPrimary)
-                    .lineLimit(1)
-                if isAssignee {
-                    Text(appViewModel.localized("chore_detail_assigned_user_label"))
-                        .font(AppDesign.Typography.caption)
-                        .foregroundColor(AppDesign.Colors.textSecondary)
-                }
-            }
-
-            Spacer(minLength: AppDesign.Spacing.sm)
-
-            Label(appViewModel.localized(status.titleKey), systemImage: status.icon)
-                .font(.system(size: 11, weight: .semibold))
-                .foregroundColor(status.color)
-                .padding(.horizontal, 8)
-                .padding(.vertical, 6)
-                .background(status.color.opacity(0.1))
-                .cornerRadius(AppDesign.CornerRadius.sm)
-        }
-        .padding(.horizontal, AppDesign.Spacing.sm)
-        .padding(.vertical, AppDesign.Spacing.sm)
-        .background(AppDesign.Colors.background.opacity(0.65))
-        .cornerRadius(AppDesign.CornerRadius.md)
-    }
-
-    private func reviewStatus(forAssignee isAssignee: Bool, vote: ChoreReviewVote?) -> (titleKey: String, icon: String, color: Color) {
-        if isAssignee {
-            return ("chore_detail_review_no_vote", "minus.circle.fill", AppDesign.Colors.textSecondary)
-        }
-        guard let vote else {
-            return ("chore_detail_review_waiting", "clock.fill", AppDesign.Colors.textSecondary)
-        }
-        if vote.isApproved {
-            return ("chore_detail_review_approved", "checkmark.circle.fill", AppDesign.Colors.success)
-        }
-        return ("chore_detail_review_rejected", "xmark.circle.fill", AppDesign.Colors.error)
     }
 
     @ViewBuilder
@@ -1016,7 +672,7 @@ extension ChoreStatus {
             status: 1,
             level: 20
         ),
-        appViewModel: AppViewModel(),
         onDismiss: {}
     )
+    .environmentObject(AppViewModel.preview)
 }

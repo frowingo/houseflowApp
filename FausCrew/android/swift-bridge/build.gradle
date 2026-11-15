@@ -26,6 +26,8 @@ dependencies {
 def sdkBundle = providers.environmentVariable('SWIFT_ANDROID_SDK_BUNDLE').orNull
 def ndkHome = providers.environmentVariable('ANDROID_NDK_HOME').orNull
 def sdkId = 'swift-6.4.0-RELEASE_android'
+// A different toolchain must rebuild the native output even when no source changed.
+def swiftToolchain = providers.exec { commandLine 'swift', '--version' }.standardOutput.asText
 // Keep the native target aligned with the app/library minSdk.
 def apiLevel = 30
 def allAbis = [
@@ -63,7 +65,9 @@ def preflight = tasks.register('checkSwiftAndroidToolchain', Exec) {
             commandLine 'swift', 'build', '--configuration', swiftConfiguration, '--swift-sdk', sdkId, '--triple', info.triple
             inputs.property 'androidApiLevel', apiLevel
             inputs.property 'swiftConfiguration', swiftConfiguration
-            inputs.files 'Package.swift', 'Package.resolved', fileTree('Sources'), fileTree('../../shared/Sources')
+            inputs.property 'swiftSdk', sdkId
+            inputs.property 'swiftToolchain', swiftToolchain
+            inputs.files 'Package.swift', 'Package.resolved', '../../shared/Package.swift', fileTree('Sources'), fileTree('../../shared/Sources')
             outputs.dir ".build/out/Products/${swiftConfiguration.capitalize()}-android-${info.productArch}"
         }
     }

@@ -122,7 +122,11 @@ public struct FausSwitchRunnerDTO: Decodable, Equatable, Sendable {
     }
 
     var isValid: Bool {
-        !playerId.isEmpty && x.isFinite && y.isFinite && velocityY.isFinite && boostedUntilTick >= 0 && slowedUntilTick >= 0
+        let ticks = 0...FausSwitchRealtime.maximumSnapshotTick
+        return !playerId.isEmpty && x.isFinite && y.isFinite && velocityY.isFinite
+            && ticks.contains(boostedUntilTick) && ticks.contains(slowedUntilTick)
+            && (finishedAtTick.map { ticks.contains($0) } ?? true)
+            && (eliminatedAtTick.map { ticks.contains($0) } ?? true)
             && lastProcessedInputSequence >= 0
             && (status == .finished) == (finishedAtTick != nil)
             && (status == .crashed) == (eliminatedAtTick != nil && eliminationReason != nil)

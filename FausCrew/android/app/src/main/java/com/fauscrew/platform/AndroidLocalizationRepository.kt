@@ -22,9 +22,10 @@ internal data class PlatformLanguage(
 
 /** Cache file shape and key match the existing iOS localization cache contract. */
 internal class AndroidLocalizationCache(
-    context: Context,
-    private val directory: File = File(context.applicationContext.filesDir, "Localization"),
+    private val directory: File,
 ) {
+    constructor(context: Context) : this(File(context.applicationContext.filesDir, "Localization"))
+
     fun load(languagePrefix: String): Map<String, String> {
         val prefix = normalizePrefix(languagePrefix) ?: return emptyMap()
         val payload = fileFor(prefix)?.let(::read)

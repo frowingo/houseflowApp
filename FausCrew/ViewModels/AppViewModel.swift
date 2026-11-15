@@ -5,8 +5,8 @@ import FausCrewCore
 @MainActor
 class AppViewModel: ObservableObject {
     private let authStore: AuthSessionStore
-    private let toastStore: ToastStore
-    private let overlayStore: OverlayStore
+    let toastStore: ToastStore
+    let overlayStore: OverlayStore
     private let houseStore: HouseSessionStore
     private let dashboardStore: DashboardStore
     private let choreStore: ChoreStore
@@ -24,6 +24,7 @@ class AppViewModel: ObservableObject {
     private let profileCoordinator: ProfileCoordinator
     private var storeCancellables = Set<AnyCancellable>()
     private let appEvents: AppEventsService?
+    private let network: NetworkService?
 
     var signupSuccessMessage: String? { sessionCoordinator.signupSuccessMessage }
 
@@ -71,11 +72,6 @@ class AppViewModel: ObservableObject {
         houseStore.houseName
     }
 
-    var houseIsLoading: Bool {
-        get { houseStore.houseIsLoading }
-        set { houseStore.houseIsLoading = newValue }
-    }
-
     var houseError: String? {
         get { houseStore.houseError }
         set { houseStore.houseError = newValue }
@@ -87,11 +83,8 @@ class AppViewModel: ObservableObject {
     /// Set to true whenever a modal / popup is covering the screen so the tab bar hides.
     var isOverlayPresented: Bool {
         get { overlayStore.isPresented }
-        set { overlayStore.isPresented = newValue }
+        set { overlayStore.setPresented(newValue) }
     }
-
-    var sampleUsers: [User] { dashboardCoordinator.sampleUsers }
-    var sampleChores: [Chore] { dashboardCoordinator.sampleChores }
 
     convenience init() {
         self.init(dependencies: .live())
@@ -126,7 +119,8 @@ class AppViewModel: ObservableObject {
             houseRocketsSessionFactory: dependencies.houseRocketsSessionFactory,
             houseTanksOnlineFactory: dependencies.houseTanksOnlineFactory,
             fausSwitchOnlineFactory: dependencies.fausSwitchOnlineFactory,
-            appEvents: dependencies.appEvents
+            appEvents: dependencies.appEvents,
+            network: dependencies.network
         )
     }
 
@@ -144,9 +138,11 @@ class AppViewModel: ObservableObject {
         houseRocketsSessionFactory: HouseRocketsSessionFactory? = nil,
         houseTanksOnlineFactory: HouseTanksOnlineFactory = .unavailable,
         fausSwitchOnlineFactory: FausSwitchOnlineFactory = .unavailable,
-        appEvents: AppEventsService? = nil
+        appEvents: AppEventsService? = nil,
+        network: NetworkService? = nil
     ) {
         self.appEvents = appEvents
+        self.network = network
         self.authStore = authStore
         self.toastStore = toastStore
         self.overlayStore = overlayStore
@@ -197,6 +193,7 @@ class AppViewModel: ObservableObject {
         fausCrewCoordinator = FausCrewCoordinator(
             authStore: authStore,
             houseStore: houseStore,
+            localizationStore: localizationStore,
             toastStore: toastStore,
             router: router
         )
@@ -219,8 +216,12 @@ class AppViewModel: ObservableObject {
         bindAppEvents()
     }
 
-    /// Keeps the events socket tied to sign-in, the selected house and app visibility.
+    /// Binds session rejection and keeps the events socket tied to app state.
     private func bindAppEvents() {
+        sessionCoordinator.onSessionRejected = { [weak self] in self?.logout() }
+        network?.onUnauthorized = { [weak sessionCoordinator] token in
+            sessionCoordinator?.handleRejectedToken(token)
+        }
         guard let appEvents else { return }
         appEvents.onRefresh = { [weak self] profile, houseID in
             await self?.sessionCoordinator.refreshForAppEvent(profile: profile, houseID: houseID)
@@ -259,18 +260,6 @@ class AppViewModel: ObservableObject {
             }
             .store(in: &storeCancellables)
 
-        toastStore.objectWillChange
-            .sink { [weak self] _ in
-                self?.objectWillChange.send()
-            }
-            .store(in: &storeCancellables)
-
-        overlayStore.objectWillChange
-            .sink { [weak self] _ in
-                self?.objectWillChange.send()
-            }
-            .store(in: &storeCancellables)
-
         houseStore.objectWillChange
             .sink { [weak self] _ in
                 self?.objectWillChange.send()
@@ -296,10 +285,6 @@ class AppViewModel: ObservableObject {
             .store(in: &storeCancellables)
     }
 
-    var weeklyLeader: User {
-        dashboardCoordinator.weeklyLeader
-    }
-    
     func completeOnboarding() {
         sessionCoordinator.completeOnboarding()
     }
@@ -330,11 +315,12 @@ class AppViewModel: ObservableObject {
         localizationStore.value(for: key)
     }
 
-    /// The app language's prefix (`nil` before one is chosen).
-    var localizationLanguagePrefix: String? { localizationStore.languagePrefix }
-
     func localized(_ key: String, fallback: String) -> String {
         localizationStore.value(for: key, fallback: fallback)
+    }
+
+    func localized(_ key: String, tr: String, en: String) -> String {
+        localizationStore.value(for: key, tr: tr, en: en)
     }
 
     func localized(_ key: String, replacements: [String: String]) -> String {
@@ -360,14 +346,6 @@ class AppViewModel: ObservableObject {
 
     func loadLocalizationLanguages() async throws {
         try await localizationStore.loadAvailableLanguages(force: true)
-    }
-
-    func setLocalizationLanguage(prefix: String) {
-        localizationStore.setLanguagePrefix(prefix)
-    }
-
-    func updateLocalizationLanguage(prefix: String) async throws {
-        try await profileCoordinator.updateLocalizationLanguage(prefix: prefix)
     }
 
     func saveLanguagePreferenceAndRequireLogin(prefix: String) async throws {

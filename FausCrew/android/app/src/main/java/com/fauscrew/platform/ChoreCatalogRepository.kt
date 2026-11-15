@@ -3,6 +3,8 @@ package com.fauscrew.platform
 import android.content.Context
 import com.fauscrew.androidbridge.FausCrewAndroidBridge
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.currentCoroutineContext
+import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.withContext
 import org.json.JSONArray
 import org.json.JSONObject
@@ -175,24 +177,29 @@ internal class ChoreCatalogRepository(
     private val wire: ChoreCatalogWire = NativeChoreCatalogWire,
 ) {
     suspend fun fetch(): List<ChoreCatalogRecord> = withContext(Dispatchers.IO) {
-        call("list", "GET", body = null, recordsJson = "", localJson = "")
+        val token = token()
+        call(token, "list", "GET", body = null, recordsJson = "", localJson = "")
     }
 
     /** Sends [records] and returns [local] patched with the result (in request order). */
     suspend fun upsert(records: List<ChoreCatalogRecord>, local: List<ChoreCatalogRecord>): List<ChoreCatalogRecord> =
         withContext(Dispatchers.IO) {
+            val token = token()
             val recordsJson = ChoreCatalogRecord.encode(records)
             val prepared = JSONObject(wire.body(recordsJson))
             // The UI applies the same rules first, so this is a programming error, not user input.
             if (!prepared.optBoolean("ok")) throw ChoreCatalogException(ChoreCatalogFailure(ChoreCatalogFailure.Kind.VALIDATION))
-            call("upsert", "PUT", prepared.getString("body"), recordsJson, ChoreCatalogRecord.encode(local))
+            call(token, "upsert", "PUT", prepared.getString("body"), recordsJson, ChoreCatalogRecord.encode(local))
         }
 
+    /** Read on IO before body preparation; the request keeps this credential snapshot. */
+    private fun token(): String? = (read(SessionField.AUTH_TOKEN) as? SessionReadResult.Value)?.value
+
     private suspend fun call(
-        action: String, method: String, body: String?, recordsJson: String, localJson: String,
+        token: String?, action: String, method: String, body: String?, recordsJson: String, localJson: String,
     ): List<ChoreCatalogRecord> {
-        val token = (read(SessionField.AUTH_TOKEN) as? SessionReadResult.Value)?.value
-            ?: throw ChoreCatalogException(ChoreCatalogFailure(ChoreCatalogFailure.Kind.UNAUTHORIZED))
+        currentCoroutineContext().ensureActive()
+        if (token == null) throw ChoreCatalogException(ChoreCatalogFailure(ChoreCatalogFailure.Kind.UNAUTHORIZED))
         val response = try {
             send(PlatformHttpRequest(path = PATH, method = method,
                 headers = mapOf("Authorization" to "Bearer $token") +

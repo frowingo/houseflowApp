@@ -386,7 +386,7 @@ struct AuthView: View {
 }
 
 #Preview {
-    let appViewModel = AppViewModel()
+    let appViewModel = AppViewModel.preview
     AuthView(viewModel: appViewModel.authenticationViewModel)
         .environmentObject(appViewModel)
 }

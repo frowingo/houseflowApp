@@ -3,13 +3,16 @@ import FausCrewCore
 import XCTest
 
 final class AppEventsChannelTests: XCTestCase {
+    private struct UnexpectedTestState: Error {}
+
     private func channel() -> AppEventsChannel { AppEventsChannel(jitter: { 1 }) }
 
     private func open(_ channel: AppEventsChannel, house: String? = "h1") throws -> Int {
         channel.setSelectedHouse(house)
         channel.setActive(foreground: true, authenticated: true, now: 0)
         guard case .openSocket(let connection) = try XCTUnwrap(channel.drainEffects().last) else {
-            throw XCTSkip("no socket")
+            XCTFail("No socket opened")
+            throw UnexpectedTestState()
         }
         channel.socketOpened(connection: connection, now: 0.1)
         return connection

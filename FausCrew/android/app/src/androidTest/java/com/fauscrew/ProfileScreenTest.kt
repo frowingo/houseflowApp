@@ -1,11 +1,16 @@
 package com.fauscrew
 
+import androidx.compose.ui.semantics.SemanticsProperties
+import androidx.compose.ui.test.SemanticsMatcher
+import androidx.compose.ui.test.assert
 import androidx.compose.ui.test.assertCountEquals
+import androidx.compose.ui.test.assertTextEquals
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onAllNodesWithText
 import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
+import androidx.compose.ui.test.performTextInput
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.fauscrew.platform.AuthDestination
 import com.fauscrew.platform.AuthProfile
@@ -13,7 +18,9 @@ import com.fauscrew.platform.HouseSummary
 import com.fauscrew.platform.LocalizedText
 import com.fauscrew.ui.main.MainTab
 import com.fauscrew.ui.main.MainTabScreen
+import com.fauscrew.ui.profile.LoginMethodsDialog
 import com.fauscrew.ui.profile.ProfileScreen
+import com.fauscrew.viewmodel.AccountUiState
 import com.fauscrew.viewmodel.HouseRoute
 import com.fauscrew.viewmodel.HouseUiState
 import com.fauscrew.viewmodel.ProfileUiState
@@ -45,6 +52,9 @@ class ProfileScreenTest {
         "profile_logout_label" to "Log out",
         "tab_profile" to "Profile", "tab_home" to "Home", "tab_games" to "Games",
         "common_cancel" to "Cancel", "common_close" to "Close",
+        "forgot_password_new_password_placeholder" to "New password",
+        "forgot_password_reset_button" to "Set password",
+        "social_code_label" to "Verification code",
     ))
     private val user = AuthProfile(AuthDestination.DASHBOARD, "ada@example.com", "en", "u", "Ada", "A",
         listOf(HouseSummary("h", "Ada's home", "")))
@@ -66,6 +76,23 @@ class ProfileScreenTest {
         compose.onAllNodesWithText("Ada").assertCountEquals(2)
         compose.onNodeWithText("Cancel").performClick()
         compose.onAllNodesWithText("Ada").assertCountEquals(1)
+    }
+
+    @Test fun passwordSetupMasksTextAndSubmitsOriginalValue() {
+        val password = "test-password"
+        var submitted: Pair<String, String>? = null
+        compose.setContent {
+            LoginMethodsDialog(user.copy(hasPassword = false), AccountUiState(passwordCodeSent = true),
+                emptyList(), strings, onDismiss = {}, onLink = {}, onUnlink = {},
+                onRequestPasswordCode = {}, onSetPassword = { code, value -> submitted = code to value })
+        }
+        compose.onNodeWithContentDescription("Verification code").performTextInput("ABC123")
+        compose.onNodeWithContentDescription("new-password").performTextInput(password)
+        compose.onNodeWithContentDescription("new-password")
+            .assert(SemanticsMatcher.expectValue(SemanticsProperties.Password, Unit))
+            .assertTextEquals("\u2022".repeat(password.length))
+        compose.onNodeWithText("Set password").performClick()
+        compose.runOnIdle { assertEquals("ABC123" to password, submitted) }
     }
 
     @Test fun tabBarSelectsTabsIncludingGames() {

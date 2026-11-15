@@ -3,7 +3,7 @@ import SwiftUI
 /// Announcement composer UI. The publish closure returns whether the server
 /// accepted the announcement so the form stays open when a request fails.
 struct NewAnnouncementPopup: View {
-    let appViewModel: AppViewModel
+    @EnvironmentObject private var appViewModel: AppViewModel
     let onPublish: (_ title: String, _ message: String) async -> Bool
     let onDismiss: () -> Void
 
@@ -297,8 +297,8 @@ struct NewAnnouncementPopup: View {
 
 #Preview {
     NewAnnouncementPopup(
-        appViewModel: AppViewModel(),
         onPublish: { _, _ in true },
         onDismiss: {}
     )
+    .environmentObject(AppViewModel.preview)
 }

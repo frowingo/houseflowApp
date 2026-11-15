@@ -48,6 +48,8 @@ protocol GameOnlineHostedEngine: AnyObject {
     var result: Result { get }
     var lobbyIssue: GameOnlineLobbyIssue? { get }
     var isClosed: Bool { get }
+    /// The finished match's result is final, so its room can be replayed.
+    var canRematch: Bool { get }
     func drainEffects() -> [GameOnlineEffect]
     func start(isForeground: Bool, isLandscape: Bool, now: TimeInterval)
     func sessionResponse(_ response: HTTPResponse, retryAfter: TimeInterval?, connection: Int, now: TimeInterval)
@@ -58,6 +60,7 @@ protocol GameOnlineHostedEngine: AnyObject {
     func resultResponse(_ response: HTTPResponse, retryAfter: TimeInterval?, request: Int, now: TimeInterval)
     func resultFailed(request: Int, now: TimeInterval)
     func tick(now: TimeInterval)
+    func leave(now: TimeInterval)
     func disconnect()
 }
 
@@ -143,6 +146,21 @@ final class GameOnlineHost<Engine: GameOnlineHostedEngine> {
         onLobbyChange = nil; onResultChange = nil; onHaptic = nil; onClosed = nil
     }
 
+    /// A business leave, then cleanup: the host stays alive until the server confirms
+    /// or the engine's own limit closes it, so the seat is freed for the others. A closed
+    /// engine or a finished match (result final) has nothing to leave: its socket is already done.
+    func leaveGracefully() {
+        guard !engine.isClosed, !engine.canRematch else { return dispose() }
+        onLobbyChange = nil
+        onHaptic = nil
+        onClosed = { [weak self] in self?.dispose() }
+        perform { $0.leave(now: $1) }
+        Task { @MainActor in
+            try? await Task.sleep(nanoseconds: 3_000_000_000)
+            self.dispose()
+        }
+    }
+
     // MARK: Effects
 
     private func run(_ body: (TimeInterval) -> Void) {
@@ -156,7 +174,7 @@ final class GameOnlineHost<Engine: GameOnlineHostedEngine> {
         engine.drainEffects().forEach(execute)
         if engine.lobby != lastLobby {
             if let issue = engine.lobbyIssue, issue != lastIssue {
-                gameOnlineLog.notice("\(Engine.gameKey, privacy: .public) lobby issue: \(String(describing: issue), privacy: .public)")
+                gameOnlineLog.notice("\(Engine.gameKey, privacy: .public) lobby issue: \(GameOnlineLogCategory.of(issue), privacy: .public)")
             }
             lastIssue = engine.lobbyIssue
             lastLobby = engine.lobby
@@ -313,7 +331,50 @@ final class GameOnlineHost<Engine: GameOnlineHostedEngine> {
 
     /// Category only: never tokens, ids, payloads or member names.
     private func report(_ failure: GameRealtimeSessionFailure, kind: String) {
-        gameOnlineLog.notice("\(Engine.gameKey, privacy: .public) \(kind, privacy: .public) failed: \(String(describing: failure), privacy: .public)")
+        gameOnlineLog.notice("\(Engine.gameKey, privacy: .public) \(kind, privacy: .public) failed: \(GameOnlineLogCategory.of(failure), privacy: .public)")
+    }
+}
+
+/// Fixed log text for failures: the case and, for HTTP, the status code. Associated server
+/// values (rejection codes and args, contract or message names) never reach the log.
+enum GameOnlineLogCategory {
+    static func of(_ issue: GameOnlineLobbyIssue) -> String {
+        switch issue {
+        case .connection(let failure): "connection/\(of(failure))"
+        case .rejected: "rejected"
+        case .timeout: "timeout"
+        case .commandTimeout: "commandTimeout"
+        }
+    }
+
+    static func of(_ failure: GameRealtimeSessionFailure) -> String {
+        switch failure {
+        case .http(let statusCode, _): "http \(statusCode)"
+        case .protocolFailure(let error): "protocol/\(of(error))"
+        case .invalidPayload: "invalidPayload"
+        case .transport: "transport"
+        }
+    }
+
+    static func of(_ error: GameRealtimeError) -> String {
+        switch error {
+        case .accessRevoked: "accessRevoked"
+        case .unsupportedProtocol: "unsupportedProtocol"
+        case .unsupportedCourse: "unsupportedCourse"
+        case .unsupportedContract: "unsupportedContract"
+        case .unsupportedMap: "unsupportedMap"
+        case .unsupportedMessage: "unsupportedMessage"
+        case .invalidIdentifier: "invalidIdentifier"
+        case .invalidInput: "invalidInput"
+        case .invalidResponse: "invalidResponse"
+        case .invalidContext: "invalidContext"
+        case .authenticationRequired: "authenticationRequired"
+        case .unexpectedSession: "unexpectedSession"
+        case .notConnected: "notConnected"
+        case .messageTooLarge: "messageTooLarge"
+        case .slowConsumer: "slowConsumer"
+        case .gameUnavailable: "gameUnavailable"
+        }
     }
 }
 

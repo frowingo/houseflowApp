@@ -18,6 +18,10 @@ public enum HouseTanksRealtime: GameRealtimeGame {
 
     public static let gameKey = GameKey.houseTanks
 
+    // Overflow safety, not a match-duration rule: 30 days at 120 Hz leaves ample
+    // Int/Int64 headroom for tick differences, prediction and effect expiry.
+    static let maximumSnapshotTick: Int64 = 30 * 24 * 60 * 60 * 120
+
     /// A different contract or catalog means this build cannot draw the server's
     /// world; so does a frozen physics rate, arena or round rule it does not run.
     public static func checkCompatibility(_ welcome: HouseTanksWelcomeDTO) throws {
@@ -37,6 +41,18 @@ public enum HouseTanksRealtime: GameRealtimeGame {
     public static func checkCompatibility(_ snapshot: HouseTanksSnapshotDTO) throws {
         guard snapshot.gameKey == gameKey else { throw GameRealtimeError.invalidResponse }
         guard snapshot.map != nil else { throw GameRealtimeError.unsupportedMap(snapshot.mapId, snapshot.mapVersion) }
+        guard (0...maximumSnapshotTick).contains(snapshot.tick),
+              snapshot.players.count <= HouseTanksMapCatalog.maximumPlayers,
+              snapshot.tanks.count <= HouseTanksMapCatalog.maximumPlayers,
+              Set(snapshot.players.map(\.playerId)).count == snapshot.players.count,
+              Set(snapshot.tanks.map(\.playerId)).count == snapshot.tanks.count,
+              Set(snapshot.projectiles.map(\.id)).count == snapshot.projectiles.count,
+              Set(snapshot.crates.map(\.index)).count == snapshot.crates.count,
+              snapshot.players.allSatisfy(\.isValid), snapshot.tanks.allSatisfy(\.isValid),
+              snapshot.projectiles.allSatisfy(\.isValid), snapshot.crates.allSatisfy(\.isValid),
+              snapshot.token?.isValid ?? true, snapshot.events.allSatisfy(\.isValid) else {
+            throw GameRealtimeError.invalidResponse
+        }
     }
 
     public static func checkCompatibility(_ result: HouseTanksResultDTO) throws {

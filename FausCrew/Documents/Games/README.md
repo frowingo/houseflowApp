@@ -24,7 +24,7 @@ Ekrandan çıkışta demo görevi iptal edilir ve akış kapatılır. Yeni turnu
 
 ## Doğrulama
 
-`FausCrewTests/RockPaperScissorsTests.swift` dokuz hamle kombinasyonunu, 2–8 oyuncuyla 140 turnuvayı, kura uygunluğunu, giriş sınırlarını, eski/geçersiz komutları ve yeniden başlatma iptalini kapsar. Temel servis Foundation, ViewModel Combine kullanır; kurallar SwiftUI veya simülatör gerektirmeden test edilebilir.
+`FausCrewTests/Games/RockPaperScissorsTests.swift` dokuz hamle kombinasyonunu, 2–8 oyuncuyla 140 turnuvayı, kura uygunluğunu, giriş sınırlarını, eski/geçersiz komutları ve yeniden başlatma iptalini kapsar. Temel servis Foundation, ViewModel Combine kullanır; kurallar SwiftUI veya simülatör gerektirmeden test edilebilir.
 
 ---
 
@@ -46,7 +46,7 @@ Eski adı House-Switch. Oyun Faus Tanks ve Faus Rockets ile aynı demo/online ay
 - **Android köprüsü (`android/swift-bridge`)** — Kotlin hiçbir kural yazmaz, yalnız çizer ve efektleri uygular:
   - `FausSwitchBridge`: demo yarışı tutamaçla (`fausSwitchBot*`); her karede bir `fausSwitchBotStep` çağrısı dünya karesini (kamera, robot pozları, değişince platformlar ve geride kalma bölgesi) ve `FausSwitchMatchUI`'yi döner. `fausSwitchCourse` sabit parkuru bir kez verir (bölümler, dönüş yayları, raylar, engeller ve grupları, boşluk, şerit, portal, bitiş). Koordinatlar iOS sahnesindeki dünya noktalarıdır (y yukarı); `camera` ekrana çevirir, Android y'yi bir kez çevirir.
   - `FausSwitchOnlineBridge`: online oda (`fausSwitchOnline*`), House Tanks'in efekt modeli; lobi çıktısı renkleri (`colors`: kendi rengin, talebin, başkasında olanlar) taşır, `flip` olayı geri bildirimi döner, `fausSwitchOnlineFrame` demo kare sözleşmesiyle çizer ve sonuç panelini (`match.result`) verir. `fausSwitchCatalogResponse` açıklığı katalogdan okur.
-  - Köprü sürümü 16; `scripts/check-android-bindings.sh` üretilen 82 JNI imzasını doğrular.
+  - Köprü sürümü 19; `scripts/check-android-bindings.sh` üretilen 88 JNI imzasını doğrular.
 - **Android uygulaması (demo ve online)** — iOS ekranının Compose eşi; kural yazmaz:
   - `platform/FausSwitchBridge.kt`: köprü sarmalayıcısı ve `SwitchFrameParser` (platformları ve geride kalma bölgesini değişene kadar saklar).
   - `platform/FausSwitchAudio.kt`: müzik (`MediaPlayer`, döngü, kısma/duraklatma) ve efektler (`SoundPool`, üç perde); ses odağı istemez, iOS'un `.ambient` oturumu gibi karışır. Ayarlar iOS ile aynı anahtarlarla `SharedPreferences`'ta. Sesler `res/raw/faus_switch_*` (iOS dosyalarından `afconvert`: efektler `-f WAVE -d LEI16`, müzik `-f m4af -d aac -b 96000`); doku `res/drawable-nodpi/faus_switch_texture.jpg`.
@@ -92,7 +92,7 @@ Sunucu otoriterdir. İstemci dokunuşu `fausSwitch.flip` (controlGeneration, inp
 - `shared/Tests/FausCrewCoreTests/FausSwitchPhysicsTests.swift`: boyut, hız, flip, taşıma, duvar güvenliği, geride kalma, boşluk, boost, portal (karşı raya ve geriye ışınlama, iz önünde iniş), yavaşlatma, bölünmüş engel geçitleri, sıralama.
 - `FausSwitchBotMatchTests.swift`: zor bot parkuru tabandan ve tavandan bitirir; boşta kalan insan elenir; determinizm.
 - `FausSwitchOnlineEngineTests.swift`: fixture çözümleme, `lobbyState` renkleri (bozuk alan, ayrılan oyuncu, çakışma), renk talebi, kontrol, flip ve yeniden gönderim, tahmin, stale_control reddi, sonuç, katalog.
-- `FausCrewTests/FausSwitchTests.swift`: view model demo döngüsü, duraklatma, renk saklama, yerel çeviri anahtarları.
+- `FausCrewTests/Games/FausSwitchTests.swift`: view model demo döngüsü, duraklatma, renk saklama, yerel çeviri anahtarları.
 
 ---
 
@@ -176,4 +176,4 @@ M6 hazırlık doğrulaması: 125 Foundation testi, iPhone simülatöründe tüm 
 
 ## Doğrulama
 
-`FausCrewTests/HouseRocketsTests.swift` içindeki 27 test; tam daire yönlendirme ve sabit hız, bırakılan yönün korunması, lider takibi, engellerin sabit konumu, ölümcül olmayan platform/engel teması, yüzeyde kayarak kurtulma, engelin arka yüzü, tam arka sınır çıkışı, eşzamanlı elenmeler, süre sınırının olmaması, 30/120 FPS tutarlılığı, bot geçişleri ve komut serileştirmesini kapsar. Yeni kapsam; farklı geçit profillerini, eğimli yüzeylerin normalini, hız alanlarının yalnızca dikey hareketini, hızlanma/yavaşlama temasını, tek seferlik etkiyi, temel hıza dönüşü ve tüm parkur deseninin botlarla geçişini de doğrular. Tekrarlanan yatay/dikey dönüşlerin zamanlaması ve yön uyarıları, dönüşlerde kameranın ve takılmış roketlerin korunması, ekran yönünde kontrol, alt sınırdan eleme, iPhone/iPad boyutlarında parkurun ekrana sığması ve bilgi alanlarının dönüşte gizlenmesi ve dikey konumda üstte yeniden görünmesi da test edilir. Foundation tabanlı model ve simülasyon, simülatörden bağımsız olarak da test edilebilir.
+`FausCrewTests/Games/HouseRockets/HouseRocketsTests.swift` içindeki 27 test; tam daire yönlendirme ve sabit hız, bırakılan yönün korunması, lider takibi, engellerin sabit konumu, ölümcül olmayan platform/engel teması, yüzeyde kayarak kurtulma, engelin arka yüzü, tam arka sınır çıkışı, eşzamanlı elenmeler, süre sınırının olmaması, 30/120 FPS tutarlılığı, bot geçişleri ve komut serileştirmesini kapsar. Yeni kapsam; farklı geçit profillerini, eğimli yüzeylerin normalini, hız alanlarının yalnızca dikey hareketini, hızlanma/yavaşlama temasını, tek seferlik etkiyi, temel hıza dönüşü ve tüm parkur deseninin botlarla geçişini de doğrular. Tekrarlanan yatay/dikey dönüşlerin zamanlaması ve yön uyarıları, dönüşlerde kameranın ve takılmış roketlerin korunması, ekran yönünde kontrol, alt sınırdan eleme, iPhone/iPad boyutlarında parkurun ekrana sığması ve bilgi alanlarının dönüşte gizlenmesi ve dikey konumda üstte yeniden görünmesi da test edilir. Foundation tabanlı model ve simülasyon, simülatörden bağımsız olarak da test edilebilir.

@@ -15,6 +15,7 @@ struct EmailVerificationView: View {
     @State private var countdownDeadline: Date?
     @State private var countdownID = 0
     @State private var toastMessage: String?
+    @State private var toastHideTask: Task<Void, Never>?
     @State private var isShowingSignupSuccess = false
 
     init(
@@ -81,6 +82,7 @@ struct EmailVerificationView: View {
         .onAppear {
             presentSignupSuccessIfNeeded(signupSuccessMessage)
         }
+        .onDisappear { toastHideTask?.cancel() }
         .onChange(of: signupSuccessMessage) { _, newMessage in
             presentSignupSuccessIfNeeded(newMessage)
         }
@@ -458,8 +460,10 @@ struct EmailVerificationView: View {
         withAnimation(AppDesign.Animation.standard) {
             toastMessage = message
         }
-        Task {
+        toastHideTask?.cancel()
+        toastHideTask = Task {
             try? await Task.sleep(for: .seconds(3))
+            guard !Task.isCancelled else { return }
             withAnimation(AppDesign.Animation.standard) {
                 toastMessage = nil
             }
@@ -469,5 +473,5 @@ struct EmailVerificationView: View {
 
 #Preview {
     EmailVerificationView(email: "test@gmail.com")
-        .environmentObject(AppViewModel())
+        .environmentObject(AppViewModel.preview)
 }

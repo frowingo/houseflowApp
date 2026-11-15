@@ -87,10 +87,25 @@ grep -Eq 'public static java\.lang\.String fausSwitchOnlineViewport\(int handle,
 grep -Eq 'public static java\.lang\.String fausSwitchOnlineFrame\(int handle, double now\)' "$java_file"
 grep -Eq 'public static java\.lang\.String fausSwitchCatalogResponse\(java\.lang\.String houseId, int status, java\.lang\.String body\)' "$java_file"
 
+grep -Eq 'public static boolean houseTanksBotDestroy\(int handle\)' "$java_file"
+grep -Eq 'public static java\.lang\.String houseTanksBotCountdown\(int handle\)' "$java_file"
+grep -Eq 'public static java\.lang\.String houseTanksBotNextRound\(int handle\)' "$java_file"
+grep -Eq 'public static java\.lang\.String houseTanksBotRestart\(int handle\)' "$java_file"
+grep -Eq 'public static java\.lang\.String houseTanksBotPause\(int handle\)' "$java_file"
+grep -Eq 'public static java\.lang\.String houseTanksBotResume\(int handle\)' "$java_file"
+grep -Eq 'public static java\.lang\.String houseTanksCopy\(java\.lang\.String language\)' "$java_file"
+grep -Eq 'public static java\.lang\.String houseTanksConstants\(\)' "$java_file"
+grep -Eq 'public static java\.lang\.String choreCatalogRequestBody\(java\.lang\.String recordsJson\)' "$java_file"
+grep -Eq 'public static java\.lang\.String choreCatalogResponse\(java\.lang\.String action, int status, java\.lang\.String body, java\.lang\.String recordsJson, java\.lang\.String localJson\)' "$java_file"
+grep -Eq 'public static java\.lang\.String choreReviewSummary\(java\.lang\.String inputJson\)' "$java_file"
+grep -Eq 'public static java\.lang\.String limitedHouseName\(java\.lang\.String name\)' "$java_file"
+grep -Eq 'public static int houseNameLength\(java\.lang\.String name\)' "$java_file"
+grep -Eq 'public static boolean isHouseCreationValid\(java\.lang\.String name, int type, int memberCount\)' "$java_file"
+
 public_methods=$(grep -Ec '^[[:space:]]*public static .*\(' "$java_file")
-if [ "$public_methods" -ne 82 ]; then
-    echo "Expected exactly eighty-two public JNI methods, found ${public_methods}" >&2
+if [ "$public_methods" -ne 88 ]; then
+    echo "Expected exactly eighty-eight public JNI methods, found ${public_methods}" >&2
     exit 1
 fi
 
-echo 'Generated JNI API matches the version-16 Kotlin boundary.'
+echo 'Generated JNI API matches the version-19 Kotlin boundary.'

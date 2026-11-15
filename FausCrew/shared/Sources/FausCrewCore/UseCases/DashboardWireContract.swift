@@ -57,25 +57,41 @@ public enum DashboardWireContract {
         ))
     }
 
-    public static func validate(action: String, response: HTTPResponse, decoder: JSONDecoder = JSONDecoder()) throws {
+    /// Validates the response and returns what it carries, for clients that project it onto
+    /// their own models.
+    @discardableResult
+    public static func validate(
+        action: String, response: HTTPResponse, decoder: JSONDecoder = JSONDecoder()
+    ) throws -> DashboardWireResult {
         guard (200...399).contains(response.statusCode) else {
             throw HTTPStatusFailure(response: response, decoder: decoder)
         }
         switch action {
         case "create", "update", "review":
-            _ = try decoder.decode(ChoreResponse.self, from: response.body)
+            return .chore(try decoder.decode(ChoreResponse.self, from: response.body))
         case "status", "statusPhoto":
             let chores = try decoder.decode([ChoreResponse].self, from: response.body)
             guard !chores.isEmpty else { throw DashboardWireError.emptyStatusResult }
+            return .chores(chores)
         case "reviewPhoto":
-            _ = try decoder.decode(ChoreReviewPhotoURLResponse.self, from: response.body)
+            return .reviewPhoto(try decoder.decode(ChoreReviewPhotoURLResponse.self, from: response.body))
         case "announcement":
             let result = try decoder.decode(HouseAPIResponse<HouseAnnouncementDTO>.self, from: response.body)
-            guard result.success, result.data != nil else { throw DashboardWireError.rejected(result.error) }
+            guard result.success, let announcement = result.data else { throw DashboardWireError.rejected(result.error) }
+            return .announcement(announcement)
         default:
             throw DashboardWireError.unsupportedAction
         }
     }
+}
+
+public enum DashboardWireResult: Equatable, Sendable {
+    /// `create`, `update`, `review`.
+    case chore(ChoreResponse)
+    /// `status`, `statusPhoto`: never empty.
+    case chores([ChoreResponse])
+    case reviewPhoto(ChoreReviewPhotoURLResponse)
+    case announcement(HouseAnnouncementDTO)
 }
 
 public enum DashboardWireError: Error, Equatable {

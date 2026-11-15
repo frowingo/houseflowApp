@@ -91,6 +91,34 @@ final class HouseDTOTests: XCTestCase {
         XCTAssertNil(details.announcements.first?.updatedOn)
     }
 
+    func testAnnouncementReadsPublisherFromANestedObject() throws {
+        let announcement = try JSONDecoder().decode(HouseAnnouncementDTO.self, from: Data("""
+        {
+          "id": "announcement-2",
+          "title": "Bins",
+          "content": "Bins go out tonight",
+          "createdAt": { "time.Time": "2026-09-05T10:00:00Z" },
+          "createdBy": { "id": "user-2", "firstName": "Grace", "lastName": "Hopper" }
+        }
+        """.utf8))
+
+        XCTAssertEqual(announcement.publisherId, "user-2")
+        XCTAssertEqual(announcement.publisherName, "Grace Hopper")
+        XCTAssertEqual(announcement.message, "Bins go out tonight")
+        XCTAssertEqual(announcement.createdOn, "2026-09-05T10:00:00Z")
+    }
+
+    func testChoreFromAMutationResponseKeepsItsFields() throws {
+        let response = try JSONDecoder().decode(ChoreResponse.self, from: ChoreFixtures.responseWithMixedISOStringsAndNullOptionals)
+        let chore = HouseChoreDTO(response)
+
+        XCTAssertEqual(chore.id, "chore-1")
+        XCTAssertEqual(chore.dueDate, "2026-10-12T18:30:00.123Z")
+        XCTAssertEqual(chore.statusHistories.map(\.dateTime), ["2026-10-10T10:00:00Z"])
+        XCTAssertEqual(chore.reviewVotes, response.reviewVotes)
+        XCTAssertEqual(chore.categoryKind, response.categoryKind)
+    }
+
     func testHouseDetailsDecodesTimeObjectsAndNullOptionals() throws {
         let details = try JSONDecoder().decode(
             HouseDetailsResponse.self,

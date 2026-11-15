@@ -132,7 +132,7 @@ struct HouseTanksOnlineMatchView: View {
                     .allowsHitTesting(false)
                     .padding(.bottom, AppDesign.Spacing.xl)
                     .task {
-                        try? await Task.sleep(nanoseconds: 4_000_000_000)
+                        do { try await Task.sleep(nanoseconds: 4_000_000_000) } catch { return }
                         withAnimation(.easeOut(duration: 0.2)) { showsPressHint = false }
                     }
             }

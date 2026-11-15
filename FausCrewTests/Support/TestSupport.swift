@@ -48,6 +48,7 @@ final class FakeAuthService: AuthServicing {
     var isAuthHandler: () async throws -> IsAuthResponse = {
         throw TestError.unimplemented
     }
+    var logoutHandler: () -> Void = {}
     private(set) var logoutCallCount = 0
 
     func signup(
@@ -85,6 +86,7 @@ final class FakeAuthService: AuthServicing {
 
     func logout() {
         logoutCallCount += 1
+        logoutHandler()
     }
 }
 
@@ -485,4 +487,13 @@ enum TestFixture {
         )
         return (store, directory)
     }
+}
+
+/// A file in `FausCrew/shared/Fixtures`, located from this file so tests can live in any folder.
+nonisolated func sharedFixtureURL(_ name: String) -> URL {
+    URL(fileURLWithPath: #filePath)
+        .deletingLastPathComponent() // Support
+        .deletingLastPathComponent() // FausCrewTests
+        .deletingLastPathComponent() // repository root
+        .appendingPathComponent("FausCrew/shared/Fixtures/\(name)")
 }

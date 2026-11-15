@@ -275,6 +275,50 @@ final class HouseTanksEngineTests: XCTestCase {
         }
     }
 
+    func testBotsPlayTheSameAtAnyFrameRate() {
+        struct Outcome: Equatable {
+            var tanks: [[Double]]
+            var players: [[Int]]
+            var phase: HouseTanksPhase
+            var roundWins: [Int]
+            var botDrove: Bool
+        }
+        /// Plays `total` ticks of a seeded round as frames of the given tick counts. Each frame carries
+        /// a sub-tick epsilon so rounding in the accumulator can never lose a tick at a boundary;
+        /// the summed epsilons stay far below one tick, so every partition runs the same ticks.
+        func play(frameTicks: [Int], total: Int) -> Outcome {
+            var match = HouseTanksBotMatch(seed: 3)
+            match.start(configuration: .init(difficulty: .hard, humanColor: .plum, mapID: .courtyard))
+            while match.advanceCountdown() == false {}
+            var played = 0
+            var index = 0
+            var botDrove = false
+            while played < total, match.snapshot?.phase == .playing {
+                let ticks = min(frameTicks[index % frameTicks.count], total - played)
+                match.advance(by: Double(ticks) * HouseTanksWorld.fixedStep + 1e-9)
+                played += ticks
+                index += 1
+                botDrove = botDrove || match.world!.tanks.dropFirst().contains(where: \.isDriving)
+            }
+            let world = match.world!
+            let snapshot = match.snapshot!
+            return Outcome(
+                tanks: world.tanks.map { [$0.position.x, $0.position.y, $0.rotation, Double($0.armor), $0.isDriving ? 1 : 0] },
+                players: snapshot.players.map { [$0.armor, $0.isAlive ? 1 : 0, $0.roundsWon] },
+                phase: snapshot.phase,
+                roundWins: snapshot.players.map(\.roundsWon),
+                botDrove: botDrove
+            )
+        }
+        let total = 120 * 240
+        let at120 = play(frameTicks: [1], total: total)
+        XCTAssertTrue(at120.botDrove, "bots pressed")
+        XCTAssertTrue(at120.phase == .roundEnded || at120.phase == .matchEnded, "a round ended")
+        XCTAssertEqual(play(frameTicks: [2], total: total), at120)
+        XCTAssertEqual(play(frameTicks: [4], total: total), at120)
+        XCTAssertEqual(play(frameTicks: [1, 5, 2, 3, 1, 4], total: total), at120)
+    }
+
     func testBasementSeatsSixToEightTanksAtASmallerScale() {
         let basement = HouseTanksMapCatalog.definition(for: .basement)
         XCTAssertEqual(basement.playerCounts, 6...8)
@@ -319,6 +363,15 @@ final class HouseTanksEngineTests: XCTestCase {
         XCTAssertTrue(match.resume())
         match.advance(by: 0.05)
         XCTAssertNotEqual(match.world!.tanks[0].rotation, rotation)
+    }
+
+    func testBundledCopyIsTurkishOnlyForTurkishLanguages() {
+        let key = "house_tanks_subtitle"
+        XCTAssertEqual(HouseTanksLocalization.value(for: key, language: "tr-TR"), "Dokun, ateş et; basılı tut ve ilerle.")
+        for language in ["en", "de", "", nil] {
+            XCTAssertEqual(HouseTanksLocalization.value(for: key, language: language), "Press to fire; hold to advance.")
+        }
+        XCTAssertEqual(HouseTanksLocalization.table(language: "de")[key], "Press to fire; hold to advance.")
     }
 
     // MARK: - Helpers

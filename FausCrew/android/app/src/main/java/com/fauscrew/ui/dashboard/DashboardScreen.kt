@@ -10,6 +10,8 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.asPaddingValues
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -17,12 +19,12 @@ import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
-import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.layout.statusBars
+import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicText
 import androidx.compose.foundation.text.TextAutoSize
-import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -110,28 +112,39 @@ internal fun DashboardScreen(
     val members = rememberEntrance(320)
 
     Box(Modifier.fillMaxSize().mainScreenBackground()) {
-        Column(
-            Modifier.fillMaxSize().verticalScroll(rememberScrollState()).statusBarsPadding(),
+        LazyColumn(
+            Modifier.fillMaxSize(), contentPadding = WindowInsets.statusBars.asPaddingValues(),
             verticalArrangement = Arrangement.spacedBy(Spacing.lg),
         ) {
-            DashboardHeader(state, details.name, strings, Modifier.entrance(header, 12.dp)) {
-                popup = DashboardPopup.Announcement
+            item(key = "header") {
+                DashboardHeader(state, details.name, strings, Modifier.entrance(header, 12.dp)) {
+                    popup = DashboardPopup.Announcement
+                }
             }
-            AnnouncementCard(
-                announcements = details.announcements, members = details.members, readIds = readIds,
-                expanded = announcementsExpanded, strings = strings,
-                onToggleExpanded = { announcementsExpanded = !announcementsExpanded },
-                onToggleRead = { id ->
-                    readIds = if (id in readIds) readIds - id else readIds + id
-                    readStore.save(details.id, state.userId, readIds)
-                },
-                modifier = Modifier.padding(horizontal = Spacing.xl).entrance(announcements, 20.dp),
-            )
-            TodaysChoresCard(details.chores, details.members, strings, { popup = DashboardPopup.Chore(it.id) },
-                Modifier.padding(horizontal = Spacing.xxl).entrance(chores, 26.dp),
-                onAddChore = { popup = DashboardPopup.Catalog(ChoreCatalogEntry.Drafts) })
-            HouseMembersCard(details.members, strings, Modifier.padding(horizontal = Spacing.xxl).entrance(members, 26.dp))
-            Spacer(Modifier.navigationBarsPadding().height(TabBarClearance))
+            item(key = "announcements") {
+                AnnouncementCard(
+                    announcements = details.announcements, members = details.members, readIds = readIds,
+                    expanded = announcementsExpanded, strings = strings,
+                    onToggleExpanded = { announcementsExpanded = !announcementsExpanded },
+                    onToggleRead = { id ->
+                        readIds = if (id in readIds) readIds - id else readIds + id
+                        readStore.save(details.id, state.userId, readIds)
+                    },
+                    modifier = Modifier.padding(horizontal = Spacing.xl).entrance(announcements, 20.dp),
+                )
+            }
+            item(key = "chores") {
+                TodaysChoresCard(details.chores, details.members, strings, { popup = DashboardPopup.Chore(it.id) },
+                    Modifier.padding(horizontal = Spacing.xxl).entrance(chores, 26.dp),
+                    onAddChore = { popup = DashboardPopup.Catalog(ChoreCatalogEntry.Drafts) })
+            }
+            item(key = "members") {
+                HouseMembersCard(details.members, strings,
+                    Modifier.padding(horizontal = Spacing.xxl).entrance(members, 26.dp))
+            }
+            item(key = "bottom-clearance") {
+                Spacer(Modifier.navigationBarsPadding().height(TabBarClearance))
+            }
         }
         FausCrewToast(
             message = state.mutationError ?: state.mutationMessageKey?.let(strings::get),

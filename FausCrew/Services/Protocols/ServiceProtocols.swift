@@ -4,7 +4,7 @@ import FausCrewCore
 @MainActor
 protocol NetworkServicing: AnyObject {
     @MainActor
-    func request<Body: Encodable, Success: Decodable>(
+    func request<Body: Encodable, Success: Decodable & Sendable>(
         path: String,
         method: String,
         body: Body,
@@ -12,7 +12,7 @@ protocol NetworkServicing: AnyObject {
     ) async throws -> Success
 
     @MainActor
-    func authenticatedRequest<Body: Encodable, Success: Decodable>(
+    func authenticatedRequest<Body: Encodable, Success: Decodable & Sendable>(
         path: String,
         method: String,
         body: Body,
@@ -21,7 +21,7 @@ protocol NetworkServicing: AnyObject {
     ) async throws -> Success
 
     @MainActor
-    func authenticatedRequest<Body: Encodable, Success: Decodable>(
+    func authenticatedRequest<Body: Encodable, Success: Decodable & Sendable>(
         path: String,
         method: String,
         queryItems: [URLQueryItem],
@@ -31,7 +31,7 @@ protocol NetworkServicing: AnyObject {
     ) async throws -> Success
 
     @MainActor
-    func authenticatedMultipartRequest<Success: Decodable>(
+    func authenticatedMultipartRequest<Success: Decodable & Sendable>(
         path: String,
         method: String,
         form: MultipartFormData,
@@ -40,14 +40,14 @@ protocol NetworkServicing: AnyObject {
     ) async throws -> Success
 
     @MainActor
-    func get<Success: Decodable>(
+    func get<Success: Decodable & Sendable>(
         path: String,
         queryItems: [URLQueryItem],
         successType: Success.Type
     ) async throws -> Success
 
     @MainActor
-    func get<Success: Decodable>(
+    func get<Success: Decodable & Sendable>(
         path: String,
         queryItems: [URLQueryItem],
         successType: Success.Type,

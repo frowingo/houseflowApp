@@ -6,6 +6,7 @@ typealias HouseTanksOnlineHost = GameOnlineHost<HouseTanksOnlineEngine>
 extension HouseTanksOnlineEngine: GameOnlineHostedEngine {
     static var gameKey: String { GameKey.houseTanks }
     var lobbyIssue: GameOnlineLobbyIssue? { lobby.issue }
+    var canRematch: Bool { result.canRematch }
 }
 
 extension GameOnlineHost where Engine == HouseTanksOnlineEngine {

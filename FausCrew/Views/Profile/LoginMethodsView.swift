@@ -27,11 +27,11 @@ struct LoginMethodsView: View {
                 }
                 if profile?.hasPassword == false {
                     Section {
-                        Button(appViewModel.social("login_methods_set_password", tr: "Şifre belirle", en: "Set a password")) {
+                        Button(appViewModel.localized("login_methods_set_password", tr: "Şifre belirle", en: "Set a password")) {
                             showSetPassword = true
                         }
                     } footer: {
-                        Text(appViewModel.social(
+                        Text(appViewModel.localized(
                             "login_methods_set_password_hint",
                             tr: "Emailine bir kod göndeririz; şifreni o kodla belirlersin.",
                             en: "We'll email you a code that lets you choose a password."
@@ -44,7 +44,7 @@ struct LoginMethodsView: View {
                     }
                 }
             }
-            .navigationTitle(appViewModel.social("profile_login_methods_label", tr: "Giriş yöntemleri", en: "Sign-in methods"))
+            .navigationTitle(appViewModel.localized("profile_login_methods_label", tr: "Giriş yöntemleri", en: "Sign-in methods"))
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .confirmationAction) {
@@ -66,8 +66,8 @@ struct LoginMethodsView: View {
             VStack(alignment: .leading, spacing: 2) {
                 Text(name(of: provider))
                 Text(linked.contains(provider)
-                     ? appViewModel.social("login_methods_linked", tr: "Bağlı", en: "Linked")
-                     : appViewModel.social("login_methods_not_linked", tr: "Bağlı değil", en: "Not linked"))
+                     ? appViewModel.localized("login_methods_linked", tr: "Bağlı", en: "Linked")
+                     : appViewModel.localized("login_methods_not_linked", tr: "Bağlı değil", en: "Not linked"))
                     .font(AppDesign.Typography.caption)
                     .foregroundColor(AppDesign.Colors.textSecondary)
             }
@@ -75,11 +75,11 @@ struct LoginMethodsView: View {
             if busyProvider == provider {
                 ProgressView()
             } else if linked.contains(provider) {
-                Button(appViewModel.social("login_methods_unlink", tr: "Kaldır", en: "Remove"), role: .destructive) {
+                Button(appViewModel.localized("login_methods_unlink", tr: "Kaldır", en: "Remove"), role: .destructive) {
                     Task { await unlink(provider) }
                 }
             } else {
-                Button(appViewModel.social("login_methods_link", tr: "Bağla", en: "Link")) {
+                Button(appViewModel.localized("login_methods_link", tr: "Bağla", en: "Link")) {
                     Task { await link(provider) }
                 }
             }
@@ -122,7 +122,7 @@ struct LoginMethodsView: View {
         } catch {
             // 409: the only way in. Suggest a password or another provider first.
             message = error.statusCode == 409
-                ? error.message + " " + appViewModel.social(
+                ? error.message + " " + appViewModel.localized(
                     "login_methods_only_method_hint",
                     tr: "Önce şifre belirle ya da başka bir yöntem bağla.",
                     en: "Set a password or link another method first."

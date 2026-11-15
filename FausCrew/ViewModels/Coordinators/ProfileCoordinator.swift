@@ -48,7 +48,11 @@ final class ProfileCoordinator {
     func joinHouse(inviteCode: String) async throws -> HouseResponse {
         let normalizedCode = InviteCodeRules.normalized(inviteCode)
         guard InviteCodeRules.isValid(normalizedCode) else {
-            throw NetworkError.serverError("Invite code must contain 8 letters or numbers.")
+            throw NetworkError.serverError(localizationStore.value(
+                for: "error_invite_code_invalid",
+                tr: "Davet kodu 8 harf veya rakamdan oluşmalı.",
+                en: "Invite code must contain 8 letters or numbers."
+            ))
         }
 
         let house = try await houseStore.joinHouse(inviteCode: normalizedCode)
@@ -58,7 +62,11 @@ final class ProfileCoordinator {
 
     func createHouse(name: String, type: Int, maxMemberCount: Int) async throws -> HouseResponse {
         guard HouseCreationRules.isValid(name: name, type: type, memberCount: maxMemberCount) else {
-            throw NetworkError.serverError("Enter a house name, a house type and a member count.")
+            throw NetworkError.serverError(localizationStore.value(
+                for: "error_house_details_required",
+                tr: "Ev adı, ev türü ve üye sayısını girin.",
+                en: "Enter a house name, a house type and a member count."
+            ))
         }
 
         let house = try await houseStore.createHouse(

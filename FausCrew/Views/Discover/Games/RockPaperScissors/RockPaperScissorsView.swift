@@ -421,5 +421,5 @@ struct RockPaperScissorsView: View {
 }
 
 #Preview {
-    NavigationStack { RockPaperScissorsView().environmentObject(AppViewModel()) }
+    NavigationStack { RockPaperScissorsView().environmentObject(AppViewModel.preview) }
 }

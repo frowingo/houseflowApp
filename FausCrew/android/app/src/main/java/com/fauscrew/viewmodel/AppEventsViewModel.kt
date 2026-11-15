@@ -16,6 +16,7 @@ import com.fauscrew.platform.RealtimeSocketFactory
 import com.fauscrew.platform.RealtimeSocketListener
 import com.fauscrew.platform.SessionField
 import com.fauscrew.platform.SessionReadResult
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.channels.Channel
@@ -90,20 +91,26 @@ internal class AppEventsViewModel(
         closeSocket()
         socketConnection = effect.connection
         viewModelScope.launch {
-            val bearer = token()
-            if (socketConnection != effect.connection) return@launch
-            if (bearer == null) {
-                report("connectionFailed", effect.connection, mapOf("status" to 401))
-                return@launch
-            }
-            socket = sockets.open(effect.path, "", bearer, object : RealtimeSocketListener {
-                override fun onOpen() = post { report("socketOpened", effect.connection) }
-                override fun onText(text: String) = post { report("received", effect.connection, mapOf("text" to text)) }
-                override fun onFailure(failure: OnlineFailure) = post {
-                    val status = (failure as? OnlineFailure.Http)?.status ?: if (failure == OnlineFailure.Forbidden) 403 else null
-                    report("connectionFailed", effect.connection, mapOf("status" to status))
+            try {
+                val bearer = token()
+                if (socketConnection != effect.connection) return@launch
+                if (bearer == null) {
+                    report("connectionFailed", effect.connection, mapOf("status" to 401))
+                    return@launch
                 }
-            })
+                socket = sockets.open(effect.path, "", bearer, object : RealtimeSocketListener {
+                    override fun onOpen() = post { report("socketOpened", effect.connection) }
+                    override fun onText(text: String) = post { report("received", effect.connection, mapOf("text" to text)) }
+                    override fun onFailure(failure: OnlineFailure) = post {
+                        val status = (failure as? OnlineFailure.Http)?.status ?: if (failure == OnlineFailure.Forbidden) 403 else null
+                        report("connectionFailed", effect.connection, mapOf("status" to status))
+                    }
+                })
+            } catch (cancel: CancellationException) {
+                throw cancel
+            } catch (_: Exception) {
+                report("connectionFailed", effect.connection, mapOf("status" to null))
+            }
         }
     }
 

@@ -189,6 +189,7 @@ final class AuthSessionStore: ObservableObject {
 
     func logout() {
         socialCredentials?.signOutAll()
+        socialCredentials?.clearLocalData()
         socialPending = nil
         authService.logout()
         clearPendingEmailVerification()

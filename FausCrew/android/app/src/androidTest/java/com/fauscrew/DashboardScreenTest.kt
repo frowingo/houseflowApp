@@ -1,9 +1,13 @@
 package com.fauscrew
 
 import androidx.compose.ui.test.junit4.createComposeRule
+import androidx.compose.ui.test.hasContentDescription
+import androidx.compose.ui.test.hasScrollAction
+import androidx.compose.ui.test.hasText
 import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
+import androidx.compose.ui.test.performScrollToNode
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.fauscrew.platform.HouseDetails
 import com.fauscrew.platform.HouseMember
@@ -35,7 +39,7 @@ class DashboardScreenTest {
         "common_close" to "Close", "tab_home" to "Home", "tab_profile" to "Profile",
         "tab_games" to "Games", "new_chore_title" to "New Chore",
     ))
-    private val details = HouseDetails("h", "Ada's home", "{}", "u",
+    private val details = HouseDetails("h", "Ada's home", "u",
         members = listOf(HouseMember("u", "Ada", "A", "")))
     private val state = HouseUiState(route = HouseRoute.DASHBOARD, details = details,
         houses = listOf(HouseSummary("h", "Ada's home", "")), userId = "u", firstName = "Ada")
@@ -45,7 +49,9 @@ class DashboardScreenTest {
         compose.setContent { DashboardScreen(state, text, { _, _ -> publishes++ }, {}, { _, _, _ -> }, { _, _ -> }, {}) }
         compose.onNodeWithText("Ada's home").assertExists()
         compose.onNodeWithText("All Done!").assertExists()
+        compose.onNode(hasScrollAction()).performScrollToNode(hasText("House Members"))
         compose.onNodeWithText("House Members").assertExists()
+        compose.onNode(hasScrollAction()).performScrollToNode(hasContentDescription("Create announcement"))
         compose.onNodeWithContentDescription("Create announcement").performClick()
         compose.onNodeWithText("New announcement").assertExists()
         compose.runOnIdle { assertEquals(0, publishes) }
@@ -55,12 +61,14 @@ class DashboardScreenTest {
         compose.setContent { DashboardScreen(state, text, { _, _ -> }, {}, { _, _, _ -> }, { _, _ -> }, {}) }
         compose.onNodeWithContentDescription("New Chore").assertDoesNotExist()
         compose.onNodeWithText("Chore Catalog").assertDoesNotExist()
+        compose.onNode(hasScrollAction()).performScrollToNode(hasContentDescription("Open the chore catalog"))
         compose.onNodeWithContentDescription("Open the chore catalog").performClick()
         compose.onNodeWithText("Chore Catalog").assertExists()
     }
 
     @Test fun emptyTodaysTasksOffersTheCatalog() {
         compose.setContent { DashboardScreen(state, text, { _, _ -> }, {}, { _, _, _ -> }, { _, _ -> }, {}) }
+        compose.onNode(hasScrollAction()).performScrollToNode(hasText("Add from the catalog"))
         compose.onNodeWithText("Add from the catalog").performClick()
         compose.onNodeWithText("Chore Catalog").assertExists()
     }

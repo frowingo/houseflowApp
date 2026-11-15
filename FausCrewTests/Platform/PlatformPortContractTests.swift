@@ -1,4 +1,5 @@
 import XCTest
+import Security
 import FausCrewCore
 @testable import FausCrew
 
@@ -55,10 +56,7 @@ final class PlatformPortContractTests: XCTestCase {
     }
 
     private func platformHTTPFixture() throws -> [String: String] {
-        let repositoryDirectory = URL(fileURLWithPath: #filePath)
-            .deletingLastPathComponent().deletingLastPathComponent()
-        let path = repositoryDirectory.appendingPathComponent("FausCrew/shared/Fixtures/platform_http_contract.txt")
-        let text = try String(contentsOf: path, encoding: .utf8)
+        let text = try String(contentsOf: sharedFixtureURL("platform_http_contract.txt"), encoding: .utf8)
         return Dictionary(uniqueKeysWithValues: text.split(separator: "\n").map { line in
             let parts = line.split(separator: "=", maxSplits: 1, omittingEmptySubsequences: false)
             return (String(parts[0]), String(parts[1]))
@@ -114,6 +112,75 @@ final class PlatformPortContractTests: XCTestCase {
         XCTAssertEqual(port.authToken, "updated-token")
         port.authToken = nil
         XCTAssertNil(port.authToken)
+    }
+
+    func testSaveMovesExistingItemToThisDeviceOnlyClass() throws {
+        let service = "PlatformPortContractTests-\(UUID().uuidString)"
+        let keychain = KeychainService(service: service)
+        defer { keychain.delete(forKey: KeychainService.authTokenKey) }
+        // An item as older builds stored it: no explicit accessibility class.
+        let legacy: [CFString: Any] = [
+            kSecClass: kSecClassGenericPassword,
+            kSecAttrService: service,
+            kSecAttrAccount: KeychainService.authTokenKey,
+            kSecValueData: Data("old-token".utf8)
+        ]
+        guard SecItemAdd(legacy as CFDictionary, nil) == errSecSuccess else {
+            throw XCTSkip("Unsigned simulator test host has no usable Keychain access")
+        }
+        XCTAssertNotEqual(accessibility(service: service, key: KeychainService.authTokenKey),
+                          kSecAttrAccessibleAfterFirstUnlockThisDeviceOnly as String)
+
+        XCTAssertTrue(keychain.save("new-token", forKey: KeychainService.authTokenKey))
+        XCTAssertEqual(keychain.authToken, "new-token")
+        XCTAssertEqual(accessibility(service: service, key: KeychainService.authTokenKey),
+                       kSecAttrAccessibleAfterFirstUnlockThisDeviceOnly as String)
+    }
+
+    func testSavingLoadedUnchangedValueMigratesOnce() throws {
+        let service = "PlatformPortContractTests-\(UUID().uuidString)"
+        let keychain = KeychainService(service: service)
+        let key = KeychainService.userEmailKey
+        defer { keychain.delete(forKey: key) }
+        let legacy: [CFString: Any] = [
+            kSecClass: kSecClassGenericPassword,
+            kSecAttrService: service,
+            kSecAttrAccount: key,
+            kSecValueData: Data("user@example.com".utf8)
+        ]
+        guard SecItemAdd(legacy as CFDictionary, nil) == errSecSuccess else {
+            throw XCTSkip("Unsigned simulator test host has no usable Keychain access")
+        }
+        XCTAssertEqual(keychain.load(forKey: key), "user@example.com")
+        XCTAssertNotEqual(accessibility(service: service, key: key),
+                          kSecAttrAccessibleAfterFirstUnlockThisDeviceOnly as String)
+
+        XCTAssertTrue(keychain.save("user@example.com", forKey: key))
+        XCTAssertEqual(accessibility(service: service, key: key),
+                       kSecAttrAccessibleAfterFirstUnlockThisDeviceOnly as String)
+
+        let writer = KeychainService(service: service)
+        XCTAssertTrue(writer.save("external@example.com", forKey: key))
+        XCTAssertTrue(keychain.save("user@example.com", forKey: key))
+
+        XCTAssertEqual(keychain.load(forKey: key), "user@example.com")
+        XCTAssertEqual(KeychainService(service: service).load(forKey: key), "external@example.com")
+    }
+
+    // MARK: Keychain helpers
+
+    private func accessibility(service: String, key: String) -> String? {
+        let query: [CFString: Any] = [
+            kSecClass: kSecClassGenericPassword,
+            kSecAttrService: service,
+            kSecAttrAccount: key,
+            kSecReturnAttributes: true,
+            kSecMatchLimit: kSecMatchLimitOne
+        ]
+        var result: AnyObject?
+        guard SecItemCopyMatching(query as CFDictionary, &result) == errSecSuccess,
+              let attributes = result as? [String: Any] else { return nil }
+        return attributes[kSecAttrAccessible as String] as? String
     }
 }
 

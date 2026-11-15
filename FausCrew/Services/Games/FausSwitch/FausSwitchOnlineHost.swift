@@ -6,6 +6,7 @@ typealias FausSwitchOnlineHost = GameOnlineHost<FausSwitchOnlineEngine>
 extension FausSwitchOnlineEngine: GameOnlineHostedEngine {
     static var gameKey: String { GameKey.fausSwitch }
     var lobbyIssue: GameOnlineLobbyIssue? { lobby.issue }
+    var canRematch: Bool { result.canRematch }
 }
 
 extension GameOnlineHost where Engine == FausSwitchOnlineEngine {

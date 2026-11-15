@@ -1,7 +1,7 @@
 import SwiftUI
 
 /// Global toast notification that slides in from the top.
-/// Driven by `AppViewModel.toastMessage`.
+/// Driven by `ToastStore` via `ToastOverlay` in `RootView`.
 struct ToastView: View {
     let message: String
     let isError: Bool

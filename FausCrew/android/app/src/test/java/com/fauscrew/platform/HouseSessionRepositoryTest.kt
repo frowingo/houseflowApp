@@ -4,6 +4,7 @@ import kotlinx.coroutines.runBlocking
 import org.json.JSONObject
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
+import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
@@ -35,7 +36,7 @@ class HouseSessionRepositoryTest {
     }
 
     @Test fun detailsUseHouseIdQueryAndRejectOtherHouse() = runBlocking {
-        response = """{"success":true,"data":{"id":"h","name":"Home","members":[{"id":"u","firstName":"Ada","lastName":"A"}],"chores":[{"id":"c","houseId":"h","title":"Dishes"}],"announcements":[]}}"""
+        response = """{"success":true,"data":{"id":"h","name":"Home","members":[{"id":"u","firstName":"Ada","lastName":"A","imageUrl":""}],"chores":[{"id":"c","houseId":"h","title":"Dishes"}],"announcements":[]}}"""
         val details = repo.details("h")
         assertEquals(listOf("Ada A"), details.members.map { it.name })
         assertEquals(listOf("Dishes"), details.chores.map { it.title })
@@ -43,6 +44,32 @@ class HouseSessionRepositoryTest {
         assertEquals("houseId", requests.single().queryItems.single().name)
         response = """{"success":true,"data":{"id":"other","name":"Wrong"}}"""
         assertTrue(runCatching { repo.details("h") }.exceptionOrNull() is HouseRequestException)
+    }
+
+    @Test fun detailsReadTheBridgesNormalizedFields() = runBlocking {
+        response = """{"success":true,"data":{"id":"h","name":"Home","ownerId":"u",
+            "chores":[{"id":"c","houseId":"h","title":"Dishes","status":4,"dueDate":"2026-10-12T18:30:00Z","category":3,
+                "failureReason":"dueDatePassed","reviewVotes":[{"reviewRound":1,"reviewerId":"v","isApproved":false}]},
+                {"id":"d","houseId":"h","title":"Trash","status":1,"category":0}],
+            "announcements":[{"id":"a","title":"Bins","message":"Tonight","createdOn":"2026-09-05T10:00:00Z","isActive":false,
+                "publisherId":"u","publisherName":"Ada A"},
+                {"id":"b","title":"Rent","message":"","createdOn":"2026-09-06T10:00:00Z","isActive":true}]}}"""
+        val details = repo.details("h")
+        assertEquals("u", details.ownerId)
+        val (failed, active) = details.chores
+        assertEquals(ChoreFailureReason.DUE_DATE_PASSED, failed.failureReason)
+        assertEquals("2026-10-12T18:30:00Z", failed.dueDate)
+        assertEquals(ChoreCategoryKind.TOILET, failed.categoryKind)
+        assertEquals(HouseVote(1, "v", false), failed.reviewVotes.single())
+        assertNull(active.failureReason)
+        val (announcement, anonymous) = details.announcements
+        assertEquals("u", announcement.publisherId)
+        assertEquals("Ada A", announcement.publisherName)
+        assertEquals("2026-09-05T10:00:00Z", announcement.createdOn)
+        assertFalse(announcement.isActive)
+        assertNull(anonymous.publisherId)
+        assertNull(anonymous.publisherName)
+        assertNull(anonymous.houseId)
     }
 
     @Test fun infoInviteExitAndProfileUseExistingEndpoints() = runBlocking {
@@ -86,6 +113,24 @@ class HouseSessionRepositoryTest {
         response = """{"success":false,"error":"Daily change limit reached."}"""
         val failure = runCatching { repo.updateProfile("h", "Home", 1, 4, "", true) }.exceptionOrNull()
         assertEquals("Daily change limit reached.", (failure as HouseRequestException).serverMessage)
+    }
+
+    @Test fun unauthorizedResponseCarriesStatus() = runBlocking {
+        val unauthorized = HouseSessionRepository(
+            send = { PlatformHttpResponse(401, emptyMap(), """{"success":false,"error":"Expired"}""".toByteArray()) },
+            read = { SessionReadResult.Value("token") }, wire = wire,
+        )
+        val error = runCatching { unauthorized.details("h") }.exceptionOrNull() as HouseRequestException
+        assertEquals(401, error.status)
+        assertEquals("Expired", error.serverMessage)
+    }
+
+    @Test fun absentOrUnreadableTokenIsUnauthorizedWithoutSending() = runBlocking {
+        for (token in listOf(SessionReadResult.Missing, SessionReadResult.ReauthenticationRequired)) {
+            val missing = HouseSessionRepository(send = { error("must not send") }, read = { token }, wire = wire)
+            val error = runCatching { missing.details("h") }.exceptionOrNull() as HouseRequestException
+            assertEquals(401, error.status)
+        }
     }
 
     @Test fun serverFailureDoesNotBecomeHouseDetails() = runBlocking {

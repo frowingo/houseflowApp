@@ -112,9 +112,8 @@ internal class DashboardRepository(
     }
 
     suspend fun announce(houseId: String, title: String, message: String): HouseAnnouncement = withContext(Dispatchers.IO) {
-        val data = JSONObject(call("announcement", "house/announcement", "POST",
-            wire.body("announcement", houseId = houseId, title = title, description = message)))
-        data.getJSONObject("data").toHouseAnnouncement()
+        JSONObject(call("announcement", "house/announcement", "POST",
+            wire.body("announcement", houseId = houseId, title = title, description = message))).toHouseAnnouncement()
     }
 
     private suspend fun call(
@@ -122,13 +121,13 @@ internal class DashboardRepository(
         multipart: List<PlatformMultipartPart>? = null,
     ): String = withContext(Dispatchers.IO) {
         val token = (read(SessionField.AUTH_TOKEN) as? SessionReadResult.Value)?.value
-            ?: throw HouseRequestException(null)
+            ?: throw HouseRequestException(null, 401)
         val response = send(PlatformHttpRequest(path = path, method = method,
             headers = mapOf("Authorization" to "Bearer $token") +
                 (if (body != null) mapOf("Content-Type" to "application/json") else emptyMap()),
             body = body?.toByteArray(Charsets.UTF_8), multipart = multipart))
         val result = JSONObject(wire.response(action, response.statusCode, response.body.decodeToString()))
-        if (!result.optBoolean("ok")) throw HouseRequestException(result.optString("message").ifBlank { null })
+        if (!result.optBoolean("ok")) throw HouseRequestException(result.optString("message").ifBlank { null }, response.statusCode)
         result.getString("data")
     }
 

@@ -123,5 +123,5 @@ struct CardButtonStyle: ButtonStyle {
 
 #Preview {
     HouseSelectionView()
-        .environmentObject(AppViewModel())
+        .environmentObject(AppViewModel.preview)
 }

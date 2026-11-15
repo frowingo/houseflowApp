@@ -145,6 +145,7 @@ internal class AuthViewModel(
     private var sessionJob: Job? = null
     private var accountJob: Job? = null
     private var profileJob: Job? = null
+    private var refreshProfileJob: Job? = null
     private var imageJob: Job? = null
     private var languageJob: Job? = null
     private var backgroundAt: Long? = null
@@ -180,6 +181,7 @@ internal class AuthViewModel(
     private fun signup() {
         val current = state.value
         if (!current.canSubmit) return
+        refreshProfileJob?.cancel()
         sessionJob?.cancel()
         sessionJob = viewModelScope.launch {
             mutableState.value = current.copy(busy = true, error = null)
@@ -291,6 +293,7 @@ internal class AuthViewModel(
     fun login() {
         val current = state.value
         if (!current.canSubmit) return
+        refreshProfileJob?.cancel()
         sessionJob?.cancel()
         sessionJob = viewModelScope.launch {
             mutableState.value = current.copy(busy = true, error = null)
@@ -331,14 +334,18 @@ internal class AuthViewModel(
     }
 
     fun restore() {
+        val hadProfile = state.value.profile != null
+        refreshProfileJob?.cancel()
         sessionJob?.cancel()
         sessionJob = viewModelScope.launch {
             mutableState.value = mutableState.value.copy(route = AuthRoute.Restoring, busy = true, error = null)
             try {
                 when (val result = session.restore()) {
-                    AuthRestoreResult.SignedOut -> mutableState.value = mutableState.value.copy(
-                        route = signedOutRoute(preferences.hasSeenOnboarding()), busy = false,
-                    )
+                    AuthRestoreResult.SignedOut -> {
+                        cancelProfileWork()
+                        if (hadProfile) socialCredentials.signOutAll()
+                        clearSignedInState()
+                    }
                     is AuthRestoreResult.PendingEmailVerification -> mutableState.value = mutableState.value.copy(
                         route = AuthRoute.Next(AuthDestination.EMAIL_VERIFICATION, result.email), busy = false,
                         verificationSent = false, code = "", signupSuccess = false,
@@ -366,7 +373,8 @@ internal class AuthViewModel(
     fun refreshProfile() {
         val signedIn = mutableState.value.profile ?: return
         if (mutableState.value.route !is AuthRoute.Next) return
-        viewModelScope.launch {
+        refreshProfileJob?.cancel()
+        refreshProfileJob = viewModelScope.launch {
             val result = try { session.restore() } catch (cancel: CancellationException) { throw cancel }
                 catch (_: Exception) { return@launch }
             val current = mutableState.value
@@ -382,18 +390,13 @@ internal class AuthViewModel(
 
     fun logout() {
         sessionJob?.cancel()
-        profileJob?.cancel()
-        imageJob?.cancel()
-        languageJob?.cancel()
-        accountJob?.cancel()
+        cancelProfileWork()
         sessionJob = viewModelScope.launch {
             mutableState.value = mutableState.value.copy(busy = true)
             try {
                 session.logout()
                 socialCredentials.signOutAll()
-                mutableProfileState.value = ProfileUiState()
-                mutableAccountState.value = AccountUiState()
-                mutableState.value = signedOutState()
+                clearSignedInState()
             } catch (cancel: CancellationException) {
                 throw cancel
             } catch (_: Exception) {
@@ -402,6 +405,20 @@ internal class AuthViewModel(
                 )
             }
         }
+    }
+
+    private fun cancelProfileWork() {
+        refreshProfileJob?.cancel()
+        profileJob?.cancel()
+        imageJob?.cancel()
+        languageJob?.cancel()
+        accountJob?.cancel()
+    }
+
+    private suspend fun clearSignedInState() {
+        mutableProfileState.value = ProfileUiState()
+        mutableAccountState.value = AccountUiState()
+        mutableState.value = signedOutState()
     }
 
     fun loadProfileImages(category: String) {
@@ -466,10 +483,12 @@ internal class AuthViewModel(
             try {
                 repository.update(current.userId, ProfileChange(language = prefix))
                 localization.select(prefix, forceRefresh = true)
+                refreshProfileJob?.cancel()
                 session.logout()
                 imageJob?.cancel()
                 languageJob?.cancel()
                 mutableProfileState.value = ProfileUiState()
+                mutableAccountState.value = AccountUiState()
                 mutableState.value = signedOutState().copy(
                     notice = localization.text.value.get("language_settings_relogin_message"))
             } catch (cancel: CancellationException) { throw cancel }
@@ -501,6 +520,7 @@ internal class AuthViewModel(
             mutableState.value = current.copy(error = null, info = SocialMessages.notConfigured(provider))
             return
         }
+        refreshProfileJob?.cancel()
         sessionJob?.cancel()
         sessionJob = viewModelScope.launch {
             mutableState.value = current.copy(busy = true, error = null, notice = null, info = null)
@@ -556,6 +576,7 @@ internal class AuthViewModel(
         val current = state.value
         val pending = current.socialPending ?: return
         if (current.busy || pending.code.length != 6) return
+        refreshProfileJob?.cancel()
         sessionJob?.cancel()
         sessionJob = viewModelScope.launch {
             mutableState.value = current.copy(busy = true, error = null)
@@ -711,10 +732,9 @@ internal class AuthViewModel(
                 return@launch
             }
             sessionJob?.cancel(); profileJob?.cancel(); imageJob?.cancel(); languageJob?.cancel()
+            refreshProfileJob?.cancel()
             socialCredentials.signOutAll()
-            mutableProfileState.value = ProfileUiState()
-            mutableAccountState.value = AccountUiState()
-            mutableState.value = signedOutState()
+            clearSignedInState()
         }
     }
 

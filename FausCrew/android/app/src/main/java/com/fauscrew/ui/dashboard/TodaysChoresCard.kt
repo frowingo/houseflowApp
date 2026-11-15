@@ -38,6 +38,7 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
@@ -45,7 +46,6 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.blur
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.draw.rotate
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
@@ -92,7 +92,7 @@ internal fun TodaysChoresCard(
     /** Opens the chore catalog (header tile and empty state); `null` hides both entries. */
     onAddChore: (() -> Unit)? = null,
 ) {
-    val completed = chores.count { ChoreStatusUi.of(it.status) == ChoreStatusUi.COMPLETED }
+    val completed = remember(chores) { chores.count { ChoreStatusUi.of(it.status) == ChoreStatusUi.COMPLETED } }
     val progress = if (chores.isEmpty()) 0f else completed.toFloat() / chores.size
     val shape = RoundedCornerShape(Radius.xl)
     Column(
@@ -114,19 +114,19 @@ internal fun TodaysChoresCard(
             ChoresEmptyState(strings, onAddChore)
         } else {
             // Active chores first; Completed and Failed (and unknown) follow as the history.
-            val (active, history) = chores.splitByHistory()
+            val (active, history) = remember(chores) { chores.splitByHistory() }
+            val historyHeaderId = history.firstOrNull()?.id.takeIf { active.isNotEmpty() }
             Column(Modifier.padding(Spacing.xl), verticalArrangement = Arrangement.spacedBy(Spacing.md)) {
-                active.forEach { chore ->
-                    ModernChoreRow(chore, members.firstOrNull { it.id == chore.assignedTo }, strings) { onChoreTap(chore) }
-                }
-                if (history.isNotEmpty() && active.isNotEmpty()) {
-                    Text(strings.social("todays_tasks_history_label", "Geçmiş", "History").uppercase(),
-                        Modifier.fillMaxWidth().padding(top = Spacing.xs).semantics { heading() },
-                        fontSize = 11.sp, fontWeight = FontWeight.SemiBold, letterSpacing = .5.sp,
-                        color = FausCrewColors.textTertiary)
-                }
-                history.forEach { chore ->
-                    ModernChoreRow(chore, members.firstOrNull { it.id == chore.assignedTo }, strings) { onChoreTap(chore) }
+                (active + history).forEach { chore ->
+                    if (chore.id == historyHeaderId) {
+                        Text(strings.social("todays_tasks_history_label", "Geçmiş", "History").uppercase(),
+                            Modifier.fillMaxWidth().padding(top = Spacing.xs).semantics { heading() },
+                            fontSize = 11.sp, fontWeight = FontWeight.SemiBold, letterSpacing = .5.sp,
+                            color = FausCrewColors.textTertiary)
+                    }
+                    key(chore.id) {
+                        ModernChoreRow(chore, members.firstOrNull { it.id == chore.assignedTo }, strings) { onChoreTap(chore) }
+                    }
                 }
             }
         }

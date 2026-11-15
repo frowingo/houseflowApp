@@ -209,6 +209,6 @@ struct HouseMembersCard: View {
         User(name: "Abdüllatif", points: 10),
         User(name: "Katya", points: 6)
     ])
-    .environmentObject(AppViewModel())
+    .environmentObject(AppViewModel.preview)
     .padding()
 }

@@ -10,7 +10,6 @@ struct JoinHousePopup: View {
     @State private var inviteCode = ""
     @State private var isJoining = false
     @State private var errorMessage: String?
-    @AccessibilityFocusState private var headerAccessibilityFocused: Bool
 
     private let tint = Color(red: 0.12, green: 0.55, blue: 0.54)
 
@@ -38,15 +37,19 @@ struct JoinHousePopup: View {
                     .padding(.horizontal, AppDesign.Spacing.lg)
             }
         }
-        .task {
-            headerAccessibilityFocused = true
-        }
     }
 
     private var popupContent: some View {
-        VStack(spacing: 0) {
-            header
-
+        FausPopupShell(
+            watermark: Image(systemName: "house.and.flag.fill"),
+            watermarkOffset: 85,
+            title: appViewModel.localized("profile_house_join_title", fallback: "Join a house"),
+            subtitle: appViewModel.localized("profile_house_join_subtitle", fallback: "Use an invitation code"),
+            isCloseDisabled: isJoining,
+            onClose: requestDismiss,
+            badge: Image(systemName: "person.2.badge.plus")
+                .font(.system(size: 15, weight: .semibold))
+        ) {
             ScrollView(showsIndicators: false) {
                 VStack(alignment: .leading, spacing: AppDesign.Spacing.xl) {
                     VStack(alignment: .leading, spacing: AppDesign.Spacing.sm) {
@@ -112,73 +115,9 @@ struct JoinHousePopup: View {
                 .padding(AppDesign.Spacing.lg)
             }
             .scrollDismissesKeyboard(.interactively)
-
+        } footer: {
             footer
         }
-        .background(MainScreenBackground(surface: .popup))
-        .clipShape(RoundedRectangle(cornerRadius: AppDesign.CornerRadius.xl, style: .continuous))
-        .shadow(color: AppDesign.Colors.shadow.opacity(0.25), radius: 30, x: 0, y: 16)
-        .accessibilityAddTraits(.isModal)
-    }
-
-    private var header: some View {
-        ZStack {
-            BrandPopupHeaderBackground()
-
-            Image(systemName: "house.and.flag.fill")
-                .font(.system(size: 56, weight: .bold))
-                .foregroundStyle(Color.white.opacity(0.12))
-                .offset(x: 85)
-
-            HStack(spacing: AppDesign.Spacing.sm) {
-                Image(systemName: "person.2.badge.plus")
-                    .font(.system(size: 15, weight: .semibold))
-                    .foregroundStyle(.white)
-                    .frame(width: 34, height: 34)
-                    .background(Color.white.opacity(0.18))
-                    .clipShape(Circle())
-
-                VStack(alignment: .leading, spacing: 2) {
-                    Text(
-                        appViewModel.localized(
-                            "profile_house_join_title",
-                            fallback: "Join a house"
-                        )
-                    )
-                    .font(AppDesign.Typography.subheadline.weight(.bold))
-                    .foregroundStyle(.white)
-                    .accessibilityFocused($headerAccessibilityFocused)
-
-                    Text(
-                        appViewModel.localized(
-                            "profile_house_join_subtitle",
-                            fallback: "Use an invitation code"
-                        )
-                    )
-                    .font(AppDesign.Typography.caption2)
-                    .foregroundStyle(Color.white.opacity(0.76))
-                }
-
-                Spacer(minLength: AppDesign.Spacing.sm)
-
-                Button(action: requestDismiss) {
-                    Image(systemName: "xmark")
-                        .font(.system(size: 13, weight: .bold))
-                        .foregroundStyle(.white)
-                        .frame(width: 28, height: 28)
-                        .background(Color.white.opacity(0.18))
-                        .clipShape(Circle())
-                        .frame(width: 44, height: 44)
-                        .contentShape(Rectangle())
-                }
-                .buttonStyle(.plain)
-                .disabled(isJoining)
-                .accessibilityLabel(appViewModel.localized("common_close", fallback: "Close"))
-            }
-            .padding(.horizontal, AppDesign.Spacing.xl)
-        }
-        .frame(height: 64)
-        .zIndex(1)
     }
 
     private var footer: some View {

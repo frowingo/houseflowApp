@@ -150,6 +150,13 @@ public struct HouseTanksPlayerDTO: Codable, Equatable, Sendable {
     /// Set only on the watching connection's own player while it holds control.
     public let controlGeneration: String?
 
+    var isValid: Bool {
+        !playerId.isEmpty
+            // Leave decrement headroom for HouseTanksWorld.apply's armor -= 1.
+            && armor >= Int.min / 2
+            && (powerUpExpiresAtTick.map { (0...HouseTanksRealtime.maximumSnapshotTick).contains($0) } ?? true)
+    }
+
     private enum CodingKeys: String, CodingKey {
         case playerId, displayName, seat, color, armor, roundsWon, isAlive, connected, hasLeft, roundReady
         case powerUp, powerUpExpiresAtTick, lastProcessedInputSequence, controlGeneration
@@ -195,6 +202,10 @@ public struct HouseTanksPlayerDTO: Codable, Equatable, Sendable {
 /// A tank body; a dead tank stays as a wreck. `controllable == false` is a
 /// stationary target whose player has no control.
 public struct HouseTanksTankDTO: Codable, Equatable, Sendable {
+    // Bounds normalizedAngle's repeated subtraction to tens of thousands of
+    // iterations, including angles accumulated from rotationDirection in prediction.
+    static let maximumRotationMagnitude = 100_000.0
+
     public let playerId: String
     public let x: Double
     public let y: Double
@@ -205,6 +216,14 @@ public struct HouseTanksTankDTO: Codable, Equatable, Sendable {
     public let isDriving: Bool
     public let aimLocks: Int
     public let controllable: Bool
+
+    var isValid: Bool {
+        !playerId.isEmpty && x.isFinite && y.isFinite && vx.isFinite && vy.isFinite && rotation.isFinite
+            && abs(rotation) <= Self.maximumRotationMagnitude
+            && abs(Double(rotationDirection)) <= Self.maximumRotationMagnitude
+            // Leave increment headroom for HouseTanksWorld.fire's aimLocks += 1.
+            && aimLocks <= Int.max / 2
+    }
 }
 
 /// A pushable crate; `index` is its obstacle index in the map definition.
@@ -213,6 +232,8 @@ public struct HouseTanksCrateDTO: Codable, Equatable, Sendable {
     public let x: Double
     public let y: Double
     public let destroyed: Bool
+
+    var isValid: Bool { x.isFinite && y.isFinite }
 }
 
 public struct HouseTanksTokenDTO: Codable, Equatable, Sendable {
@@ -220,6 +241,10 @@ public struct HouseTanksTokenDTO: Codable, Equatable, Sendable {
     public let x: Double
     public let y: Double
     public let expiresAtTick: Int64
+
+    var isValid: Bool {
+        x.isFinite && y.isFinite && (0...HouseTanksRealtime.maximumSnapshotTick).contains(expiresAtTick)
+    }
 }
 
 /// A live shell or rocket; clients extrapolate it along its velocity.
@@ -232,6 +257,12 @@ public struct HouseTanksProjectileDTO: Codable, Equatable, Sendable {
     public let vy: Double
     public let rocket: Bool
     public let spawnTick: Int64
+
+    var isValid: Bool {
+        !ownerId.isEmpty
+            && x.isFinite && y.isFinite && vx.isFinite && vy.isFinite
+            && (0...HouseTanksRealtime.maximumSnapshotTick).contains(spawnTick)
+    }
 }
 
 /// One effect of the last event window, repeated in every snapshot of that
@@ -251,6 +282,13 @@ public struct HouseTanksEventDTO: Codable, Equatable, Sendable {
     public let powerUp: HouseTanksPowerUp?
     public let roundNumber: Int?
     public let winnerId: String?
+
+    var isValid: Bool {
+        (0...HouseTanksRealtime.maximumSnapshotTick).contains(tick)
+            && (x?.isFinite ?? true) && (y?.isFinite ?? true) && (angle?.isFinite ?? true)
+            && (playerId.map { !$0.isEmpty } ?? true) && (sourceId.map { !$0.isEmpty } ?? true)
+            && (winnerId.map { !$0.isEmpty } ?? true)
+    }
 }
 
 /// `houseTanks.snapshot`: the public state of a match.

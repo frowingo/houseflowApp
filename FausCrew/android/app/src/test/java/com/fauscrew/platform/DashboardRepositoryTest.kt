@@ -57,12 +57,14 @@ class DashboardRepositoryTest {
         assertEquals(0, JSONObject(requests[1].body!!.decodeToString()).getInt("category"))
     }
 
-    @Test fun announcementUsesHouseEndpointAndAliases() = runBlocking {
-        response = """{"success":true,"data":{"announcementId":"a","houseId":"h","title":"Note","description":"Hello","createdAt":{"time.Time":"2026-10-12T10:00:00Z"}}}"""
+    @Test fun announcementUsesHouseEndpointAndReadsTheNormalizedAnnouncement() = runBlocking {
+        response = """{"id":"a","houseId":"h","title":"Note","message":"Hello","createdOn":"2026-10-12T10:00:00Z","isActive":true,"publisherId":"u","publisherName":"Ada A"}"""
         val item = repo.announce("h", "Note", "Hello")
         assertEquals("a", item.id)
         assertEquals("Hello", item.message)
         assertEquals("2026-10-12T10:00:00Z", item.createdOn)
+        assertEquals("u", item.publisherId)
+        assertEquals("Ada A", item.publisherName)
         assertEquals("house/announcement", requests.single().path)
         assertEquals("h", JSONObject(requests.single().body!!.decodeToString()).getString("houseId"))
     }
@@ -72,7 +74,8 @@ class DashboardRepositoryTest {
             send = { request -> requests += request; PlatformHttpResponse(200, emptyMap(), response.toByteArray()) },
             read = { SessionReadResult.Missing }, wire = wire,
         )
-        assertTrue(runCatching { noToken.createChore(input) }.exceptionOrNull() is HouseRequestException)
+        val failure = runCatching { noToken.createChore(input) }.exceptionOrNull() as HouseRequestException
+        assertEquals(401, failure.status)
         assertTrue(requests.isEmpty())
     }
 
@@ -123,6 +126,18 @@ class DashboardRepositoryTest {
         assertEquals(2, downloads.size)
     }
 
+    @Test fun storageErrorsDoNotCarryBackendSessionStatus() = runBlocking {
+        for (status in listOf(401, 403, 500)) {
+            requests.clear()
+            val downloads = mutableListOf<String>()
+            val photoRepo = reviewPhotoRepo(downloads) { status }
+            val failure = runCatching { photoRepo.loadReviewPhoto("c", 1) }.exceptionOrNull() as HouseRequestException
+
+            assertNull(failure.status)
+            assertEquals(if (status == 403) 2 else 1, downloads.size)
+        }
+    }
+
     @Test fun expiredSignedUrlIsReplacedBeforeDownloadAndUsesTheOnlyRefresh() = runBlocking {
         val downloads = mutableListOf<String>()
         val photoRepo = reviewPhotoRepo(downloads, expiresAt = { index ->
@@ -135,7 +150,7 @@ class DashboardRepositoryTest {
     }
 
     @Test fun reviewPhotoEndpointErrorsKeepServerMessage() = runBlocking {
-        for (status in listOf(403, 404, 503)) {
+        for (status in listOf(401, 403, 404, 503)) {
             requests.clear()
             val failing = DashboardRepository(
                 send = { request -> requests += request; PlatformHttpResponse(status, emptyMap(), byteArrayOf()) },
@@ -144,6 +159,7 @@ class DashboardRepositoryTest {
             )
             val failure = runCatching { failing.loadReviewPhoto("c", 1) }.exceptionOrNull()
             assertEquals("Denied", (failure as HouseRequestException).serverMessage)
+            assertEquals(status, failure.status)
             assertEquals(1, requests.size)
         }
     }

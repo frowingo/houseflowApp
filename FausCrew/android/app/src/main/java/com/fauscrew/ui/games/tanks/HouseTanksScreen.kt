@@ -12,6 +12,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.State
+import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -69,7 +70,7 @@ internal fun HouseTanksScreen(
     val onlinePreview = (onlineSession?.preview ?: NoPreview).collectAsStateWithLifecycle()
     val onlineColors = (onlineSession?.colors ?: NoColors).collectAsStateWithLifecycle()
     val frameState = model.frame.collectAsStateWithLifecycle()
-    val hasMatch = frameState.value != null
+    val hasMatch by remember(frameState) { derivedStateOf { frameState.value != null } }
     val onlineFrameState = model.onlineFrame.collectAsStateWithLifecycle()
     val onlineMatch by model.onlineMatch.collectAsStateWithLifecycle()
     val isOnlineMatch = state.isOnlineMatchVisible

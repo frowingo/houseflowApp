@@ -14,15 +14,8 @@ struct RootView: View {
                 .animation(splashActive ? nil : .easeOut(duration: 0.4), value: router.route.id)
         }
         .overlay(alignment: .top) {
-            if let message = appViewModel.toastMessage {
-                ToastView(message: message, isError: appViewModel.toastIsError)
-                    .padding(.top, 60)
-                    .transition(.move(edge: .top).combined(with: .opacity))
-                    .zIndex(999)
-                    .animation(AppDesign.Animation.standard, value: appViewModel.toastMessage)
-            }
+            ToastOverlay()
         }
-        .animation(AppDesign.Animation.standard, value: appViewModel.toastMessage)
     }
     
     private var currentView: some View {
@@ -72,5 +65,22 @@ struct RootView: View {
                 removal: .move(edge: .trailing)
             )
         }
+    }
+}
+
+private struct ToastOverlay: View {
+    @EnvironmentObject private var toastStore: ToastStore
+
+    var body: some View {
+        ZStack {
+            if let message = toastStore.message {
+                ToastView(message: message, isError: toastStore.isError)
+                    .padding(.top, 60)
+                    .transition(.move(edge: .top).combined(with: .opacity))
+                    .zIndex(999)
+                    .animation(AppDesign.Animation.standard, value: toastStore.message)
+            }
+        }
+        .animation(AppDesign.Animation.standard, value: toastStore.message)
     }
 }

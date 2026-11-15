@@ -254,5 +254,5 @@ struct CreateHouseView: View {
 
 #Preview {
     CreateHouseView()
-        .environmentObject(AppViewModel())
+        .environmentObject(AppViewModel.preview)
 }

@@ -2,7 +2,7 @@ import Foundation
 import FausCrewCore
 
 /// Owns the application's production dependency graph.
-/// Services share network/keychain; a separate game URL can be injected for local/staging.
+/// Services share network/keychain; a separate game URL can be injected for tests.
 struct AppDependencies {
     let keychain: any KeychainStoring
     let authService: any AuthServicing
@@ -23,11 +23,13 @@ struct AppDependencies {
     var fausSwitchOnlineFactory = FausSwitchOnlineFactory.unavailable
     /// The `/api/v1/events` refresh channel; nil in tests that do not need it.
     var appEvents: AppEventsService? = nil
+    /// The shared decoded REST client; nil in tests that do not need it.
+    var network: NetworkService? = nil
 
     static func live(gameBaseURL: URL? = nil) -> AppDependencies {
         let keychain = KeychainService()
         let network = NetworkService()
-        let gameURL = gameBaseURL ?? AppEnvironment.current.baseURL
+        let gameURL = gameBaseURL ?? AppEnvironment.baseURL
         let gameNetwork = gameBaseURL == nil ? network : NetworkService(baseURL: gameURL)
 
         let credentials = SocialCredentialRouter(adapters: [
@@ -56,7 +58,8 @@ struct AppDependencies {
             houseRocketsSessionFactory: .live(network: gameNetwork, keychain: keychain, baseURL: gameURL),
             houseTanksOnlineFactory: .live(network: gameNetwork, keychain: keychain, baseURL: gameURL),
             fausSwitchOnlineFactory: .live(network: gameNetwork, keychain: keychain, baseURL: gameURL),
-            appEvents: AppEventsService(baseURL: AppEnvironment.current.baseURL, keychain: keychain)
+            appEvents: AppEventsService(baseURL: AppEnvironment.baseURL, keychain: keychain),
+            network: network
         )
     }
 }

@@ -1,14 +1,115 @@
 import Foundation
-import FausCrewCore
+@testable import FausCrewCore
 import XCTest
 
 /// The sans-IO online engine against `Fixtures/fausSwitchProtocol.json` (the backend contract).
 final class FausSwitchOnlineEngineTests: XCTestCase {
+    private struct UnexpectedTestState: Error {}
+
     private let houseID = "507f1f77bcf86cd799439012"
     private let playerID = "507f1f77bcf86cd799439021"
     private let other = "507f1f77bcf86cd799439022"
     private let sessionID = "7c51a2f7-3c83-4e76-8f97-2dc3cf3191a0"
     private var ids = 0
+
+    func testSnapshotRejectsUnsafeTicksBeforePrediction() throws {
+        for field in ["tick", "boostedUntilTick", "slowedUntilTick", "finishedAtTick", "eliminatedAtTick"] {
+            for value in [Int64.min, -1, FausSwitchRealtime.maximumSnapshotTick + 1, Int64.max] {
+                let data = try snapshotData(field: field, value: value)
+                XCTAssertThrowsError(try GameRealtimeCodec.decode(data, as: FausSwitchRealtime.self), "\(field)=\(value)") {
+                    XCTAssertEqual($0 as? GameRealtimeError, .invalidResponse)
+                }
+            }
+        }
+    }
+
+    func testSnapshotRejectsDuplicateEmptyAndExcessRunners() throws {
+        for count in [2, FausSwitchStartGrid.maximumRunners + 1] {
+            let data = try server("playing") { message in
+                var payload = message["payload"] as! [String: Any]
+                let runner = (payload["runners"] as! [[String: Any]])[0]
+                payload["runners"] = (0..<count).map { index in
+                    var item = runner
+                    item["playerId"] = count == 2 ? "duplicate" : "player\(index)"
+                    return item
+                }
+                message["payload"] = payload
+            }
+            XCTAssertThrowsError(try GameRealtimeCodec.decode(data, as: FausSwitchRealtime.self), "\(count) runners") {
+                XCTAssertEqual($0 as? GameRealtimeError, .invalidResponse)
+            }
+        }
+        XCTAssertThrowsError(try GameRealtimeCodec.decode(snapshotData(field: "playerId", value: ""), as: FausSwitchRealtime.self)) {
+            XCTAssertEqual($0 as? GameRealtimeError, .invalidResponse)
+        }
+    }
+
+    func testSnapshotRejectsNonFiniteButAcceptsAllFinitePhysics() throws {
+        let decoder = GameRealtimeCodec.makeDecoder()
+        decoder.nonConformingFloatDecodingStrategy = .convertFromString(
+            positiveInfinity: "Infinity", negativeInfinity: "-Infinity", nan: "NaN")
+        for field in ["x", "y", "velocityY", "elapsedSeconds"] {
+            for value in ["NaN", "Infinity", "-Infinity"] {
+                let data = try snapshotData(field: field, value: value)
+                XCTAssertThrowsError(try decoder.decode(FausSwitchServerMessage.self, from: data), "\(field)=\(value)") {
+                    XCTAssertEqual($0 as? GameRealtimeError, .invalidResponse)
+                }
+            }
+            for value in [-Double.greatestFiniteMagnitude, -1, 1e9, Double.greatestFiniteMagnitude] {
+                let snapshot = try XCTUnwrap(GameRealtimeCodec.decode(snapshotData(field: field, value: value),
+                                                                     as: FausSwitchRealtime.self).payload.snapshot)
+                var states = snapshot.runnerStates
+                _ = FausSwitchPhysics.isSupported(states, index: 0, course: .standard)
+                FausSwitchPhysics.step(&states, tick: snapshot.tick, course: .standard)
+            }
+        }
+        let overflow = String(decoding: try snapshotData(field: "x", value: "OVERFLOW"), as: UTF8.self)
+            .replacingOccurrences(of: "\"OVERFLOW\"", with: "1e400")
+        // JSONDecoder rejects 1e400 as unrepresentable before checkCompatibility.
+        XCTAssertThrowsError(try GameRealtimeCodec.decode(Data(overflow.utf8), as: FausSwitchRealtime.self)) {
+            XCTAssertTrue($0 is DecodingError)
+        }
+    }
+
+    func testSnapshotAcceptsTickAndRunnerBoundariesAndPredicts() throws {
+        let threeHours: Int64 = 3 * 3_600 * 120
+        for tick in [Int64(0), threeHours, FausSwitchRealtime.maximumSnapshotTick] {
+            for status in ["running", "finished", "crashed"] {
+                let data = try server("crowdedCountdown") { message in
+                    var payload = message["payload"] as! [String: Any]
+                    payload["tick"] = tick
+                    payload["elapsedSeconds"] = FausSwitchMetrics.seconds(tick)
+                    var runners = payload["runners"] as! [[String: Any]]
+                    for index in runners.indices {
+                        runners[index]["boostedUntilTick"] = tick
+                        runners[index]["slowedUntilTick"] = tick
+                        runners[index]["status"] = status
+                        runners[index]["finishedAtTick"] = status == "finished" ? tick : NSNull()
+                        runners[index]["eliminatedAtTick"] = status == "crashed" ? tick : NSNull()
+                        runners[index]["eliminationReason"] = status == "crashed" ? "boundary" : NSNull()
+                    }
+                    payload["runners"] = runners
+                    message["payload"] = payload
+                }
+                let snapshot = try XCTUnwrap(GameRealtimeCodec.decode(data, as: FausSwitchRealtime.self).payload.snapshot)
+                XCTAssertEqual(snapshot.runners.count, FausSwitchStartGrid.maximumRunners)
+                var states = snapshot.runnerStates
+                // Prediction can step beyond the accepted snapshot boundary, including effect expiry.
+                FausSwitchPhysics.step(&states, tick: tick, course: FausSwitchCourse.standard)
+                XCTAssertTrue(states.allSatisfy { $0.x.isFinite && $0.y.isFinite })
+                XCTAssertTrue(FausSwitchRealtime.isValidSuccessor(snapshot, of: snapshot))
+            }
+        }
+        for tick in [threeHours, FausSwitchRealtime.maximumSnapshotTick] {
+            let latest = try XCTUnwrap(GameRealtimeCodec.decode(snapshotData(field: "tick", value: tick),
+                                                               as: FausSwitchRealtime.self).payload.snapshot)
+            for end in [Int64(0), tick - 42] {
+                let stopped = try XCTUnwrap(GameRealtimeCodec.decode(snapshotData(field: "eliminatedAtTick", value: end),
+                                                                    as: FausSwitchRealtime.self).payload.snapshot)
+                XCTAssertFalse(FausSwitchRealtime.isValidSuccessor(latest, of: stopped), "Long-session next.tick - end is safe")
+            }
+        }
+    }
 
     func testFixtureMessagesDecodeAndEncode() throws {
         let welcome = try GameRealtimeCodec.decode(try server("welcome"), as: FausSwitchRealtime.self)
@@ -146,7 +247,10 @@ final class FausSwitchOnlineEngineTests: XCTestCase {
         func colors(_ raw: [String: String], left: String? = nil) throws -> FausSwitchLobbyColors {
             let data = try session(version: 7, state: "lobby", localState: "waiting", colors: raw, leftPlayer: left)
             let message = try GameRealtimeCodec.decode(data, as: FausSwitchRealtime.self)
-            guard case .session(let session) = message.payload else { throw XCTSkip("session") }
+            guard case .session(let session) = message.payload else {
+                XCTFail("Expected session payload")
+                throw UnexpectedTestState()
+            }
             return FausSwitchLobbyColors(session: session, localPlayerID: playerID)
         }
         // A leaver's claim stays in the field, but its color is free; unknown players and
@@ -442,7 +546,8 @@ final class FausSwitchOnlineEngineTests: XCTestCase {
                 }
             }
             guard case .snapshot(let value) = try GameRealtimeCodec.decode(data, as: FausSwitchRealtime.self).payload else {
-                throw XCTSkip("snapshot")
+                XCTFail("Expected snapshot payload")
+                throw UnexpectedTestState()
             }
             return value
         }
@@ -528,6 +633,24 @@ final class FausSwitchOnlineEngineTests: XCTestCase {
 
     // MARK: Helpers
 
+    private func snapshotData(field: String, value: Any) throws -> Data {
+        try server("playing") { message in
+            var payload = message["payload"] as! [String: Any]
+            if field == "tick" || field == "elapsedSeconds" { payload[field] = value }
+            else {
+                var runners = payload["runners"] as! [[String: Any]]
+                runners[0][field] = value
+                if field == "finishedAtTick" { runners[0]["status"] = "finished" }
+                if field == "eliminatedAtTick" {
+                    runners[0]["status"] = "crashed"
+                    runners[0]["eliminationReason"] = "boundary"
+                }
+                payload["runners"] = runners
+            }
+            message["payload"] = payload
+        }
+    }
+
     private func running() throws -> (FausSwitchOnlineEngine, Int) {
         let (engine, socket) = try connectedLobby(state: "running")
         try receive(engine, socket, server("playing"), at: 1)
@@ -559,12 +682,14 @@ final class FausSwitchOnlineEngineTests: XCTestCase {
         let engine = makeEngine(color: color)
         engine.start(isForeground: true, isLandscape: true, now: 0)
         guard case .ensureSession(let house, let connection) = try XCTUnwrap(engine.drainEffects().first) else {
-            throw XCTSkip("No ensure effect")
+            XCTFail("No ensure effect")
+            throw UnexpectedTestState()
         }
         XCTAssertEqual(house, houseID)
         engine.sessionResponse(try http(state: state), retryAfter: nil, connection: connection, now: 0.1)
         guard case .openSocket(let id, let socket) = try XCTUnwrap(engine.drainEffects().last) else {
-            throw XCTSkip("No socket opened")
+            XCTFail("No socket opened")
+            throw UnexpectedTestState()
         }
         XCTAssertEqual(id, sessionID)
         engine.socketOpened(connection: socket, now: 0.2)

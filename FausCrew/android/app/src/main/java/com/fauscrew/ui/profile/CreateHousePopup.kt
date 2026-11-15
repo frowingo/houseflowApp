@@ -85,7 +85,8 @@ internal fun CreateHouseDialog(
     var type by rememberSaveable { mutableStateOf<Int?>(null) }
     var count by rememberSaveable { mutableStateOf<Int?>(null) }
     val busy = state.profileActionBusy
-    val canCreate = HouseCreationRules.isValid(name, type, count) && !busy
+    val formValid = remember(name, type, count) { HouseCreationRules.isValid(name, type, count) }
+    val canCreate = formValid && !busy
     val dismiss = { focus.clearFocus(); onDismiss() }
     val submit = {
         val chosenType = type
@@ -126,7 +127,7 @@ internal fun CreateHouseDialog(
         },
     ) {
         FormSection(strings.get("create_house_name_label", "House name")) {
-            NameField(name, { name = it.take(HouseCreationRules.NAME_MAX_LENGTH) }, !busy,
+            NameField(name, { name = HouseCreationRules.limitedName(it) }, !busy,
                 strings.get("create_house_name_placeholder", "Enter a house name")) { focus.clearFocus() }
         }
         FormSection(strings.get("create_house_type_label", "House type")) {
@@ -180,7 +181,8 @@ private fun NameField(value: String, onChange: (String) -> Unit, enabled: Boolea
                     if (value.isEmpty()) Text(placeholder, style = FausCrewType.body, color = PlaceholderColor, maxLines = 1)
                     inner()
                 }
-                Text("${value.length}/${HouseCreationRules.NAME_MAX_LENGTH}",
+                val length = remember(value) { HouseCreationRules.nameLength(value) }
+                Text("$length/${HouseCreationRules.NAME_MAX_LENGTH}",
                     style = FausCrewType.caption.copy(fontFeatureSettings = "tnum"), color = FausCrewColors.textSecondary)
             }
         },

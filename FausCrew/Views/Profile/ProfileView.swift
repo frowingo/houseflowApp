@@ -2,50 +2,37 @@ import SwiftUI
 import FausCrewCore
 
 struct ProfileView: View {
+    /// The popups drawn over the profile. Only one is visible at a time.
+    private enum Overlay: Equatable {
+        case editProfile
+        case avatarPicker
+        case languageSettings
+        case themeSettings
+        case about
+        case phoneManagement
+        case logoutConfirmation
+        case joinHouse
+        case createHouse
+        case houseInfo(AuthHouseSummary)
+    }
+
     @EnvironmentObject private var appViewModel: AppViewModel
     @EnvironmentObject private var themeStore: ThemeStore
 
-    @State private var showEditSheet = false
-    @State private var showAvatarPicker = false
-    @State private var showLanguageSettings = false
-    @State private var showThemeSettings = false
-    @State private var showAbout = false
-    @State private var showPhoneManagement = false
-    @State private var showLogoutConfirmation = false
+    @State private var activeOverlay: Overlay?
     @State private var showLoginMethods = false
     @State private var showDeleteAccount = false
-    @State private var showJoinHouse = false
-    @State private var showCreateHouse = false
-    @State private var selectedHouseForInfo: AuthHouseSummary?
     @State private var appeared = false
     @AccessibilityFocusState private var houseInformationAccessibilityFocused: Bool
 
     var body: some View {
         ZStack {
             profileContent
-                .accessibilityHidden(isAnyOverlayPresented)
+                .accessibilityHidden(activeOverlay != nil)
             overlays
         }
-        .animation(AppDesign.Animation.standard, value: showAvatarPicker)
-        .animation(AppDesign.Animation.standard, value: showEditSheet)
-        .animation(AppDesign.Animation.standard, value: showLanguageSettings)
-        .animation(AppDesign.Animation.standard, value: showThemeSettings)
-        .animation(AppDesign.Animation.standard, value: showAbout)
-        .animation(AppDesign.Animation.standard, value: showPhoneManagement)
-        .animation(AppDesign.Animation.standard, value: showLogoutConfirmation)
-        .animation(AppDesign.Animation.standard, value: showJoinHouse)
-        .animation(AppDesign.Animation.standard, value: showCreateHouse)
-        .animation(AppDesign.Animation.standard, value: selectedHouseForInfo)
-        .onChange(of: showAvatarPicker) { _, _ in syncOverlayPresentation() }
-        .onChange(of: showEditSheet) { _, _ in syncOverlayPresentation() }
-        .onChange(of: showLanguageSettings) { _, _ in syncOverlayPresentation() }
-        .onChange(of: showThemeSettings) { _, _ in syncOverlayPresentation() }
-        .onChange(of: showAbout) { _, _ in syncOverlayPresentation() }
-        .onChange(of: showPhoneManagement) { _, _ in syncOverlayPresentation() }
-        .onChange(of: showLogoutConfirmation) { _, _ in syncOverlayPresentation() }
-        .onChange(of: showJoinHouse) { _, _ in syncOverlayPresentation() }
-        .onChange(of: showCreateHouse) { _, _ in syncOverlayPresentation() }
-        .onChange(of: selectedHouseForInfo) { _, _ in syncOverlayPresentation() }
+        .animation(AppDesign.Animation.standard, value: activeOverlay)
+        .onChange(of: activeOverlay) { _, _ in syncOverlayPresentation() }
         .sheet(isPresented: $showLoginMethods) {
             LoginMethodsView().environmentObject(appViewModel)
         }
@@ -74,7 +61,7 @@ struct ProfileView: View {
                         fullName: fullName,
                         isVisible: appeared,
                         onAvatarTap: {
-                            showAvatarPicker = true
+                            present(.avatarPicker)
                         }
                     )
 
@@ -130,7 +117,7 @@ struct ProfileView: View {
             birthDate: birthDateDisplay,
             editButtonTitle: appViewModel.localized("profile_edit_button"),
             onEdit: {
-                showEditSheet = true
+                present(.editProfile)
             }
         )
     }
@@ -155,11 +142,7 @@ struct ProfileView: View {
                 "profile_phone_manage_accessibility_hint",
                 fallback: "Opens phone update and verification options."
             ),
-            onManagePhone: {
-                withAnimation(AppDesign.Animation.standard) {
-                    showPhoneManagement = true
-                }
-            }
+            onManagePhone: { present(.phoneManagement) }
         )
     }
 
@@ -195,21 +178,9 @@ struct ProfileView: View {
                 fallback: "Set up a new home for your crew"
             ),
             showsAddHouseOptions: appViewModel.canAddHouse,
-            onSelect: { house in
-                withAnimation(AppDesign.Animation.standard) {
-                    selectedHouseForInfo = house
-                }
-            },
-            onJoin: {
-                withAnimation(AppDesign.Animation.standard) {
-                    showJoinHouse = true
-                }
-            },
-            onCreate: {
-                withAnimation(AppDesign.Animation.standard) {
-                    showCreateHouse = true
-                }
-            }
+            onSelect: { present(.houseInfo($0)) },
+            onJoin: { present(.joinHouse) },
+            onCreate: { present(.createHouse) }
         )
         .accessibilityFocused($houseInformationAccessibilityFocused)
     }
@@ -225,187 +196,122 @@ struct ProfileView: View {
             themeValue: themeStore.theme.displayName,
             aboutLabel: appViewModel.localized("profile_about_label"),
             logoutLabel: appViewModel.localized("profile_logout_label", fallback: "Log out"),
-            loginMethodsLabel: appViewModel.social("profile_login_methods_label", tr: "Giriş yöntemleri", en: "Sign-in methods"),
-            deleteAccountLabel: appViewModel.social("profile_delete_account_label", tr: "Hesabı sil", en: "Delete account"),
-            onOpenLanguageSettings: {
-                withAnimation(AppDesign.Animation.standard) {
-                    showLanguageSettings = true
-                }
-            },
-            onOpenThemeSettings: {
-                withAnimation(AppDesign.Animation.standard) {
-                    showThemeSettings = true
-                }
-            },
-            onOpenAbout: {
-                withAnimation(AppDesign.Animation.standard) {
-                    showAbout = true
-                }
-            },
+            loginMethodsLabel: appViewModel.localized("profile_login_methods_label", tr: "Giriş yöntemleri", en: "Sign-in methods"),
+            deleteAccountLabel: appViewModel.localized("profile_delete_account_label", tr: "Hesabı sil", en: "Delete account"),
+            onOpenLanguageSettings: { present(.languageSettings) },
+            onOpenThemeSettings: { present(.themeSettings) },
+            onOpenAbout: { present(.about) },
             onOpenLoginMethods: { showLoginMethods = true },
             onDeleteAccount: { showDeleteAccount = true },
-            onLogout: {
-                withAnimation(AppDesign.Animation.standard) {
-                    showLogoutConfirmation = true
-                }
-            }
+            onLogout: { present(.logoutConfirmation) }
         )
     }
 
     @ViewBuilder
     private var overlays: some View {
-        if showJoinHouse {
-            JoinHousePopup(onDismiss: dismissJoinHouse)
+        switch activeOverlay {
+        case .joinHouse:
+            JoinHousePopup(onDismiss: dismissHouseOverlay)
                 .environmentObject(appViewModel)
                 .transition(.opacity.combined(with: .scale(scale: 0.96)))
                 .zIndex(17)
-        }
 
-        if showCreateHouse {
-            CreateHousePopup(onDismiss: dismissCreateHouse)
+        case .createHouse:
+            CreateHousePopup(onDismiss: dismissHouseOverlay)
                 .environmentObject(appViewModel)
                 .transition(.opacity.combined(with: .scale(scale: 0.96)))
                 .zIndex(17)
-        }
 
-        if let selectedHouseForInfo {
+        case .houseInfo(let house):
             HouseInfoPopup(
-                house: selectedHouseForInfo,
-                onDismiss: dismissHouseInfo
+                house: house,
+                onDismiss: dismissHouseOverlay
             )
             .environmentObject(appViewModel)
             .transition(.opacity.combined(with: .scale(scale: 0.96)))
             .zIndex(16)
-        }
 
-        if showAvatarPicker {
+        case .avatarPicker:
             AvatarPickerPopup(
                 initials: initials,
-                onDismiss: dismissAvatarPicker
+                onDismiss: dismissOverlay
             )
             .environmentObject(appViewModel)
             .transition(.opacity.combined(with: .scale(scale: 0.96)))
             .zIndex(10)
-        }
 
-        if showEditSheet {
-            EditProfilePopup(onDismiss: dismissEditSheet)
+        case .editProfile:
+            EditProfilePopup(onDismiss: dismissFormOverlay)
                 .environmentObject(appViewModel)
                 .zIndex(11)
-        }
 
-        if showAbout {
-            AboutPopup(onDismiss: dismissAbout)
+        case .about:
+            AboutPopup(onDismiss: dismissOverlay)
                 .environmentObject(appViewModel)
                 .transition(.opacity.combined(with: .scale(scale: 0.96)))
                 .zIndex(12)
-        }
 
-        if showLanguageSettings {
-            LanguageSettingsPopup(onDismiss: dismissLanguageSettings)
+        case .languageSettings:
+            LanguageSettingsPopup(onDismiss: dismissOverlay)
                 .environmentObject(appViewModel)
                 .transition(.opacity.combined(with: .scale(scale: 0.96)))
                 .zIndex(13)
-        }
 
-        if showThemeSettings {
-            ThemeSettingsPopup(onDismiss: dismissThemeSettings)
+        case .themeSettings:
+            ThemeSettingsPopup(onDismiss: dismissOverlay)
                 .environmentObject(appViewModel)
                 .transition(.opacity.combined(with: .scale(scale: 0.96)))
                 .zIndex(13)
-        }
 
-        if showPhoneManagement {
+        case .phoneManagement:
             PhoneManagementPopup(
                 currentPhoneNumber: appViewModel.currentUserProfile?.phoneNumber ?? "",
                 isVerified: appViewModel.currentUserProfile?.isVerifyPhone == true,
-                onDismiss: dismissPhoneManagement
+                onDismiss: dismissFormOverlay
             )
             .environmentObject(appViewModel)
             .transition(.opacity.combined(with: .scale(scale: 0.96)))
             .zIndex(14)
-        }
 
-        if showLogoutConfirmation {
+        case .logoutConfirmation:
             LogoutConfirmationPopup(
                 onConfirm: {
-                    showLogoutConfirmation = false
+                    activeOverlay = nil
                     withAnimation(AppDesign.Animation.standard) {
                         appViewModel.logout()
                     }
                 },
-                onCancel: dismissLogoutConfirmation
+                onCancel: dismissOverlay
             )
             .transition(.opacity.combined(with: .scale(scale: 0.96)))
             .zIndex(15)
+
+        case nil:
+            EmptyView()
         }
     }
 
-    private func dismissEditSheet() {
+    private func present(_ overlay: Overlay) {
+        withAnimation(AppDesign.Animation.standard) {
+            activeOverlay = overlay
+        }
+    }
+
+    private func dismissOverlay() {
+        dismissWithoutAnimation {
+            activeOverlay = nil
+        }
+    }
+
+    /// Popups with text fields: drop the keyboard before the popup goes away.
+    private func dismissFormOverlay() {
         hideKeyboard()
-        dismissWithoutAnimation {
-            showEditSheet = false
-        }
+        dismissOverlay()
     }
 
-    private func dismissAvatarPicker() {
-        dismissWithoutAnimation {
-            showAvatarPicker = false
-        }
-    }
-
-    private func dismissLanguageSettings() {
-        dismissWithoutAnimation {
-            showLanguageSettings = false
-        }
-    }
-
-    private func dismissThemeSettings() {
-        dismissWithoutAnimation {
-            showThemeSettings = false
-        }
-    }
-
-    private func dismissAbout() {
-        dismissWithoutAnimation {
-            showAbout = false
-        }
-    }
-
-    private func dismissLogoutConfirmation() {
-        dismissWithoutAnimation {
-            showLogoutConfirmation = false
-        }
-    }
-
-    private func dismissPhoneManagement() {
-        hideKeyboard()
-        dismissWithoutAnimation {
-            showPhoneManagement = false
-        }
-    }
-
-    private func dismissHouseInfo() {
-        hideKeyboard()
-        dismissWithoutAnimation {
-            selectedHouseForInfo = nil
-        }
-        restoreHouseInformationFocus()
-    }
-
-    private func dismissJoinHouse() {
-        hideKeyboard()
-        dismissWithoutAnimation {
-            showJoinHouse = false
-        }
-        restoreHouseInformationFocus()
-    }
-
-    private func dismissCreateHouse() {
-        hideKeyboard()
-        dismissWithoutAnimation {
-            showCreateHouse = false
-        }
+    /// House popups hand the accessibility focus back to the house information card.
+    private func dismissHouseOverlay() {
+        dismissFormOverlay()
         restoreHouseInformationFocus()
     }
 
@@ -427,20 +333,7 @@ struct ProfileView: View {
     }
 
     private func syncOverlayPresentation() {
-        appViewModel.isOverlayPresented = isAnyOverlayPresented
-    }
-
-    private var isAnyOverlayPresented: Bool {
-        showAvatarPicker
-            || showEditSheet
-            || showLanguageSettings
-            || showThemeSettings
-            || showAbout
-            || showPhoneManagement
-            || showLogoutConfirmation
-            || showJoinHouse
-            || showCreateHouse
-            || selectedHouseForInfo != nil
+        appViewModel.isOverlayPresented = activeOverlay != nil
     }
 
     private func restoreHouseInformationFocus() {

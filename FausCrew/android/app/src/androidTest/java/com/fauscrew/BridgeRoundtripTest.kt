@@ -6,6 +6,7 @@ import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.fauscrew.platform.InviteCodeBridge
 import com.fauscrew.androidbridge.FausCrewAndroidBridge
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -13,7 +14,7 @@ import org.junit.runner.RunWith
 @RunWith(AndroidJUnit4::class)
 class BridgeRoundtripTest {
     @Test fun authWireRunsThroughGeneratedJni() {
-        assertEquals(16, FausCrewAndroidBridge.bridgeVersion())
+        assertEquals(InviteCodeBridge.API_VERSION, FausCrewAndroidBridge.bridgeVersion())
         val body = FausCrewAndroidBridge.loginRequestBody("ada@example.com", "secret")
         assertEquals("ada@example.com", org.json.JSONObject(body).getString("email"))
         assertEquals("secret", org.json.JSONObject(body).getString("password"))
@@ -45,6 +46,37 @@ class BridgeRoundtripTest {
             .getJSONObject("data").getString("id"))
         val malformed = """{"success":true,"data":{"id":"h","name":"Home"}}"""
         assertEquals(false, org.json.JSONObject(FausCrewAndroidBridge.houseResponse("details", 200, malformed)).getBoolean("success"))
+    }
+
+    @Test fun houseDetailsAndReviewSummaryRunThroughGeneratedJni() {
+        val details = """{"success":true,"data":{"id":"h","name":"Home","maxMemberCount":4,"ownerId":"u","profileImage":"","type":1,"createdOn":"2026-01-01","updatedOn":"2026-01-02","members":[],"chores":[],"announcements":[{"id":"a","title":"Bins","content":"Tonight","createdAt":"2026-01-03","createdBy":{"id":"u","firstName":"Ada","lastName":"A"}}]}}"""
+        val announcement = org.json.JSONObject(FausCrewAndroidBridge.houseResponse("details", 200, details))
+            .getJSONObject("data").getJSONArray("announcements").getJSONObject(0)
+        assertEquals("u", announcement.getString("publisherId"))
+        assertEquals("Ada A", announcement.getString("publisherName"))
+
+        val chore = com.fauscrew.platform.HouseChore("c", "h", "Dishes", "", "u", "", 2, false, false, 10, 0, 1,
+            listOf(com.fauscrew.platform.HouseVote(1, "v", true)))
+        val members = listOf("u", "v", "w").map { com.fauscrew.platform.HouseMember(it, "", "", "") }
+        val review = com.fauscrew.platform.ChoreReview.of(chore, members, "w")
+        assertEquals(2, review.eligibleReviewerCount)
+        assertTrue(review.canReview)
+        assertEquals(1, review.rounds.single().approved)
+    }
+
+    @Test fun houseNameRulesCountCharactersLikeIos() {
+        val rules = com.fauscrew.platform.HouseCreationRules
+        val filler = "a".repeat(rules.NAME_MAX_LENGTH - 1)
+        assertEquals(rules.NAME_MAX_LENGTH, rules.limitedName("a".repeat(rules.NAME_MAX_LENGTH + 1)).length)
+        for (character in listOf("\uD83D\uDC68\u200D\uD83D\uDC69\u200D\uD83D\uDC67\u200D\uD83D\uDC66", "\uD83C\uDDF9\uD83C\uDDF7", "e\u0301")) {
+            assertEquals(filler + character, rules.limitedName("$filler${character}tail"))
+            assertEquals(rules.NAME_MAX_LENGTH, rules.nameLength(filler + character))
+            assertTrue(rules.isValid(filler + character, 2, 4))
+            assertFalse(rules.isValid(filler + character + character, 2, 4))
+        }
+        assertFalse(rules.isValid("   ", 2, 4))
+        assertFalse(rules.isValid("Ev", 9, 4))
+        assertFalse(rules.isValid("Ev", 2, 9))
     }
 
     @Test fun coreRuleRunsThroughGeneratedJni() {

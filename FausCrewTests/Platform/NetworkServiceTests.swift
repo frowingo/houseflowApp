@@ -1,4 +1,5 @@
 import XCTest
+import FausCrewCore
 @testable import FausCrew
 
 @MainActor
@@ -8,9 +9,41 @@ final class NetworkServiceTests: XCTestCase {
         let rememberMe: Bool
     }
 
-    private struct ResponseBody: Decodable, Equatable {
+    nonisolated private struct ResponseBody: Decodable, Equatable, Sendable {
         let id: String
         let success: Bool
+    }
+
+    nonisolated private struct DecodeContextResponse: Decodable, Sendable {
+        let resultId: String
+        let decodedOnMainThread: Bool
+
+        private enum CodingKeys: String, CodingKey {
+            case resultId
+        }
+
+        init(from decoder: any Decoder) throws {
+            let container = try decoder.container(keyedBy: CodingKeys.self)
+            resultId = try container.decode(String.self, forKey: .resultId)
+            decodedOnMainThread = Thread.isMainThread
+        }
+    }
+
+    func testDecodingLeavesMainThreadAndPreservesDecoderConfiguration() async throws {
+        let stub = NetworkRequestStub()
+        stub.responseData = Data(#"{"result_id":"result-1"}"#.utf8)
+        let decoder = JSONDecoder()
+        decoder.keyDecodingStrategy = .convertFromSnakeCase
+        let service = NetworkService(
+            baseURL: URL(string: "https://example.com/api/v1")!,
+            decoder: decoder,
+            requestExecutor: stub.execute
+        )
+
+        let response = try await service.get(path: "health", successType: DecodeContextResponse.self)
+
+        XCTAssertEqual(response.resultId, "result-1")
+        XCTAssertFalse(response.decodedOnMainThread)
     }
 
     func testRequestBuildsPostAndDecodesSuccessfulResponse() async throws {
@@ -64,6 +97,8 @@ final class NetworkServiceTests: XCTestCase {
         stub.statusCode = 401
         stub.responseData = Data(#"{"message":"Invalid credentials."}"#.utf8)
         let service = makeService(stub: stub)
+        var rejectedTokens: [String] = []
+        service.onUnauthorized = { rejectedTokens.append($0) }
 
         do {
             let _: ResponseBody = try await service.get(
@@ -76,6 +111,50 @@ final class NetworkServiceTests: XCTestCase {
         } catch {
             XCTFail("Unexpected error: \(error)")
         }
+        XCTAssertTrue(rejectedTokens.isEmpty)
+    }
+
+    func testAuthenticatedUnauthorizedRejectsTokenOnce() async throws {
+        let stub = NetworkRequestStub()
+        stub.statusCode = 401
+        stub.responseData = Data(#"{"message":"Session expired."}"#.utf8)
+        let service = makeService(stub: stub)
+        var rejectedTokens: [String] = []
+        service.onUnauthorized = { rejectedTokens.append($0) }
+
+        do {
+            let _: ResponseBody = try await service.get(
+                path: "auth/isAuth",
+                successType: ResponseBody.self,
+                token: "expired-token"
+            )
+            XCTFail("Expected unauthorized error")
+        } catch NetworkError.unauthorized {
+            // Expected.
+        } catch {
+            XCTFail("Unexpected error: \(error)")
+        }
+        XCTAssertEqual(rejectedTokens, ["expired-token"])
+        XCTAssertEqual(stub.requests.count, 1)
+    }
+
+    func testRawUnauthorizedResponseDoesNotRejectToken() async throws {
+        let stub = NetworkRequestStub()
+        stub.statusCode = 401
+        stub.responseData = Data(#"{"message":"Provider token rejected."}"#.utf8)
+        let service = makeService(stub: stub)
+        var rejectedTokens: [String] = []
+        service.onUnauthorized = { rejectedTokens.append($0) }
+
+        let response = try await service.send(HTTPRequest(
+            path: "auth/social",
+            method: "POST",
+            headers: ["Authorization": "Bearer provider-token"]
+        ))
+
+        XCTAssertEqual(response.statusCode, 401)
+        XCTAssertEqual(response.body, stub.responseData)
+        XCTAssertTrue(rejectedTokens.isEmpty)
     }
 
     func testInvalidSuccessPayloadUsesDecodingError() async throws {
@@ -89,8 +168,8 @@ final class NetworkServiceTests: XCTestCase {
                 successType: ResponseBody.self
             )
             XCTFail("Expected decoding error")
-        } catch NetworkError.decodingError {
-            // Expected.
+        } catch NetworkError.decodingError(let error) {
+            XCTAssertTrue(error is DecodingError)
         } catch {
             XCTFail("Unexpected error: \(error)")
         }

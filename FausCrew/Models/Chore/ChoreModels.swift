@@ -56,58 +56,17 @@ extension ChoreFailureReason {
 
 extension AppViewModel {
     func statusLabel(_ status: ChoreStatus) -> String {
-        social(status.localizationKey, tr: status.fallbackLabel.tr, en: status.fallbackLabel.en)
+        localized(status.localizationKey, tr: status.fallbackLabel.tr, en: status.fallbackLabel.en)
     }
 
     func failureMessage(_ reason: ChoreFailureReason?) -> String {
         let reason = reason ?? .unspecified
-        return social(reason.localizationKey, tr: reason.fallbackMessage.tr, en: reason.fallbackMessage.en)
+        return localized(reason.localizationKey, tr: reason.fallbackMessage.tr, en: reason.fallbackMessage.en)
     }
 
     /// Caption above the history part of a chore list.
     var choreHistoryLabel: String {
-        social("todays_tasks_history_label", tr: "Geçmiş", en: "History")
-    }
-}
-
-// MARK: - App adapters
-
-extension ChoreResponse {
-    var houseChoreDTO: HouseChoreDTO {
-        HouseChoreDTO(
-            id: id,
-            title: title,
-            description: description,
-            houseId: houseId,
-            houseOwnerId: houseOwnerId,
-            assignedTo: assignedTo,
-            dueDate: dueDate,
-            isCompleted: isCompleted,
-            isRecurring: isRecurring,
-            level: level,
-            recurringInterval: recurringInterval,
-            status: status,
-            createdOn: createdOn,
-            completedAt: completedAt,
-            completedBy: completedBy,
-            statusHistories: statusHistories.map(\.houseStatusHistory),
-            reviewRound: reviewRound,
-            reviewVotes: reviewVotes,
-            reviewPhotoRounds: reviewPhotoRounds,
-            category: category
-        )
-    }
-}
-
-private extension ChoreStatusHistoryResponse {
-    var houseStatusHistory: ChoreStatusHistory {
-        ChoreStatusHistory(
-            id: id,
-            choreId: choreId,
-            status: status,
-            updater: updater,
-            dateTime: dateTime
-        )
+        localized("todays_tasks_history_label", tr: "Geçmiş", en: "History")
     }
 }
 

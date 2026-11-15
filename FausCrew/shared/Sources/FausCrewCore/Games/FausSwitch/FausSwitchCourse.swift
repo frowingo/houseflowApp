@@ -245,8 +245,12 @@ public struct FausSwitchCourse: Equatable, Sendable {
 
     /// Solids that may touch a rectangle (a small superset).
     public func solids(near rect: FausSwitchRect, visit: (FausSwitchSolid) -> Void) {
-        let first = max(0, Int(rect.minX / Self.bucketWidth))
-        let last = min(buckets.count - 1, max(first, Int(rect.maxX / Self.bucketWidth)))
+        // Clamp before Double -> Int, including non-finite intermediate physics,
+        // so even extreme finite snapshot coordinates cannot trap during prediction.
+        guard rect.minX.isFinite, rect.maxX.isFinite else { return }
+        let first = Int(max(0, min(Double(buckets.count), rect.minX / Self.bucketWidth)))
+        let last = min(buckets.count - 1, max(first,
+            Int(max(0, min(Double(buckets.count), rect.maxX / Self.bucketWidth)))))
         guard first <= last else { return }
         if first == last {
             for index in buckets[first] { visit(solids[index]) }

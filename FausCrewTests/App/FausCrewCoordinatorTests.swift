@@ -4,6 +4,17 @@ import FausCrewCore
 
 @MainActor
 final class FausCrewCoordinatorTests: XCTestCase {
+    override func setUp() async throws {
+        try await super.setUp()
+        let previousLanguage = APILanguage.code
+        APILanguage.update(prefix: "en")
+        addTeardownBlock {
+            await MainActor.run {
+                APILanguage.update(prefix: previousLanguage)
+            }
+        }
+    }
+
     func testCreateHouseSuccessAppliesDetailsAndShowsDashboard() async {
         let harness = makeHarness()
         let house = TestFixture.houseResponse()
@@ -59,8 +70,8 @@ final class FausCrewCoordinatorTests: XCTestCase {
         await harness.coordinator.beginJoinFausCrew(inviteCode: "INVALID")
 
         XCTAssertEqual(harness.router.route, .joinHouse)
-        XCTAssertEqual(harness.houseStore.houseError, "test-error")
-        XCTAssertEqual(harness.toastStore.message, "test-error")
+        XCTAssertEqual(harness.houseStore.houseError, "Something went wrong. Please try again.")
+        XCTAssertEqual(harness.toastStore.message, "Something went wrong. Please try again.")
         XCTAssertTrue(harness.toastStore.isError)
     }
 
@@ -104,7 +115,7 @@ final class FausCrewCoordinatorTests: XCTestCase {
         XCTAssertNil(harness.houseStore.currentHouseDetails)
         XCTAssertNil(harness.defaults.string(forKey: "chosenHouse"))
         XCTAssertEqual(harness.router.route, .houseError)
-        XCTAssertEqual(harness.houseStore.houseError, "test-error")
+        XCTAssertEqual(harness.houseStore.houseError, "Something went wrong. Please try again.")
     }
 
     func testLeavingOnlyHouseClearsSelectionAndShowsHouseSelection() async throws {
@@ -179,9 +190,14 @@ final class FausCrewCoordinatorTests: XCTestCase {
             isAuthenticated: { authStore.isAuthenticated },
             pendingEmailVerification: { authStore.pendingEmailVerification }
         )
+        let localization = TestFixture.localizationStore()
+        addTeardownBlock {
+            try? FileManager.default.removeItem(at: localization.directory)
+        }
         let coordinator = FausCrewCoordinator(
             authStore: authStore,
             houseStore: houseStore,
+            localizationStore: localization.store,
             toastStore: toastStore,
             router: router,
             completionDelay: .zero

@@ -44,7 +44,7 @@ internal sealed interface SocialSignInResult {
     }
 }
 
-internal class AuthRequestException(val serverMessage: String?) : IOException(serverMessage ?: "Authentication failed")
+internal class AuthRequestException(val serverMessage: String?, val status: Int? = null) : IOException(serverMessage ?: "Authentication failed")
 internal class AuthProfileException(val serverMessage: String?) : IOException(serverMessage ?: "Profile load failed")
 
 /** Testable orchestration; Core owns JSON wire interpretation and route priority. */
@@ -57,6 +57,8 @@ internal class AuthSessionRepository(
     private val socialWire: SocialWire = NativeSocialWire,
     private val language: () -> String = { ApiLanguage.code },
 ) {
+    private val storeLock = Any()
+
     suspend fun login(email: String, password: String): AuthProfile = withContext(Dispatchers.IO) {
         val response = send(
             PlatformHttpRequest(
@@ -67,11 +69,13 @@ internal class AuthSessionRepository(
             ),
         )
         val tokenResult = JSONObject(wire.loginResult(response.statusCode, response.body.decodeToString()))
-        if (!tokenResult.optBoolean("ok")) throw AuthRequestException(tokenResult.optString("message").ifBlank { null })
+        if (!tokenResult.optBoolean("ok")) throw AuthRequestException(tokenResult.optString("message").ifBlank { null }, response.statusCode)
         val token = tokenResult.getString("token")
-        write(SessionField.AUTH_TOKEN, token)
-        write(SessionField.USER_EMAIL, email)
-        write(SessionField.PENDING_EMAIL_VERIFICATION, null)
+        synchronized(storeLock) {
+            write(SessionField.AUTH_TOKEN, token)
+            write(SessionField.USER_EMAIL, email)
+            write(SessionField.PENDING_EMAIL_VERIFICATION, null)
+        }
         try { profile(token) } catch (cancel: CancellationException) {
             throw cancel
         } catch (error: AuthRequestException) {
@@ -84,37 +88,42 @@ internal class AuthSessionRepository(
     suspend fun signup(email: String, password: String, firstName: String, lastName: String) = withContext(Dispatchers.IO) {
         val response = send(jsonRequest("auth/signup", "POST", wire.signupBody(email, password, firstName, lastName)))
         val result = JSONObject(wire.loginResult(response.statusCode, response.body.decodeToString()))
-        requireOk(result)
-        write(SessionField.AUTH_TOKEN, result.getString("token"))
-        write(SessionField.USER_EMAIL, email)
-        write(SessionField.USER_FIRST_NAME, firstName)
-        write(SessionField.USER_LAST_NAME, lastName)
-        write(SessionField.PENDING_EMAIL_VERIFICATION, email)
+        requireOk(result, response.statusCode)
+        synchronized(storeLock) {
+            write(SessionField.AUTH_TOKEN, result.getString("token"))
+            write(SessionField.USER_EMAIL, email)
+            write(SessionField.USER_FIRST_NAME, firstName)
+            write(SessionField.USER_LAST_NAME, lastName)
+            write(SessionField.PENDING_EMAIL_VERIFICATION, email)
+        }
     }
 
     suspend fun forgotPassword(email: String) = withContext(Dispatchers.IO) {
         // iOS transitions to code entry on a decoded response, even when success is false.
         val response = send(jsonRequest("auth/forget", "POST", wire.forgotBody(email)))
-        requireOk(JSONObject(wire.actionResult("forgot", response.statusCode, response.body.decodeToString())))
+        requireOk(JSONObject(wire.actionResult("forgot", response.statusCode, response.body.decodeToString())), response.statusCode)
     }
 
     suspend fun resetPassword(email: String, code: String, newPassword: String) = withContext(Dispatchers.IO) {
         val response = send(jsonRequest("auth/reset", "POST", wire.resetBody(email, code, newPassword)))
-        requireOk(JSONObject(wire.actionResult("reset", response.statusCode, response.body.decodeToString())))
+        requireOk(JSONObject(wire.actionResult("reset", response.statusCode, response.body.decodeToString())), response.statusCode)
     }
 
     suspend fun sendVerificationCode() = withContext(Dispatchers.IO) {
         val response = send(PlatformHttpRequest("auth/validate-email", "GET", headers = authHeader()))
-        requireOk(JSONObject(wire.actionResult("sendVerification", response.statusCode, response.body.decodeToString())))
+        requireOk(JSONObject(wire.actionResult("sendVerification", response.statusCode, response.body.decodeToString())), response.statusCode)
     }
 
     suspend fun verifyEmail(code: String): AuthProfile = withContext(Dispatchers.IO) {
         val response = send(jsonRequest("auth/validate-email", "POST", wire.verifyBody(code), authHeader()))
-        requireOk(JSONObject(wire.actionResult("verifyEmail", response.statusCode, response.body.decodeToString())))
+        requireOk(JSONObject(wire.actionResult("verifyEmail", response.statusCode, response.body.decodeToString())), response.statusCode)
         val token = currentToken()
         val profile = profile(token)
         if (profile.destination == AuthDestination.EMAIL_VERIFICATION) throw AuthRequestException(null)
-        write(SessionField.PENDING_EMAIL_VERIFICATION, null)
+        synchronized(storeLock) {
+            if ((read(SessionField.AUTH_TOKEN) as? SessionReadResult.Value)?.value != token) throw AuthRequestException(null)
+            write(SessionField.PENDING_EMAIL_VERIFICATION, null)
+        }
         profile
     }
 
@@ -128,7 +137,7 @@ internal class AuthSessionRepository(
             headers = authHeader() + ("Content-Type" to "application/json"),
             body = wire.birthdayBody(birthDay).toByteArray(Charsets.UTF_8),
         ))
-        requireOk(JSONObject(wire.actionResult("birthday", response.statusCode, response.body.decodeToString())))
+        requireOk(JSONObject(wire.actionResult("birthday", response.statusCode, response.body.decodeToString())), response.statusCode)
         profile(token)
     }
 
@@ -143,15 +152,24 @@ internal class AuthSessionRepository(
             is SessionReadResult.Value -> try {
                 AuthRestoreResult.SignedIn(profile(token.value))
             } catch (error: AuthRequestException) {
-                // iOS keeps the token on HTTP/offline failure and offers a retry.
-                AuthRestoreResult.Error(error.serverMessage)
+                if (error.status == 401) {
+                    synchronized(storeLock) {
+                        if ((read(SessionField.AUTH_TOKEN) as? SessionReadResult.Value)?.value == token.value) {
+                            clear()
+                            AuthRestoreResult.SignedOut
+                        } else AuthRestoreResult.Error(null)
+                    }
+                } else {
+                    // Keep the token on server/offline failure and offer a retry.
+                    AuthRestoreResult.Error(error.serverMessage)
+                }
             } catch (_: IOException) {
                 AuthRestoreResult.Error(null)
             }
         }
     }
 
-    suspend fun logout() = withContext(Dispatchers.IO) { clear() }
+    suspend fun logout() = withContext(Dispatchers.IO) { synchronized(storeLock) { clear() } }
 
     // MARK: Social sign-in. The provider only proves identity; the session is our JWT.
 
@@ -194,7 +212,7 @@ internal class AuthSessionRepository(
     suspend fun deleteAccount() = withContext(Dispatchers.IO) {
         val response = send(PlatformHttpRequest("user/me", "DELETE", headers = socialAuthHeader()))
         socialResult("accepted", response)
-        clear()
+        synchronized(storeLock) { clear() }
     }
 
     /** true / false for a 2xx / 401 from `auth/isAuth`; null when the answer says neither. */
@@ -207,8 +225,10 @@ internal class AuthSessionRepository(
     }
 
     private suspend fun acceptToken(token: String): AuthProfile {
-        write(SessionField.AUTH_TOKEN, token)
-        write(SessionField.PENDING_EMAIL_VERIFICATION, null)
+        synchronized(storeLock) {
+            write(SessionField.AUTH_TOKEN, token)
+            write(SessionField.PENDING_EMAIL_VERIFICATION, null)
+        }
         return try { profile(token) } catch (cancel: CancellationException) {
             throw cancel
         } catch (error: AuthRequestException) {
@@ -246,34 +266,38 @@ internal class AuthSessionRepository(
                 headers = mapOf("Authorization" to "Bearer $token"),
             ),
         )
-        val result = JSONObject(wire.profileResult(response.statusCode, response.body.decodeToString()))
-        if (!result.optBoolean("ok")) throw AuthRequestException(result.optString("message").ifBlank { null })
-        write(SessionField.USER_EMAIL, result.getString("email"))
-        write(SessionField.USER_FIRST_NAME, result.getString("firstName"))
-        write(SessionField.USER_LAST_NAME, result.getString("lastName"))
-        val destination = AuthDestination.valueOf(result.getString("destination").camelToEnum())
-        if (destination == AuthDestination.EMAIL_VERIFICATION) {
-            write(SessionField.PENDING_EMAIL_VERIFICATION, result.getString("email").trim())
+        return synchronized(storeLock) {
+            // An old response must neither persist nor route a different session.
+            if ((read(SessionField.AUTH_TOKEN) as? SessionReadResult.Value)?.value != token) throw AuthRequestException(null)
+            val result = JSONObject(wire.profileResult(response.statusCode, response.body.decodeToString()))
+            if (!result.optBoolean("ok")) throw AuthRequestException(result.optString("message").ifBlank { null }, response.statusCode)
+            write(SessionField.USER_EMAIL, result.getString("email"))
+            write(SessionField.USER_FIRST_NAME, result.getString("firstName"))
+            write(SessionField.USER_LAST_NAME, result.getString("lastName"))
+            val destination = AuthDestination.valueOf(result.getString("destination").camelToEnum())
+            if (destination == AuthDestination.EMAIL_VERIFICATION) {
+                write(SessionField.PENDING_EMAIL_VERIFICATION, result.getString("email").trim())
+            }
+            AuthProfile(
+                destination,
+                result.getString("email"),
+                result.optString("language").ifBlank { null },
+                result.optString("userId"),
+                result.optString("firstName"),
+                result.optString("lastName"),
+                result.optJSONArray("houseList")?.let { houses ->
+                    (0 until houses.length()).map { index ->
+                        val house = houses.getJSONObject(index)
+                        HouseSummary(house.getString("houseId"), house.getString("houseName"), house.optString("houseProfile"))
+                    }
+                } ?: emptyList(),
+                result.optString("imageUrl"), result.optString("birthDay"), result.optString("createdOn"),
+                result.optString("phoneNumber"), result.optBoolean("isVerifyEmail"), result.optBoolean("isVerifyPhone"),
+                signUpProvider = if (result.has("signUpProvider")) result.getInt("signUpProvider") else null,
+                linkedProviders = result.optJSONArray("linkedProviders")?.let { list -> (0 until list.length()).map(list::getInt) },
+                hasPassword = if (result.has("hasPassword")) result.getBoolean("hasPassword") else null,
+            )
         }
-        return AuthProfile(
-            destination,
-            result.getString("email"),
-            result.optString("language").ifBlank { null },
-            result.optString("userId"),
-            result.optString("firstName"),
-            result.optString("lastName"),
-            result.optJSONArray("houseList")?.let { houses ->
-                (0 until houses.length()).map { index ->
-                    val house = houses.getJSONObject(index)
-                    HouseSummary(house.getString("houseId"), house.getString("houseName"), house.optString("houseProfile"))
-                }
-            } ?: emptyList(),
-            result.optString("imageUrl"), result.optString("birthDay"), result.optString("createdOn"),
-            result.optString("phoneNumber"), result.optBoolean("isVerifyEmail"), result.optBoolean("isVerifyPhone"),
-            signUpProvider = if (result.has("signUpProvider")) result.getInt("signUpProvider") else null,
-            linkedProviders = result.optJSONArray("linkedProviders")?.let { list -> (0 until list.length()).map(list::getInt) },
-            hasPassword = if (result.has("hasPassword")) result.getBoolean("hasPassword") else null,
-        )
     }
 
     private fun currentToken(): String = when (val result = read(SessionField.AUTH_TOKEN)) {
@@ -286,8 +310,8 @@ internal class AuthSessionRepository(
     private fun jsonRequest(path: String, method: String, body: String, headers: Map<String, String> = emptyMap()) =
         PlatformHttpRequest(path, method, headers = headers + ("Content-Type" to "application/json"), body = body.toByteArray(Charsets.UTF_8))
 
-    private fun requireOk(result: JSONObject) {
-        if (!result.optBoolean("ok")) throw AuthRequestException(result.optString("message").ifBlank { null })
+    private fun requireOk(result: JSONObject, status: Int) {
+        if (!result.optBoolean("ok")) throw AuthRequestException(result.optString("message").ifBlank { null }, status)
     }
 
     companion object {

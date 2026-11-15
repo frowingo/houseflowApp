@@ -17,8 +17,7 @@ struct HouseTanksView: View {
     @State private var observationID = UUID()
 
     init(service: (any HouseTanksGameServicing)? = nil, onlineFactory: HouseTanksOnlineFactory = .unavailable) {
-        let resolved = service ?? DemoHouseTanksGameSession()
-        _model = StateObject(wrappedValue: HouseTanksViewModel(service: resolved, onlineFactory: onlineFactory))
+        _model = StateObject(wrappedValue: HouseTanksViewModel(service: service ?? DemoHouseTanksGameSession(), onlineFactory: onlineFactory))
     }
 
     var body: some View {
@@ -77,22 +76,11 @@ struct HouseTanksView: View {
             isPlayfieldPressed = false
             model.endPress()
         }
-        .onChange(of: appViewModel.currentHouseDetails?.id) { _, houseID in
-            model.onlineIdentityChanged(houseID: houseID, userID: appViewModel.currentUserId)
-        }
-        .onChange(of: appViewModel.currentUserId) { _, userID in
-            model.onlineIdentityChanged(houseID: appViewModel.currentHouseDetails?.id, userID: userID)
-        }
-        .onChange(of: appViewModel.isAuthenticated) { _, authenticated in
-            if !authenticated { model.stop(); GameOrientationController.returnToPortrait() }
-        }
-        .onChange(of: model.requiresOnlineSignIn) { _, required in
-            if required { model.stop(); appViewModel.logout(); GameOrientationController.returnToPortrait() }
-        }
-        .onDisappear {
-            model.stop()
-            GameOrientationController.returnToPortrait()
-        }
+        .onlineGameLifecycle(
+            requiresSignIn: model.requiresOnlineSignIn,
+            identityChanged: { model.onlineIdentityChanged(houseID: $0, userID: $1) },
+            stop: model.stop
+        )
     }
 
     @ViewBuilder
@@ -166,7 +154,7 @@ struct HouseTanksView: View {
                     .allowsHitTesting(false)
                     .padding(.bottom, AppDesign.Spacing.xl)
                     .task {
-                        try? await Task.sleep(nanoseconds: 4_000_000_000)
+                        do { try await Task.sleep(nanoseconds: 4_000_000_000) } catch { return }
                         withAnimation(.easeOut(duration: 0.2)) {
                             hasShownTapHint = false
                         }
@@ -539,6 +527,6 @@ struct HouseTanksView: View {
 #Preview {
     NavigationStack {
         HouseTanksView()
-            .environmentObject(AppViewModel())
+            .environmentObject(AppViewModel.preview)
     }
 }

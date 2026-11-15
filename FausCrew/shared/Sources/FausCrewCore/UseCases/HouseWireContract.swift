@@ -33,14 +33,12 @@ public enum HouseWireContract {
     }
 
     public static func validate(action: String, response: HTTPResponse, decoder: JSONDecoder = JSONDecoder()) throws {
-        guard (200...399).contains(response.statusCode) else {
-            throw HTTPStatusFailure(response: response, decoder: decoder)
-        }
+        try requireSuccess(response, decoder)
         switch action {
         case "create", "join":
             _ = try unwrap(HouseAPIResponse<HouseResponse>.self, response.body, decoder)
         case "details":
-            _ = try unwrap(HouseAPIResponse<HouseDetailsResponse>.self, response.body, decoder)
+            _ = try details(from: response, decoder: decoder)
         case "info", "profile":
             _ = try unwrap(HouseAPIResponse<HouseInfoData>.self, response.body, decoder)
         case "invite":
@@ -53,9 +51,21 @@ public enum HouseWireContract {
         }
     }
 
+    /// The decoded `house/details` payload, for clients that project it onto their own models.
+    public static func details(from response: HTTPResponse, decoder: JSONDecoder = JSONDecoder()) throws -> HouseDetailsResponse {
+        try requireSuccess(response, decoder)
+        return try unwrap(HouseAPIResponse<HouseDetailsResponse>.self, response.body, decoder)
+    }
+
     public static func preferredHouse(in houses: [AuthHouseSummary], chosenId: String?) -> AuthHouseSummary? {
         if let chosenId, let chosen = houses.first(where: { $0.houseId == chosenId }) { return chosen }
         return houses.first
+    }
+
+    private static func requireSuccess(_ response: HTTPResponse, _ decoder: JSONDecoder) throws {
+        guard (200...399).contains(response.statusCode) else {
+            throw HTTPStatusFailure(response: response, decoder: decoder)
+        }
     }
 
     private static func unwrap<T: Decodable>(

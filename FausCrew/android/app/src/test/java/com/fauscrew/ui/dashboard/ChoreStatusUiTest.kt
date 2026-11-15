@@ -2,8 +2,6 @@ package com.fauscrew.ui.dashboard
 
 import com.fauscrew.platform.ChoreFailureReason
 import com.fauscrew.platform.HouseChore
-import com.fauscrew.platform.HouseStatusHistory
-import com.fauscrew.platform.HouseVote
 import com.fauscrew.platform.toHouseChore
 import org.json.JSONObject
 import org.junit.Assert.assertEquals
@@ -53,19 +51,15 @@ class ChoreStatusUiTest {
         assertEquals(listOf("b", "c", "e"), history.map { it.id })
     }
 
-    @Test fun failedResponseParsesWithHistory() {
-        val chore = JSONObject("""
-            {"id":"f","houseId":"h","title":"Trash","assignedTo":"u","dueDate":"$due",
-             "status":4,"isCompleted":false,"completedAt":"0001-01-01T00:00:00Z","completedBy":"",
-             "statusHistories":[
-               {"status":1,"updater":"u","dateTime":"2026-10-11T09:00:00Z"},
-               {"status":4,"updater":"system","dateTime":"2026-10-12T18:30:05Z"}],
-             "reviewRound":0,"reviewVotes":[]}
-        """.trimIndent()).toHouseChore()
+    @Test fun failedResponseCarriesTheReasonCoreDecided() {
+        val failed = """{"id":"f","houseId":"h","title":"Trash","assignedTo":"u","dueDate":"$due",
+            "status":4,"isCompleted":false,"reviewRound":0,"reviewVotes":[]"""
+        val chore = JSONObject("""$failed,"failureReason":"dueDatePassed"}""").toHouseChore()
         assertEquals(ChoreStatusUi.FAILED, ChoreStatusUi.of(chore.status))
         assertFalse(chore.isCompleted)
-        assertEquals(HouseStatusHistory(4, "system", "2026-10-12T18:30:05Z"), chore.statusHistories.last())
         assertEquals(ChoreFailureReason.DUE_DATE_PASSED, chore.failureReason)
+        assertEquals(ChoreFailureReason.UNSPECIFIED, JSONObject("""$failed,"failureReason":"unspecified"}""").toHouseChore().failureReason)
+        assertNull(JSONObject("$failed}").toHouseChore().failureReason)
     }
 
     @Test fun completedBeforeDueStaysCompletedWithoutReason() {
@@ -73,23 +67,6 @@ class ChoreStatusUiTest {
         assertEquals(ChoreStatusUi.COMPLETED, ChoreStatusUi.of(chore.status))
         assertNull(chore.failureReason)
     }
-
-    @Test fun failureReasonIsConservative() {
-        assertEquals(ChoreFailureReason.DUE_DATE_PASSED, reason("system", "2026-10-12T18:30:00Z"))
-        assertEquals(ChoreFailureReason.DUE_DATE_PASSED, reason(" System ", "2026-10-13T00:00:00Z"))
-        assertEquals(ChoreFailureReason.UNSPECIFIED, reason("user-1", "2026-10-13T00:00:00Z"))
-        assertEquals(ChoreFailureReason.UNSPECIFIED, reason("system", "2026-10-12T10:00:00Z"))
-        assertEquals(ChoreFailureReason.UNSPECIFIED, reason("system", "not a date"))
-        assertEquals(ChoreFailureReason.UNSPECIFIED, reason("system", "2026-10-13T00:00:00Z", round = 3, rejectedIn = 3))
-        assertEquals(ChoreFailureReason.DUE_DATE_PASSED, reason("system", "2026-10-13T00:00:00Z", round = 2, rejectedIn = 1))
-        assertEquals(ChoreFailureReason.UNSPECIFIED, ChoreFailureReason.of(emptyList(), due, 0, emptyList()))
-    }
-
-    private fun reason(updater: String, failedAt: String, round: Int = 1, rejectedIn: Int? = null) =
-        ChoreFailureReason.of(
-            listOf(HouseStatusHistory(1, "u", "2026-10-11T09:00:00Z"), HouseStatusHistory(4, updater, failedAt)),
-            due, round, listOfNotNull(rejectedIn?.let { HouseVote(it, "r", false) }),
-        )
 
     private fun chore(id: String, status: Int, done: Boolean = false) = HouseChore(
         id = id, houseId = "h", title = id, description = "", assignedTo = "u", dueDate = due,

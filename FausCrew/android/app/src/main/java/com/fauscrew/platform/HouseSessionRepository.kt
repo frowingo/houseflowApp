@@ -9,7 +9,7 @@ import org.json.JSONObject
 
 internal data class HouseSummary(val id: String, val name: String, val profileImage: String)
 internal data class HouseDetails(
-    val id: String, val name: String, val payload: String,
+    val id: String, val name: String,
     val ownerId: String = "",
     val members: List<HouseMember> = emptyList(),
     val chores: List<HouseChore> = emptyList(),
@@ -20,7 +20,6 @@ internal data class HouseMember(val id: String, val firstName: String, val lastN
     val name: String get() = listOf(firstName, lastName).filter(String::isNotBlank).joinToString(" ")
 }
 internal data class HouseVote(val reviewRound: Int, val reviewerId: String, val isApproved: Boolean)
-internal data class HouseStatusHistory(val status: Int, val updater: String, val dateTime: String)
 internal data class HouseChore(
     val id: String, val houseId: String, val title: String, val description: String,
     val assignedTo: String, val dueDate: String, val status: Int, val isCompleted: Boolean,
@@ -28,17 +27,12 @@ internal data class HouseChore(
     val reviewRound: Int, val reviewVotes: List<HouseVote>,
     /** Review rounds that carry a photo; storage keys never reach the client. */
     val reviewPhotoRounds: List<Int> = emptyList(),
-    val statusHistories: List<HouseStatusHistory> = emptyList(),
     /** Raw `ChoreCategoryKind`; `0` when absent (backends before categories) or uncategorized. */
     val category: Int = 0,
+    /** Set for Failed chores only; Core decides it (`HouseChoreDTO.failureReason`). */
+    val failureReason: ChoreFailureReason? = null,
 ) {
     val categoryKind: ChoreCategoryKind get() = ChoreCategoryKind.of(category)
-
-    /** Set for Failed chores only (iOS `HouseChoreDTO.failureReason`). */
-    val failureReason: ChoreFailureReason?
-        get() = if (status == CHORE_STATUS_FAILED) {
-            ChoreFailureReason.of(statusHistories, dueDate, reviewRound, reviewVotes)
-        } else null
 }
 
 /**
@@ -62,35 +56,16 @@ internal enum class ChoreCategoryKind(val raw: Int) {
 internal const val CHORE_STATUS_FAILED = 4
 
 /**
- * Why a chore failed (iOS `ChoreFailureReason`). The API does not say, so a reason is shown
+ * Why a chore failed (Core `ChoreFailureReason`). The API does not say, so Core names a reason
  * only when the status history proves it; anything else stays [UNSPECIFIED].
  */
-internal enum class ChoreFailureReason {
-    DUE_DATE_PASSED,
-    UNSPECIFIED,
+internal enum class ChoreFailureReason(val wire: String) {
+    DUE_DATE_PASSED("dueDatePassed"),
+    UNSPECIFIED("unspecified"),
     ;
 
     companion object {
-        /** `updater` of status-history entries the backend writes itself. */
-        const val SYSTEM_UPDATER = "system"
-
-        /**
-         * [DUE_DATE_PASSED] only when the Failed entry came from the system at or after the due
-         * date and the last review round (the third or later) holds no rejection, which would
-         * make a review failure just as likely.
-         */
-        fun of(histories: List<HouseStatusHistory>, dueDate: String, reviewRound: Int, votes: List<HouseVote>): ChoreFailureReason {
-            val failure = histories.lastOrNull { it.status == CHORE_STATUS_FAILED } ?: return UNSPECIFIED
-            if (failure.updater.trim().lowercase() != SYSTEM_UPDATER) return UNSPECIFIED
-            val due = apiInstant(dueDate) ?: return UNSPECIFIED
-            val failedAt = apiInstant(failure.dateTime) ?: return UNSPECIFIED
-            if (failedAt.isBefore(due)) return UNSPECIFIED
-            val rejectedInFinalRound = reviewRound >= 3 && votes.any { it.reviewRound == reviewRound && !it.isApproved }
-            return if (rejectedInFinalRound) UNSPECIFIED else DUE_DATE_PASSED
-        }
-
-        private fun apiInstant(value: String): java.time.Instant? =
-            runCatching { java.time.OffsetDateTime.parse(value).toInstant() }.getOrNull()
+        fun fromWire(value: String?): ChoreFailureReason? = entries.firstOrNull { it.wire == value }
     }
 }
 internal data class HouseAnnouncement(
@@ -122,9 +97,12 @@ private fun JSONObject.toHouseInfo() = HouseInfo(
     isChoreReviewPhotoRequired = optBoolean("isChoreReviewPhotoRequired", false),
 )
 
-internal class HouseRequestException(val serverMessage: String?) : IOException(serverMessage ?: "House request failed")
+internal class HouseRequestException(val serverMessage: String?, val status: Int? = null) : IOException(serverMessage ?: "House request failed")
 
-/** Swift validates the existing DTOs; Android owns transport and screen projections. */
+/**
+ * Core decodes the house and chore responses and the bridge hands Android their normalized form
+ * (one key per field, aliases and time shapes resolved); Android owns transport and screens.
+ */
 internal class HouseSessionRepository(
     private val send: suspend (PlatformHttpRequest) -> PlatformHttpResponse,
     private val read: (SessionField) -> SessionReadResult,
@@ -145,11 +123,10 @@ internal class HouseSessionRepository(
         val data = call("details", "house/details", "GET", queryHouse = houseId)
         val id = data.getString("id")
         if (id != houseId) throw HouseRequestException(null)
-        HouseDetails(id, data.getString("name"), data.toString(), data.optString("ownerId"),
+        HouseDetails(id, data.getString("name"), data.optString("ownerId"),
             data.optJSONArray("members").objects { it.toHouseMember() },
             data.optJSONArray("chores").objects { it.toHouseChore() },
-            (data.optJSONArray("announcements") ?: data.optJSONArray("activeAnnouncements"))
-                .objects { it.toHouseAnnouncement() },
+            data.optJSONArray("announcements").objects { it.toHouseAnnouncement() },
             data.optBoolean("isChoreReviewPhotoRequired", false))
     }
 
@@ -181,7 +158,7 @@ internal class HouseSessionRepository(
     ): JSONObject {
         val token = when (val value = read(SessionField.AUTH_TOKEN)) {
             is SessionReadResult.Value -> value.value
-            else -> throw HouseRequestException(null)
+            else -> throw HouseRequestException(null, 401)
         }
         val response = send(PlatformHttpRequest(
             path = path, method = method,
@@ -191,7 +168,7 @@ internal class HouseSessionRepository(
             body = body?.toByteArray(Charsets.UTF_8),
         ))
         val result = JSONObject(wire.response(action, response.statusCode, response.body.decodeToString()))
-        if (!result.optBoolean("success")) throw HouseRequestException(result.optString("error").ifBlank { null })
+        if (!result.optBoolean("success")) throw HouseRequestException(result.optString("error").ifBlank { null }, response.statusCode)
         return if (action == "exit") JSONObject() else result.getJSONObject("data")
     }
 
@@ -213,49 +190,25 @@ internal fun JSONObject.toHouseMember() = HouseMember(
 internal fun JSONObject.toHouseChore() = HouseChore(
     id = getString("id"), houseId = getString("houseId"), title = getString("title"),
     description = optString("description"), assignedTo = optString("assignedTo"),
-    dueDate = apiTime("dueDate"), status = optInt("status"), isCompleted = optBoolean("isCompleted"),
+    dueDate = optString("dueDate"), status = optInt("status"), isCompleted = optBoolean("isCompleted"),
     isRecurring = optBoolean("isRecurring"), level = optInt("level", 10),
     recurringInterval = optInt("recurringInterval"), reviewRound = optInt("reviewRound"),
-    reviewVotes = optJSONArray("reviewVotes").objects {
-        HouseVote(it.optInt("reviewRound"), it.optString("reviewerId"), it.optBoolean("isApproved"))
-    },
+    reviewVotes = optJSONArray("reviewVotes").objects { it.toHouseVote() },
     reviewPhotoRounds = optJSONArray("reviewPhotoRounds")?.let { rounds ->
         (0 until rounds.length()).mapNotNull { index -> (rounds.opt(index) as? Number)?.toInt() }
     }.orEmpty(),
-    statusHistories = optJSONArray("statusHistories").objects {
-        HouseStatusHistory(it.optInt("status", -1), it.optString("updater"), it.apiTime("dateTime"))
-    },
-    category = if (isNull("category")) 0 else optInt("category", 0),
+    category = optInt("category", 0),
+    failureReason = ChoreFailureReason.fromWire(optString("failureReason")),
 )
+
+internal fun JSONObject.toHouseVote() = HouseVote(optInt("reviewRound"), optString("reviewerId"), optBoolean("isApproved"))
 
 internal fun JSONObject.toHouseAnnouncement() = HouseAnnouncement(
-    id = optString("id").ifBlank { getString("announcementId") },
-    houseId = optString("houseId").takeIf(String::isNotBlank), title = getString("title"),
-    message = listOf("message", "content", "description", "body").firstNotNullOfOrNull { key ->
-        optString(key).takeIf(String::isNotBlank)
-    } ?: "",
-    createdOn = apiTime("createdOn").ifBlank { apiTime("createdAt") },
-    isActive = optBoolean("isActive", true),
-    publisherId = listOf("announcedBy", "createdById", "createdByUserId", "creatorId", "publisherId", "userId", "memberId")
-        .firstNotNullOfOrNull { key -> optString(key).takeIf(String::isNotBlank) },
-    publisherName = listOf("publisherName", "createdByName", "authorName")
-        .firstNotNullOfOrNull { key -> optString(key).takeIf(String::isNotBlank) }
-        ?: listOf(optString("createdByFirstName"), optString("createdByLastName"))
-            .filter(String::isNotBlank).joinToString(" ").takeIf(String::isNotBlank)
-        ?: listOf("createdByUser", "creator", "publisher", "author", "createdBy")
-            .firstNotNullOfOrNull { key -> optJSONObject(key)?.let { nested ->
-                nested.optString("fullName").takeIf(String::isNotBlank)
-                    ?: nested.optString("name").takeIf(String::isNotBlank)
-                    ?: listOf(nested.optString("firstName"), nested.optString("lastName"))
-                        .filter(String::isNotBlank).joinToString(" ").takeIf(String::isNotBlank)
-            } },
+    id = getString("id"), houseId = optString("houseId").takeIf(String::isNotBlank), title = getString("title"),
+    message = optString("message"), createdOn = optString("createdOn"), isActive = optBoolean("isActive", true),
+    publisherId = optString("publisherId").takeIf(String::isNotBlank),
+    publisherName = optString("publisherName").takeIf(String::isNotBlank),
 )
-
-private fun JSONObject.apiTime(key: String): String = when (val value = opt(key)) {
-    is JSONObject -> value.optString("time.Time")
-    is String -> value
-    else -> ""
-}
 
 internal interface HouseWire {
     fun body(action: String, houseId: String = "", userId: String = "", name: String = "", inviteCode: String = "",

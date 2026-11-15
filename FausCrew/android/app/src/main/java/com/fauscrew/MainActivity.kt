@@ -118,6 +118,9 @@ class MainActivity : ComponentActivity() {
             LaunchedEffect(state.profile) {
                 state.profile?.let(houseModel::acceptProfile) ?: houseModel.resetSession()
             }
+            LaunchedEffect(state.profile?.userId) {
+                catalogModel.setOwner(state.profile?.userId)
+            }
             // `/api/v1/events`: one socket while visible and signed in; signals trigger HTTP refreshes.
             val eventsModel: AppEventsViewModel = viewModel(factory = AppEventsViewModel.Factory(applicationContext))
             val visibility by AppLifecycle.bridge.visibility.collectAsStateWithLifecycle()
@@ -126,6 +129,9 @@ class MainActivity : ComponentActivity() {
                 eventsModel.update(foreground = visibility == AppVisibility.ACTIVE, authenticated = signedIn)
             }
             LaunchedEffect(houseState.details?.id) { eventsModel.setSelectedHouse(houseState.details?.id) }
+            LaunchedEffect(houseModel) {
+                houseModel.signOutRequests.collect { model.logout() }
+            }
             LaunchedEffect(eventsModel) {
                 eventsModel.requests.collect { request ->
                     when (request) {

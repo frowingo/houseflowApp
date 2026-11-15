@@ -14,15 +14,18 @@ final class LocalizationStore: ObservableObject {
 
     private let service: any LocalizationServicing
     private let cache: any LocalizationCacheStore
+    private let deviceLanguages: () -> [String]
     private var refreshTask: Task<Void, Never>?
     private var languageTask: Task<Void, Never>?
 
     init(
         service: any LocalizationServicing,
-        cache: any LocalizationCacheStore
+        cache: any LocalizationCacheStore,
+        deviceLanguages: @escaping () -> [String] = { Locale.preferredLanguages }
     ) {
         self.service = service
         self.cache = cache
+        self.deviceLanguages = deviceLanguages
 
         if let cached = cache.loadMostRecent() {
             self.languagePrefix = cached.languagePrefix
@@ -45,23 +48,41 @@ final class LocalizationStore: ObservableObject {
     }
 
     func value(for key: String) -> String {
-        values[key]
-            ?? RPSLocalization.value(for: key, language: languagePrefix)
-            ?? FausSwitchLocalization.value(for: key, language: languagePrefix)
-            ?? HouseTanksLocalization.value(for: key, language: languagePrefix)
-            ?? HouseRocketsLocalization.value(for: key, language: languagePrefix)
-            ?? LuckySpinLocalization.value(for: key, language: languagePrefix)
-            ?? key
+        value(for: key, fallback: key)
     }
 
     func value(for key: String, fallback: String) -> String {
-        values[key]
-            ?? RPSLocalization.value(for: key, language: languagePrefix)
-            ?? FausSwitchLocalization.value(for: key, language: languagePrefix)
-            ?? HouseTanksLocalization.value(for: key, language: languagePrefix)
-            ?? HouseRocketsLocalization.value(for: key, language: languagePrefix)
-            ?? LuckySpinLocalization.value(for: key, language: languagePrefix)
-            ?? fallback
+        values[key] ?? bundledValue(for: key) ?? fallback
+    }
+
+    /// Server text wins; otherwise the built-in Turkish/English copy for the app language.
+    func value(for key: String, tr: String, en: String) -> String {
+        value(for: key, fallback: APILanguage.code == "tr" ? tr : en)
+    }
+
+    func userMessage(for error: Error) -> String {
+        switch error {
+        case NetworkError.serverError(let message):
+            return message
+        case NetworkError.unauthorized:
+            return value(
+                for: "error_session_expired",
+                tr: "Oturumunuz sona ermiş. Lütfen tekrar giriş yapın.",
+                en: NetworkError.sessionExpiredMessage
+            )
+        case is URLError:
+            return value(
+                for: "error_network_unavailable",
+                tr: "Bağlantı kurulamadı. İnternet bağlantınızı kontrol edin.",
+                en: "Unable to connect. Please check your internet connection."
+            )
+        default:
+            return value(
+                for: "error_generic",
+                tr: "Bir şeyler ters gitti. Lütfen tekrar deneyin.",
+                en: NetworkError.genericMessage
+            )
+        }
     }
 
     func value(for key: String, replacements: [String: String]) -> String {
@@ -169,7 +190,7 @@ final class LocalizationStore: ObservableObject {
     }
 
     private func preferredDeviceLanguagePrefix(in activeLanguages: [LocalizationLanguage]) -> String? {
-        guard let preferredIdentifier = Locale.preferredLanguages.first else { return nil }
+        guard let preferredIdentifier = deviceLanguages().first else { return nil }
 
         let normalizedIdentifier = normalizeLocaleIdentifier(preferredIdentifier)
         if let exactMatch = activeLanguages.first(where: {
@@ -198,6 +219,17 @@ final class LocalizationStore: ObservableObject {
         } catch {
             // Lookup already falls back to the key, so a failed refresh should not block UI.
         }
+    }
+
+    /// The game dictionaries answer Turkish for every language but English, so they follow
+    /// `APILanguage` (English unless the app language is Turkish) like the `tr`/`en` copy.
+    private func bundledValue(for key: String) -> String? {
+        let language = APILanguage.code
+        return RPSLocalization.value(for: key, language: language)
+            ?? FausSwitchLocalization.value(for: key, language: language)
+            ?? HouseTanksLocalization.value(for: key, language: language)
+            ?? HouseRocketsLocalization.value(for: key, language: language)
+            ?? LuckySpinLocalization.value(for: key, language: language)
     }
 
     private func valuesDictionary(from items: [LocalizationPlaintextItem]) -> [String: String] {

@@ -265,5 +265,5 @@ struct BirthdaySetupView: View {
 
 #Preview {
     BirthdaySetupView()
-        .environmentObject(AppViewModel())
+        .environmentObject(AppViewModel.preview)
 }

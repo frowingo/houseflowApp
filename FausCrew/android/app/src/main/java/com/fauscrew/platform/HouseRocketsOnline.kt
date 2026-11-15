@@ -1,7 +1,7 @@
 package com.fauscrew.platform
 
 import com.fauscrew.androidbridge.FausCrewAndroidBridge
-import java.util.concurrent.TimeUnit
+import java.util.concurrent.atomic.AtomicBoolean
 import okhttp3.HttpUrl
 import okhttp3.HttpUrl.Companion.toHttpUrl
 import okhttp3.OkHttpClient
@@ -357,15 +357,12 @@ internal fun interface RealtimeSocketFactory {
 
 /**
  * OkHttp WebSocket transport (`URLSessionWebSocketTask` on iOS). OkHttp negotiates
- * `permessage-deflate` on its own. Only JSON text frames are accepted; the engine owns
- * size limits, heartbeat and reconnect.
+ * `permessage-deflate` on its own. Only JSON text frames within the iOS byte limit are
+ * forwarded; the engine owns heartbeat and reconnect.
  */
 internal class OkHttpRealtimeSocketFactory(
     private val baseUrl: HttpUrl = AndroidHttpAdapter.LIVE_BASE_URL.toHttpUrl(),
-    private val client: OkHttpClient = OkHttpClient.Builder()
-        .connectTimeout(15, TimeUnit.SECONDS)
-        .readTimeout(0, TimeUnit.SECONDS)
-        .build(),
+    private val client: OkHttpClient = SharedHttpClients.realtime,
 ) : RealtimeSocketFactory {
     override fun open(path: String, query: String, token: String, listener: RealtimeSocketListener): RealtimeSocket {
         val url = baseUrl.newBuilder().apply {
@@ -375,25 +372,56 @@ internal class OkHttpRealtimeSocketFactory(
             }
         }.build()
         val request = Request.Builder().url(url).header("Authorization", "Bearer $token").build()
-        val socket = client.newWebSocket(request, object : WebSocketListener() {
-            override fun onOpen(webSocket: WebSocket, response: Response) = listener.onOpen()
-            override fun onMessage(webSocket: WebSocket, text: String) = listener.onText(text)
-            override fun onClosing(webSocket: WebSocket, code: Int, reason: String) {
-                webSocket.close(1000, null)
-                listener.onFailure(if (code == 1008 && reason == "house membership revoked") OnlineFailure.Forbidden
-                    else OnlineFailure.Transport)
-            }
-            override fun onFailure(webSocket: WebSocket, t: Throwable, response: Response?) {
-                val failure = response?.takeIf { it.code >= 400 }?.let {
-                    OnlineFailure.Http(it.code, retryAfterSeconds(it.header("Retry-After")))
-                } ?: OnlineFailure.Transport
-                response?.close()
-                listener.onFailure(failure)
-            }
-        })
+        val socket = client.newWebSocket(request, OkHttpRealtimeSocketListener(listener))
         return object : RealtimeSocket {
             override fun send(text: String): Boolean = socket.send(text)
             override fun close() = socket.cancel()
         }
+    }
+}
+
+// Matches GameRealtimeTransport and Core's gameOnlineMaximumIncomingBytes (UTF-8 bytes).
+internal const val REALTIME_MAXIMUM_INCOMING_BYTES = 1_048_576
+
+internal fun exceedsRealtimeMessageLimit(text: String): Boolean =
+    text.length > REALTIME_MAXIMUM_INCOMING_BYTES / 3 &&
+        text.toByteArray(Charsets.UTF_8).size > REALTIME_MAXIMUM_INCOMING_BYTES
+
+internal class OkHttpRealtimeSocketListener(private val listener: RealtimeSocketListener) : WebSocketListener() {
+    private val failed = AtomicBoolean(false)
+
+    override fun onOpen(webSocket: WebSocket, response: Response) {
+        if (!failed.get()) listener.onOpen()
+    }
+
+    override fun onMessage(webSocket: WebSocket, text: String) {
+        if (failed.get()) return
+        if (exceedsRealtimeMessageLimit(text)) {
+            if (failed.compareAndSet(false, true)) {
+                webSocket.close(1009, "Message too large")
+                listener.onFailure(OnlineFailure.Transport)
+            }
+        } else listener.onText(text)
+    }
+
+    // Binary frames remain ignored; the game gateway sends JSON text only.
+    override fun onMessage(webSocket: WebSocket, bytes: okio.ByteString) = Unit
+
+    override fun onClosing(webSocket: WebSocket, code: Int, reason: String) {
+        if (!failed.get()) webSocket.close(1000, null)
+        reportFailure(if (code == 1008 && reason == "house membership revoked") OnlineFailure.Forbidden
+            else OnlineFailure.Transport)
+    }
+
+    override fun onFailure(webSocket: WebSocket, t: Throwable, response: Response?) {
+        val failure = response?.takeIf { it.code >= 400 }?.let {
+            OnlineFailure.Http(it.code, retryAfterSeconds(it.header("Retry-After")))
+        } ?: OnlineFailure.Transport
+        response?.close()
+        reportFailure(failure)
+    }
+
+    private fun reportFailure(failure: OnlineFailure) {
+        if (failed.compareAndSet(false, true)) listener.onFailure(failure)
     }
 }

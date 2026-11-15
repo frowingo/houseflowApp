@@ -54,6 +54,9 @@ final class AppleCredentialProvider: NSObject, SocialCredentialProviding {
 
     func signOutAll() {}
 
+    /// Logout: the pending name belongs to whoever tried Apple sign-in on this device.
+    func clearLocalData() { clearPendingName() }
+
     func didAuthenticate(provider: SocialProvider) { clearPendingName() }
 
     // MARK: - Authorization

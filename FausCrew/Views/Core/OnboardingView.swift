@@ -372,5 +372,5 @@ private struct BellIcon: View {
 
 #Preview {
     OnboardingView()
-        .environmentObject(AppViewModel())
+        .environmentObject(AppViewModel.preview)
 }

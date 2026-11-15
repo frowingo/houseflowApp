@@ -4,6 +4,7 @@ import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
+/** The name rules run in Core; `BridgeRoundtripTest` and the bridge tests cover them through the bridge. */
 class HouseCreationRulesTest {
     @Test
     fun addHouseOptionsHideAtTheHouseLimit() {
@@ -13,18 +14,8 @@ class HouseCreationRulesTest {
     }
 
     @Test
-    fun formNeedsNameTypeAndMemberCount() {
-        assertTrue(HouseCreationRules.isValid("Bahçeli Ev", 2, 4))
-        assertFalse(HouseCreationRules.isValid("   ", 2, 4))
+    fun formNeedsATypeAndMemberCountBeforeTheBridgeIsAsked() {
         assertFalse(HouseCreationRules.isValid("Bahçeli Ev", null, 4))
         assertFalse(HouseCreationRules.isValid("Bahçeli Ev", 2, null))
-    }
-
-    @Test
-    fun formRejectsOutOfRangeValues() {
-        assertFalse(HouseCreationRules.isValid("a".repeat(HouseCreationRules.NAME_MAX_LENGTH + 1), 2, 4))
-        assertFalse(HouseCreationRules.isValid("Ev", 9, 4))
-        assertFalse(HouseCreationRules.isValid("Ev", 2, 1))
-        assertFalse(HouseCreationRules.isValid("Ev", 2, 9))
     }
 }

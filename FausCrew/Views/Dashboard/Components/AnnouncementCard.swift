@@ -12,7 +12,8 @@ struct AnnouncementCard: View {
     let members: [HouseMemberDTO]
 
     @State private var isExpanded = false
-    @State private var readAnnouncementIds: Set<String>
+    @State private var readAnnouncementIds: Set<String> = []
+    @State private var loadedStorageNamespace: String?
 
     init(
         houseId: String,
@@ -24,9 +25,6 @@ struct AnnouncementCard: View {
         self.readerId = readerId
         self.announcements = announcements
         self.members = members
-        _readAnnouncementIds = State(
-            initialValue: AnnouncementReadStore.load(houseId: houseId, readerId: readerId)
-        )
     }
 
     private var activeAnnouncements: [HouseAnnouncementDTO] {
@@ -34,18 +32,34 @@ struct AnnouncementCard: View {
     }
 
     private var unreadCount: Int {
-        activeAnnouncements.filter { !readAnnouncementIds.contains($0.id) }.count
+        guard hasLoadedReadState else { return 0 }
+        return activeAnnouncements.filter { !readAnnouncementIds.contains($0.id) }.count
     }
 
     private var sortedAnnouncements: [HouseAnnouncementDTO] {
-        activeAnnouncements.sorted { lhs, rhs in
-            let lhsIsRead = readAnnouncementIds.contains(lhs.id)
-            let rhsIsRead = readAnnouncementIds.contains(rhs.id)
-            if lhsIsRead != rhsIsRead { return !lhsIsRead }
+        activeAnnouncements.map { announcement in
+            (
+                announcement: announcement,
+                isRead: readAnnouncementIds.contains(announcement.id),
+                date: FausCrewDateFormatter.parseAPIDate(announcement.createdOn) ?? .distantPast
+            )
+        }.sorted { lhs, rhs in
+            if lhs.isRead != rhs.isRead { return !lhs.isRead }
+            return lhs.date > rhs.date
+        }.map { $0.announcement }
+    }
 
-            let lhsDate = FausCrewDateFormatter.parseAPIDate(lhs.createdOn) ?? .distantPast
-            let rhsDate = FausCrewDateFormatter.parseAPIDate(rhs.createdOn) ?? .distantPast
-            return lhsDate > rhsDate
+    private var hasLoadedReadState: Bool {
+        loadedStorageNamespace == storageNamespace
+    }
+
+    private func loadReadState() {
+        let ids = AnnouncementReadStore.load(houseId: houseId, readerId: readerId)
+        var transaction = Transaction()
+        transaction.disablesAnimations = true
+        withTransaction(transaction) {
+            readAnnouncementIds = ids
+            loadedStorageNamespace = storageNamespace
         }
     }
 
@@ -54,10 +68,11 @@ struct AnnouncementCard: View {
             headerButton
 
             if isExpanded {
+                let sorted = sortedAnnouncements
                 Divider().overlay(AppDesign.Colors.separator)
                     .padding(.horizontal, AppDesign.Spacing.xl)
 
-                announcementList
+                announcementList(sorted)
                     .transition(.opacity.combined(with: .move(edge: .top)))
             }
         }
@@ -94,16 +109,14 @@ struct AnnouncementCard: View {
         )
         .animation(.spring(response: 0.42, dampingFraction: 0.86), value: isExpanded)
         .animation(AppDesign.Animation.quick, value: readAnnouncementIds)
-        .onChange(of: storageNamespace) { _, _ in
-            readAnnouncementIds = AnnouncementReadStore.load(
-                houseId: houseId,
-                readerId: readerId
-            )
+        .task(id: storageNamespace) {
+            loadReadState()
         }
     }
 
     private var headerButton: some View {
-        Button {
+        let unreadCount = self.unreadCount
+        return Button {
             withAnimation(.spring(response: 0.42, dampingFraction: 0.86)) {
                 isExpanded.toggle()
             }
@@ -170,8 +183,8 @@ struct AnnouncementCard: View {
     }
 
     @ViewBuilder
-    private var announcementList: some View {
-        if sortedAnnouncements.isEmpty {
+    private func announcementList(_ sorted: [HouseAnnouncementDTO]) -> some View {
+        if sorted.isEmpty {
             VStack(spacing: AppDesign.Spacing.md) {
                 Image(systemName: "megaphone")
                     .font(.system(size: 28, weight: .medium))
@@ -190,7 +203,7 @@ struct AnnouncementCard: View {
             .padding(.horizontal, AppDesign.Spacing.xl)
         } else {
             LazyVStack(spacing: AppDesign.Spacing.md) {
-                ForEach(sortedAnnouncements) { announcement in
+                ForEach(sorted) { announcement in
                     announcementRow(announcement)
                 }
             }
@@ -331,6 +344,7 @@ struct AnnouncementCard: View {
     }
 
     private func toggleRead(_ announcementId: String) {
+        guard hasLoadedReadState else { return }
         UIImpactFeedbackGenerator(style: .light).impactOccurred()
 
         if readAnnouncementIds.contains(announcementId) {
@@ -404,6 +418,6 @@ private enum AnnouncementReadStore {
             )
         ]
     )
-    .environmentObject(AppViewModel())
+    .environmentObject(AppViewModel.preview)
     .padding()
 }

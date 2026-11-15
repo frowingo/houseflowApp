@@ -47,27 +47,6 @@ struct ChoreCategoryGlyph: View {
 
 // MARK: - Meta pills
 
-/// Difficulty pill reused by template tiles and the editor summary.
-struct ChoreLevelPill: View {
-    @EnvironmentObject private var appViewModel: AppViewModel
-    let level: ChoreLevel
-    var compact = false
-
-    var body: some View {
-        HStack(spacing: 3) {
-            Image(systemName: level.iconName)
-                .font(.system(size: compact ? 8 : 10, weight: .bold))
-            Text(appViewModel.localized(level.localizationKey))
-                .font(.system(size: compact ? 10 : 11, weight: .semibold))
-                .lineLimit(1)
-        }
-        .foregroundStyle(level.color)
-        .padding(.horizontal, compact ? 6 : 8)
-        .padding(.vertical, compact ? 3 : 4)
-        .background(level.color.opacity(0.13), in: Capsule())
-    }
-}
-
 /// Small grey pill for repeat / duration hints.
 struct ChoreMetaPill: View {
     let icon: String

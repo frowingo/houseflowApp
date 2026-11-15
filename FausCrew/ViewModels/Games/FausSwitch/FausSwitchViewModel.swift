@@ -468,8 +468,7 @@ final class FausSwitchViewModel: ObservableObject {
         return presentation?.frame ?? lastOnlineFrame
     }
 
-    /// A business leave, then cleanup: the host stays alive until the server confirms
-    /// or the engine's own limit closes it, so the seat is freed for the others.
+    /// Drops the room's state and leaves it gracefully, so the seat is freed for the others.
     func leaveOnlineRoom() {
         guard let host = onlineHost else { return }
         onlineHost = nil
@@ -482,15 +481,7 @@ final class FausSwitchViewModel: ObservableObject {
         lastOnlineFrame = nil
         if !isDemoVisible { match = nil; audio.stopMusic() }
         scene.reset()
-        guard !host.engine.isClosed, !host.result.canRematch else { return host.dispose() }
-        host.onLobbyChange = nil
-        host.onHaptic = nil
-        host.onClosed = { [weak host] in host?.dispose() }
-        host.perform { $0.leave(now: $1) }
-        Task { @MainActor in
-            try? await Task.sleep(nanoseconds: 3_000_000_000)
-            host.dispose()
-        }
+        host.leaveGracefully()
     }
 
     func stop() {

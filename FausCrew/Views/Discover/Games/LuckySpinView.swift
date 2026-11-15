@@ -503,13 +503,14 @@ private struct LuckySpinMemberList: View {
 
     var body: some View {
         VStack(spacing: AppDesign.Spacing.sm) {
-            ForEach(members.indices, id: \.self) { index in
+            // Names are unique: `addMember` rejects case-insensitive duplicates.
+            ForEach(Array(members.enumerated()), id: \.element) { index, name in
                 MemberListRow(
-                    name: members[index],
+                    name: name,
                     color: LuckySpinTheme.playerColors[index % LuckySpinTheme.playerColors.count],
                     canDelete: members.count > 2
                 ) {
-                    deleteMember(at: index)
+                    deleteMember(name)
                 }
             }
             addMemberControl
@@ -517,9 +518,9 @@ private struct LuckySpinMemberList: View {
         .animation(.spring(response: 0.4, dampingFraction: 0.7), value: showAddField)
     }
 
-    private func deleteMember(at index: Int) {
+    private func deleteMember(_ name: String) {
         withAnimation(.spring(response: 0.4, dampingFraction: 0.7)) {
-            _ = members.remove(at: index)
+            members.removeAll { $0 == name }
         }
     }
 

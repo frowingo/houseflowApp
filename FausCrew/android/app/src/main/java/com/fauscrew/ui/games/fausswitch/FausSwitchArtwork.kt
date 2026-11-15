@@ -75,9 +75,11 @@ internal object FausSwitchPalette {
 internal class SwitchCopy(private val strings: LocalizedText, private val bundled: Map<String, String>) {
     operator fun invoke(key: String): String = strings.values[key] ?: bundled[key] ?: key
 
-    /** Capitals in the app language (Turkish keeps the dotted İ), as iOS draws them; Turkish when none is set. */
-    fun upper(key: String): String =
-        invoke(key).uppercase(Locale.forLanguageTag(strings.prefix?.takeIf(String::isNotBlank) ?: "tr"))
+    /** Capitals in the app language (Turkish keeps the dotted İ), as iOS draws them; English when none is set. */
+    fun upper(key: String): String {
+        val turkish = strings.prefix?.startsWith("tr", ignoreCase = true) == true
+        return invoke(key).uppercase(Locale.forLanguageTag(if (turkish) "tr" else "en"))
+    }
 
     fun template(key: String, vararg replacements: Pair<String, String>): String =
         replacements.fold(invoke(key)) { text, (name, value) -> text.replace("{$name}", value) }

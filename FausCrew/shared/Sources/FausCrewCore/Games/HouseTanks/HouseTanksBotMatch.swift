@@ -4,7 +4,7 @@ import Foundation
 /// one tank is left, three round wins for the match. It owns phases, bots and the arena,
 /// but no clock: the host calls `advanceCountdown()` every `countdownStepSeconds` while
 /// counting down and `advance(by:)` with the real frame delta while playing; the arena
-/// runs in whole ticks. Every state change bumps `snapshot.revision`.
+/// and the bots run in whole ticks. Every state change bumps `snapshot.revision`.
 public struct HouseTanksBotMatch: Sendable {
     public static let countdownStart = 3
     public static let countdownStepSeconds = 0.72
@@ -87,22 +87,23 @@ public struct HouseTanksBotMatch: Sendable {
         return current.phase == .playing
     }
 
-    /// Advances the arena by the real elapsed time while playing, in whole ticks. A round
-    /// ends on the tick its last tanks fall; the rest of the frame is dropped.
+    /// Advances the arena by the real elapsed time while playing, in whole ticks. Bots decide
+    /// on the tick clock, so a seeded match plays out the same at any frame rate. A round ends
+    /// on the tick its last tanks fall; the rest of the frame is dropped.
     public mutating func advance(by delta: Double) {
-        guard snapshot?.phase == .playing, var world else { return }
+        guard snapshot?.phase == .playing, world != nil else { return }
         accumulator += min(Self.maximumFrameDelta, max(0, delta))
         var outcome = HouseTanksRoundResolution.ongoing
         while accumulator >= HouseTanksWorld.fixedStep {
             accumulator -= HouseTanksWorld.fixedStep
-            world.step()
-            outcome = Self.resolution(of: world)
+            world?.step()
+            syncPlayers()
+            outcome = world.map(Self.resolution(of:)) ?? .ongoing
             guard outcome == .ongoing else { break }
+            driveBots()
         }
-        self.world = world
-        syncPlayers()
         switch outcome {
-        case .ongoing: driveBots(delta: delta)
+        case .ongoing: break
         case .draw: finishRound(winnerID: nil)
         case .winner(let id): finishRound(winnerID: id)
         }
@@ -242,34 +243,36 @@ public struct HouseTanksBotMatch: Sendable {
 
     // MARK: - Bots
 
-    private mutating func driveBots(delta: Double) {
-        guard let current = snapshot, var world else { return }
-        let difficulty = configuration.difficulty
-        for (playerID, releaseAt) in botReleaseAt where world.time >= releaseAt {
-            world.release(Self.tankID(playerID))
+    /// One bot turn, run after every arena tick. Most ticks only advance the decision clock,
+    /// so the world is copied out only when the bots actually decide.
+    private mutating func driveBots() {
+        guard let time = world?.time else { return }
+        for (playerID, releaseAt) in botReleaseAt where time >= releaseAt {
+            world?.release(Self.tankID(playerID))
             activePresses.remove(playerID)
             botReleaseAt[playerID] = nil
         }
-        botDecisionClock += delta
-        if botDecisionClock >= HouseTanksBotBrain.decisionDelay(for: difficulty) {
-            botDecisionClock = 0
-            // Demo only: on hard every bot hunts the player.
-            let focusID = difficulty == .hard ? current.humanPlayer.flatMap { $0.isAlive ? Self.tankID($0.id) : nil } : nil
-            for player in current.players where player.role == .bot && player.isAlive
-            && !activePresses.contains(player.id) {
-                let id = Self.tankID(player.id)
-                let observation = world.botObservation(for: id, focusing: focusID)
-                // Bots draw from the match's generator, so a seeded match decides identically everywhere.
-                guard HouseTanksBotBrain.shouldFire(observation: observation, difficulty: difficulty,
-                                                    roll: random.unit()) else { continue }
-                // Like a human press, a bot drives even when its shot is still cooling down.
-                world.press(id)
-                guard world.tank(id)?.isDriving == true else { continue }
-                activePresses.insert(player.id)
-                botReleaseAt[player.id] = world.time + HouseTanksBotBrain.holdDuration(
-                    for: difficulty, travelDistance: observation.targetDistance
-                )
-            }
+        let difficulty = configuration.difficulty
+        botDecisionClock += HouseTanksWorld.fixedStep
+        guard botDecisionClock >= HouseTanksBotBrain.decisionDelay(for: difficulty) else { return }
+        botDecisionClock = 0
+        guard let current = snapshot, var world else { return }
+        // Demo only: on hard every bot hunts the player.
+        let focusID = difficulty == .hard ? current.humanPlayer.flatMap { $0.isAlive ? Self.tankID($0.id) : nil } : nil
+        for player in current.players where player.role == .bot && player.isAlive
+        && !activePresses.contains(player.id) {
+            let id = Self.tankID(player.id)
+            let observation = world.botObservation(for: id, focusing: focusID)
+            // Bots draw from the match's generator, so a seeded match decides identically at any frame rate.
+            guard HouseTanksBotBrain.shouldFire(observation: observation, difficulty: difficulty,
+                                                roll: random.unit()) else { continue }
+            // Like a human press, a bot drives even when its shot is still cooling down.
+            world.press(id)
+            guard world.tank(id)?.isDriving == true else { continue }
+            activePresses.insert(player.id)
+            botReleaseAt[player.id] = world.time + HouseTanksBotBrain.holdDuration(
+                for: difficulty, travelDistance: observation.targetDistance
+            )
         }
         self.world = world
     }

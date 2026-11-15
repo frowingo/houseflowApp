@@ -216,10 +216,11 @@ final class HouseRocketsOnlineFlightMachine {
                 let decay = reduceMotion ? 0 : exp(-max(0, now - correctionAt) / 0.08)
                 var point = HouseRocketsPoint(x: rendered.worldX + correction.x * decay,
                                              y: rendered.worldY + correction.y * decay)
+                let solids = newest.frame.gates.flatMap(\.solidPolygons)
                 for _ in 0..<3 {
                     point.y = min(HouseRocketsSimulation.trackHeight - HouseRocketsSimulation.rocketRadius,
                                   max(HouseRocketsSimulation.rocketRadius, point.y))
-                    for polygon in newest.frame.gates.flatMap(\.solidPolygons) {
+                    for polygon in solids {
                         point = HouseRocketsContact.resolve(point, radius: HouseRocketsSimulation.rocketRadius, polygon: polygon)
                     }
                 }

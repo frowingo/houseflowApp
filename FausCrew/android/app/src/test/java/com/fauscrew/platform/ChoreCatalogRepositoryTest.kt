@@ -1,5 +1,7 @@
 package com.fauscrew.platform
 
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.async
 import kotlinx.coroutines.runBlocking
 import org.json.JSONArray
 import org.json.JSONObject
@@ -10,6 +12,7 @@ import org.junit.Assert.assertTrue
 import org.junit.Assert.fail
 import org.junit.Test
 import java.io.IOException
+import kotlin.coroutines.cancellation.CancellationException
 
 /**
  * `ChoreCatalogRepository` with a stand-in for the bridge: the request, the session header, the
@@ -29,12 +32,15 @@ class ChoreCatalogRepositoryTest {
     private var refuseBody = false
     private var token: String? = "token"
     private var transportError: Exception? = null
+    private var preparingBody: (() -> Unit)? = null
     private val wireCalls = mutableListOf<Triple<String, String, String>>()
 
     private val wire = object : ChoreCatalogWire {
-        override fun body(recordsJson: String): String =
-            if (refuseBody) JSONObject().put("ok", false).put("kind", "validation").put("rule", "titleLength").toString()
+        override fun body(recordsJson: String): String {
+            preparingBody?.invoke()
+            return if (refuseBody) JSONObject().put("ok", false).put("kind", "validation").put("rule", "titleLength").toString()
             else JSONObject().put("ok", true).put("body", "SENT:$recordsJson").toString()
+        }
 
         override fun response(action: String, status: Int, body: String, recordsJson: String, localJson: String): String {
             wireCalls += Triple(action, recordsJson, localJson)
@@ -94,6 +100,31 @@ class ChoreCatalogRepositoryTest {
         assertEquals("upsert", action)
         assertEquals(listOf(record), ChoreCatalogRecord.decode(JSONArray(sent)))
         assertEquals(local, ChoreCatalogRecord.decode(JSONArray(sentLocal)))
+    }
+
+    @Test fun upsertKeepsTheTokenCapturedBeforeBodyPreparation() = runBlocking {
+        token = "A"
+        preparingBody = { token = "B" }
+        repository.upsert(listOf(ChoreCatalogRecord(title = "Yeni", category = 1)), emptyList())
+        assertEquals("Bearer A", requests.single().headers["Authorization"])
+
+        repository.fetch()
+        assertEquals("Bearer B", requests.last().headers["Authorization"])
+    }
+
+    @Test fun cancellationDuringBodyPreparationNeverSendsTheRequest() = runBlocking {
+        val work = Job(coroutineContext[Job])
+        preparingBody = { token = "B"; work.cancel() }
+        val request = async(work) {
+            repository.upsert(listOf(ChoreCatalogRecord(title = "Yeni", category = 1)), emptyList())
+        }
+        try {
+            request.await()
+            fail("expected CancellationException")
+        } catch (_: CancellationException) {
+            assertTrue(request.isCancelled)
+        }
+        assertTrue(requests.isEmpty())
     }
 
     @Test fun recordsKeepEveryFieldThroughJson() {

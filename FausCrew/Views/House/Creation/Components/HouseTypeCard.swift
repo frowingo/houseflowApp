@@ -38,6 +38,11 @@ struct HouseTypeCard: View {
             case .dormRoom:     return 3
             }
         }
+
+        init?(apiValue: Int) {
+            guard let type = Self.allCases.first(where: { $0.apiValue == apiValue }) else { return nil }
+            self = type
+        }
     }
     
     var body: some View {

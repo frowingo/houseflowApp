@@ -1,9 +1,10 @@
 import XCTest
+import FausCrewCore
 @testable import FausCrewAndroidBridge
 
 final class InviteCodeBridgeTests: XCTestCase {
     func testVersionAndCoreRule() {
-        XCTAssertEqual(bridgeVersion(), 18)
+        XCTAssertEqual(bridgeVersion(), 19)
         XCTAssertEqual(normalizeInviteCode("ab-12 cd34xyz"), "AB12CD34")
         XCTAssertEqual(normalizeInviteCode(""), "")
         XCTAssertEqual(normalizeInviteCode("１２３４５６７８ 12345678"), "12345678")
@@ -51,6 +52,61 @@ final class InviteCodeBridgeTests: XCTestCase {
         let malformed = #"{"success":true,"data":{"id":"h","name":"Home"}}"#
         let failure = try XCTUnwrap(JSONSerialization.jsonObject(with: Data(houseResponse("details", 200, malformed).utf8)) as? [String: Any])
         XCTAssertEqual(failure["success"] as? Bool, false)
+    }
+
+    func testDetailsResponseIsNormalizedByCore() throws {
+        let reply = try object(houseResponse("details", 200, Self.details))
+        XCTAssertEqual(reply["success"] as? Bool, true)
+        let data = try XCTUnwrap(reply["data"] as? [String: Any])
+        XCTAssertEqual(data["ownerId"] as? String, "user-1")
+        XCTAssertEqual(data["isChoreReviewPhotoRequired"] as? Bool, true)
+        let member = try XCTUnwrap((data["members"] as? [[String: Any]])?.first)
+        XCTAssertEqual(member["firstName"] as? String, "Ada")
+        XCTAssertEqual(member["imageUrl"] as? String, "ada.png")
+
+        let chore = try XCTUnwrap((data["chores"] as? [[String: Any]])?.first)
+        XCTAssertEqual(chore["dueDate"] as? String, "2026-10-12T18:30:00Z", "time objects arrive as plain strings")
+        XCTAssertEqual(chore["status"] as? Int, 4)
+        XCTAssertEqual(chore["failureReason"] as? String, "dueDatePassed")
+        XCTAssertEqual(chore["category"] as? Int, 0, "a category this build does not know reads as uncategorized")
+        XCTAssertEqual(chore["reviewPhotoRounds"] as? [Int], [1])
+        let vote = try XCTUnwrap((chore["reviewVotes"] as? [[String: Any]])?.first)
+        XCTAssertEqual(vote["reviewerId"] as? String, "user-2")
+        XCTAssertEqual(vote["isApproved"] as? Bool, false)
+        XCTAssertNil(chore["statusHistories"])
+    }
+
+    func testDetailsAnnouncementResolvesANestedPublisherLikeIos() throws {
+        let data = try XCTUnwrap(object(houseResponse("details", 200, Self.details))["data"] as? [String: Any])
+        let announcement = try XCTUnwrap((data["announcements"] as? [[String: Any]])?.first)
+        let decoded = try JSONDecoder().decode(HouseAnnouncementDTO.self, from: Data(Self.nestedPublisherAnnouncement.utf8))
+
+        XCTAssertEqual(announcement["publisherId"] as? String, "user-1")
+        XCTAssertEqual(announcement["publisherName"] as? String, "Ada Lovelace")
+        XCTAssertEqual(announcement["publisherId"] as? String, decoded.publisherId)
+        XCTAssertEqual(announcement["publisherName"] as? String, decoded.publisherName)
+        XCTAssertEqual(announcement["message"] as? String, "Bins go out tonight")
+        XCTAssertEqual(announcement["createdOn"] as? String, "2026-09-05T10:00:00Z")
+        XCTAssertNil(announcement["houseId"])
+    }
+
+    func testDashboardResponsesCarryCoreNormalizedChoresAndAnnouncements() throws {
+        let chore = #"{"id":"c","title":"Dishes","description":"","houseId":"h","houseOwnerId":"u","assignedTo":"u","dueDate":"2026-10-12T00:00:00Z","isCompleted":false,"isRecurring":false,"level":20,"recurringInterval":0,"status":2,"createdOn":"2026-10-10T09:00:00Z","completedAt":null,"completedBy":null,"statusHistories":[],"reviewRound":1,"reviewVotes":[],"category":3}"#
+        let review = try object(dashboardResponse("review", 200, chore))
+        XCTAssertEqual(review["ok"] as? Bool, true)
+        let reviewed = try object(try XCTUnwrap(review["data"] as? String))
+        XCTAssertEqual(reviewed["category"] as? Int, 3)
+        XCTAssertEqual(reviewed["reviewRound"] as? Int, 1)
+        XCTAssertNil(reviewed["failureReason"], "only failed chores carry a reason")
+
+        let status = try object(dashboardResponse("status", 200, "[\(chore)]"))
+        let chores = try XCTUnwrap(JSONSerialization.jsonObject(with: Data(try XCTUnwrap(status["data"] as? String).utf8)) as? [[String: Any]])
+        XCTAssertEqual(chores.map { $0["id"] as? String }, ["c"])
+
+        let announced = try object(dashboardResponse("announcement", 200, #"{"success":true,"data":\#(Self.nestedPublisherAnnouncement)}"#))
+        let announcement = try object(try XCTUnwrap(announced["data"] as? String))
+        XCTAssertEqual(announcement["publisherId"] as? String, "user-1")
+        XCTAssertEqual(announcement["publisherName"] as? String, "Ada Lovelace")
     }
 
     func testDashboardFacadeUsesCoreRequestAndRejectsMalformedResult() throws {
@@ -110,4 +166,28 @@ final class InviteCodeBridgeTests: XCTestCase {
         )) as? [String: Any])
         XCTAssertEqual(images["ok"] as? Bool, true)
     }
+
+    private func object(_ json: String) throws -> [String: Any] {
+        try XCTUnwrap(JSONSerialization.jsonObject(with: Data(json.utf8)) as? [String: Any])
+    }
+
+    private static let nestedPublisherAnnouncement = #"{"id":"a","title":"Bins","content":"Bins go out tonight","createdAt":{"time.Time":"2026-09-05T10:00:00Z"},"createdBy":{"id":"user-1","firstName":"Ada","lastName":"Lovelace"}}"#
+
+    private static let details = """
+    {"success":true,"data":{
+      "id":"h","name":"Home","maxMemberCount":4,"ownerId":"user-1","profileImage":"","type":1,
+      "createdOn":{"time.Time":"2026-09-01T08:00:00Z"},"updatedOn":"2026-09-02T08:00:00Z",
+      "isChoreReviewPhotoRequired":true,
+      "members":[{"id":"user-1","firstName":"Ada","lastName":"Lovelace","email":"ada@example.com","imageUrl":"ada.png",
+        "isActive":true,"isVerifyEmail":true,"isVerifyPhone":false,"phoneNumber":"","birthDay":null,"houseIds":["h"],
+        "createdOn":"2026-09-01T08:00:00Z","updatedOn":"2026-09-01T08:00:00Z","lastLogin":{"time.Time":"2026-09-03T08:00:00Z"}}],
+      "chores":[{"id":"c","title":"Dishes","description":"Kitchen","houseId":"h","houseOwnerId":"user-1","assignedTo":"user-1",
+        "dueDate":{"time.Time":"2026-10-12T18:30:00Z"},"isCompleted":false,"isRecurring":false,"level":10,"recurringInterval":0,
+        "status":4,"createdOn":"2026-10-01T09:00:00Z","completedAt":null,"completedBy":null,
+        "statusHistories":[{"id":"s","choreId":"c","status":4,"updater":"system","dateTime":"2026-10-12T18:31:00Z"}],
+        "reviewRound":1,"reviewPhotoRounds":[1],"category":99,
+        "reviewVotes":[{"id":"v","choreId":"c","houseId":"h","reviewRound":1,"reviewerId":"user-2","isApproved":false,"createdOn":"2026-10-11T08:00:00Z"}]}],
+      "announcements":[\(nestedPublisherAnnouncement)]
+    }}
+    """
 }

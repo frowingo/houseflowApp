@@ -1,0 +1,20 @@
+# Xcode user data
+xcuserdata/
+*.xcuserstate
+
+# macOS
+.DS_Store
+
+# Build output
+DerivedData/
+build/
+.build/
+.swiftpm/
+
+# Signing material and secrets
+*.p12
+*.mobileprovision
+*.jks
+*.keystore
+.env*
+*.local.xcconfig

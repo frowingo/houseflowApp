@@ -8,12 +8,8 @@ struct HouseInfoPopup: View {
     let house: AuthHouseSummary
     let onDismiss: () -> Void
 
-    @State private var info: HouseInfoData?
+    @State private var draft: HouseInfoDraft?
     @State private var availableImages: [UserImageData] = []
-    @State private var houseName = ""
-    @State private var memberCountLimit = 2
-    @State private var selectedImageURL = ""
-    @State private var isChoreReviewPhotoRequired = false
     @State private var isLoading = true
     @State private var isLoadingImages = false
     @State private var isSaving = false
@@ -25,10 +21,9 @@ struct HouseInfoPopup: View {
     @State private var imageLoadError: String?
     @State private var operationError: String?
     @FocusState private var isNameFocused: Bool
-    @AccessibilityFocusState private var headerAccessibilityFocused: Bool
 
-    private let houseTint = Color(red: 0.42, green: 0.27, blue: 0.67)
-    private let ownerTint = HouseJourneyTheme.tintOwner
+    private let houseTint = HouseInfoStyle.houseTint
+    private let ownerTint = HouseInfoStyle.ownerTint
 
     var body: some View {
         GeometryReader { proxy in
@@ -99,15 +94,21 @@ struct HouseInfoPopup: View {
             )
         }
         .task(id: house.houseId) {
-            headerAccessibilityFocused = true
             await loadHouseInfo()
         }
     }
 
     private var popupContent: some View {
-        VStack(spacing: 0) {
-            header
-
+        FausPopupShell(
+            watermark: Image(systemName: "house.fill"),
+            watermarkOffset: 85,
+            title: appViewModel.localized("house_info_title", fallback: "House Information"),
+            subtitle: headerSubtitle,
+            isCloseDisabled: isBusy,
+            onClose: requestDismiss,
+            badge: Image(systemName: "house.fill")
+                .font(.system(size: 15, weight: .semibold))
+        ) {
             Group {
                 if isLoading {
                     loadingState
@@ -118,68 +119,9 @@ struct HouseInfoPopup: View {
                 }
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity)
-
+        } footer: {
             footer
         }
-        .background(MainScreenBackground(surface: .popup))
-        .clipShape(RoundedRectangle(cornerRadius: AppDesign.CornerRadius.xl, style: .continuous))
-        .shadow(color: AppDesign.Colors.shadow.opacity(0.25), radius: 30, x: 0, y: 16)
-        .accessibilityAddTraits(.isModal)
-    }
-
-    private var header: some View {
-        ZStack {
-            BrandPopupHeaderBackground()
-
-            Image(systemName: "house.fill")
-                .font(.system(size: 56, weight: .bold))
-                .foregroundStyle(Color.white.opacity(0.12))
-                .offset(x: 85)
-
-            HStack(spacing: AppDesign.Spacing.sm) {
-                Image(systemName: "house.fill")
-                    .font(.system(size: 15, weight: .semibold))
-                    .foregroundStyle(.white)
-                    .frame(width: 34, height: 34)
-                    .background(Color.white.opacity(0.18))
-                    .clipShape(Circle())
-
-                VStack(alignment: .leading, spacing: 2) {
-                    Text(
-                        appViewModel.localized(
-                            "house_info_title",
-                            fallback: "House Information"
-                        )
-                    )
-                    .font(AppDesign.Typography.subheadline.weight(.bold))
-                    .foregroundStyle(.white)
-                    .accessibilityFocused($headerAccessibilityFocused)
-
-                    Text(headerSubtitle)
-                        .font(AppDesign.Typography.caption2)
-                        .foregroundStyle(Color.white.opacity(0.76))
-                }
-
-                Spacer(minLength: AppDesign.Spacing.sm)
-
-                Button(action: requestDismiss) {
-                    Image(systemName: "xmark")
-                        .font(.system(size: 13, weight: .bold))
-                        .foregroundStyle(.white)
-                        .frame(width: 28, height: 28)
-                        .background(Color.white.opacity(0.18))
-                        .clipShape(Circle())
-                        .frame(width: 44, height: 44)
-                        .contentShape(Rectangle())
-                }
-                .buttonStyle(.plain)
-                .disabled(isBusy)
-                .accessibilityLabel(appViewModel.localized("common_close", fallback: "Close"))
-            }
-            .padding(.horizontal, AppDesign.Spacing.xl)
-        }
-        .frame(height: 64)
-        .zIndex(1)
     }
 
     private var loadingState: some View {
@@ -233,9 +175,19 @@ struct HouseInfoPopup: View {
             VStack(alignment: .leading, spacing: AppDesign.Spacing.xl) {
                 overview(info)
 
-                if isOwner {
-                    ownerEditor(info)
-                    imagePicker
+                if isOwner, let editableDraft = Binding($draft) {
+                    HouseInfoOwnerEditor(
+                        draft: editableDraft,
+                        isNameFocused: $isNameFocused,
+                        isBusy: isBusy
+                    )
+                    HouseInfoImagePicker(
+                        selection: editableDraft.profileImageURL,
+                        choices: imageChoices,
+                        isLoading: isLoadingImages,
+                        loadError: imageLoadError,
+                        onRetry: { Task { await loadImages() } }
+                    )
 
                     if let operationError {
                         errorBanner(operationError)
@@ -244,7 +196,13 @@ struct HouseInfoPopup: View {
                     viewerDetails(info)
                 }
 
-                membersSection(info)
+                HouseInfoMembersSection(
+                    members: info.houseMembers,
+                    removingMemberId: removingMemberId,
+                    isBusy: isBusy,
+                    canRemove: canRemove,
+                    onRemove: { pendingRemoval = $0 }
+                )
 
                 if !isOwner, let operationError {
                     errorBanner(operationError)
@@ -313,167 +271,6 @@ struct HouseInfoPopup: View {
         .clipShape(RoundedRectangle(cornerRadius: AppDesign.CornerRadius.lg, style: .continuous))
     }
 
-    private func ownerEditor(_ info: HouseInfoData) -> some View {
-        VStack(alignment: .leading, spacing: AppDesign.Spacing.md) {
-            sectionTitle(
-                appViewModel.localized(
-                    "house_info_edit_details_title",
-                    fallback: "House details"
-                ),
-                icon: "slider.horizontal.3"
-            )
-
-            VStack(alignment: .leading, spacing: AppDesign.Spacing.sm) {
-                Text(appViewModel.localized("house_info_name_label", fallback: "House name"))
-                    .font(AppDesign.Typography.caption.weight(.semibold))
-                    .foregroundStyle(AppDesign.Colors.textSecondary)
-
-                TextField(
-                    appViewModel.localized("house_info_name_placeholder", fallback: "House name"),
-                    text: $houseName
-                )
-                .font(AppDesign.Typography.body)
-                .focused($isNameFocused)
-                .textInputAutocapitalization(.words)
-                .submitLabel(.done)
-                .onSubmit { isNameFocused = false }
-                .onChange(of: houseName) { _, value in
-                    if value.count > 30 {
-                        houseName = String(value.prefix(30))
-                    }
-                }
-                .padding(.horizontal, AppDesign.Spacing.md)
-                .padding(.vertical, AppDesign.Spacing.md)
-                .frame(minHeight: 48)
-                .background(AppDesign.Colors.cardBackground)
-                .clipShape(RoundedRectangle(cornerRadius: AppDesign.CornerRadius.md))
-                .overlay {
-                    RoundedRectangle(cornerRadius: AppDesign.CornerRadius.md)
-                        .strokeBorder(
-                            houseTint.opacity(isNameFocused ? 0.65 : 0.16),
-                            lineWidth: isNameFocused ? 1.5 : 1
-                        )
-                }
-            }
-
-            HStack(spacing: AppDesign.Spacing.md) {
-                VStack(alignment: .leading, spacing: 3) {
-                    Text(
-                        appViewModel.localized(
-                            "house_info_member_limit_label",
-                            fallback: "Member limit"
-                        )
-                    )
-                    .font(AppDesign.Typography.subheadline.weight(.semibold))
-                    .foregroundStyle(AppDesign.Colors.textPrimary)
-
-                    Text(memberLimitHint(info))
-                        .font(AppDesign.Typography.caption)
-                        .foregroundStyle(AppDesign.Colors.textSecondary)
-                }
-
-                Spacer()
-
-                HStack(spacing: 12) {
-                    limitButton(icon: "minus", isEnabled: memberCountLimit > minimumMemberLimit) {
-                        memberCountLimit -= 1
-                    }
-
-                    Text("\(memberCountLimit)")
-                        .font(.system(.body, design: .rounded, weight: .bold))
-                        .foregroundStyle(AppDesign.Colors.textPrimary)
-                        .frame(minWidth: 22)
-
-                    limitButton(icon: "plus", isEnabled: memberCountLimit < maximumMemberLimit) {
-                        memberCountLimit += 1
-                    }
-                }
-            }
-            .padding(AppDesign.Spacing.md)
-            .background(AppDesign.Colors.cardBackground)
-            .clipShape(RoundedRectangle(cornerRadius: AppDesign.CornerRadius.md))
-
-            Toggle(isOn: $isChoreReviewPhotoRequired) {
-                VStack(alignment: .leading, spacing: 3) {
-                    Text(
-                        appViewModel.localized(
-                            "house_info_review_photo_label",
-                            fallback: "Review photo required"
-                        )
-                    )
-                    .font(AppDesign.Typography.subheadline.weight(.semibold))
-                    .foregroundStyle(AppDesign.Colors.textPrimary)
-
-                    Text(
-                        appViewModel.localized(
-                            "house_info_review_photo_hint",
-                            fallback: "Chores need a photo before they go to review."
-                        )
-                    )
-                    .font(AppDesign.Typography.caption)
-                    .foregroundStyle(AppDesign.Colors.textSecondary)
-                }
-            }
-            .tint(houseTint)
-            .disabled(isBusy)
-            .padding(AppDesign.Spacing.md)
-            .background(AppDesign.Colors.cardBackground)
-            .clipShape(RoundedRectangle(cornerRadius: AppDesign.CornerRadius.md))
-        }
-    }
-
-    private var imagePicker: some View {
-        VStack(alignment: .leading, spacing: AppDesign.Spacing.md) {
-            sectionTitle(
-                appViewModel.localized(
-                    "house_info_profile_image_title",
-                    fallback: "House profile image"
-                ),
-                icon: "photo.on.rectangle.angled"
-            )
-
-            if isLoadingImages {
-                ProgressView()
-                    .tint(ownerTint)
-                    .frame(maxWidth: .infinity, minHeight: 86)
-            } else if imageChoices.isEmpty {
-                Text(
-                    appViewModel.localized(
-                        "house_info_images_empty",
-                        fallback: "No house images are available."
-                    )
-                )
-                .font(AppDesign.Typography.subheadline)
-                .foregroundStyle(AppDesign.Colors.textSecondary)
-                .frame(maxWidth: .infinity, minHeight: 64, alignment: .leading)
-            } else {
-                ScrollView(.horizontal, showsIndicators: false) {
-                    LazyHStack(spacing: AppDesign.Spacing.md) {
-                        ForEach(Array(imageChoices.enumerated()), id: \.element) { index, imageURL in
-                            imageChoice(imageURL, index: index)
-                        }
-                    }
-                    .padding(.vertical, 4)
-                }
-            }
-
-            if let imageLoadError {
-                HStack(spacing: AppDesign.Spacing.sm) {
-                    Text(imageLoadError)
-                        .font(AppDesign.Typography.caption)
-                        .foregroundStyle(AppDesign.Colors.error)
-                        .lineLimit(2)
-                    Spacer()
-                    Button(appViewModel.localized("common_retry", fallback: "Retry")) {
-                        Task { await loadImages() }
-                    }
-                    .font(AppDesign.Typography.caption.weight(.semibold))
-                    .foregroundStyle(AppDesign.Colors.textPrimary)
-                }
-            }
-        }
-    }
-
     private func viewerDetails(_ info: HouseInfoData) -> some View {
         VStack(spacing: 0) {
             readOnlyRow(
@@ -488,115 +285,6 @@ struct HouseInfoPopup: View {
                 value: houseTypeLabel(info.houseType)
             )
         }
-    }
-
-    private func membersSection(_ info: HouseInfoData) -> some View {
-        VStack(alignment: .leading, spacing: AppDesign.Spacing.md) {
-            sectionTitle(
-                appViewModel.localized("house_info_members_title", fallback: "Members"),
-                icon: "person.2.fill"
-            )
-
-            VStack(spacing: 0) {
-                ForEach(info.houseMembers) { member in
-                    memberRow(member)
-                    if member.id != info.houseMembers.last?.id {
-                        Divider().overlay(AppDesign.Colors.separator).padding(.leading, 62)
-                    }
-                }
-            }
-            .background(AppDesign.Colors.cardBackground)
-            .clipShape(RoundedRectangle(cornerRadius: AppDesign.CornerRadius.lg))
-        }
-    }
-
-    private func memberRow(_ member: HouseInfoMember) -> some View {
-        HStack(spacing: AppDesign.Spacing.md) {
-            memberAvatar(member)
-
-            VStack(alignment: .leading, spacing: 3) {
-                Text(member.name)
-                    .font(AppDesign.Typography.subheadline.weight(.semibold))
-                    .foregroundStyle(AppDesign.Colors.textPrimary)
-                    .lineLimit(1)
-
-                if member.isOwner {
-                    Label(
-                        appViewModel.localized("house_info_owner_badge", fallback: "Owner"),
-                        systemImage: "crown.fill"
-                    )
-                    .font(AppDesign.Typography.caption2.weight(.bold))
-                    .foregroundStyle(AppDesign.Colors.textPrimary)
-                } else if member.userId == appViewModel.currentUserId {
-                    Text(appViewModel.localized("common_you", fallback: "You"))
-                        .font(AppDesign.Typography.caption)
-                        .foregroundStyle(AppDesign.Colors.textSecondary)
-                }
-            }
-
-            Spacer(minLength: AppDesign.Spacing.sm)
-
-            if canRemove(member) {
-                Button {
-                    pendingRemoval = member
-                } label: {
-                    Group {
-                        if removingMemberId == member.userId {
-                            ProgressView()
-                                .tint(AppDesign.Colors.error)
-                        } else {
-                            Image(systemName: "person.fill.xmark")
-                                .font(.system(size: 14, weight: .semibold))
-                        }
-                    }
-                    .foregroundStyle(AppDesign.Colors.error)
-                    .frame(width: 40, height: 40)
-                    .background(AppDesign.Colors.error.opacity(0.10))
-                    .clipShape(Circle())
-                    .frame(width: 44, height: 44)
-                    .contentShape(Rectangle())
-                }
-                .buttonStyle(.plain)
-                .disabled(isBusy)
-                .accessibilityLabel(
-                    appViewModel.localized(
-                        "house_info_remove_member_button",
-                        fallback: "Remove member"
-                    )
-                )
-            }
-        }
-        .padding(.horizontal, AppDesign.Spacing.md)
-        .padding(.vertical, 10)
-    }
-
-    private func memberAvatar(_ member: HouseInfoMember) -> some View {
-        Group {
-            let trimmedURL = member.profileImage.trimmingCharacters(in: .whitespacesAndNewlines)
-            if !trimmedURL.isEmpty, let url = URL(string: trimmedURL) {
-                CachedRemoteImage(url: url) { image in
-                    image.resizable().scaledToFill()
-                } placeholder: {
-                    memberPlaceholder(member)
-                } failure: {
-                    memberPlaceholder(member)
-                }
-            } else {
-                memberPlaceholder(member)
-            }
-        }
-        .frame(width: 42, height: 42)
-        .clipShape(Circle())
-    }
-
-    private func memberPlaceholder(_ member: HouseInfoMember) -> some View {
-        Circle()
-            .fill(houseTint.opacity(0.12))
-            .overlay {
-                Text(memberInitials(member.name))
-                    .font(AppDesign.Typography.caption.weight(.bold))
-                    .foregroundStyle(AppDesign.Colors.textPrimary)
-            }
     }
 
     private var footer: some View {
@@ -705,12 +393,6 @@ struct HouseInfoPopup: View {
         }
     }
 
-    private func sectionTitle(_ title: String, icon: String) -> some View {
-        Label(title, systemImage: icon)
-            .font(AppDesign.Typography.subheadline.weight(.bold))
-            .foregroundStyle(AppDesign.Colors.textPrimary)
-    }
-
     private func readOnlyRow(icon: String, label: String, value: String) -> some View {
         HStack(spacing: AppDesign.Spacing.md) {
             Image(systemName: icon)
@@ -728,62 +410,6 @@ struct HouseInfoPopup: View {
                 .foregroundStyle(AppDesign.Colors.textSecondary)
         }
         .padding(.vertical, 11)
-    }
-
-    private func limitButton(icon: String, isEnabled: Bool, action: @escaping () -> Void) -> some View {
-        Button(action: action) {
-            Image(systemName: icon)
-                .font(.system(size: 12, weight: .bold))
-                .foregroundStyle(isEnabled ? houseTint : AppDesign.Colors.textTertiary)
-                .frame(width: 34, height: 34)
-                .background((isEnabled ? houseTint : AppDesign.Colors.textTertiary).opacity(0.11))
-                .clipShape(Circle())
-                .frame(width: 44, height: 44)
-                .contentShape(Rectangle())
-        }
-        .buttonStyle(.plain)
-        .disabled(!isEnabled)
-    }
-
-    private func imageChoice(_ imageURL: String, index: Int) -> some View {
-        let isSelected = selectedImageURL == imageURL
-        let optionLabel = appViewModel.localized(
-            "house_info_profile_image_option",
-            fallback: "House profile image"
-        )
-        return Button {
-            withAnimation(AppDesign.Animation.spring) {
-                selectedImageURL = imageURL
-            }
-        } label: {
-            ZStack(alignment: .bottomTrailing) {
-                HouseProfileThumbnail(imageURLString: imageURL, size: 76, cornerRadius: 20)
-                    .overlay {
-                        RoundedRectangle(cornerRadius: 20, style: .continuous)
-                            .strokeBorder(isSelected ? ownerTint : Color.clear, lineWidth: 3)
-                    }
-                    .scaleEffect(isSelected ? 1.04 : 1)
-
-                if isSelected {
-                    Image(systemName: "checkmark")
-                        .font(.system(size: 10, weight: .bold))
-                        .foregroundStyle(.white)
-                        .frame(width: 22, height: 22)
-                        .background(ownerTint)
-                        .clipShape(Circle())
-                        .offset(x: 4, y: 4)
-                }
-            }
-        }
-        .buttonStyle(.plain)
-        .accessibilityLabel("\(optionLabel) \(index + 1)")
-        .accessibilityValue(
-            appViewModel.localized(
-                isSelected ? "common_selected" : "common_not_selected",
-                fallback: isSelected ? "Selected" : "Not selected"
-            )
-        )
-        .accessibilityAddTraits(isSelected ? .isSelected : [])
     }
 
     private func errorBanner(_ message: String) -> some View {
@@ -814,6 +440,10 @@ struct HouseInfoPopup: View {
         }
     }
 
+    private var info: HouseInfoData? {
+        draft?.info
+    }
+
     private var isOwner: Bool {
         info?.isOwner(userId: appViewModel.currentUserId) == true
     }
@@ -823,8 +453,7 @@ struct HouseInfoPopup: View {
     }
 
     private var canLeaveHouse: Bool {
-        guard !isOwner, let userId = appViewModel.currentUserId else { return false }
-        return info?.houseMembers.contains(where: { $0.userId == userId }) == true
+        draft?.canLeave(currentUserId: appViewModel.currentUserId) == true
     }
 
     private var canSave: Bool {
@@ -832,39 +461,15 @@ struct HouseInfoPopup: View {
     }
 
     private var isDraftReadyToSave: Bool {
-        isOwner && !normalizedHouseName.isEmpty && hasChanges
-    }
-
-    private var hasChanges: Bool {
-        guard let info else { return false }
-        return normalizedHouseName != info.houseName
-            || memberCountLimit != info.houseMemberCountLimit
-            || selectedImageURL != info.houseProfileImage
-            || isChoreReviewPhotoRequired != info.isChoreReviewPhotoRequired
-    }
-
-    private var normalizedHouseName: String {
-        houseName.trimmingCharacters(in: .whitespacesAndNewlines)
-    }
-
-    private var minimumMemberLimit: Int {
-        max(2, info?.houseMemberCount ?? 2)
-    }
-
-    private var maximumMemberLimit: Int {
-        max(8, minimumMemberLimit)
+        draft?.isReadyToSave(currentUserId: appViewModel.currentUserId) == true
     }
 
     private var imageChoices: [String] {
-        let candidates = [info?.houseProfileImage, house.houseProfile]
-            .compactMap { $0 }
-            + availableImages.map(\.fileURL)
-        var seen = Set<String>()
-        return candidates.compactMap { candidate in
-            let value = candidate.trimmingCharacters(in: .whitespacesAndNewlines)
-            guard !value.isEmpty, seen.insert(value).inserted else { return nil }
-            return value
-        }
+        draft?.imageChoices(available: availableImages.map(\.fileURL)) ?? []
+    }
+
+    private func canRemove(_ member: HouseInfoMember) -> Bool {
+        draft?.canRemove(member, currentUserId: appViewModel.currentUserId) == true
     }
 
     private var ownerSubtitle: String {
@@ -902,34 +507,14 @@ struct HouseInfoPopup: View {
     }
 
     private func houseTypeLabel(_ type: Int) -> String {
-        switch type {
-        case 1:
-            return appViewModel.localized("create_house_type_student", fallback: "Student House")
-        case 2:
-            return appViewModel.localized("create_house_type_shared", fallback: "Shared House")
-        case 3:
-            return appViewModel.localized("create_house_type_dorm", fallback: "Dorm Room")
-        default:
+        guard let houseType = HouseTypeCard.HouseType(apiValue: type) else {
             return appViewModel.localized("house_info_type_unknown", fallback: "House")
         }
+        return appViewModel.localized(houseType.localizationKey, fallback: houseType.rawValue)
     }
 
     private func houseTypeIcon(_ type: Int) -> String {
-        switch type {
-        case 1: return "graduationcap.fill"
-        case 2: return "house.fill"
-        case 3: return "building.2.fill"
-        default: return "house.fill"
-        }
-    }
-
-    private func canRemove(_ member: HouseInfoMember) -> Bool {
-        isOwner && !member.isOwner && member.userId != appViewModel.currentUserId
-    }
-
-    private func memberInitials(_ name: String) -> String {
-        let parts = name.split(separator: " ")
-        return parts.prefix(2).compactMap(\.first).map(String.init).joined().uppercased()
+        HouseTypeCard.HouseType(apiValue: type)?.iconName ?? "house.fill"
     }
 
     @MainActor
@@ -939,8 +524,7 @@ struct HouseInfoPopup: View {
         operationError = nil
         do {
             let loadedInfo = try await appViewModel.fetchHouseInfo(houseId: house.houseId)
-            info = loadedInfo
-            applyDraft(from: loadedInfo)
+            draft = HouseInfoDraft(info: loadedInfo, summaryImageURL: house.houseProfile)
             isLoading = false
             if loadedInfo.isOwner(userId: appViewModel.currentUserId) {
                 await loadImages()
@@ -965,15 +549,11 @@ struct HouseInfoPopup: View {
 
     @MainActor
     private func saveChanges() async {
-        guard isDraftReadyToSave, !isBusy, let info else { return }
+        guard isDraftReadyToSave, !isBusy else { return }
 
-        // Capture the editable fields before entering the loading state. The
-        // overview intentionally continues to render the last committed info.
-        let submittedName = normalizedHouseName
-        let submittedMemberCountLimit = memberCountLimit
-        let submittedImageURL = selectedImageURL
-        let submittedHouseType = info.houseType
-        let submittedReviewPhotoRequired = isChoreReviewPhotoRequired
+        // Capture the draft before entering the loading state. The overview
+        // intentionally continues to render the last committed info.
+        guard let submitted = draft else { return }
 
         isNameFocused = false
         isSaving = true
@@ -981,14 +561,13 @@ struct HouseInfoPopup: View {
         do {
             let updatedInfo = try await appViewModel.updateHouseProfile(
                 houseId: house.houseId,
-                name: submittedName,
-                memberCountLimit: submittedMemberCountLimit,
-                profileImage: submittedImageURL,
-                houseType: submittedHouseType,
-                isChoreReviewPhotoRequired: submittedReviewPhotoRequired
+                name: submitted.normalizedName,
+                memberCountLimit: submitted.memberCountLimit,
+                profileImage: submitted.profileImageURL,
+                houseType: submitted.info.houseType,
+                isChoreReviewPhotoRequired: submitted.isChoreReviewPhotoRequired
             )
-            self.info = updatedInfo
-            applyDraft(from: updatedInfo)
+            draft = HouseInfoDraft(info: updatedInfo, summaryImageURL: house.houseProfile)
             isSaving = false
             appViewModel.showToast(
                 message: appViewModel.localized(
@@ -1017,11 +596,10 @@ struct HouseInfoPopup: View {
                 userId: member.userId
             )
             if let refreshedInfo = try? await appViewModel.fetchHouseInfo(houseId: house.houseId) {
-                info = refreshedInfo
-            } else {
-                info = info?.removingMember(userId: member.userId)
+                draft?.replaceInfo(refreshedInfo)
+            } else if let remainingInfo = info?.removingMember(userId: member.userId) {
+                draft?.replaceInfo(remainingInfo)
             }
-            memberCountLimit = max(memberCountLimit, minimumMemberLimit)
         } catch {
             operationError = error.localizedDescription
         }
@@ -1041,13 +619,6 @@ struct HouseInfoPopup: View {
             operationError = error.localizedDescription
             isLeavingHouse = false
         }
-    }
-
-    private func applyDraft(from info: HouseInfoData) {
-        houseName = info.houseName
-        memberCountLimit = max(2, max(info.houseMemberCount, info.houseMemberCountLimit))
-        selectedImageURL = info.houseProfileImage
-        isChoreReviewPhotoRequired = info.isChoreReviewPhotoRequired
     }
 
     private func requestDismiss() {

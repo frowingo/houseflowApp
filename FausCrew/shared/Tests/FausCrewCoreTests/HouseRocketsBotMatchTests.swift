@@ -159,4 +159,12 @@ final class HouseRocketsBotMatchTests: XCTestCase {
     private func play(_ match: inout HouseRocketsBotMatch) {
         while match.phase == .countdown { match.advanceCountdown() }
     }
+
+    func testBundledCopyIsTurkishOnlyForTurkishLanguages() {
+        let key = "house_rockets_subtitle"
+        XCTAssertEqual(HouseRocketsLocalization.value(for: key, language: "tr"), "Sen pilot koltuğunda, rakiplerin bot.")
+        for language in ["en-GB", "de", "", nil] {
+            XCTAssertEqual(HouseRocketsLocalization.value(for: key, language: language), "You’re the pilot. Your rivals are bots.")
+        }
+    }
 }

@@ -26,12 +26,19 @@ public final class FausSwitchBotPlanner: @unchecked Sendable {
         let tick: Int64
     }
 
-    private let queue = DispatchQueue(label: "com.fauscrew.fausSwitch.botPlanner", qos: .userInitiated)
+    private let queue: DispatchQueue
     private let lock = NSLock()
     private var answers: [Key: Bool] = [:]
     private var currentMatch: UUID?
+    private var consumedTicks: [String: Int64] = [:]
 
-    public init() {}
+    public init() {
+        queue = DispatchQueue(label: "com.fauscrew.fausSwitch.botPlanner", qos: .userInitiated)
+    }
+
+    init(queue: DispatchQueue) {
+        self.queue = queue
+    }
 
     /// The decision for `plan`: its state run ahead to the decision tick, then searched.
     static func decide(brain: FausSwitchBotBrain, plan: FausSwitchBotPlan, course: FausSwitchCourse) -> Bool {
@@ -51,13 +58,16 @@ public final class FausSwitchBotPlanner: @unchecked Sendable {
         if currentMatch != match {
             currentMatch = match
             answers.removeAll()
+            consumedTicks.removeAll()
         }
         lock.unlock()
         queue.async { [weak self] in
-            guard let self, self.isCurrent(match) else { return }
+            guard let self, self.isPending(match: match, bot: bot, tick: plan.decisionTick) else { return }
             let answer = Self.decide(brain: brain, plan: plan, course: course)
             self.lock.lock()
-            if self.currentMatch == match { self.answers[Key(match: match, bot: bot, tick: plan.decisionTick)] = answer }
+            if self.currentMatch == match, self.consumedTicks[bot].map({ plan.decisionTick > $0 }) ?? true {
+                self.answers[Key(match: match, bot: bot, tick: plan.decisionTick)] = answer
+            }
             self.lock.unlock()
         }
     }
@@ -66,7 +76,17 @@ public final class FausSwitchBotPlanner: @unchecked Sendable {
     func take(match: UUID, bot: String, tick: Int64) -> Bool? {
         lock.lock()
         defer { lock.unlock() }
-        return answers.removeValue(forKey: Key(match: match, bot: bot, tick: tick))
+        guard currentMatch == match, consumedTicks[bot].map({ tick > $0 }) ?? true else { return nil }
+        consumedTicks[bot] = tick
+        let answer = answers.removeValue(forKey: Key(match: match, bot: bot, tick: tick))
+        answers = answers.filter { $0.key.bot != bot || $0.key.tick > tick }
+        return answer
+    }
+
+    var storedAnswerCount: Int {
+        lock.lock()
+        defer { lock.unlock() }
+        return answers.count
     }
 
     /// Waits for queued plans; tests use it to make the background path deterministic.
@@ -74,9 +94,9 @@ public final class FausSwitchBotPlanner: @unchecked Sendable {
         queue.sync {}
     }
 
-    private func isCurrent(_ match: UUID) -> Bool {
+    private func isPending(match: UUID, bot: String, tick: Int64) -> Bool {
         lock.lock()
         defer { lock.unlock() }
-        return currentMatch == match
+        return currentMatch == match && (consumedTicks[bot].map { tick > $0 } ?? true)
     }
 }

@@ -23,40 +23,13 @@ struct LanguageSettingsPopup: View {
                 .ignoresSafeArea()
                 .onTapGesture { if !isSaving { requestDismiss() } }
 
-            VStack(spacing: 0) {
-                ZStack {
-                    BrandPopupHeaderBackground()
-                    Image(systemName: "globe.europe.africa.fill")
-                        .font(.system(size: 58, weight: .bold))
-                        .foregroundColor(.white.opacity(0.12))
-
-                    HStack(spacing: AppDesign.Spacing.sm) {
-                        VStack(alignment: .leading, spacing: 2) {
-                            Text(appViewModel.localized("language_settings_title"))
-                                .font(.system(size: 15, weight: .bold))
-                                .foregroundColor(.white)
-                            Text(appViewModel.localized("language_settings_subtitle"))
-                                .font(.system(size: 12, weight: .medium))
-                                .foregroundColor(.white.opacity(0.75))
-                        }
-
-                        Spacer()
-
-                        Button { if !isSaving { requestDismiss() } } label: {
-                            Image(systemName: "xmark")
-                                .font(.system(size: 13, weight: .bold))
-                                .foregroundColor(.white.opacity(0.9))
-                                .frame(width: 26, height: 26)
-                                .background(Color.white.opacity(0.2))
-                                .clipShape(Circle())
-                        }
-                    }
-                    .padding(.horizontal, AppDesign.Spacing.xl)
-                    .padding(.vertical, 12)
-                }
-                .frame(height: 64)
-                .zIndex(1)
-
+            FausPopupShell(
+                watermark: Image(systemName: "globe.europe.africa.fill"),
+                title: appViewModel.localized("language_settings_title"),
+                subtitle: appViewModel.localized("language_settings_subtitle"),
+                isCloseDisabled: isSaving,
+                onClose: requestDismiss
+            ) {
                 ScrollView(showsIndicators: false) {
                     if appViewModel.isLoadingLocalizationLanguages && appViewModel.localizationLanguages.isEmpty {
                         ProgressView()
@@ -101,7 +74,7 @@ struct LanguageSettingsPopup: View {
                     )
                     .padding(.horizontal, AppDesign.Spacing.xl)
                 }
-
+            } footer: {
                 VStack(spacing: AppDesign.Spacing.sm) {
                     Button {
                         Task { await save() }
@@ -142,9 +115,6 @@ struct LanguageSettingsPopup: View {
                 .padding(.vertical, AppDesign.Spacing.lg)
                 .background(AppDesign.Colors.popupBackground.shadow(color: AppDesign.Colors.shadow.opacity(0.06), radius: 8, x: 0, y: -4))
             }
-            .background(MainScreenBackground(surface: .popup))
-            .clipShape(RoundedRectangle(cornerRadius: AppDesign.CornerRadius.xl, style: .continuous))
-            .shadow(color: AppDesign.Colors.shadow.opacity(0.25), radius: 30, x: 0, y: 16)
             .padding(.horizontal, AppDesign.Spacing.xl)
         }
         .animation(AppDesign.Animation.standard, value: isSaving)

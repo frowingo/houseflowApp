@@ -6,6 +6,8 @@ import FausCrewCore
 final class AppSessionCoordinator: ObservableObject {
     @Published private(set) var signupSuccessMessage: String?
 
+    var onSessionRejected: (() -> Void)?
+
     private let keychain: any KeychainStoring
     private let authStore: AuthSessionStore
     private let houseStore: HouseSessionStore
@@ -85,7 +87,11 @@ final class AppSessionCoordinator: ObservableObject {
         do {
             router.navigate(to: .houseLoading(.loadingUser), respectingOnboarding: false)
             let profile = try await authStore.restoreAuthenticatedUser(
-                invalidMessage: "Oturumunuz sona ermiş. Lütfen tekrar giriş yapın."
+                invalidMessage: localizationStore.value(
+                    for: "error_session_expired",
+                    tr: "Oturumunuz sona ermiş. Lütfen tekrar giriş yapın.",
+                    en: NetworkError.sessionExpiredMessage
+                )
             )
             guard isCurrentAuthenticationFlow(flowID) else { return }
             try await finishAuthentication(with: profile, flowID: flowID)
@@ -160,7 +166,11 @@ final class AppSessionCoordinator: ObservableObject {
             let profile = try await authStore.fetchAuthenticatedUser()
             guard isCurrentAuthenticationFlow(flowID) else { return }
             guard profile.isVerifyEmail else {
-                throw NetworkError.serverError("The email address could not be verified.")
+                throw NetworkError.serverError(localizationStore.value(
+                    for: "error_email_verification_failed",
+                    tr: "E-posta adresi doğrulanamadı.",
+                    en: "The email address could not be verified."
+                ))
             }
 
             authStore.applyAuthenticatedUser(profile)
@@ -187,6 +197,11 @@ final class AppSessionCoordinator: ObservableObject {
         guard isCurrentAuthenticationFlow(flowID) else { return }
         authStore.applyAuthenticatedUser(profile)
         await didAuthenticate()
+    }
+
+    func handleRejectedToken(_ token: String) {
+        guard keychain.authToken == token else { return }
+        onSessionRejected?()
     }
 
     func logout(clearDomainState: () -> Void) {
@@ -231,8 +246,9 @@ final class AppSessionCoordinator: ObservableObject {
         router.navigationDirection = .forward
         router.navigate(to: .houseLoading(.loadingHouse), respectingOnboarding: false)
         do {
-            guard let result = try await houseStore.loadPreferredHouseDetails(for: profile),
-                  isCurrentAuthenticationFlow(flowID), authStore.isAuthenticated else {
+            let result = try await houseStore.loadPreferredHouseDetails(for: profile)
+            guard isCurrentAuthenticationFlow(flowID), authStore.isAuthenticated else { return }
+            guard let result else {
                 router.navigate(to: .houseSelection)
                 return
             }
@@ -324,15 +340,12 @@ final class AppSessionCoordinator: ObservableObject {
 
     private func handleAuthenticationError(_ error: Error, flowID: UUID) {
         guard isCurrentAuthenticationFlow(flowID) else { return }
-        authStore.isAuthenticated = false
-        toastStore.show(message: errorMessage(from: error), isError: true)
-        router.navigate(to: .houseError, respectingOnboarding: false)
-    }
-
-    private func errorMessage(from error: Error) -> String {
-        if case NetworkError.serverError(let message) = error {
-            return message
+        if case NetworkError.unauthorized = error {
+            onSessionRejected?()
+            return
         }
-        return error.localizedDescription
+        authStore.isAuthenticated = false
+        toastStore.show(message: localizationStore.userMessage(for: error), isError: true)
+        router.navigate(to: .houseError, respectingOnboarding: false)
     }
 }

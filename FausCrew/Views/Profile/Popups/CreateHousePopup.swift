@@ -16,7 +16,6 @@ struct CreateHousePopup: View {
     @State private var isCreating = false
     @State private var errorMessage: String?
     @FocusState private var nameFocused: Bool
-    @AccessibilityFocusState private var headerAccessibilityFocused: Bool
 
     private let range = HouseCreationRules.memberCountRange
 
@@ -44,15 +43,21 @@ struct CreateHousePopup: View {
                     .padding(.horizontal, AppDesign.Spacing.lg)
             }
         }
-        .task {
-            headerAccessibilityFocused = true
-        }
     }
 
     private var popupContent: some View {
-        VStack(spacing: 0) {
-            header
-
+        FausPopupShell(
+            watermark: FausHouseIcon(size: 54, fill: .color(AppDesign.Colors.onHero.opacity(0.13))),
+            watermarkOffset: 85,
+            title: appViewModel.localized("profile_house_create_title", fallback: "Create a house"),
+            subtitle: appViewModel.localized(
+                "profile_house_create_subtitle",
+                fallback: "Set up a new home for your crew"
+            ),
+            isCloseDisabled: isCreating,
+            onClose: requestDismiss,
+            badge: FausHouseIcon(size: 17, fill: .color(AppDesign.Colors.onHero))
+        ) {
             ScrollView(showsIndicators: false) {
                 VStack(alignment: .leading, spacing: AppDesign.Spacing.xl) {
                     nameSection
@@ -76,64 +81,9 @@ struct CreateHousePopup: View {
                 .padding(AppDesign.Spacing.lg)
             }
             .scrollDismissesKeyboard(.interactively)
-
+        } footer: {
             footer
         }
-        .background(MainScreenBackground(surface: .popup))
-        .clipShape(RoundedRectangle(cornerRadius: AppDesign.CornerRadius.xl, style: .continuous))
-        .shadow(color: AppDesign.Colors.shadow.opacity(0.25), radius: 30, x: 0, y: 16)
-        .accessibilityAddTraits(.isModal)
-    }
-
-    // MARK: - Header
-
-    private var header: some View {
-        ZStack {
-            BrandPopupHeaderBackground()
-
-            FausHouseIcon(size: 54, fill: .color(Color.white.opacity(0.13)))
-                .offset(x: 85)
-
-            HStack(spacing: AppDesign.Spacing.sm) {
-                FausHouseIcon(size: 17, fill: .color(.white))
-                    .frame(width: 34, height: 34)
-                    .background(Color.white.opacity(0.18))
-                    .clipShape(Circle())
-
-                VStack(alignment: .leading, spacing: 2) {
-                    Text(appViewModel.localized("profile_house_create_title", fallback: "Create a house"))
-                        .font(AppDesign.Typography.subheadline.weight(.bold))
-                        .foregroundStyle(.white)
-                        .accessibilityFocused($headerAccessibilityFocused)
-
-                    Text(appViewModel.localized(
-                        "profile_house_create_subtitle",
-                        fallback: "Set up a new home for your crew"
-                    ))
-                    .font(AppDesign.Typography.caption2)
-                    .foregroundStyle(Color.white.opacity(0.76))
-                }
-
-                Spacer(minLength: AppDesign.Spacing.sm)
-
-                Button(action: requestDismiss) {
-                    Image(systemName: "xmark")
-                        .font(.system(size: 13, weight: .bold))
-                        .foregroundStyle(.white)
-                        .frame(width: 28, height: 28)
-                        .background(Color.white.opacity(0.18))
-                        .clipShape(Circle())
-                        .frame(width: 44, height: 44)
-                        .contentShape(Rectangle())
-                }
-                .buttonStyle(.plain)
-                .disabled(isCreating)
-                .accessibilityLabel(appViewModel.localized("common_close", fallback: "Close"))
-            }
-            .padding(.horizontal, AppDesign.Spacing.xl)
-        }
-        .frame(height: 64)
-        .zIndex(1)
     }
 
     // MARK: - Form

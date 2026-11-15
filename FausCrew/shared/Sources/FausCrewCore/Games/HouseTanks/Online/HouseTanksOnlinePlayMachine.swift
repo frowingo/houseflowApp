@@ -41,6 +41,14 @@ final class HouseTanksOnlinePlayMachine {
         static let zero = Correction()
     }
 
+    private struct CacheKey: Equatable {
+        let session: String
+        let epoch: Int64
+        let sequence: Int64
+        let tick: Int
+        let inputs: Int
+    }
+
     private let localPlayerID: String?
     private let configuration: HouseTanksPlayConfiguration
     private let makeID: () -> String
@@ -57,7 +65,17 @@ final class HouseTanksOnlinePlayMachine {
     /// rebind to the same generation (rotation, resync) continues past it.
     private var sentHighWater: (generation: String, sequence: Int64)?
     /// Sent and not yet acknowledged, oldest first; replayed by the prediction.
-    private var inputs: [Input] = []
+    private var inputs: [Input] = [] {
+        didSet {
+            // Inputs are immutable and only appended or removed in sequence order.
+            if inputs.count != oldValue.count || inputs.last?.sequence != oldValue.last?.sequence {
+                inputsVersion &+= 1
+            }
+        }
+    }
+    private var inputsVersion = 0
+    private var cache: (key: CacheKey, tank: HouseTanksWorld.Tank?)?
+    private(set) var predictionComputationCount = 0
     /// Our own press messages still able to draw a rejection.
     private var sentIDs: [String: Bool] = [:]
     private var sentOrder: [String] = []
@@ -550,8 +568,14 @@ final class HouseTanksOnlinePlayMachine {
         guard binding != nil, let localPlayerID, let newest = frames.last,
               newest.snapshot.phase == .playing, newest.snapshot.roundPhase == .roundPlaying,
               let tank = newest.world.tank(localPlayerID), tank.isActive, tank.isControllable else { return nil }
-        var world = newest.world.withoutShots
         let target = predictionTick(at: now)
+        // The snapshot identifies the entire world; player and configuration are fixed
+        // for this machine, and a control reset clears the cache.
+        let key = CacheKey(session: newest.snapshot.sessionId, epoch: newest.snapshot.runtimeEpoch,
+                           sequence: newest.snapshot.stateSequence, tick: target, inputs: inputsVersion)
+        if let cache, cache.key == key { return cache.tank }
+        predictionComputationCount += 1
+        var world = newest.world.withoutShots
         var pending = inputs[...]
         while true {
             while let input = pending.first, input.tick <= world.tick {
@@ -568,7 +592,9 @@ final class HouseTanksOnlinePlayMachine {
             world.step()
             world = world.withoutShots
         }
-        return world.tank(localPlayerID)
+        let predicted = world.tank(localPlayerID)
+        cache = (key, predicted)
+        return predicted
     }
 
     /// The prediction with the decaying correction of the last disagreement.
@@ -608,6 +634,7 @@ final class HouseTanksOnlinePlayMachine {
     }
 
     private func clearControl() {
+        cache = nil
         pendingVote = nil
         voteIDs.removeAll()
         binding = nil

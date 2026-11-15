@@ -599,7 +599,7 @@ struct FausSwitchLobbyView: View {
     }
 
     private func sectionTitle(_ key: String) -> some View {
-        Text(verbatim: FausSwitchLocalization.uppercased(copy(key), language: appViewModel.localizationLanguagePrefix))
+        Text(verbatim: FausSwitchLocalization.uppercased(copy(key), language: APILanguage.code))
             .font(.caption.weight(.heavy))
             .tracking(1.2)
             .foregroundStyle(FausSwitchPalette.accent)

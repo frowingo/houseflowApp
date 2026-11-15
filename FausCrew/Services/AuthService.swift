@@ -137,5 +137,7 @@ final class AuthService {
     func logout() {
         keychain.authToken = nil
         keychain.userEmail = nil
+        keychain.userFirstName = nil
+        keychain.userLastName = nil
     }
 }

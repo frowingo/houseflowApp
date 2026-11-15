@@ -16,6 +16,7 @@ import com.fauscrew.platform.retryAfterSeconds
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -52,13 +53,13 @@ internal open class GameOnlineSession(
 
     private var socket: RealtimeSocket? = null
     private var socketConnection = -1
-    private var tickJob: Job? = null
+    private val work = SupervisorJob(scope.coroutineContext[Job])
     protected var isDisposed = false
         private set
 
     fun start(isForeground: Boolean, isLandscape: Boolean) {
         apply(engine.event("start", clock(), mapOf("foreground" to isForeground, "landscape" to isLandscape)))
-        tickJob = scope.launch {
+        scope.launch(work) {
             while (isActive) {
                 delay(tickMillis)
                 if (isDisposed) return@launch
@@ -77,7 +78,7 @@ internal open class GameOnlineSession(
     fun dispose() {
         if (isDisposed) return
         isDisposed = true
-        tickJob?.cancel()
+        work.cancel()
         socket?.close()
         socket = null
         engine.event("disconnect", clock())
@@ -101,10 +102,10 @@ internal open class GameOnlineSession(
 
     private fun perform(effect: OnlineEffect) {
         when (effect) {
-            is OnlineEffect.EnsureSession -> scope.launch {
-                val bearer = token() ?: return@launch report("connectionFailed",
-                    mapOf("failure" to "authenticationRequired", "connection" to effect.connection))
+            is OnlineEffect.EnsureSession -> scope.launch(work) {
                 try {
+                    val bearer = token() ?: return@launch report("connectionFailed",
+                        mapOf("failure" to "authenticationRequired", "connection" to effect.connection))
                     val response = http(PlatformHttpRequest(
                         path = effect.path, method = effect.method,
                         headers = mapOf("Authorization" to "Bearer $bearer", "Content-Type" to "application/json",
@@ -123,14 +124,20 @@ internal open class GameOnlineSession(
                 socket?.close()
                 socket = null
                 socketConnection = effect.connection
-                scope.launch {
-                    val bearer = token()
-                    if (isDisposed || socketConnection != effect.connection) return@launch
-                    if (bearer == null) {
-                        report("connectionFailed", mapOf("failure" to "authenticationRequired", "connection" to effect.connection))
-                        return@launch
+                scope.launch(work) {
+                    try {
+                        val bearer = token()
+                        if (isDisposed || socketConnection != effect.connection) return@launch
+                        if (bearer == null) {
+                            report("connectionFailed", mapOf("failure" to "authenticationRequired", "connection" to effect.connection))
+                            return@launch
+                        }
+                        socket = sockets.open(effect.path, effect.query, bearer, listener(effect.connection))
+                    } catch (cancel: CancellationException) {
+                        throw cancel
+                    } catch (_: Exception) {
+                        report("connectionFailed", mapOf("failure" to "transport", "connection" to effect.connection))
                     }
-                    socket = sockets.open(effect.path, effect.query, bearer, listener(effect.connection))
                 }
             }
             OnlineEffect.CloseSocket -> {
@@ -142,9 +149,9 @@ internal open class GameOnlineSession(
                 val sent = effect.connection == socketConnection && socket?.send(effect.text) == true
                 if (!sent) report("sendFailed", mapOf("failure" to "notConnected", "connection" to effect.connection))
             }
-            is OnlineEffect.FetchResult -> scope.launch {
-                val bearer = token() ?: return@launch report("resultFailed", mapOf("request" to effect.request))
+            is OnlineEffect.FetchResult -> scope.launch(work) {
                 try {
+                    val bearer = token() ?: return@launch report("resultFailed", mapOf("request" to effect.request))
                     val response = http(PlatformHttpRequest(path = effect.path, method = effect.method,
                         headers = mapOf("Authorization" to "Bearer $bearer", "Accept" to "application/json")))
                     report("resultResponse", mapOf("status" to response.statusCode, "body" to response.body.decodeToString(),
@@ -174,7 +181,7 @@ internal open class GameOnlineSession(
     }
 
     private fun post(block: () -> Unit) {
-        scope.launch { if (!isDisposed) block() }
+        scope.launch(work) { if (!isDisposed) block() }
     }
 
     private fun report(type: String, fields: Map<String, Any?>) {

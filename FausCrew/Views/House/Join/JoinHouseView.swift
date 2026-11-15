@@ -217,5 +217,5 @@ struct JoinHouseView: View {
 
 #Preview {
     JoinHouseView()
-        .environmentObject(AppViewModel())
+        .environmentObject(AppViewModel.preview)
 }

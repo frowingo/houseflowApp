@@ -64,6 +64,9 @@ struct GamesHubView: View {
                 }
             }
             .navigationBarHidden(true)
+            .navigationDestination(for: Int.self) { id in
+                destinationView(for: id)
+            }
         }
         .onAppear {
             withAnimation(.spring(response: 0.6, dampingFraction: 0.75).delay(0.05)) {
@@ -105,7 +108,7 @@ struct GamesHubView: View {
     private var gridSection: some View {
         LazyVGrid(columns: columns, spacing: AppDesign.Spacing.md) {
             ForEach(Array(games.enumerated()), id: \.element.id) { index, game in
-                NavigationLink(destination: destinationView(for: game.id)) {
+                NavigationLink(value: game.id) {
                     HubGameCard(game: game)
                 }
                 .buttonStyle(ScaleButtonStyle())

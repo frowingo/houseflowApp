@@ -121,7 +121,8 @@ private fun PasswordSetup(account: AccountUiState, strings: LocalizedText,
             PopupTextField(password, { password = it },
                 strings.get("forgot_password_new_password_placeholder"),
                 Modifier.fillMaxWidth().semantics { contentDescription = "new-password" },
-                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password, autoCorrectEnabled = false))
+                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password, autoCorrectEnabled = false),
+                visualTransformation = PasswordVisualTransformation())
             PopupPrimaryButton(strings.get("forgot_password_reset_button"),
                 !account.passwordBusy && code.length == 6 && password.isNotEmpty(),
                 { onSetPassword(code, password) }, Modifier.fillMaxWidth(), busy = account.passwordBusy)

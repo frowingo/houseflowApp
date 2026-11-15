@@ -8,6 +8,8 @@ import XCTest
 /// own-tank prediction, shots and event replay; between rounds the vote; and the F5
 /// lifecycle: drops and reconnects, a second device, a new runtime epoch, the background.
 final class HouseTanksOnlinePlayTests: XCTestCase {
+    private struct UnexpectedTestState: Error {}
+
     private let houseID = "507f1f77bcf86cd799439012"
     private let playerID = "507f1f77bcf86cd799439021"
     private let otherID = "507f1f77bcf86cd799439022"
@@ -211,6 +213,99 @@ final class HouseTanksOnlinePlayTests: XCTestCase {
         XCTAssertEqual(kept.rotation, ahead.rotation, accuracy: 1e-9)
         let settled = try XCTUnwrap(engine.presentation(at: 10.3)?.world.tank(playerID))
         XCTAssertEqual(settled.rotation, 0.69 + 1.5 * 24 / 120, accuracy: 0.015, "The correction fades out")
+    }
+
+    // MARK: Prediction cache
+
+    func testPredictionCacheReusesUnchangedInputsAndAdvancesWithTheLocalTick() throws {
+        let (engine, socket) = try playingEngine()
+        let play = HouseTanksOnlinePlayMachine(localPlayerID: playerID, configuration: .init(),
+                                               makeID: { "press" }, send: { _, _ in true }, resync: {})
+        play.setReduceMotion(true)
+        try play.consume(engine.lobby, now: 10)
+        let first = try XCTUnwrap(play.render(at: 10.05)?.world.tank(playerID))
+        XCTAssertEqual(play.predictionComputationCount, 1)
+        XCTAssertEqual(play.render(at: 10.051)?.world.tank(playerID), first)
+        play.tick(at: 10.051)
+        try play.consume(engine.lobby, now: 10.051)
+        XCTAssertEqual(play.render(at: 10.051)?.world.tank(playerID), first)
+        XCTAssertEqual(play.predictionComputationCount, 1, "Unchanged timer and lobby publications reuse prediction")
+
+        let advanced = try XCTUnwrap(play.render(at: 10.06)?.world.tank(playerID))
+        XCTAssertNotEqual(advanced, first)
+        XCTAssertEqual(play.predictionComputationCount, 2)
+
+        // Same base tick and target, but a new authoritative world.
+        engine.received(text: try frame(sequence: 211, tick: 1_200) { payload in
+            self.tank(&payload, 0) { $0["rotation"] = 0.8 }
+        }, connection: socket, now: 10)
+        try play.consume(engine.lobby, now: 10.06)
+        XCTAssertNotEqual(play.render(at: 10.06)?.world.tank(playerID), advanced)
+        XCTAssertEqual(play.predictionComputationCount, 3)
+        _ = play.render(at: 10.06)
+        XCTAssertEqual(play.predictionComputationCount, 3)
+    }
+
+    func testPredictionCacheInvalidatesForInputAppendRejectionAndExpiry() throws {
+        let (engine, _) = try playingEngine { payload in
+            self.tank(&payload, 0) { $0["isDriving"] = false; $0["vx"] = 0.0; $0["vy"] = 0.0 }
+        }
+        var configuration = HouseTanksPlayConfiguration()
+        configuration.maximumPrediction = 0
+        configuration.inputLifetime = 0.05
+        var sent: [String] = []
+        let play = HouseTanksOnlinePlayMachine(localPlayerID: playerID, configuration: configuration,
+                                               makeID: { "press\(sent.count)" },
+                                               send: { message, _ in sent.append(message.messageId); return true }, resync: {})
+        play.setReduceMotion(true)
+        try play.consume(engine.lobby, now: 10)
+        let original = try XCTUnwrap(play.render(at: 10)?.world.tank(playerID))
+        play.press(now: 10)
+        let pressed = try XCTUnwrap(play.render(at: 10)?.world.tank(playerID))
+        XCTAssertNotEqual(pressed, original)
+        XCTAssertEqual(play.predictionComputationCount, 2)
+        play.reject(messageID: try XCTUnwrap(sent.first),
+                    rejection: .init(code: "houseTanks.error.invalid_input", args: [], retryable: false), now: 10)
+        XCTAssertEqual(play.render(at: 10)?.world.tank(playerID), original)
+        XCTAssertEqual(play.predictionComputationCount, 3)
+
+        play.release(now: 10.001)
+        _ = play.render(at: 10.001)
+        XCTAssertEqual(play.predictionComputationCount, 4)
+        play.tick(at: 10.06)
+        XCTAssertEqual(play.pendingInputCount, 0)
+        _ = play.render(at: 10.06)
+        XCTAssertEqual(play.predictionComputationCount, 5, "Expiry invalidates even when the target tick is capped")
+        play.tick(at: 10.061)
+        _ = play.render(at: 10.061)
+        XCTAssertEqual(play.predictionComputationCount, 5, "Removing no inputs preserves the cached result")
+    }
+
+    func testPredictionCacheClearsWhenControlOrTheTimelineIsLost() throws {
+        let (engine, _) = try playingEngine()
+        let play = HouseTanksOnlinePlayMachine(localPlayerID: playerID, configuration: .init(),
+                                               makeID: { "press" }, send: { _, _ in true }, resync: {})
+        play.setReduceMotion(true)
+        try play.consume(engine.lobby, now: 10)
+        let original = try XCTUnwrap(play.render(at: 10)?.world.tank(playerID))
+        XCTAssertEqual(play.predictionComputationCount, 1)
+
+        var state = engine.lobby
+        state.isLandscape = false
+        try play.consume(state, now: 10)
+        state.isLandscape = true
+        try play.consume(state, now: 10)
+        XCTAssertEqual(play.render(at: 10)?.world.tank(playerID), original)
+        XCTAssertEqual(play.predictionComputationCount, 2)
+
+        state.game = nil
+        try play.consume(state, now: 10)
+        XCTAssertNil(play.render(at: 10))
+        try play.consume(engine.lobby, now: 10)
+        XCTAssertEqual(play.render(at: 10)?.world.tank(playerID), original)
+        XCTAssertEqual(play.predictionComputationCount, 3)
+        play.disconnect()
+        XCTAssertNil(play.render(at: 10))
     }
 
     // MARK: Events
@@ -747,9 +842,15 @@ final class HouseTanksOnlinePlayTests: XCTestCase {
     private func runningEngine() throws -> (HouseTanksOnlineEngine, Int) {
         let engine = makeEngine()
         engine.start(isForeground: true, isLandscape: true, now: 9)
-        guard case .ensureSession(_, let connection) = try XCTUnwrap(engine.drainEffects().first) else { throw XCTSkip("No ensure") }
+        guard case .ensureSession(_, let connection) = try XCTUnwrap(engine.drainEffects().first) else {
+            XCTFail("No ensure effect")
+            throw UnexpectedTestState()
+        }
         engine.sessionResponse(try envelope(sessionPayload(version: 5)), retryAfter: nil, connection: connection, now: 9.1)
-        guard case .openSocket(_, let socket) = try XCTUnwrap(engine.drainEffects().last) else { throw XCTSkip("No socket") }
+        guard case .openSocket(_, let socket) = try XCTUnwrap(engine.drainEffects().last) else {
+            XCTFail("No socket opened")
+            throw UnexpectedTestState()
+        }
         engine.socketOpened(connection: socket, now: 9.2)
         engine.received(text: try message("welcome"), connection: socket, now: 9.3)
         // Tests that `tick` stay within the 6 s heartbeat timeout; `types` skips the pings.

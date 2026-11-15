@@ -382,6 +382,78 @@ public struct Chore: Identifiable, Codable, Equatable, Sendable {
     }
 }
 
+// MARK: - Review rules
+
+/// How a chore's review stands for one signed-in user: who may vote, and each round's tally.
+/// Both clients draw the review section from it, so they count the same way.
+public struct ChoreReviewSummary: Equatable, Sendable {
+    /// Members who can vote: everyone but the assignee.
+    public let eligibleReviewerCount: Int
+    /// Every round that has votes, plus the current one, newest first.
+    public let rounds: [Round]
+    /// The user's vote in the current round.
+    public let currentUserVote: ChoreReviewVote?
+    /// An in-test chore, a user who is not the assignee and has not voted in the current round.
+    public let canReview: Bool
+
+    public init(
+        status: ChoreStatus,
+        reviewRound: Int,
+        votes: [ChoreReviewVote],
+        assigneeId: String?,
+        memberIds: [String],
+        currentUserId: String?
+    ) {
+        let eligibleReviewerCount = memberIds.filter { $0 != assigneeId }.count
+        let activeRound = status == .inTest && reviewRound > 0 ? reviewRound : nil
+        let roundNumbers = Set(votes.map(\.reviewRound)).union(reviewRound > 0 ? [reviewRound] : [])
+        rounds = roundNumbers.sorted(by: >).map { number in
+            Round(
+                number: number,
+                isActive: number == activeRound,
+                votes: votes.filter { $0.reviewRound == number },
+                eligibleReviewerCount: eligibleReviewerCount
+            )
+        }
+        self.eligibleReviewerCount = eligibleReviewerCount
+        currentUserVote = currentUserId.flatMap { userId in
+            votes.first { $0.reviewRound == reviewRound && $0.reviewerId == userId }
+        }
+        canReview = status == .inTest
+            && currentUserId != nil && currentUserId != assigneeId
+            && currentUserVote == nil
+    }
+
+    public struct Round: Equatable, Sendable {
+        public let number: Int
+        /// The round in progress: the current one while the chore is in test.
+        public let isActive: Bool
+        public let votes: [ChoreReviewVote]
+        let eligibleReviewerCount: Int
+
+        public var approvedCount: Int { votes.filter(\.isApproved).count }
+        public var rejectedCount: Int { votes.count - approvedCount }
+        public var pendingCount: Int { max(eligibleReviewerCount - votes.count, 0) }
+
+        /// Share of the eligible reviewers who approved, 0...1.
+        public var approvedRatio: Double { ratio(approvedCount) }
+        public var rejectedRatio: Double { ratio(rejectedCount) }
+
+        /// Share who voted. A house with no eligible reviewer has nobody left to wait for, so 1.
+        public var completionRatio: Double {
+            eligibleReviewerCount > 0 ? ratio(votes.count) : 1
+        }
+
+        public func vote(by reviewerId: String) -> ChoreReviewVote? {
+            votes.first { $0.reviewerId == reviewerId }
+        }
+
+        private func ratio(_ count: Int) -> Double {
+            eligibleReviewerCount > 0 ? min(Double(count) / Double(eligibleReviewerCount), 1) : 0
+        }
+    }
+}
+
 // MARK: - Review photo
 
 /// Client-side gate for the `PUT chore/status` multipart path. The backend

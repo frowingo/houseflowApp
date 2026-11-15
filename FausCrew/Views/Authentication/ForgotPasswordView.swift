@@ -28,6 +28,7 @@ struct ForgotPasswordView: View {
     // Toast
     @State private var toastMessage: String?
     @State private var toastIsError = true
+    @State private var toastHideTask: Task<Void, Never>?
 
     // MARK: - Body
 
@@ -73,6 +74,7 @@ struct ForgotPasswordView: View {
         .animation(.spring(response: 0.48, dampingFraction: 0.78), value: phase)
         .animation(AppDesign.Animation.standard, value: toastMessage)
         .dismissKeyboardOnTap()
+        .onDisappear { toastHideTask?.cancel() }
     }
 
     // MARK: - Hero Section
@@ -471,8 +473,10 @@ struct ForgotPasswordView: View {
     private func showToast(_ message: String, isError: Bool) {
         toastIsError = isError
         withAnimation(AppDesign.Animation.standard) { toastMessage = message }
-        Task {
-            try? await Task.sleep(nanoseconds: 3_000_000_000)
+        toastHideTask?.cancel()
+        toastHideTask = Task {
+            try? await Task.sleep(for: .seconds(3))
+            guard !Task.isCancelled else { return }
             withAnimation(AppDesign.Animation.standard) { toastMessage = nil }
         }
     }
@@ -487,5 +491,5 @@ struct ForgotPasswordView: View {
 
 #Preview {
     ForgotPasswordView()
-        .environmentObject(AppViewModel())
+        .environmentObject(AppViewModel.preview)
 }

@@ -14,8 +14,13 @@ import com.fauscrew.platform.RealtimeSocketListener
 import com.fauscrew.platform.RocketsColor
 import com.fauscrew.platform.RocketsFrame
 import com.fauscrew.platform.RocketsLobbyColors
+import java.io.IOException
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.test.StandardTestDispatcher
 import kotlinx.coroutines.test.TestScope
 import kotlinx.coroutines.test.advanceTimeBy
@@ -181,5 +186,128 @@ class HouseRocketsOnlineSessionTest {
         assertEquals(404, response["status"])
         assertEquals(7, response["request"])
         session.dispose()
+    }
+
+    @Test fun ensureSessionTokenReadFailureIsTransport() = runTest(dispatcher) {
+        assertTokenReadFailure(OnlineEffect.EnsureSession(4, "game/houseRockets/session", "PUT", "{}"),
+            "connectionFailed", mapOf("failure" to "transport", "connection" to 4))
+    }
+
+    @Test fun openSocketTokenReadFailureIsTransport() = runTest(dispatcher) {
+        assertTokenReadFailure(OnlineEffect.OpenSocket(4, "game/sessions/s/realtime", ""),
+            "connectionFailed", mapOf("failure" to "transport", "connection" to 4))
+    }
+
+    @Test fun fetchResultTokenReadFailureIsResultFailed() = runTest(dispatcher) {
+        assertTokenReadFailure(OnlineEffect.FetchResult(7, "game/sessions/s/result", "GET"),
+            "resultFailed", mapOf("request" to 7))
+    }
+
+    private fun TestScope.assertTokenReadFailure(effect: OnlineEffect, event: String, fields: Map<String, Any?>) {
+        val engine = ScriptedEngine()
+        engine.next = { if (it == "start") listOf(effect) else emptyList() }
+        var httpCalls = 0
+        val sockets = FakeSockets()
+        // Use the runTest scope, with no exception handler: an escaped IOException fails the test.
+        val session = GameOnlineSession(
+            scope = this, engine = engine,
+            http = { httpCalls += 1; PlatformHttpResponse(200, emptyMap(), byteArrayOf()) },
+            token = { throw IOException("Token read failed") }, sockets = sockets, onHaptic = {}, clock = { 1.0 },
+        )
+        session.start(true, true)
+        runCurrent()
+        assertEquals(listOf(event to fields), engine.events.filter { it.first != "start" })
+        assertEquals(0, httpCalls)
+        assertTrue(sockets.opened.isEmpty())
+        session.dispose()
+    }
+
+    @Test fun tokenReadCancellationDoesNotReportFailure() = runTest(dispatcher) {
+        val engine = ScriptedEngine()
+        engine.next = { type -> if (type == "start") listOf(
+            OnlineEffect.EnsureSession(4, "game/houseRockets/session", "PUT", "{}"),
+            OnlineEffect.OpenSocket(4, "game/sessions/s/realtime", ""),
+            OnlineEffect.FetchResult(7, "game/sessions/s/result", "GET"),
+        ) else emptyList() }
+        val tokenJobs = mutableListOf<Job>()
+        val sockets = FakeSockets()
+        val session = GameOnlineSession(
+            scope = this, engine = engine, http = { error("No HTTP after cancellation") },
+            token = { tokenJobs += currentCoroutineContext()[Job]!!; throw CancellationException("Cancelled token read") },
+            sockets = sockets, onHaptic = {}, clock = { 1.0 },
+        )
+        session.start(true, true)
+        runCurrent()
+        assertEquals(3, tokenJobs.size)
+        assertTrue(tokenJobs.all { it.isCancelled })
+        assertEquals(listOf("start"), engine.events.map { it.first })
+        assertTrue(sockets.opened.isEmpty())
+        session.dispose()
+    }
+
+    @Test fun disposeCancelsEnsureSessionBeforeAnotherAccountStarts() = runTest(dispatcher) {
+        assertDisposeCancelsHttp(
+            OnlineEffect.EnsureSession(4, "game/houseRockets/session", "PUT", "{}"),
+            OnlineEffect.EnsureSession(8, "game/houseRockets/session", "PUT", "{}"), "sessionResponse", "connection",
+        )
+    }
+
+    @Test fun disposeCancelsFetchResultBeforeAnotherAccountStarts() = runTest(dispatcher) {
+        assertDisposeCancelsHttp(
+            OnlineEffect.FetchResult(4, "game/sessions/old/result", "GET"),
+            OnlineEffect.FetchResult(8, "game/sessions/new/result", "GET"), "resultResponse", "request",
+        )
+    }
+
+    private fun TestScope.assertDisposeCancelsHttp(oldEffect: OnlineEffect, newEffect: OnlineEffect,
+                                                 responseEvent: String, tag: String) {
+        val oldEngine = ScriptedEngine()
+        oldEngine.next = { if (it == "start") listOf(oldEffect) else emptyList() }
+        val oldResponse = CompletableDeferred<PlatformHttpResponse>()
+        var oldStarted = false
+        var oldCancelled = false
+        val oldSession = GameOnlineSession(
+            scope = this, engine = oldEngine,
+            http = {
+                oldStarted = true
+                try { oldResponse.await() }
+                catch (cancel: CancellationException) { oldCancelled = true; throw cancel }
+            },
+            token = { "old-account" }, sockets = FakeSockets(), onHaptic = {}, clock = { 1.0 },
+        )
+        oldSession.start(true, true)
+        runCurrent()
+        assertTrue(oldStarted)
+        oldSession.dispose()
+        val oldEvents = oldEngine.events.toList()
+
+        val newEngine = ScriptedEngine()
+        newEngine.next = { if (it == "start") listOf(newEffect) else emptyList() }
+        val newResponse = CompletableDeferred<PlatformHttpResponse>()
+        val requests = mutableListOf<PlatformHttpRequest>()
+        val newSession = GameOnlineSession(
+            scope = this, engine = newEngine, http = { requests += it; newResponse.await() },
+            token = { "new-account" }, sockets = FakeSockets(), onHaptic = {}, clock = { 1.0 },
+        )
+        newSession.start(true, true)
+        runCurrent()
+        assertTrue("Disposed HTTP coroutine must observe cancellation", oldCancelled)
+        assertEquals("Bearer new-account", requests.single().headers["Authorization"])
+        val newEvents = newEngine.events.toList()
+        oldResponse.complete(PlatformHttpResponse(200, emptyMap(), "old response".toByteArray()))
+        runCurrent()
+        assertEquals(oldEvents, oldEngine.events)
+        assertEquals(newEvents, newEngine.events)
+
+        newResponse.complete(PlatformHttpResponse(201, emptyMap(), "new response".toByteArray()))
+        runCurrent()
+        val response = newEngine.events.single { it.first == responseEvent }.second
+        assertEquals(201, response["status"])
+        assertEquals(8, response[tag])
+        assertEquals("new response", response["body"])
+        advanceTimeBy(50); runCurrent()
+        assertEquals(oldEvents, oldEngine.events)
+        assertTrue(newEngine.events.any { it.first == "tick" })
+        newSession.dispose()
     }
 }

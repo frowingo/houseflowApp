@@ -11,7 +11,6 @@ struct TodaysChoresCard: View {
     /// Opens the chore catalog from the empty state; `nil` hides the button.
     var onAddChore: (() -> Void)? = nil
 
-    @State private var pulseAnimation = false
     @State private var iconPressed = false
     
     var todaysChores: [Chore] {
@@ -84,9 +83,6 @@ struct TodaysChoresCard: View {
                     lineWidth: 1
                 )
         )
-        .onAppear {
-            // Removed auto-pulse animation
-        }
     }
     
     // MARK: - Header Section
@@ -200,7 +196,7 @@ struct TodaysChoresCard: View {
     private var choresListView: some View {
         let active = todaysChores.activeChores
         let history = todaysChores.historyChores
-        return VStack(spacing: AppDesign.Spacing.md) {
+        return LazyVStack(spacing: AppDesign.Spacing.md) {
             ForEach(active) { chore in
                 choreRow(chore)
             }
@@ -241,13 +237,12 @@ struct TodaysChoresCard: View {
                 Circle()
                     .fill(AppDesign.Colors.success.opacity(0.2))
                     .frame(width: 120, height: 120)
-                    .scaleEffect(pulseAnimation ? 1.2 : 1.0)
                     .blur(radius: 20)
                 
                 Circle()
                     .fill(AppDesign.Colors.secondary.opacity(0.3))
                     .frame(width: 90, height: 90)
-                    .scaleEffect(pulseAnimation ? 1.0 : 1.2)
+                    .scaleEffect(1.2)
                     .blur(radius: 15)
                 
                 // Main icon
@@ -260,9 +255,8 @@ struct TodaysChoresCard: View {
                             endPoint: .bottomTrailing
                         )
                     )
-                    .rotationEffect(.degrees(pulseAnimation ? 5 : -5))
+                    .rotationEffect(.degrees(-5))
             }
-            .animation(AppDesign.Animation.spring.repeatForever(autoreverses: true), value: pulseAnimation)
             
             VStack(spacing: AppDesign.Spacing.sm) {
                 Text(appViewModel.localized("todays_tasks_empty_title"))
@@ -473,7 +467,7 @@ private struct ModernChoreRowButtonStyle: ButtonStyle {
 // MARK: - Previews
 
 #Preview("With Chores") {
-    let viewModel = AppViewModel()
+    let viewModel = AppViewModel.preview
     viewModel.chores = [
         Chore(title: "Clean kitchen", description: "Wipe surfaces", assignedTo: User(name: "John", points: 10), dueLabel: "Today"),
         Chore(title: "Take out trash", description: "Empty bins", assignedTo: User(name: "Jane", points: 8), dueLabel: "Today"),
@@ -489,7 +483,7 @@ private struct ModernChoreRowButtonStyle: ButtonStyle {
 }
 
 #Preview("Empty State") {
-    let viewModel = AppViewModel()
+    let viewModel = AppViewModel.preview
     viewModel.chores = []
     
     return TodaysChoresCard(

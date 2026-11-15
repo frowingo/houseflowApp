@@ -326,8 +326,7 @@ struct VaultRushView: View {
             }
 
             VStack(spacing: AppDesign.Spacing.sm) {
-                ForEach(members.indices, id: \.self) { index in
-                    let member = members[index]
+                ForEach(members, id: \.self) { member in
                     HStack(spacing: AppDesign.Spacing.sm) {
                         Image(systemName: readyMembers.contains(member) ? "checkmark.circle.fill" : "circle")
                             .font(.system(size: 18, weight: .semibold))
@@ -1029,9 +1028,9 @@ private struct CleanupMemberList: View {
 
     var body: some View {
         VStack(spacing: AppDesign.Spacing.sm) {
-            ForEach(members.indices, id: \.self) { index in
-                VaultCrewRow(name: members[index], canDelete: members.count > 2) {
-                    deleteMember(at: index)
+            ForEach(members, id: \.self) { member in
+                VaultCrewRow(name: member, canDelete: members.count > 2) {
+                    deleteMember(member)
                 }
             }
             addMemberControl
@@ -1039,10 +1038,9 @@ private struct CleanupMemberList: View {
         .animation(.spring(response: 0.4, dampingFraction: 0.7), value: showAddField)
     }
 
-    private func deleteMember(at index: Int) {
-        let member = members[index]
+    private func deleteMember(_ member: String) {
         withAnimation(.spring(response: 0.4, dampingFraction: 0.7)) {
-            members.remove(at: index)
+            members.removeAll { $0 == member }
             readyMembers.remove(member)
         }
     }

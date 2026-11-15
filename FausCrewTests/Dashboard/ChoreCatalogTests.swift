@@ -19,10 +19,7 @@ final class ChoreCatalogTests: XCTestCase {
     }
 
     private func fixture() throws -> Fixture {
-        let repositoryDirectory = URL(fileURLWithPath: #filePath)
-            .deletingLastPathComponent().deletingLastPathComponent()
-        let url = repositoryDirectory.appendingPathComponent("FausCrew/shared/Fixtures/choreCatalog.json")
-        return try JSONDecoder().decode(Fixture.self, from: Data(contentsOf: url))
+        try JSONDecoder().decode(Fixture.self, from: Data(contentsOf: sharedFixtureURL("choreCatalog.json")))
     }
 
     private func copy(_ value: ChoreCatalogCopy) -> Copy { Copy(tr: value.tr, en: value.en) }
@@ -55,9 +52,7 @@ final class ChoreCatalogTests: XCTestCase {
             struct Category: Decodable { let value: Int; let catalogId: String }
             let categories: [Category]
         }
-        let url = URL(fileURLWithPath: #filePath).deletingLastPathComponent().deletingLastPathComponent()
-            .appendingPathComponent("FausCrew/shared/Fixtures/choreCatalogApi.json")
-        let api = try JSONDecoder().decode(Api.self, from: Data(contentsOf: url))
+        let api = try JSONDecoder().decode(Api.self, from: Data(contentsOf: sharedFixtureURL("choreCatalogApi.json")))
         XCTAssertEqual(api.categories.map(\.catalogId), ChoreCatalog.categories.map(\.id))
         for entry in api.categories {
             let kind = try XCTUnwrap(ChoreCategoryKind(rawValue: entry.value))

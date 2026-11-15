@@ -21,31 +21,6 @@ final class ChoreStore: ObservableObject {
         setChores([])
     }
 
-    func toggleCompletion(_ choreId: String) {
-        guard let index = chores.firstIndex(where: { $0.id == choreId }) else { return }
-        let c = chores[index]
-        var updatedChores = chores
-        updatedChores[index] = Chore(
-            id: c.id,
-            choreApiId: c.choreApiId,
-            houseId: c.houseId,
-            assignedToId: c.assignedToId,
-            title: c.title,
-            description: c.description,
-            assignedTo: c.assignedTo,
-            dueLabel: c.dueLabel,
-            dueDate: c.dueDate,
-            isDone: !c.isDone,
-            status: c.isDone ? 0 : 3,
-            level: c.level,
-            reviewRound: c.reviewRound,
-            reviewVotes: c.reviewVotes,
-            reviewPhotoRounds: c.reviewPhotoRounds,
-            category: c.category
-        )
-        setChores(updatedChores)
-    }
-
     func apply(response: ChoreResponse, currentHouseDetails: HouseDetailsResponse?, dashboardMembers: [User]) -> HouseDetailsResponse? {
         let mergedChore = chore(from: response, dashboardMembers: dashboardMembers)
         if let index = chores.firstIndex(where: { $0.choreApiId == response.id }) {
@@ -57,7 +32,7 @@ final class ChoreStore: ObservableObject {
         }
 
         guard let details = currentHouseDetails else { return nil }
-        let responseDTO = response.houseChoreDTO
+        let responseDTO = HouseChoreDTO(response)
         let hasExistingChore = details.chores.contains { $0.id == response.id }
         let mergedChores = hasExistingChore
             ? details.chores.map { $0.id == response.id ? responseDTO : $0 }
@@ -204,7 +179,7 @@ final class ChoreStore: ObservableObject {
             reviewRound: response.reviewRound,
             reviewVotes: response.reviewVotes,
             reviewPhotoRounds: response.reviewPhotoRounds,
-            failureReason: response.houseChoreDTO.failureReason,
+            failureReason: HouseChoreDTO(response).failureReason,
             category: response.category
         )
     }

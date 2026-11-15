@@ -1,6 +1,11 @@
 package com.fauscrew.platform
 
+import java.io.IOException
+import java.util.concurrent.ConcurrentHashMap
+import kotlinx.coroutines.CompletableDeferred
+import kotlinx.coroutines.async
 import kotlinx.coroutines.runBlocking
+import kotlinx.coroutines.withTimeout
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
@@ -12,6 +17,8 @@ class AuthSessionRepositoryTest {
     private var loginResponse = PlatformHttpResponse(200, emptyMap(), "token".toByteArray())
     private var profileResponse = PlatformHttpResponse(200, emptyMap(), "profile".toByteArray())
     private var profileDestination = "dashboard"
+    private var clearCount = 0
+    private var profileError: IOException? = null
     private val wire = object : AuthWire {
         override fun loginBody(email: String, password: String) = """{"email":"$email","password":"$password"}"""
         override fun loginResult(status: Int, body: String) = if (status == 200) """{"ok":true,"token":"abc"}"""
@@ -32,11 +39,14 @@ class AuthSessionRepositoryTest {
     private val repository = AuthSessionRepository(
         send = { request ->
             requests += request
-            if (request.path == "auth/login" || request.path == "auth/signup") loginResponse else profileResponse
+            if (request.path == "auth/login" || request.path == "auth/signup") loginResponse else {
+                profileError?.let { throw it }
+                profileResponse
+            }
         },
         read = { fields[it]?.let(SessionReadResult::Value) ?: SessionReadResult.Missing },
         write = { field, value -> if (value == null) fields.remove(field) else fields[field] = value },
-        clear = { fields.clear() },
+        clear = { clearCount++; fields.clear() },
         wire = wire,
     )
 
@@ -57,6 +67,7 @@ class AuthSessionRepositoryTest {
         loginResponse = PlatformHttpResponse(401, emptyMap(), byteArrayOf())
         val error = runCatching { repository.login("ada@example.com", "wrong") }.exceptionOrNull()
         assertEquals("Invalid credentials", (error as AuthRequestException).serverMessage)
+        assertEquals(401, error.status)
         assertNull(fields[SessionField.AUTH_TOKEN])
     }
 
@@ -69,6 +80,71 @@ class AuthSessionRepositoryTest {
         assertTrue(repository.restore() is AuthRestoreResult.SignedIn)
         repository.logout()
         assertEquals(AuthRestoreResult.SignedOut, repository.restore())
+    }
+
+    @Test fun unauthorizedRestoreClearsSessionAndSignsOut() = runBlocking {
+        fields[SessionField.AUTH_TOKEN] = "abc"
+        fields[SessionField.USER_EMAIL] = "old@example.com"
+        profileResponse = PlatformHttpResponse(401, emptyMap(), byteArrayOf())
+        assertEquals(AuthRestoreResult.SignedOut, repository.restore())
+        assertEquals(1, clearCount)
+        assertTrue(fields.isEmpty())
+    }
+
+    @Test fun serverAndNetworkRestoreFailuresKeepSession() = runBlocking {
+        fields[SessionField.AUTH_TOKEN] = "abc"
+        profileResponse = PlatformHttpResponse(500, emptyMap(), byteArrayOf())
+        assertTrue(repository.restore() is AuthRestoreResult.Error)
+        profileError = IOException("offline")
+        assertTrue(repository.restore() is AuthRestoreResult.Error)
+        assertEquals(0, clearCount)
+        assertEquals("abc", fields[SessionField.AUTH_TOKEN])
+    }
+
+    @Test fun lateProfileCannotWriteAfterLogoutAndTokenReplacement() = runBlocking {
+        val store = ConcurrentHashMap<SessionField, String>().apply { put(SessionField.AUTH_TOKEN, "old") }
+        val started = CompletableDeferred<Unit>()
+        val reply = CompletableDeferred<PlatformHttpResponse>()
+        val delayed = AuthSessionRepository(
+            send = { started.complete(Unit); reply.await() },
+            read = { store[it]?.let(SessionReadResult::Value) ?: SessionReadResult.Missing },
+            write = { field, value -> if (value == null) store.remove(field) else store[field] = value },
+            clear = { store.clear() }, wire = wire,
+        )
+        val restoring = async { delayed.restore() }
+        withTimeout(5_000) { started.await() }
+        delayed.logout()
+        store[SessionField.AUTH_TOKEN] = "new"
+        store[SessionField.USER_EMAIL] = "bea@example.com"
+        store[SessionField.USER_FIRST_NAME] = "Bea"
+        profileDestination = "emailVerification"
+        reply.complete(PlatformHttpResponse(200, emptyMap(), byteArrayOf()))
+        assertTrue(withTimeout(5_000) { restoring.await() } is AuthRestoreResult.Error)
+        assertEquals("new", store[SessionField.AUTH_TOKEN])
+        assertEquals("bea@example.com", store[SessionField.USER_EMAIL])
+        assertEquals("Bea", store[SessionField.USER_FIRST_NAME])
+        assertNull(store[SessionField.USER_LAST_NAME])
+        assertNull(store[SessionField.PENDING_EMAIL_VERIFICATION])
+    }
+
+    @Test fun lateUnauthorizedRestoreCannotClearReplacementSession() = runBlocking {
+        val store = ConcurrentHashMap<SessionField, String>().apply { put(SessionField.AUTH_TOKEN, "old") }
+        val started = CompletableDeferred<Unit>()
+        val reply = CompletableDeferred<PlatformHttpResponse>()
+        var clears = 0
+        val delayed = AuthSessionRepository(
+            send = { started.complete(Unit); reply.await() },
+            read = { store[it]?.let(SessionReadResult::Value) ?: SessionReadResult.Missing },
+            write = { field, value -> if (value == null) store.remove(field) else store[field] = value },
+            clear = { clears++; store.clear() }, wire = wire,
+        )
+        val restoring = async { delayed.restore() }
+        withTimeout(5_000) { started.await() }
+        store[SessionField.AUTH_TOKEN] = "new"
+        reply.complete(PlatformHttpResponse(401, emptyMap(), byteArrayOf()))
+        assertTrue(withTimeout(5_000) { restoring.await() } is AuthRestoreResult.Error)
+        assertEquals(0, clears)
+        assertEquals("new", store[SessionField.AUTH_TOKEN])
     }
 
     @Test fun pendingVerificationTakesPriorityWithoutNetworkCall() = runBlocking {

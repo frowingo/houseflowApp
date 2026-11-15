@@ -43,38 +43,41 @@ internal data class PlatformHttpResponse(
     val body: ByteArray,
 )
 
-/** One pooled client per app graph. No body/header logging and no custom TLS trust manager. */
+/** Process-wide connection pool and dispatcher; request headers stay on individual requests. */
+internal object SharedHttpClients {
+    private val base by lazy { OkHttpClient() }
+    val api: OkHttpClient by lazy {
+        base.newBuilder()
+            .connectTimeout(15, TimeUnit.SECONDS)
+            .readTimeout(30, TimeUnit.SECONDS)
+            .writeTimeout(60, TimeUnit.SECONDS)
+            .build()
+    }
+    val realtime: OkHttpClient by lazy {
+        base.newBuilder()
+            .connectTimeout(15, TimeUnit.SECONDS)
+            .readTimeout(0, TimeUnit.SECONDS)
+            .build()
+    }
+    val images: OkHttpClient by lazy { base.newBuilder().build() }
+}
+
+/** Adapters share the process-wide API client. No logging or custom TLS trust manager. */
 internal class AndroidHttpAdapter private constructor(
     private val baseUrl: HttpUrl,
     private val callFactory: Call.Factory,
 ) {
     suspend fun send(request: PlatformHttpRequest): PlatformHttpResponse {
         val call = callFactory.newCall(makeRequest(request))
-        return suspendCancellableCoroutine { continuation ->
-            continuation.invokeOnCancellation { call.cancel() }
-            call.enqueue(object : Callback {
-                override fun onFailure(call: Call, error: IOException) {
-                    if (continuation.isActive) continuation.resumeWithException(error)
-                }
-
-                override fun onResponse(call: Call, response: Response) {
-                    try {
-                        response.use {
-                            val headers = it.headers.names().associate { name ->
-                                name.lowercase() to it.header(name).orEmpty()
-                            }
-                            val result = PlatformHttpResponse(
-                                statusCode = it.code,
-                                headers = headers,
-                                body = it.body?.bytes() ?: byteArrayOf(),
-                            )
-                            if (continuation.isActive) continuation.resume(result)
-                        }
-                    } catch (error: IOException) {
-                        if (continuation.isActive) continuation.resumeWithException(error)
-                    }
-                }
-            })
+        return call.awaitResponse { response ->
+            val headers = response.headers.names().associate { name ->
+                name.lowercase() to response.header(name).orEmpty()
+            }
+            PlatformHttpResponse(
+                statusCode = response.code,
+                headers = headers,
+                body = response.body?.bytes() ?: byteArrayOf(),
+            )
         }
     }
 
@@ -119,16 +122,36 @@ internal class AndroidHttpAdapter private constructor(
         fun live(baseUrl: String = LIVE_BASE_URL): AndroidHttpAdapter {
             val parsed = baseUrl.toHttpUrl()
             require(parsed.isHttps) { "Production HTTP endpoint must use HTTPS" }
-            val client = OkHttpClient.Builder()
-                .callTimeout(30, TimeUnit.SECONDS)
-                .build()
-            return AndroidHttpAdapter(parsed, client)
+            return AndroidHttpAdapter(parsed, SharedHttpClients.api)
         }
 
         /** Loopback/fake transport for deterministic contract tests only. */
         internal fun forTesting(baseUrl: HttpUrl, callFactory: Call.Factory): AndroidHttpAdapter =
             AndroidHttpAdapter(baseUrl, callFactory)
     }
+}
+
+/** Reads and closes the response on OkHttp's callback thread; cancellation aborts body IO too. */
+internal suspend fun <T> Call.awaitResponse(read: (Response) -> T): T = suspendCancellableCoroutine { continuation ->
+    continuation.invokeOnCancellation { cancel() }
+    enqueue(object : Callback {
+        override fun onFailure(call: Call, error: IOException) {
+            if (continuation.isActive) continuation.resumeWithException(error)
+        }
+
+        override fun onResponse(call: Call, response: Response) {
+            try {
+                response.use {
+                    if (continuation.isActive) {
+                        val result = read(it)
+                        if (continuation.isActive) continuation.resume(result)
+                    }
+                }
+            } catch (error: Exception) {
+                if (continuation.isActive) continuation.resumeWithException(error)
+            }
+        }
+    })
 }
 
 /** `Retry-After` as seconds from now: delta-seconds or an HTTP-date, like iOS. */

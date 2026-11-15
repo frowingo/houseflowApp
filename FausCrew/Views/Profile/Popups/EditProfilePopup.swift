@@ -32,52 +32,15 @@ struct EditProfilePopup: View {
                 .ignoresSafeArea()
                 .onTapGesture { if !isSaving { requestDismiss() } }
 
-            VStack(spacing: 0) {
-                // ── Top bar (ChoreDetailPopup style)
-                ZStack {
-                    BrandPopupHeaderBackground()
-                    Image(systemName: "person.crop.circle.fill")
-                        .font(.system(size: 56, weight: .bold))
-                        .foregroundColor(.white.opacity(0.12))
-
-                    HStack(spacing: AppDesign.Spacing.sm) {
-                        ZStack {
-                            Circle()
-                                .fill(Color.white.opacity(0.22))
-                                .frame(width: 34, height: 34)
-                            Text(previewInitials)
-                                .font(.system(size: 13, weight: .bold, design: .rounded))
-                                .foregroundColor(.white)
-                        }
-
-                        VStack(alignment: .leading, spacing: 2) {
-                            Text(appViewModel.localized("profile_edit_button"))
-                                .font(.system(size: 15, weight: .bold))
-                                .foregroundColor(.white)
-                            Text(appViewModel.currentUserProfile?.email ?? "")
-                                .font(.system(size: 11, weight: .medium))
-                                .foregroundColor(.white.opacity(0.72))
-                                .lineLimit(1)
-                        }
-
-                        Spacer()
-
-                        Button { if !isSaving { requestDismiss() } } label: {
-                            Image(systemName: "xmark")
-                                .font(.system(size: 13, weight: .bold))
-                                .foregroundColor(.white.opacity(0.9))
-                                .frame(width: 26, height: 26)
-                                .background(Color.white.opacity(0.2))
-                                .clipShape(Circle())
-                        }
-                    }
-                    .padding(.horizontal, AppDesign.Spacing.xl)
-                    .padding(.vertical, 12)
-                }
-                .frame(height: 60)
-                .zIndex(1)
-
-                // ── Scrollable fields
+            FausPopupShell(
+                watermark: Image(systemName: "person.crop.circle.fill"),
+                title: appViewModel.localized("profile_edit_button"),
+                subtitle: appViewModel.currentUserProfile?.email ?? "",
+                isCloseDisabled: isSaving,
+                onClose: requestDismiss,
+                badge: Text(previewInitials)
+                    .font(.system(size: 13, weight: .bold, design: .rounded))
+            ) {
                 ScrollView(showsIndicators: false) {
                     VStack(spacing: AppDesign.Spacing.md) {
                         HStack(alignment: .top, spacing: AppDesign.Spacing.sm) {
@@ -164,8 +127,7 @@ struct EditProfilePopup: View {
                 .scrollDismissesKeyboard(.interactively)
                 .frame(maxHeight: 420)
                 .clipped()
-
-                // ── Footer: Save + Cancel
+            } footer: {
                 VStack(spacing: AppDesign.Spacing.sm) {
                     Button {
                         Task { await save() }
@@ -211,9 +173,6 @@ struct EditProfilePopup: View {
                         .shadow(color: AppDesign.Colors.shadow.opacity(0.06), radius: 8, x: 0, y: -4)
                 )
             }
-            .background(MainScreenBackground(surface: .popup))
-            .clipShape(RoundedRectangle(cornerRadius: AppDesign.CornerRadius.xl, style: .continuous))
-            .shadow(color: AppDesign.Colors.shadow.opacity(0.25), radius: 30, x: 0, y: 16)
             .padding(.horizontal, AppDesign.Spacing.xl)
         }
         .animation(AppDesign.Animation.standard, value: isSaving)

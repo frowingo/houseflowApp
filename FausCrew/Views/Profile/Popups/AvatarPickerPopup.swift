@@ -28,40 +28,13 @@ struct AvatarPickerPopup: View {
                 .ignoresSafeArea()
                 .onTapGesture { if !isSaving { requestDismiss() } }
 
-            VStack(spacing: 0) {
-                // Top bar
-                ZStack {
-                    BrandPopupHeaderBackground()
-                    Image(systemName: "person.crop.circle")
-                        .font(.system(size: 56, weight: .bold))
-                        .foregroundColor(.white.opacity(0.12))
-
-                    HStack(spacing: AppDesign.Spacing.sm) {
-                        VStack(alignment: .leading, spacing: 2) {
-                            Text(appViewModel.localized("profile_avatar_choose_title"))
-                                .font(.system(size: 15, weight: .bold))
-                                .foregroundColor(.white)
-                            Text(appViewModel.localized("profile_avatar_choose_subtitle"))
-                                .font(.system(size: 12, weight: .medium))
-                                .foregroundColor(.white.opacity(0.75))
-                        }
-                        Spacer()
-                        Button { if !isSaving { requestDismiss() } } label: {
-                            Image(systemName: "xmark")
-                                .font(.system(size: 13, weight: .bold))
-                                .foregroundColor(.white.opacity(0.9))
-                                .frame(width: 26, height: 26)
-                                .background(Color.white.opacity(0.2))
-                                .clipShape(Circle())
-                        }
-                    }
-                    .padding(.horizontal, AppDesign.Spacing.xl)
-                    .padding(.vertical, 12)
-                }
-                .frame(height: 64)
-                .zIndex(1)
-
-                // Grid body
+            FausPopupShell(
+                watermark: Image(systemName: "person.crop.circle"),
+                title: appViewModel.localized("profile_avatar_choose_title"),
+                subtitle: appViewModel.localized("profile_avatar_choose_subtitle"),
+                isCloseDisabled: isSaving,
+                onClose: requestDismiss
+            ) {
                 ScrollView(showsIndicators: false) {
                     if isLoading {
                         ProgressView()
@@ -108,7 +81,7 @@ struct AvatarPickerPopup: View {
                     .padding(.horizontal, AppDesign.Spacing.xl)
                 }
 
-                // Footer
+            } footer: {
                 VStack(spacing: AppDesign.Spacing.sm) {
                     Button {
                         Task { await save() }
@@ -149,9 +122,6 @@ struct AvatarPickerPopup: View {
                 .padding(.vertical, AppDesign.Spacing.lg)
                 .background(AppDesign.Colors.popupBackground.shadow(color: AppDesign.Colors.shadow.opacity(0.06), radius: 8, x: 0, y: -4))
             }
-            .background(MainScreenBackground(surface: .popup))
-            .clipShape(RoundedRectangle(cornerRadius: AppDesign.CornerRadius.xl, style: .continuous))
-            .shadow(color: AppDesign.Colors.shadow.opacity(0.25), radius: 30, x: 0, y: 16)
             .padding(.horizontal, AppDesign.Spacing.xl)
         }
         .animation(AppDesign.Animation.standard, value: isSaving)

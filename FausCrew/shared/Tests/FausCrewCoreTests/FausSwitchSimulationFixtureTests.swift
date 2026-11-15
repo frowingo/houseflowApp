@@ -17,9 +17,11 @@ import CryptoKit
 ///
 /// The file is only written on demand, after a course or physics change:
 /// `FAUS_SWITCH_WRITE_SIMULATION=1 swift test --package-path shared --filter FausSwitchSimulationFixtureTests`,
-/// then update `fixtureSha256` and send the new file and hash to the backend.
+/// then update `fixtureSha256` and its line in `shared/Fixtures/SHA256SUMS` (CI checks that file)
+/// and send the new file and hash to the backend.
 final class FausSwitchSimulationFixtureTests: XCTestCase {
-    /// sha256 of the file the backend has. Changes only with a regenerated fixture.
+    /// sha256 of the file the backend has. Changes only with a regenerated fixture. Also listed in
+    /// `shared/Fixtures/SHA256SUMS`, which CI checks; update both together.
     private static let fixtureSha256 = "5bf34d8ddd81cdf4773565212e7ee389d8bd985ab55e359e9864a3d6ce807976"
 
     func testFixtureReplaysBitForBit() throws {

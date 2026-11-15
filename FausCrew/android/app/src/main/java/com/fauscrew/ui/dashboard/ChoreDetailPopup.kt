@@ -58,6 +58,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.fauscrew.platform.ChoreReview
 import com.fauscrew.platform.HouseChore
 import com.fauscrew.platform.HouseMember
 import com.fauscrew.platform.HouseVote
@@ -68,6 +69,7 @@ import com.fauscrew.platform.ReviewPhoto
 import com.fauscrew.platform.ReviewPhotoCapture
 import com.fauscrew.platform.ReviewPhotoEncoder
 import com.fauscrew.platform.ReviewPhotoException
+import com.fauscrew.platform.ReviewRound
 import com.fauscrew.ui.components.FausCrewPopup
 import com.fauscrew.ui.components.PopupBusyIndicator
 import com.fauscrew.ui.components.PopupCloseButton
@@ -87,6 +89,8 @@ import com.fauscrew.ui.theme.Radius
 import com.fauscrew.ui.theme.Sizes
 import com.fauscrew.ui.theme.Spacing
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.currentCoroutineContext
+import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
@@ -116,12 +120,7 @@ internal fun ChoreDetailPopup(
     // Null once the chore leaves the active flow (Completed, Failed, unknown): a refetch that
     // turns the open chore Failed leaves this popup read-only.
     val nextStatus = if (isAssignee) status.next else null
-    val currentVote = chore.reviewVotes.firstOrNull { it.reviewRound == chore.reviewRound && it.reviewerId == userId }
-    val canReview = status == ChoreStatusUi.IN_TEST && !isAssignee && userId.isNotBlank() && currentVote == null
-    val eligibleReviewers = members.count { it.id != chore.assignedTo }
-    val rounds = (chore.reviewVotes.map { it.reviewRound } + listOfNotNull(chore.reviewRound.takeIf { it > 0 }))
-        .distinct().sortedDescending()
-    val activeRound = chore.reviewRound.takeIf { status == ChoreStatusUi.IN_TEST && it > 0 }
+    val review = remember(chore, members, userId) { ChoreReview.of(chore, members, userId) }
     var expandedRounds by remember(chore.id) { mutableStateOf(emptySet<Int>()) }
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
@@ -129,10 +128,10 @@ internal fun ChoreDetailPopup(
     var photo by remember(chore.id) { mutableStateOf<ReviewPhoto?>(null) }
     var preparingPhoto by remember(chore.id) { mutableStateOf(false) }
     var photoError by remember(chore.id) { mutableStateOf<String?>(null) }
-    // Decoded images only; signed URLs never reach composition state.
-    var roundPhotos by remember(chore.id) { mutableStateOf(emptyMap<Int, Bitmap>()) }
-    var loadingRound by remember(chore.id) { mutableStateOf<Int?>(null) }
     var viewedRound by remember(chore.id) { mutableStateOf<Int?>(null) }
+    // Changing rounds drops the previous bitmap; signed URLs never reach composition state.
+    var roundPhoto by remember(chore.id, viewedRound) { mutableStateOf<Bitmap?>(null) }
+    val loadingRound = viewedRound.takeIf { roundPhoto == null }
     var captureFile by remember(chore.id) { mutableStateOf<java.io.File?>(null) }
     // A refetch can end the active flow (e.g. the backend marks the chore Failed): drop the
     // half-done review photo.
@@ -177,22 +176,21 @@ internal fun ChoreDetailPopup(
             photoError = strings.get("chore_review_photo_camera_unavailable", "The camera is not available on this device.")
         }
     }
-    val showRoundPhoto: (Int) -> Unit = { round ->
-        if (round in roundPhotos) viewedRound = round
-        else if (loadingRound == null) {
-            loadingRound = round
-            scope.launch {
-                val bytes = onLoadReviewPhoto(chore.id, round)
-                val bitmap = bytes?.let { withContext(Dispatchers.Default) { RemoteImageLoader.decode(it, 2048) } }
-                if (bitmap != null) {
-                    roundPhotos = roundPhotos + (round to bitmap)
-                    viewedRound = round
-                } else if (bytes != null) photoError = strings.get("chore_review_photo_load_failed",
+    LaunchedEffect(chore.id, viewedRound) {
+        val round = viewedRound ?: return@LaunchedEffect
+        val bytes = onLoadReviewPhoto(chore.id, round)
+        val bitmap = bytes?.let { withContext(Dispatchers.Default) { RemoteImageLoader.decode(it, 2048) } }
+        currentCoroutineContext().ensureActive()
+        if (viewedRound == round) {
+            roundPhoto = bitmap
+            if (bitmap == null) {
+                viewedRound = null
+                if (bytes != null) photoError = strings.get("chore_review_photo_load_failed",
                     "The review photo could not be loaded.")
-                loadingRound = null
             }
         }
     }
+    val showRoundPhoto: (Int) -> Unit = { round -> viewedRound = round }
 
     FausCrewPopup(
         onDismiss = onDismiss,
@@ -215,31 +213,31 @@ internal fun ChoreDetailPopup(
                 }
             } else null,
         ) { onStatus(chore.id, nextStatus.raw, if (requiresPhoto) photo else null) }
-        if (rounds.isNotEmpty()) {
+        if (review.rounds.isNotEmpty()) {
             SectionCard(borderColor = status.color.copy(alpha = .2f)) {
                 PopupSectionLabel(FausCrewIcons.checkmarkSealFill, strings.get("chore_detail_review_rounds_label"))
-                rounds.forEach { round ->
-                    val active = round == activeRound
+                review.rounds.forEach { round ->
+                    val number = round.number
                     ReviewRoundCard(
-                        round = round, active = active, expanded = active || round in expandedRounds,
-                        votes = chore.reviewVotes.filter { it.reviewRound == round }, members = members,
-                        assigneeId = chore.assignedTo, eligibleReviewers = eligibleReviewers, statusColor = status.color,
-                        strings = strings, hasPhoto = round in chore.reviewPhotoRounds,
-                        loadingPhoto = loadingRound == round, onShowPhoto = { showRoundPhoto(round) },
-                        onToggle = { expandedRounds = if (round in expandedRounds) expandedRounds - round else expandedRounds + round },
+                        round = round, expanded = round.isActive || number in expandedRounds, members = members,
+                        assigneeId = chore.assignedTo, eligibleReviewers = review.eligibleReviewerCount, statusColor = status.color,
+                        strings = strings, hasPhoto = number in chore.reviewPhotoRounds,
+                        loadingPhoto = loadingRound == number, onShowPhoto = { showRoundPhoto(number) },
+                        onToggle = { expandedRounds = if (number in expandedRounds) expandedRounds - number else expandedRounds + number },
                     ) {
-                        ReviewActionArea(isAssignee, currentVote, canReview, busy, strings) { approved -> onReview(chore.id, approved) }
+                        ReviewActionArea(isAssignee, review.currentUserVote, review.canReview, busy, strings) { approved -> onReview(chore.id, approved) }
                     }
                 }
             }
         }
     }
-    viewedRound?.let { roundPhotos[it] }?.let { bitmap ->
+    roundPhoto?.let { bitmap ->
         ReviewPhotoViewer(
             photo = bitmap,
             closeLabel = strings.get("common_close"),
-            onClose = { viewedRound = null },
+            onClose = { roundPhoto = null; viewedRound = null },
             onCaptureAttempt = {
+                roundPhoto = null
                 viewedRound = null
                 photoError = strings.get("chore_review_photo_capture_blocked",
                     "Screenshots and screen recordings are not allowed for review photos.")
@@ -469,10 +467,8 @@ private fun StatusStage(status: ChoreStatusUi, strings: LocalizedText, modifier:
 
 @Composable
 private fun ReviewRoundCard(
-    round: Int,
-    active: Boolean,
+    round: ReviewRound,
     expanded: Boolean,
-    votes: List<HouseVote>,
     members: List<HouseMember>,
     assigneeId: String,
     eligibleReviewers: Int,
@@ -484,9 +480,7 @@ private fun ReviewRoundCard(
     onToggle: () -> Unit,
     actions: @Composable () -> Unit,
 ) {
-    val approved = votes.count { it.isApproved }
-    val rejected = votes.count { !it.isApproved }
-    val pending = (eligibleReviewers - votes.size).coerceAtLeast(0)
+    val active = round.isActive
     Column(
         Modifier.fillMaxWidth().clip(RoundedCornerShape(Radius.md))
             .background(FausCrewColors.background.copy(alpha = .68f)).padding(Spacing.md),
@@ -496,7 +490,7 @@ private fun ReviewRoundCard(
             verticalAlignment = Alignment.CenterVertically) {
             Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
                 Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                    Text(strings.template("chore_detail_round_template", "round" to round.toString()),
+                    Text(strings.template("chore_detail_round_template", "round" to round.number.toString()),
                         style = FausCrewType.bodyBold, color = FausCrewColors.textPrimary)
                     Text(strings.get(if (active) "chore_detail_round_active" else "chore_detail_round_resulted"),
                         Modifier.background(if (active) statusColor else FausCrewColors.textSecondary.copy(alpha = .14f), CircleShape)
@@ -505,7 +499,7 @@ private fun ReviewRoundCard(
                         color = if (active) Color.White else FausCrewColors.textSecondary)
                 }
                 Text(strings.template("chore_detail_approved_count_template",
-                    "approved" to approved.toString(), "eligible" to eligibleReviewers.toString()),
+                    "approved" to round.approved.toString(), "eligible" to eligibleReviewers.toString()),
                     style = FausCrewType.caption, color = FausCrewColors.textSecondary)
             }
             if (!active) {
@@ -517,16 +511,16 @@ private fun ReviewRoundCard(
             exit = fadeOut(Motion.quick()) + shrinkVertically(Motion.quick())) {
             Column(verticalArrangement = Arrangement.spacedBy(Spacing.md)) {
                 if (hasPhoto) ReviewRoundPhoto(loadingPhoto, statusColor, strings, onShowPhoto)
-                ReviewProgressBar(approved, rejected, votes.size, eligibleReviewers, strings)
+                ReviewProgressBar(round, strings)
                 Row(horizontalArrangement = Arrangement.spacedBy(Spacing.sm)) {
-                    SummaryPill(strings.get("chore_detail_review_approved"), approved, FausCrewColors.success, Modifier.weight(1f))
-                    SummaryPill(strings.get("chore_detail_review_rejected"), rejected, FausCrewColors.error, Modifier.weight(1f))
-                    SummaryPill(strings.get("chore_detail_review_waiting"), pending, FausCrewColors.textSecondary, Modifier.weight(1f))
+                    SummaryPill(strings.get("chore_detail_review_approved"), round.approved, FausCrewColors.success, Modifier.weight(1f))
+                    SummaryPill(strings.get("chore_detail_review_rejected"), round.rejected, FausCrewColors.error, Modifier.weight(1f))
+                    SummaryPill(strings.get("chore_detail_review_waiting"), round.pending, FausCrewColors.textSecondary, Modifier.weight(1f))
                 }
                 Column(verticalArrangement = Arrangement.spacedBy(Spacing.sm)) {
                     members.forEach { member ->
                         ReviewMemberRow(member, member.id == assigneeId,
-                            votes.firstOrNull { it.reviewerId == member.id }, strings)
+                            round.votes.firstOrNull { it.reviewerId == member.id }, strings)
                     }
                 }
                 if (active) actions()
@@ -551,12 +545,12 @@ private fun ReviewRoundPhoto(loading: Boolean, color: Color, strings: LocalizedT
 }
 
 @Composable
-private fun ReviewProgressBar(approved: Int, rejected: Int, voted: Int, eligible: Int, strings: LocalizedText) {
-    val approvedFraction = if (eligible == 0) 0f else approved.toFloat() / eligible
-    val rejectedFraction = if (eligible == 0) 0f else rejected.toFloat() / eligible
-    val completion = if (eligible == 0) 1f else (voted.toFloat() / eligible).coerceAtMost(1f)
+private fun ReviewProgressBar(round: ReviewRound, strings: LocalizedText) {
+    val approvedFraction = round.approvedRatio
+    val rejectedFraction = round.rejectedRatio
     val label = strings.get("chore_detail_review_progress_accessibility")
-    val value = strings.template("chore_detail_review_percent_voted_template", "percent" to (completion * 100).toInt().toString())
+    val value = strings.template("chore_detail_review_percent_voted_template",
+        "percent" to (round.completionRatio * 100).toInt().toString())
     Row(
         Modifier.fillMaxWidth().height(10.dp).clip(CircleShape)
             .background(FausCrewColors.textSecondary.copy(alpha = .16f))

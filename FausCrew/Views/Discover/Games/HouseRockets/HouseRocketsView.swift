@@ -143,14 +143,6 @@ struct HouseRocketsView: View {
                 Task { await model.leaveOnline() }
             }
         }
-        .onChange(of: appViewModel.currentHouseDetails?.id) { _, _ in refreshContext() }
-        .onChange(of: appViewModel.currentUserId) { _, _ in refreshContext() }
-        .onChange(of: appViewModel.isAuthenticated) { _, authenticated in
-            if !authenticated { model.stop(); GameOrientationController.returnToPortrait() }
-        }
-        .onChange(of: model.requiresAuthentication) { _, required in
-            if required { model.stop(); appViewModel.logout(); GameOrientationController.returnToPortrait() }
-        }
         .onChange(of: model.snapshot?.matchID) { _, _ in
             eliminationNotice = nil
             noticeID = nil
@@ -167,14 +159,17 @@ struct HouseRocketsView: View {
                 eliminationNotice = nil
             }
         }
-        .onDisappear {
-            isWaitingForLandscape = false
-            orientationRequestID = nil
-            eliminationNotice = nil
-            noticeID = nil
-            model.stop()
-            GameOrientationController.returnToPortrait()
-        }
+        .onlineGameLifecycle(
+            requiresSignIn: model.requiresAuthentication,
+            identityChanged: { _, _ in refreshContext() },
+            stop: model.stop,
+            beforeStopOnDisappear: {
+                isWaitingForLandscape = false
+                orientationRequestID = nil
+                eliminationNotice = nil
+                noticeID = nil
+            }
+        )
     }
 
     private var lobby: some View {

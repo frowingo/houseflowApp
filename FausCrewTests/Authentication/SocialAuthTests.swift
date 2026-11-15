@@ -7,9 +7,11 @@ private final class FakeCredentials: SocialCredentialProviding {
     var result: Result<SocialCredential, Error> = .success(SocialCredential(idToken: "id"))
     private(set) var signOutCount = 0
     private(set) var authenticated: [SocialProvider] = []
+    private(set) var clearLocalDataCount = 0
 
     func credential(for provider: SocialProvider) async throws -> SocialCredential { try result.get() }
     func signOutAll() { signOutCount += 1 }
+    func clearLocalData() { clearLocalDataCount += 1 }
     func didAuthenticate(provider: SocialProvider) { authenticated.append(provider) }
 }
 
@@ -161,7 +163,30 @@ final class SocialAuthTests: XCTestCase {
         XCTAssertGreaterThanOrEqual(h.credentials.signOutCount, 1)
     }
 
+    func testLogoutClearsProviderLocalDataButRetryableFailureDoesNot() async {
+        let h = makeStore()
+        h.service.signInResult = .failure(SocialAuthError(statusCode: 401, message: "expired"))
+        _ = await h.store.socialSignIn(.apple)
+        XCTAssertEqual(h.credentials.clearLocalDataCount, 0)
+
+        h.store.logout()
+        XCTAssertEqual(h.credentials.clearLocalDataCount, 1)
+    }
+
     // MARK: Apple
+
+    func testAppleClearLocalDataRemovesPendingName() throws {
+        let suite = "SocialAuthTests.\(UUID().uuidString)"
+        let defaults = try XCTUnwrap(UserDefaults(suiteName: suite))
+        defer { defaults.removePersistentDomain(forName: suite) }
+        defaults.set("Ada", forKey: "social.apple.pendingGivenName")
+        defaults.set("Lovelace", forKey: "social.apple.pendingFamilyName")
+
+        AppleCredentialProvider(pendingNameStore: defaults).clearLocalData()
+
+        XCTAssertNil(defaults.string(forKey: "social.apple.pendingGivenName"))
+        XCTAssertNil(defaults.string(forKey: "social.apple.pendingFamilyName"))
+    }
 
     func testAppleNonceHashIsLowercaseHexSHA256() {
         XCTAssertEqual(

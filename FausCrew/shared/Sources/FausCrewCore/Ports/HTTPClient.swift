@@ -56,9 +56,12 @@ public enum HTTPClientError: Error, Equatable, Sendable {
     case invalidResponse
 }
 
-/// Preserves the server's existing `message` / `error` envelope and raw-text
-/// fallback. It never stores a request or its Authorization header.
+/// Preserves the server's existing `message` / `error` envelope and allows only
+/// short, single-line plain text as a fallback. It never stores a request or its
+/// Authorization header.
 public struct HTTPStatusFailure: Error, Equatable, Sendable {
+    private static let maximumRawTextMessageLength = 200
+
     public let statusCode: Int
     public let message: String?
 
@@ -68,7 +71,11 @@ public struct HTTPStatusFailure: Error, Equatable, Sendable {
         if let envelope = try? decoder.decode(ErrorEnvelope.self, from: response.body) {
             message = envelope.message ?? envelope.error ?? "Request failed."
         } else if let text = String(data: response.body, encoding: .utf8)?
-            .trimmingCharacters(in: .whitespacesAndNewlines), !text.isEmpty {
+            .trimmingCharacters(in: .whitespacesAndNewlines),
+            !text.isEmpty,
+            text.count <= Self.maximumRawTextMessageLength,
+            text.rangeOfCharacter(from: .newlines) == nil,
+            !text.hasPrefix("<") {
             message = text
         } else {
             message = nil

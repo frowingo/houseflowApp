@@ -30,6 +30,8 @@ struct FausCrewApp: App {
                 RootView()
                     .environmentObject(appViewModel)
                     .environmentObject(appViewModel.router)
+                    .environmentObject(appViewModel.toastStore)
+                    .environmentObject(appViewModel.overlayStore)
                     .environmentObject(themeStore)
                     .environment(\.fausSplashActive, splashCovering)
                     .task {

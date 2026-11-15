@@ -2,7 +2,7 @@ import Foundation
 import FausCrewCore
 
 /// Narrow, versioned JNI boundary. HTTP execution and secure storage stay on Android.
-public func bridgeVersion() -> Int32 { 18 }
+public func bridgeVersion() -> Int32 { 19 }
 
 public func normalizeInviteCode(_ input: String) -> String {
     InviteCodeRules.normalized(input)
@@ -140,12 +140,17 @@ public func profileImagesResponse(_ status: Int32, _ body: String) -> String {
     } catch { return failure(error) }
 }
 
-/// One JNI call per house operation, never per dashboard item. The validated
-/// server envelope is passed through for Android's screen-state projection.
+/// One JNI call per house operation, never per dashboard item. `details` returns Core's
+/// normalized house (see `HouseProjection.swift`); the other actions pass the validated
+/// server envelope through, since Android reads their plain fields as sent.
 public func houseResponse(_ action: String, _ status: Int32, _ body: String) -> String {
     do {
-        try HouseWireContract.validate(action: action, response: response(status, body))
-        return body
+        let reply = response(status, body)
+        guard action == "details" else {
+            try HouseWireContract.validate(action: action, response: reply)
+            return body
+        }
+        return json(["success": true, "data": houseDetailsObject(try HouseWireContract.details(from: reply))])
     } catch {
         let message: String
         if case HouseWireError.rejected(let serverMessage) = error {
@@ -182,6 +187,20 @@ public func houseRequestBody(
         data = nil
     }
     return data.flatMap { String(data: $0, encoding: .utf8) } ?? "{}"
+}
+
+/// House name rules from Core. A name is counted and cut in characters (grapheme clusters, as
+/// on iOS), so an emoji or a letter with a combining accent is never split.
+public func limitedHouseName(_ name: String) -> String {
+    HouseCreationRules.limitedName(name)
+}
+
+public func houseNameLength(_ name: String) -> Int32 {
+    Int32(name.count)
+}
+
+public func isHouseCreationValid(_ name: String, _ type: Int32, _ memberCount: Int32) -> Bool {
+    HouseCreationRules.isValid(name: name, type: Int(type), memberCount: Int(memberCount))
 }
 
 /// action: create, update, status, statusPhoto, review, announcement.
@@ -222,10 +241,18 @@ public func dashboardRequestBody(
     return data.flatMap { String(data: $0, encoding: .utf8) } ?? "{}"
 }
 
+/// `data` is a JSON string: Core's normalized chore, chore list or announcement (see
+/// `HouseProjection.swift`), or the signed review photo URL as sent.
 public func dashboardResponse(_ action: String, _ status: Int32, _ body: String) -> String {
     do {
-        try DashboardWireContract.validate(action: action, response: response(status, body))
-        return json(["ok": true, "data": body])
+        let data: Any
+        switch try DashboardWireContract.validate(action: action, response: response(status, body)) {
+        case .chore(let chore): data = choreObject(HouseChoreDTO(chore))
+        case .chores(let chores): data = chores.map { choreObject(HouseChoreDTO($0)) }
+        case .announcement(let announcement): data = announcementObject(announcement)
+        case .reviewPhoto(let photo): data = ["url": photo.url, "expiresAt": photo.expiresAt]
+        }
+        return json(["ok": true, "data": jsonText(data)])
     } catch {
         let message: String
         if case DashboardWireError.rejected(let serverMessage) = error {
@@ -251,7 +278,11 @@ private func failure(_ error: Error) -> String {
     return json(["ok": false, "message": message])
 }
 
-private func json(_ object: [String: Any]) -> String {
+func json(_ object: [String: Any]) -> String {
+    jsonText(object)
+}
+
+private func jsonText(_ object: Any) -> String {
     guard let data = try? JSONSerialization.data(withJSONObject: object, options: [.sortedKeys]),
           let string = String(data: data, encoding: .utf8) else { return "{\"ok\":false}" }
     return string

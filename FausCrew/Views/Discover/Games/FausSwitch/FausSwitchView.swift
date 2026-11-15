@@ -60,22 +60,11 @@ struct FausSwitchView: View {
                 GameOrientationController.returnToPortrait()
             }
         }
-        .onChange(of: appViewModel.currentHouseDetails?.id) { _, houseID in
-            model.onlineIdentityChanged(houseID: houseID, userID: appViewModel.currentUserId)
-        }
-        .onChange(of: appViewModel.currentUserId) { _, userID in
-            model.onlineIdentityChanged(houseID: appViewModel.currentHouseDetails?.id, userID: userID)
-        }
-        .onChange(of: appViewModel.isAuthenticated) { _, authenticated in
-            if !authenticated { model.stop(); GameOrientationController.returnToPortrait() }
-        }
-        .onChange(of: model.requiresOnlineSignIn) { _, required in
-            if required { model.stop(); appViewModel.logout(); GameOrientationController.returnToPortrait() }
-        }
-        .onDisappear {
-            model.stop()
-            GameOrientationController.returnToPortrait()
-        }
+        .onlineGameLifecycle(
+            requiresSignIn: model.requiresOnlineSignIn,
+            identityChanged: { model.onlineIdentityChanged(houseID: $0, userID: $1) },
+            stop: model.stop
+        )
         .confirmationDialog(copy("faus_switch_online_leave_title"), isPresented: $confirmsLeave, titleVisibility: .visible) {
             Button(copy("faus_switch_online_leave"), role: .destructive, action: leaveOnlineRace)
         } message: {
@@ -146,7 +135,7 @@ struct FausSwitchView: View {
                     .allowsHitTesting(false)
                     .padding(.bottom, AppDesign.Spacing.xl)
                     .task {
-                        try? await Task.sleep(nanoseconds: 3_500_000_000)
+                        do { try await Task.sleep(nanoseconds: 3_500_000_000) } catch { return }
                         withAnimation(.easeOut(duration: 0.2)) { showsTapHint = false }
                     }
             }

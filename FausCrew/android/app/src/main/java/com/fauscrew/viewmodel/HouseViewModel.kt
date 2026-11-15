@@ -21,9 +21,12 @@ import com.fauscrew.platform.HouseSummary
 import com.fauscrew.platform.ReviewPhoto
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.channels.Channel
+import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.receiveAsFlow
 import kotlinx.coroutines.launch
 
 internal enum class HouseRoute { LOADING, SELECTION, CREATE, JOIN, DASHBOARD, ERROR }
@@ -62,6 +65,8 @@ internal class HouseViewModel(
 ) : ViewModel() {
     private val mutableState = MutableStateFlow(HouseUiState())
     val state: StateFlow<HouseUiState> = mutableState.asStateFlow()
+    private val signOutChannel = Channel<Unit>(Channel.CONFLATED)
+    val signOutRequests: Flow<Unit> = signOutChannel.receiveAsFlow()
     private var generation = 0L
     private var work: Job? = null
     private var mutationWork: Job? = null
@@ -69,6 +74,8 @@ internal class HouseViewModel(
     private var pendingHouse: HouseSummary? = null
     private var pendingRequestKey: String? = null
     private var infoRequestSerial = 0L
+    private var refreshSerial = 0L
+    private var mutationCount = 0L
 
     fun acceptProfile(profile: AuthProfile) {
         val key = profile.userId + ":" + profile.firstName + ":" + profile.houses.joinToString { it.id + "/" + it.name }
@@ -101,17 +108,26 @@ internal class HouseViewModel(
     }
 
     /**
-     * Forced `house/details` refresh for the events channel. Dropped when another house
-     * was selected meanwhile, so a late response never overwrites the new selection.
+     * Forced refresh for the events channel. A mutation during the latest request
+     * triggers one follow-up; a newer request or another house makes it obsolete.
      */
     fun refreshDetails(houseId: String) {
         val current = state.value
         if (current.route != HouseRoute.DASHBOARD || current.details?.id != houseId || current.busy) return
         val ticket = generation
+        val request = ++refreshSerial
+        val mutations = mutationCount
         viewModelScope.launch {
             val details = try { repository.details(houseId) } catch (cancel: CancellationException) { throw cancel }
-                catch (_: Exception) { return@launch }
-            if (ticket != generation || state.value.details?.id != houseId) return@launch
+                catch (error: Exception) {
+                    if (ticket == generation) signOutIfUnauthorized(error)
+                    return@launch
+                }
+            if (ticket != generation || state.value.details?.id != houseId || request != refreshSerial) return@launch
+            if (mutations != mutationCount) {
+                refreshDetails(houseId)
+                return@launch
+            }
             mutableState.value = state.value.copy(details = details)
         }
     }
@@ -288,7 +304,10 @@ internal class HouseViewModel(
                 if (ticket == generation && request == infoRequestSerial && state.value.infoHouseId == houseId)
                     mutableState.value = state.value.copy(info = info, infoBusy = false)
             } catch (cancel: CancellationException) { throw cancel }
-            catch (error: Exception) { if (ticket == generation && request == infoRequestSerial) profileFail(error, infoBusy = false) }
+            catch (error: Exception) { if (ticket == generation) {
+                if (request == infoRequestSerial) profileFail(error, infoBusy = false)
+                else signOutIfUnauthorized(error)
+            } }
         }
     }
 
@@ -311,9 +330,11 @@ internal class HouseViewModel(
                 if (ticket == generation && state.value.infoHouseId == houseId)
                     mutableState.value = state.value.copy(invite = invite, inviteBusy = false)
             } catch (cancel: CancellationException) { throw cancel }
-            catch (error: Exception) { if (ticket == generation && state.value.infoHouseId == houseId) {
-                mutableState.value = state.value.copy(inviteBusy = false)
-                profileFail(error)
+            catch (error: Exception) { if (ticket == generation) {
+                if (state.value.infoHouseId == houseId) {
+                    mutableState.value = state.value.copy(inviteBusy = false)
+                    profileFail(error)
+                } else signOutIfUnauthorized(error)
             } }
         }
     }
@@ -332,6 +353,7 @@ internal class HouseViewModel(
                     isChoreReviewPhotoRequired)
                 if (ticket != generation || state.value.infoHouseId != houseId) return@launch
                 // The server response is the source of truth, including the review-photo flag.
+                if (state.value.details?.id == houseId) mutationCount++
                 mutableState.value = state.value.copy(info = updated,
                     houses = state.value.houses.map { if (it.id == houseId) it.copy(name = updated.houseName,
                         profileImage = updated.houseProfileImage) else it },
@@ -358,11 +380,13 @@ internal class HouseViewModel(
                 if (ticket != generation || state.value.infoHouseId != houseId) return@launch
                 val refreshed = try { repository.info(houseId) } catch (cancel: CancellationException) {
                     throw cancel
-                } catch (_: Exception) {
+                } catch (error: Exception) {
+                    if (error is HouseRequestException && error.status == 401) throw error
                     info.copy(members = info.members.filterNot { it.userId == userId },
                         houseMemberCount = info.houseMemberCount - 1)
                 }
                 if (ticket != generation || state.value.infoHouseId != houseId) return@launch
+                if (state.value.details?.id == houseId) mutationCount++
                 mutableState.value = state.value.copy(info = refreshed,
                     details = state.value.details?.let { details ->
                         if (details.id == houseId) details.copy(members = details.members.filterNot { it.id == userId }) else details
@@ -374,6 +398,7 @@ internal class HouseViewModel(
     }
 
     private fun profileFail(error: Exception, infoBusy: Boolean = state.value.infoBusy) {
+        signOutIfUnauthorized(error)
         mutableState.value = state.value.copy(infoBusy = infoBusy, profileActionBusy = false,
             profileError = (error as? HouseRequestException)?.serverMessage ?: "Request failed.")
     }
@@ -388,7 +413,9 @@ internal class HouseViewModel(
         mutate(current.id, "announcement_created_toast") {
             val result = requireNotNull(dashboard).announce(current.id, title.trim(), message.trim())
             require(result.houseId == null || result.houseId == current.id)
-            current.copy(announcements = current.announcements.filterNot { it.id == result.id } + result)
+            return@mutate { details ->
+                details.copy(announcements = details.announcements.filterNot { it.id == result.id } + result)
+            }
         }
     }
 
@@ -396,7 +423,8 @@ internal class HouseViewModel(
         val current = activeDetails() ?: return
         if (input.houseId != current.id || input.title.isBlank() || current.members.none { it.id == input.assignedTo }) return
         mutate(current.id, "chore_created_toast") {
-            current.merge(requireNotNull(dashboard).createChore(input))
+            val chore = requireNotNull(dashboard).createChore(input)
+            return@mutate { it.merge(chore) }
         }
     }
 
@@ -404,7 +432,8 @@ internal class HouseViewModel(
         val current = activeDetails() ?: return
         if (input.houseId != current.id || current.chores.none { it.id == choreId }) return
         mutate(current.id, "chore_status_updated_toast") {
-            current.merge(requireNotNull(dashboard).updateChore(choreId, input))
+            val chore = requireNotNull(dashboard).updateChore(choreId, input)
+            return@mutate { it.merge(chore) }
         }
     }
 
@@ -421,7 +450,7 @@ internal class HouseViewModel(
             val updated = if (requiresPhoto) repository.updateStatusWithReviewPhoto(current.id, choreId, requireNotNull(photo))
                 else repository.updateStatus(current.id, choreId, status)
             require(updated.any { it.id == choreId })
-            updated.fold(current) { details, item -> details.merge(item) }
+            return@mutate { details -> updated.fold(details) { value, item -> value.merge(item) } }
         }
     }
 
@@ -438,6 +467,7 @@ internal class HouseViewModel(
         } catch (cancel: CancellationException) { throw cancel }
         catch (error: Exception) {
             if (ticket == generation && state.value.details?.id == houseId) {
+                signOutIfUnauthorized(error)
                 mutableState.value = state.value.copy(
                     mutationError = (error as? HouseRequestException)?.serverMessage ?: "Request failed.")
             }
@@ -452,7 +482,8 @@ internal class HouseViewModel(
         if (userId.isBlank() || chore.status != 2 || chore.assignedTo == userId ||
             chore.reviewVotes.any { it.reviewRound == chore.reviewRound && it.reviewerId == userId }) return
         mutate(current.id, if (approved) "chore_approved_toast" else "chore_sent_back_toast") {
-            current.merge(requireNotNull(dashboard).review(choreId, approved))
+            val updated = requireNotNull(dashboard).review(choreId, approved)
+            return@mutate { it.merge(updated) }
         }
     }
 
@@ -460,20 +491,24 @@ internal class HouseViewModel(
         it.route == HouseRoute.DASHBOARD && !it.busy && !it.mutationBusy
     }?.details
 
-    private fun mutate(houseId: String, messageKey: String, operation: suspend () -> HouseDetails) {
+    private fun mutate(houseId: String, messageKey: String, operation: suspend () -> ((HouseDetails) -> HouseDetails)) {
         if (dashboard == null) return
         val ticket = generation
         mutableState.value = state.value.copy(mutationBusy = true, mutationError = null, mutationMessageKey = null)
         mutationWork = viewModelScope.launch {
             try {
-                val updated = operation()
-                if (ticket == generation && state.value.details?.id == houseId) {
+                val apply = operation()
+                val current = state.value.details
+                if (ticket == generation && current?.id == houseId) {
+                    val updated = apply(current)
+                    mutationCount++
                     mutableState.value = state.value.copy(details = updated, mutationBusy = false,
                         mutationSerial = state.value.mutationSerial + 1, mutationMessageKey = messageKey)
                 }
             } catch (cancel: CancellationException) { throw cancel }
             catch (error: Exception) {
                 if (ticket == generation && state.value.details?.id == houseId) {
+                    signOutIfUnauthorized(error)
                     mutableState.value = state.value.copy(mutationBusy = false,
                         mutationError = (error as? HouseRequestException)?.serverMessage ?: "Request failed.")
                 }
@@ -515,12 +550,18 @@ internal class HouseViewModel(
     private fun invalidate() {
         generation++
         infoRequestSerial++
+        refreshSerial++
         work?.cancel(); work = null
         mutationWork?.cancel(); mutationWork = null
     }
     private fun fail(route: HouseRoute, error: Exception) {
+        signOutIfUnauthorized(error)
         mutableState.value = state.value.copy(route = route, busy = false,
             error = (error as? HouseRequestException)?.serverMessage ?: "Request failed.")
+    }
+
+    private fun signOutIfUnauthorized(error: Exception) {
+        if (error is HouseRequestException && error.status == 401) signOutChannel.trySend(Unit)
     }
 
     class Factory(context: Context) : ViewModelProvider.Factory {

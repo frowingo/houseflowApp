@@ -15,6 +15,7 @@ import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -82,9 +83,9 @@ internal fun HouseRocketsScreen(
     val onlineColors = session?.colors?.collectAsStateWithLifecycle()?.value ?: RocketsLobbyColors()
     val noFrame = remember { mutableStateOf<RocketsFrame?>(null) }
     val onlineFrameState = session?.frame?.collectAsStateWithLifecycle() ?: noFrame
-    val hasOnlineFrame = onlineFrameState.value != null
+    val hasOnlineFrame by remember(onlineFrameState) { derivedStateOf { onlineFrameState.value != null } }
     val showsResult = onlineResult?.isVisible == true
-    val hasMatch = frameState.value != null
+    val hasMatch by remember(frameState) { derivedStateOf { frameState.value != null } }
     val isReplayRoom by model.isOnlineReplayRoom.collectAsStateWithLifecycle()
     val isHousemates = state.selectedMode == RocketsMode.HOUSEMATES
     // The result and Play Again's room sit over the last flight's frozen course.

@@ -9,9 +9,13 @@ pluginManagement {
 dependencyResolutionManagement {
     repositoriesMode.set(RepositoriesMode.FAIL_ON_PROJECT_REPOS)
     repositories {
-        mavenLocal() // swift-java SwiftKitCore is not yet published centrally.
         google()
         mavenCentral()
+        mavenLocal { // swift-java SwiftKitCore is not yet published centrally.
+            content {
+                includeGroup("org.swift.swiftkit")
+            }
+        }
     }
 }
 

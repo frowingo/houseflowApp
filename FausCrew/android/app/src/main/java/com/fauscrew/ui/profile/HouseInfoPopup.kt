@@ -68,6 +68,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.fauscrew.platform.HouseCreationRules
 import com.fauscrew.platform.HouseInfo
 import com.fauscrew.platform.HouseInfoMember
 import com.fauscrew.platform.HouseInvite
@@ -96,7 +97,6 @@ import kotlinx.coroutines.delay
 private val houseTint = ProfileTints.house
 private val ownerTint: Color @Composable @ReadOnlyComposable get() = FausCrewColors.tintOwner
 private val inviteTint = ProfileTints.join
-private const val NAME_LIMIT = 30
 
 /**
  * `HouseInfoPopup`: overview, owner editing (name, member limit, profile image), members
@@ -197,7 +197,7 @@ internal fun HouseInfoDialog(
             else -> {
                 Overview(info, isOwner, strings)
                 if (isOwner) {
-                    OwnerEditor(info, name, { name = it.take(NAME_LIMIT) }, limit, minimumLimit, maximumLimit, { limit = it },
+                    OwnerEditor(info, name, { name = HouseCreationRules.limitedName(it) }, limit, minimumLimit, maximumLimit, { limit = it },
                         reviewPhotoRequired, !busy, { reviewPhotoRequired = it }, strings)
                     val summaryImage = state.houses.firstOrNull { it.id == houseId }?.profileImage
                     val choices = (listOfNotNull(info.houseProfileImage, summaryImage) + profile.images.map { it.url })

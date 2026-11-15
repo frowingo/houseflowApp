@@ -38,6 +38,7 @@ enum AppTab: Int, CaseIterable, Hashable {
 
 struct MainTabView: View {
     @EnvironmentObject private var appViewModel: AppViewModel
+    @EnvironmentObject private var overlayStore: OverlayStore
     @State private var selectedTab: AppTab = .home
     @State private var isHouseSwitcherPresented = false
 
@@ -51,7 +52,7 @@ struct MainTabView: View {
         }
         .ignoresSafeArea(.container, edges: .bottom)
         .dismissKeyboardOnTap()
-        .onChange(of: appViewModel.isOverlayPresented) { _, isPresented in
+        .onChange(of: overlayStore.isPresented) { _, isPresented in
             if isPresented {
                 isHouseSwitcherPresented = false
             }
@@ -69,7 +70,7 @@ struct MainTabView: View {
     private func tabBarOverlay(bottomInset: CGFloat) -> some View {
         ZStack {
             // Floating tab bar — hidden when any overlay/popup is active
-            if !appViewModel.isOverlayPresented {
+            if !overlayStore.isPresented {
                 CustomTabBar(
                     selectedTab: $selectedTab,
                     bottomInset: bottomInset,
@@ -94,7 +95,7 @@ struct MainTabView: View {
                 .transition(.move(edge: .bottom).combined(with: .opacity))
             }
         }
-        .animation(AppDesign.Animation.standard, value: appViewModel.isOverlayPresented)
+        .animation(AppDesign.Animation.standard, value: overlayStore.isPresented)
     }
 
     @ViewBuilder

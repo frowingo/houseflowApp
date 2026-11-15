@@ -19,14 +19,13 @@ final class DashboardStore: ObservableObject {
 
     func rebuild(
         details: HouseDetailsResponse?,
-        fallbackMembers: [User],
         fallbackChores: [Chore],
         fallbackUnassignedName: String,
         currentUserId: String?,
         currentUserProfile: IsAuthUserData?
     ) {
         guard let details else {
-            setMembers(fallbackMembers)
+            setMembers([])
             setChores(fallbackChores)
             return
         }

@@ -46,15 +46,15 @@ struct SocialEmailCompletionView: View {
 
     private var header: some View {
         VStack(alignment: .leading, spacing: AppDesign.Spacing.sm) {
-            Text(appViewModel.social("social_email_title", tr: "Emailini doğrula", en: "Verify your email"))
+            Text(appViewModel.localized("social_email_title", tr: "Emailini doğrula", en: "Verify your email"))
                 .font(AppDesign.Typography.title2)
             Text(step == .email
-                 ? appViewModel.social("social_email_subtitle",
-                                       tr: "Hesabını açmak için bir email adresine ihtiyacımız var. Sana bir kod göndereceğiz.",
-                                       en: "We need an email address to create your account. We'll send you a code.")
-                 : appViewModel.social("social_code_subtitle",
-                                       tr: "\(email) adresine gönderilen 6 karakterlik kodu gir.",
-                                       en: "Enter the 6-character code sent to \(email)."))
+                 ? appViewModel.localized("social_email_subtitle",
+                                          tr: "Hesabını açmak için bir email adresine ihtiyacımız var. Sana bir kod göndereceğiz.",
+                                          en: "We need an email address to create your account. We'll send you a code.")
+                 : appViewModel.localized("social_code_subtitle",
+                                          tr: "\(email) adresine gönderilen 6 karakterlik kodu gir.",
+                                          en: "Enter the 6-character code sent to \(email)."))
                 .font(AppDesign.Typography.subheadline)
                 .foregroundColor(AppDesign.Colors.textSecondary)
         }
@@ -105,8 +105,8 @@ struct SocialEmailCompletionView: View {
                     ProgressView().progressViewStyle(CircularProgressViewStyle(tint: .white))
                 } else {
                     Text(step == .email
-                         ? appViewModel.social("social_email_send", tr: "Kod gönder", en: "Send code")
-                         : appViewModel.social("social_code_confirm", tr: "Hesabı oluştur", en: "Create account"))
+                         ? appViewModel.localized("social_email_send", tr: "Kod gönder", en: "Send code")
+                         : appViewModel.localized("social_code_confirm", tr: "Hesabı oluştur", en: "Create account"))
                         .font(.system(size: 17, weight: .bold))
                         .foregroundColor(.white)
                 }
@@ -122,7 +122,7 @@ struct SocialEmailCompletionView: View {
     private var secondaryButtons: some View {
         VStack(spacing: AppDesign.Spacing.md) {
             if step == .code {
-                Button(appViewModel.social("social_code_resend", tr: "Tekrar gönder", en: "Resend code")) {
+                Button(appViewModel.localized("social_code_resend", tr: "Tekrar gönder", en: "Resend code")) {
                     Task { await sendCode(advance: false) }
                 }
                 .disabled(isWorking)

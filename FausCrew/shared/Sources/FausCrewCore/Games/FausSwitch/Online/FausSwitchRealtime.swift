@@ -14,6 +14,10 @@ public enum FausSwitchRealtime: GameRealtimeGame {
 
     public static let gameKey = GameKey.fausSwitch
 
+    // Overflow safety, not a match-duration rule: 30 days at 120 Hz leaves ample
+    // Int/Int64 headroom for tick differences, prediction and effect expiry.
+    static let maximumSnapshotTick: Int64 = 30 * 24 * 60 * 60 * 120
+
     public static func checkCompatibility(_ welcome: FausSwitchWelcomeDTO) throws {
         try checkGame(welcome.gameKey, protocolVersion: welcome.protocolVersion, courseVersion: welcome.courseVersion)
         guard welcome.settings.physicsRateHz == FausSwitchMetrics.physicsRate else {
@@ -26,7 +30,9 @@ public enum FausSwitchRealtime: GameRealtimeGame {
         guard snapshot.courseVersion == FausSwitchCourse.currentVersion else {
             throw GameRealtimeError.unsupportedCourse(snapshot.courseVersion)
         }
-        guard snapshot.tick >= 0, snapshot.runners.count <= FausSwitchStartGrid.maximumRunners,
+        guard (0...maximumSnapshotTick).contains(snapshot.tick),
+              snapshot.elapsedSeconds.isFinite,
+              snapshot.runners.count <= FausSwitchStartGrid.maximumRunners,
               snapshot.runnerScale == 1 || snapshot.runnerScale == FausSwitchStartGrid.crowdedRobotScale,
               Set(snapshot.runners.map(\.playerId)).count == snapshot.runners.count,
               snapshot.runners.allSatisfy(\.isValid) else { throw GameRealtimeError.invalidResponse }

@@ -72,6 +72,8 @@ final class URLSessionHTTPClient: HTTPClient {
     private static func makeDefaultSession() -> URLSession {
         let configuration = URLSessionConfiguration.default
         configuration.timeoutIntervalForRequest = 30
+        // Authenticated responses (profile, house details) must not be written to the disk cache.
+        configuration.urlCache = nil
         return URLSession(configuration: configuration)
     }
 }

@@ -5,6 +5,8 @@ import XCTest
 /// The shared online lobby machine running Faus Tanks: connection, update
 /// checks, HTTP failures, cancellation and the control gate for gameplay.
 final class HouseTanksOnlineLobbyTests: XCTestCase {
+    private struct UnexpectedTestState: Error {}
+
     private let houseID = "507f1f77bcf86cd799439012"
     private let playerID = "507f1f77bcf86cd799439021"
     private let sessionID = "7c51a2f7-3c83-4e76-8f97-2dc3cf3191a0"
@@ -155,7 +157,10 @@ final class HouseTanksOnlineLobbyTests: XCTestCase {
         let connection = try ensureConnection()
         let response = try JSONSerialization.data(withJSONObject: ["success": true, "data": sessionPayload(version: 5, state: state, localState: nil)])
         lobby.sessionResponse(.init(statusCode: 200, headers: [:], body: response), retryAfter: nil, connection: connection, now: 0.1)
-        guard case .openSocket(let id, let socket) = try XCTUnwrap(effects.last) else { throw XCTSkip("No socket") }
+        guard case .openSocket(let id, let socket) = try XCTUnwrap(effects.last) else {
+            XCTFail("No socket opened")
+            throw UnexpectedTestState()
+        }
         XCTAssertEqual(id, sessionID)
         lobby.socketOpened(connection: socket, now: 0.2)
         return (lobby, socket)
@@ -170,7 +175,10 @@ final class HouseTanksOnlineLobbyTests: XCTestCase {
     }
 
     private func ensureConnection() throws -> Int {
-        guard case .ensureSession(let house, let connection) = try XCTUnwrap(effects.first) else { throw XCTSkip("No ensure") }
+        guard case .ensureSession(let house, let connection) = try XCTUnwrap(effects.first) else {
+            XCTFail("No ensure effect")
+            throw UnexpectedTestState()
+        }
         XCTAssertEqual(house, houseID)
         return connection
     }

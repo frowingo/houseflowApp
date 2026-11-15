@@ -1,6 +1,6 @@
 import Foundation
 
-struct LocalizationLanguage: Codable, Identifiable, Equatable {
+nonisolated struct LocalizationLanguage: Codable, Identifiable, Equatable {
     let image: String
     let isActive: Bool
     let isDefault: Bool
@@ -11,18 +11,18 @@ struct LocalizationLanguage: Codable, Identifiable, Equatable {
     var id: String { prefix }
 }
 
-struct LocalizationLanguageResponse: Decodable {
+nonisolated struct LocalizationLanguageResponse: Decodable {
     let data: [LocalizationLanguage]
     let success: Bool
 }
 
-struct LocalizationPlaintextItem: Codable, Equatable {
+nonisolated struct LocalizationPlaintextItem: Codable, Equatable {
     let key: String
     let language: String
     let value: String
 }
 
-struct LocalizationPlaintextResponse: Decodable {
+nonisolated struct LocalizationPlaintextResponse: Decodable {
     let success: Bool
     let data: [LocalizationPlaintextItem]
 }
