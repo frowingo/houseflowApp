@@ -464,6 +464,7 @@ private struct ModernChoreRowButtonStyle: ButtonStyle {
     }
 }
 
+#if DEBUG
 // MARK: - Previews
 
 #Preview("With Chores") {
@@ -493,3 +494,4 @@ private struct ModernChoreRowButtonStyle: ButtonStyle {
     .padding()
     .environmentObject(viewModel)
 }
+#endif

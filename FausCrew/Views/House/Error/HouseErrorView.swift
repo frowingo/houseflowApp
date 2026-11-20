@@ -104,7 +104,9 @@ struct HouseErrorView: View {
     }
 }
 
+#if DEBUG
 #Preview {
     HouseErrorView()
         .environmentObject(AppViewModel.preview)
 }
+#endif

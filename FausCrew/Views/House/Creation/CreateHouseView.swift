@@ -252,7 +252,9 @@ struct CreateHouseView: View {
     }
 }
 
+#if DEBUG
 #Preview {
     CreateHouseView()
         .environmentObject(AppViewModel.preview)
 }
+#endif

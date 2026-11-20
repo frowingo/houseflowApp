@@ -121,7 +121,9 @@ struct CardButtonStyle: ButtonStyle {
     }
 }
 
+#if DEBUG
 #Preview {
     HouseSelectionView()
         .environmentObject(AppViewModel.preview)
 }
+#endif

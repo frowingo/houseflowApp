@@ -471,7 +471,9 @@ struct EmailVerificationView: View {
     }
 }
 
+#if DEBUG
 #Preview {
     EmailVerificationView(email: "test@gmail.com")
         .environmentObject(AppViewModel.preview)
 }
+#endif

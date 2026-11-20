@@ -85,6 +85,23 @@ final class HouseRocketsOnlineBridgeTests: XCTestCase {
         XCTAssertEqual(try event(handle, ["type": "readyOnJoin", "now": 0])["ok"] as? Bool, true)
     }
 
+    /// Debug builds ask for the overlay numbers once; they then ride on the frame every half second.
+    func testDiagnosticsRideOnFramesOnlyWhenEnabledAndAtMostTwicePerSecond() throws {
+        let handle = houseRocketsOnlineCreate(house, player, "", "")
+        defer { XCTAssertTrue(houseRocketsOnlineDestroy(handle)) }
+        XCTAssertNil(try object(houseRocketsOnlineFrame(handle, 1))["diagnostics"], "Off until asked for")
+        XCTAssertNotNil(try object(houseRocketsOnlineFrame(handle, 1.05))["fps"] as? Int, "The chip's rate rides on every frame")
+
+        XCTAssertEqual(try event(handle, ["type": "setDiagnostics", "enabled": true, "now": 1.1])["ok"] as? Bool, true)
+        XCTAssertNotNil(try object(houseRocketsOnlineFrame(handle, 2))["diagnostics"] as? [String])
+        XCTAssertNil(try object(houseRocketsOnlineFrame(handle, 2.2))["diagnostics"])
+        XCTAssertNil(try object(houseRocketsOnlineFrame(handle, 2.49))["diagnostics"])
+        XCTAssertNotNil(try object(houseRocketsOnlineFrame(handle, 2.5))["diagnostics"])
+
+        _ = try event(handle, ["type": "setDiagnostics", "enabled": false, "now": 3])
+        XCTAssertNil(try object(houseRocketsOnlineFrame(handle, 4))["diagnostics"])
+    }
+
     func testUnknownHandle() throws {
         XCTAssertEqual(try object(houseRocketsOnlineFrame(-7, 0))["ok"] as? Bool, false)
         XCTAssertFalse(houseRocketsOnlineDestroy(-7))

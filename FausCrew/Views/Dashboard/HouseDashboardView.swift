@@ -231,7 +231,9 @@ struct HouseDashboardView: View {
     }
 }
 
+#if DEBUG
 #Preview {
     HouseDashboardView()
         .environmentObject(AppViewModel.preview)
 }
+#endif

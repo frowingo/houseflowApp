@@ -263,7 +263,9 @@ struct BirthdaySetupView: View {
     }
 }
 
+#if DEBUG
 #Preview {
     BirthdaySetupView()
         .environmentObject(AppViewModel.preview)
 }
+#endif

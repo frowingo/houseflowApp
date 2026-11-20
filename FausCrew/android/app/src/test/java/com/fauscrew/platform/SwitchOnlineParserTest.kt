@@ -48,6 +48,22 @@ class SwitchOnlineParserTest {
     }
 
     @Test
+    fun framesCarryDebugDiagnosticsOnlyWhenTheBridgeSentThem() {
+        val seen = mutableListOf<List<String>>()
+        val parser = SwitchOnlineParser()
+        parser.parse("""{"ok": true, "events": [], "diagnostics": ["rtt 42 ms"], "match": {$match}}""") { seen += it }
+        parser.parse("""{"ok": true, "events": [], "match": {$match}}""") { seen += it }
+        assertEquals(listOf(listOf("rtt 42 ms")), seen)
+    }
+
+    @Test
+    fun framesCarryTheFrameRateOnlyWhenTheBridgeSentIt() {
+        val parser = SwitchOnlineParser()
+        assertEquals(58, parser.parse("""{"ok": true, "events": [], "fps": 58, "match": {$match}}""").fps)
+        assertNull(parser.parse("""{"ok": true, "events": [], "match": {$match}}""").fps)
+    }
+
+    @Test
     fun resultCarriesTheWinnerAndTheStandings() {
         val frame = SwitchOnlineParser().parse("""
             {"ok": true, "events": [{"type": "humanTeleported"}],

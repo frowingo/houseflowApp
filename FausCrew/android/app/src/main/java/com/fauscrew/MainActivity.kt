@@ -11,6 +11,7 @@ import androidx.core.view.WindowCompat
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.imePadding
 import androidx.compose.ui.Modifier
+import com.fauscrew.ui.components.DebugCrashDialog
 import com.fauscrew.ui.components.FausSplash
 import com.fauscrew.ui.components.LocalFausSplashActive
 import androidx.compose.runtime.CompositionLocalProvider
@@ -29,6 +30,7 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
+import com.fauscrew.platform.DebugCrashReport
 import com.fauscrew.platform.ThemeAppearance
 import com.fauscrew.platform.AppLifecycle
 import com.fauscrew.platform.SocialActivityHolder
@@ -77,6 +79,8 @@ class MainActivity : ComponentActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        // Debug builds: keep the last crash on the phone and show it (DebugCrashDialog below).
+        DebugCrashReport.install(applicationContext)
         // Provider SDKs (Credential Manager, Facebook, Snap) present from this activity.
         SocialActivityHolder.attach(this)
         // The user's theme is needed for the very first frame (splash, window and bar colors), so
@@ -340,6 +344,7 @@ class MainActivity : ComponentActivity() {
             }
             }
             if (showsSplash) FausSplash(onReveal = { splashCovering = false }) { showsSplash = false }
+            DebugCrashDialog()
             }
             }
             }

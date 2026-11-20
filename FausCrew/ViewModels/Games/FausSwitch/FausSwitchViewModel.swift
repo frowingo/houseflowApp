@@ -35,6 +35,9 @@ final class FausSwitchViewModel: ObservableObject {
     @Published private(set) var match: FausSwitchMatchUI?
 
     @Published private(set) var onlineState = FausSwitchOnlineLobbyState()
+    /// Frames drawn in the last second of an online race (nil outside one), for the HUD's rate chip.
+    @Published private(set) var onlineFramesPerSecond: Int?
+    private var lastFramesPerSecondAt = -TimeInterval.infinity
     @Published private(set) var onlineCatalog = FausSwitchOnlineCatalog.unknown
     @Published private(set) var onlineResult = FausSwitchOnlineResultState()
     /// From the first race snapshot (its countdown) until the player leaves: the screen
@@ -381,6 +384,8 @@ final class FausSwitchViewModel: ObservableObject {
         old.onHaptic = nil
         old.dispose()
         onlineHost = nil
+        onlineFramesPerSecond = nil
+        lastFramesPerSecondAt = -.infinity
         onlineState = FausSwitchOnlineLobbyState()
         onlineResult = FausSwitchOnlineResultState()
         audio.stopMusic()
@@ -415,6 +420,8 @@ final class FausSwitchViewModel: ObservableObject {
         old.onHaptic = nil
         old.dispose()
         onlineHost = nil
+        onlineFramesPerSecond = nil
+        lastFramesPerSecondAt = -.infinity
         onlineState = FausSwitchOnlineLobbyState()
         onlineResult = FausSwitchOnlineResultState()
         match = nil
@@ -454,6 +461,12 @@ final class FausSwitchViewModel: ObservableObject {
         guard let host = onlineHost, !host.isDisposed else { return lastOnlineFrame }
         let now = host.uptime
         let presentation = host.engine.presentation(at: now)
+        if now - lastFramesPerSecondAt >= 0.5 {
+            lastFramesPerSecondAt = now
+            let rate = host.engine.displayFramesPerSecond(at: now)
+            let fps = rate > 0 ? rate : nil
+            if onlineFramesPerSecond != fps { onlineFramesPerSecond = fps }
+        }
         if let frame = presentation?.frame {
             if presentation?.events.contains(.humanTeleported) == true {
                 audio.playPortal()
@@ -472,6 +485,8 @@ final class FausSwitchViewModel: ObservableObject {
     func leaveOnlineRoom() {
         guard let host = onlineHost else { return }
         onlineHost = nil
+        onlineFramesPerSecond = nil
+        lastFramesPerSecondAt = -.infinity
         onlineGeneration = UUID()
         onlineState = FausSwitchOnlineLobbyState()
         onlineResult = FausSwitchOnlineResultState()

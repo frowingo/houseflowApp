@@ -84,6 +84,7 @@ import androidx.compose.ui.semantics.onClick
 import androidx.compose.ui.semantics.role
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.TextStyle
+import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -138,6 +139,8 @@ internal class SwitchOnlineRaceUi(
     val onReclaim: () -> Unit,
     /** Play Again's room over the finished race, until the next race's first snapshot. */
     val replay: SwitchReplayRoomUi? = null,
+    /** Frames drawn in the last second, for the HUD's chip; null until the first online frame reports it. */
+    val fps: Int? = null,
 )
 
 /** The next session's room as Play Again shows it over the arena. */
@@ -210,7 +213,8 @@ internal fun FausSwitchGameLayer(
         if (match == null) return@Box
         if (match.nameTags.isNotEmpty()) NameTags(match.nameTags, copy)
         Hud(match, state, copy, showsTapHint, actions, onClose = if (isOnline) ({ confirmsLeave = true }) else null,
-            hidesClose = match.showsResult)
+            hidesClose = match.showsResult,
+            fps = online?.fps?.takeIf { isOnline && match.phase == SwitchPhase.PLAYING && !match.showsResult && it > 0 })
         LaunchedEffect(match.phase == SwitchPhase.PLAYING && match.canFlip, showsTapHint) {
             if (match.phase == SwitchPhase.PLAYING && match.canFlip && showsTapHint) {
                 delay(3_500)
@@ -514,6 +518,7 @@ private fun Hud(
     actions: SwitchRaceActions,
     onClose: (() -> Unit)?,
     hidesClose: Boolean,
+    fps: Int? = null,
 ) {
     Column(Modifier.fillMaxSize().windowInsetsPadding(WindowInsets.safeDrawing)) {
         Row(
@@ -528,6 +533,7 @@ private fun Hud(
                 val canPause = match.phase != SwitchPhase.ENDED && !state.showsDemoResult
                 HudButton(Icons.Rounded.Pause, copy("faus_switch_pause"), enabled = canPause, onClick = actions.onPause)
             }
+            fps?.let { FramesPerSecond(it, copy) }
             Spacer(Modifier.weight(1f))
             HudButton(if (state.isMusicEnabled) Icons.Rounded.MusicNote else Icons.Rounded.MusicOff,
                 copy(if (state.isMusicEnabled) "faus_switch_music_off" else "faus_switch_music_on"), onClick = actions.onToggleMusic)
@@ -559,6 +565,25 @@ private fun HudButton(icon: ImageVector, label: String, enabled: Boolean = true,
             .scaleButton(enabled = enabled, onClick = onClick).semantics { contentDescription = label },
         contentAlignment = Alignment.Center,
     ) { Icon(icon, null, Modifier.size(22.dp), tint = FausSwitchPalette.lightSand) }
+}
+
+/** Frames drawn in the last second, green at a smooth rate through to red at a choppy one (`HouseTanksFrameRate`). */
+@Composable
+private fun FramesPerSecond(fps: Int, copy: SwitchCopy) {
+    val quality = (fps - 20).coerceIn(0, 35) / 35f
+    val tint = Color.hsv(120f * quality, .8f, .9f)
+    val shape = RoundedCornerShape(Radius.md)
+    Row(
+        Modifier.heightIn(min = 44.dp).widthIn(min = 72.dp).background(FausSwitchPalette.deepWine.copy(alpha = .92f), shape)
+            .padding(horizontal = Spacing.sm)
+            .clearAndSetSemantics { contentDescription = copy.template("faus_switch_online_fps_accessibility", "fps" to "$fps") },
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(5.dp, Alignment.CenterHorizontally),
+    ) {
+        Box(Modifier.size(8.dp).clip(CircleShape).background(tint))
+        Text(copy.template("faus_switch_online_fps", "fps" to "$fps"),
+            style = TextStyle(fontFamily = FontFamily.Monospace, fontSize = 12.sp, fontWeight = FontWeight.ExtraBold), color = tint)
+    }
 }
 
 /** Off to the right, so the robots and their name tags on the start line stay visible. */

@@ -524,9 +524,11 @@ struct HouseTanksView: View {
     }
 }
 
+#if DEBUG
 #Preview {
     NavigationStack {
         HouseTanksView()
             .environmentObject(AppViewModel.preview)
     }
 }
+#endif

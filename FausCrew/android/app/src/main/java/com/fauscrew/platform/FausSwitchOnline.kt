@@ -57,7 +57,13 @@ internal data class SwitchOnlineMatch(
 )
 
 /** One drawn frame: the race (null before the first snapshot), its local events and the overlays. */
-internal data class SwitchOnlineFrame(val world: SwitchWorld?, val match: SwitchOnlineMatch, val events: List<SwitchEvent>)
+internal data class SwitchOnlineFrame(
+    val world: SwitchWorld?,
+    val match: SwitchOnlineMatch,
+    val events: List<SwitchEvent>,
+    /** Frames drawn in the last second, for the HUD's chip. */
+    val fps: Int? = null,
+)
 
 /** The Faus Switch engine behind JNI: the shared room, its colors, the flip and one frame per rendered frame. */
 internal interface SwitchOnlineEngine : OnlineGameEngine {
@@ -94,6 +100,10 @@ private class NativeSwitchOnlineEngine(private val handle: Int) : SwitchOnlineEn
         private set
     override var lastFlip: SwitchFlip? = null
         private set
+    override var diagnostics = emptyList<String>()
+        private set
+    /** One callback for every frame, so the per-frame call allocates nothing. */
+    private val onDiagnostics: (List<String>) -> Unit = { diagnostics = it }
 
     override fun event(type: String, now: Double, fields: Map<String, Any?>): OnlineOutput {
         val json = JSONObject().put("type", type).put("now", now)
@@ -116,7 +126,7 @@ private class NativeSwitchOnlineEngine(private val handle: Int) : SwitchOnlineEn
         FausCrewAndroidBridge.fausSwitchOnlineViewport(handle, width, height)
     }
 
-    override fun frame(now: Double): SwitchOnlineFrame = frames.parse(FausCrewAndroidBridge.fausSwitchOnlineFrame(handle, now))
+    override fun frame(now: Double): SwitchOnlineFrame = frames.parse(FausCrewAndroidBridge.fausSwitchOnlineFrame(handle, now), onDiagnostics)
 
     override fun close() {
         FausCrewAndroidBridge.fausSwitchOnlineDestroy(handle)
@@ -127,9 +137,11 @@ private class NativeSwitchOnlineEngine(private val handle: Int) : SwitchOnlineEn
 internal class SwitchOnlineParser {
     private val frames = SwitchFrameParser()
 
-    fun parse(json: String): SwitchOnlineFrame {
+    /** [onDiagnostics] gets the debug lines of the frames that carry them; the others leave the last ones in place. */
+    fun parse(json: String, onDiagnostics: (List<String>) -> Unit = {}): SwitchOnlineFrame {
         val root = JSONObject(json)
         check(root.optBoolean("ok", false)) { root.optString("message", "Faus Switch online bridge failed") }
+        OnlineOutputParser.diagnostics(root)?.let(onDiagnostics)
         val match = root.getJSONObject("match")
         return SwitchOnlineFrame(
             world = root.optJSONObject("frame")?.let(frames::world),
@@ -139,6 +151,7 @@ internal class SwitchOnlineParser {
                 result = match.optJSONObject("result")?.let(::result),
             ),
             events = root.optJSONArray("events")?.let(SwitchFrameParser::events).orEmpty(),
+            fps = OnlineOutputParser.framesPerSecond(root),
         )
     }
 

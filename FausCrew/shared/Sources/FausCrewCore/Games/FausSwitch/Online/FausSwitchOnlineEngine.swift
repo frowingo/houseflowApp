@@ -31,6 +31,7 @@ public final class FausSwitchOnlineEngine {
     /// Play Again: ready as soon as the player sits in the new room.
     private var readiesOnJoin = false
     private var now: TimeInterval = 0
+    private let diagnosticsRecorder = GameOnlineDiagnosticsRecorder()
 
     public init(context: GameLaunchContext, excludingSessionID: String? = nil, preferredColor: FausSwitchColor? = nil,
                 policy: GameReconnectPolicy = .init(), configuration: FausSwitchPlayConfiguration = .init(),
@@ -42,7 +43,8 @@ public final class FausSwitchOnlineEngine {
                                                     policy: policy, makeID: makeID, emit: emit)
         resultMachine = FausSwitchOnlineResultMachine(houseID: context.houseID ?? "", emit: emit)
         play = FausSwitchOnlinePlayMachine(
-            localPlayerID: context.localPlayerID ?? "", configuration: configuration, makeID: makeID,
+            localPlayerID: context.localPlayerID ?? "", configuration: configuration,
+            diagnostics: diagnosticsRecorder, makeID: makeID,
             send: { [weak self] message, grant in
                 guard let self else { return false }
                 return self.lobbyMachine.sendGameplay(message, grant: grant, now: self.now)
@@ -171,10 +173,25 @@ public final class FausSwitchOnlineEngine {
     /// Nil before the first match snapshot.
     public func presentation(at now: TimeInterval) -> FausSwitchOnlinePresentation? {
         guard var presentation = play.render(at: now) else { return nil }
+        // Hosts also sample outside the race (results, replays): only play frames count as fps.
+        if presentation.frame.phase == .playing { diagnosticsRecorder.displayedFrame(at: now) }
         if presentation.frame.phase == .countdown {
             presentation.frame.countdown = roomCountdown(at: now).map { max(1, $0) }
         }
         return presentation
+    }
+
+    /// Playing frames drawn in the last second, for the HUD's FPS chip (the same on iOS and
+    /// Android); 0, meaning no chip, outside a steady second of play.
+    public func displayFramesPerSecond(at now: TimeInterval) -> Int {
+        diagnosticsRecorder.steadyFramesPerSecond(at: now)
+    }
+
+    /// The debug overlay's numbers at this display time; reading them changes nothing.
+    public func diagnostics(at now: TimeInterval) -> GameOnlineDiagnostics {
+        diagnosticsRecorder.switchDiagnostics(
+            at: now, roundTrip: lobbyMachine.rttSamples.spread(scale: 1_000),
+            snapshotRateHz: lobby.runtimeSettings?.snapshotRateHz)
     }
 
     public func canCancel() -> Bool { lobby.canCancel(context: context) }

@@ -487,9 +487,11 @@ struct ForgotPasswordView: View {
     }
 }
 
+#if DEBUG
 // MARK: - Preview
 
 #Preview {
     ForgotPasswordView()
         .environmentObject(AppViewModel.preview)
 }
+#endif

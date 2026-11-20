@@ -202,6 +202,7 @@ struct HouseMembersCard: View {
     }
 }
 
+#if DEBUG
 #Preview {
     HouseMembersCard(members: [
         User(name: "Mahmut", points: 12),
@@ -212,3 +213,4 @@ struct HouseMembersCard: View {
     .environmentObject(AppViewModel.preview)
     .padding()
 }
+#endif

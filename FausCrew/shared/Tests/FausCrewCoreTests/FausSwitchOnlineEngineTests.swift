@@ -357,6 +357,26 @@ final class FausSwitchOnlineEngineTests: XCTestCase {
         XCTAssertFalse(try sent(engine).contains { $0["type"] as? String == "fausSwitch.flip" })
     }
 
+    /// The HUD's FPS chip counts the playing frames drawn in the last second.
+    func testDisplayFramesPerSecondCountsPlayingFrames() throws {
+        let (engine, _) = try running()
+        XCTAssertEqual(engine.displayFramesPerSecond(at: 1.0), 0)
+        var frameTime = 1.0
+        for index in 0..<90 {
+            _ = engine.presentation(at: frameTime)
+            if index == 30 {
+                XCTAssertEqual(engine.displayFramesPerSecond(at: frameTime), 0, "No half-counted rate in the first second")
+            }
+            frameTime += 1.0 / 60
+        }
+        XCTAssertTrue((55...65).contains(engine.displayFramesPerSecond(at: frameTime)),
+                      "\(engine.displayFramesPerSecond(at: frameTime))")
+        XCTAssertEqual(engine.displayFramesPerSecond(at: frameTime + 0.5), 0, "Frames stopped: no chip")
+        // Back after a pause (the app in the background): a new second of play first.
+        _ = engine.presentation(at: frameTime + 2)
+        XCTAssertEqual(engine.displayFramesPerSecond(at: frameTime + 2), 0)
+    }
+
     func testOtherRobotsRunForwardBetweenSnapshots() throws {
         let (engine, socket) = try running()
         _ = socket
@@ -396,9 +416,235 @@ final class FausSwitchOnlineEngineTests: XCTestCase {
             }
             try receive(engine, socket, playing(sequence: 3 + index, tick: 120 + 6 * (index + 1)) { _ in }, at: arrival)
         }
-        // A stall far past the clock's pace jumps instead of crawling back.
+        // A stall far past the clock's pace jumps instead of crawling back, once it has lasted
+        // a snapshot interval (a held-back burst arrives oldest first within a few milliseconds).
         try receive(engine, socket, playing(sequence: 40, tick: 198) { _ in }, at: 2.2)
-        XCTAssertEqual(engine.presentation(at: 2.2)?.frame.tick, 198)
+        XCTAssertEqual(engine.presentation(at: 2.2)?.frame.tick, 240)
+        try receive(engine, socket, playing(sequence: 41, tick: 204) { _ in }, at: 2.26)
+        XCTAssertEqual(engine.presentation(at: 2.26)?.frame.tick, 204)
+    }
+
+    /// An opponent's flip learned late moves its predicted height by 120 units: the screen
+    /// eases there over the remote time and never draws the robot against its new motion.
+    func testOpponentsLateFlipEasesWithoutRunningBackward() throws {
+        for rate in [20, 30, 60] {
+            for shift in [-120.0, 120.0] {
+                let (engine, twin, arrival) = try correctedPair(rate: rate) { old, runners in
+                    runners[1]["y"] = (old[other]?.y ?? 0) + shift
+                }
+                let frames = try (0...12).map { index -> (time: TimeInterval, y: Double, residual: Double, velocity: Double) in
+                    let time = arrival + Double(index) / 60
+                    let shown = try state(engine, other, at: time)
+                    let predicted = try state(twin, other, at: time)
+                    return (time, shown.y, shown.y - predicted.y, predicted.velocityY)
+                }
+                let diagnostics = engine.diagnostics(at: arrival)
+                XCTAssertEqual(diagnostics.remoteSnaps, 0, "rate \(rate) shift \(shift)")
+                XCTAssertEqual(try XCTUnwrap(diagnostics.remoteCorrection?.max), 120, accuracy: 20)
+                XCTAssertEqual(abs(frames[0].residual), 120, accuracy: 20, "Starts where the screen was")
+                for (previous, next) in zip(frames, frames.dropFirst()) {
+                    XCTAssertLessThanOrEqual(abs(next.residual), abs(previous.residual) + 0.001)
+                    XCTAssertGreaterThanOrEqual((next.y - previous.y) * (previous.velocity < 0 ? -1.0 : 1.0), -0.5,
+                                                "rate \(rate) shift \(shift): moving against its new velocity")
+                }
+                if shift > 0 {
+                    XCTAssertLessThan(abs(frames[12].residual), 120 * 0.5, "Eased by 0.2 s")
+                    XCTAssertGreaterThan(abs(frames[12].residual), 120 * 0.2, "Not a snap")
+                }
+            }
+        }
+    }
+
+    /// A correction that pulls a robot backward is held to a share of its run speed.
+    func testBackwardCorrectionNeverRunsTheRobotBack() throws {
+        for rate in [20, 30, 60] {
+            let (engine, twin, arrival) = try correctedPair(rate: rate) { old, runners in
+                runners[1]["x"] = (old[other]?.x ?? 0) - 100
+            }
+            var previous = try state(engine, other, at: arrival).x
+            for index in 1...20 {
+                let time = arrival + Double(index) / 60
+                let shown = try state(engine, other, at: time).x
+                XCTAssertGreaterThan(shown, previous, "rate \(rate) frame \(index)")
+                previous = shown
+                if index == 12 {
+                    let residual = shown - (try state(twin, other, at: time).x)
+                    XCTAssertGreaterThan(residual, 100 - FausSwitchMetrics.runSpeed * 0.75 * 0.2 - 1, "Slower than the free ease")
+                    XCTAssertLessThan(residual, 100)
+                }
+            }
+        }
+    }
+
+    func testCorrectionBeyondTheRemoteLimitSnaps() throws {
+        for rate in [20, 30, 60] {
+            let (engine, twin, arrival) = try correctedPair(rate: rate) { old, runners in
+                runners[1]["x"] = (old[other]?.x ?? 0) + 250
+            }
+            XCTAssertEqual(engine.diagnostics(at: arrival).remoteSnaps, 1, "rate \(rate)")
+            let shown = try state(engine, other, at: arrival).x
+            XCTAssertEqual(shown, try state(twin, other, at: arrival).x, accuracy: 0.5)
+        }
+    }
+
+    /// The local robot's own corrections are smaller and ease faster than an opponent's.
+    func testLocalCorrectionEasesFasterThanAnOpponents() throws {
+        for rate in [20, 30, 60] {
+            let (engine, twin, arrival) = try correctedPair(rate: rate) { old, runners in
+                runners[0]["x"] = (old[playerID]?.x ?? 0) + 100
+                runners[1]["x"] = (old[other]?.x ?? 0) + 100
+            }
+            let diagnostics = engine.diagnostics(at: arrival)
+            XCTAssertEqual(diagnostics.localSnaps, 0)
+            XCTAssertEqual(try XCTUnwrap(diagnostics.localCorrection?.max), 100, accuracy: 5)
+            func residual(_ id: String, after seconds: TimeInterval) throws -> Double {
+                try state(engine, id, at: arrival + seconds).x - state(twin, id, at: arrival + seconds).x
+            }
+            XCTAssertEqual(try residual(playerID, after: 0), -100, accuracy: 5)
+            XCTAssertEqual(try residual(playerID, after: 0.11), -36.8, accuracy: 6, "rate \(rate)")
+            XCTAssertEqual(try residual(other, after: 0.11), -100 * exp(-0.55), accuracy: 6, "rate \(rate)")
+            XCTAssertGreaterThan(try residual(playerID, after: 0.33), -8)
+        }
+    }
+
+    /// Jitter of up to 80 ms, a 300 ms gap whose snapshots arrive together, a burst of three
+    /// and an extra snapshot one tick after another: the tick on screen only moves forward.
+    func testDisplayTickStaysMonotonicWithJitterGapAndBurst() throws {
+        let jitter: [TimeInterval] = [0.04, 0, 0.08, 0.02, 0.06, 0, 0.08, 0.01, 0.05, 0.03, 0, 0.07]
+        for rate in [20, 30, 60] {
+            let (engine, socket) = try playingEngine(snapshotRateHz: rate)
+            let interval = 120 / rate
+            var stream: [(tick: Int, arrival: TimeInterval)] = []
+            var previous = 1.0
+            for index in 1...(rate * 5 / 2) {
+                let sent = 1 + Double(index * interval) / 120
+                var arrival = sent + jitter[index % jitter.count]
+                if (1.5..<1.8).contains(sent) { arrival = 1.84 + 0.0003 * Double(stream.count) }
+                if sent >= 2.2, sent < 2.2 + 3 * Double(interval) / 120 { arrival = 2.2 + 3 * Double(interval) / 120 + 0.02 }
+                arrival = max(previous, arrival)
+                stream.append((120 + index * interval, arrival))
+                if index == 8 { stream.append((120 + index * interval + 1, arrival + 0.002)) }
+                previous = arrival
+            }
+            var frame = 1.0
+            var lastTick: Int64 = 0
+            var lastFocus = -Double.infinity
+            for (sequence, snapshot) in stream.enumerated() {
+                while frame < snapshot.arrival {
+                    let shown = try XCTUnwrap(engine.presentation(at: frame)?.frame)
+                    XCTAssertGreaterThanOrEqual(shown.tick, lastTick, "rate \(rate) frame at \(frame)")
+                    XCTAssertGreaterThanOrEqual(shown.cameraFocus, lastFocus, "rate \(rate) frame at \(frame)")
+                    lastTick = shown.tick
+                    lastFocus = shown.cameraFocus
+                    frame += 1.0 / 60
+                }
+                try receive(engine, socket, playing(sequence: 3 + sequence, tick: snapshot.tick) { _ in }, at: snapshot.arrival)
+                // Rendered between the callbacks of a held-back burst, 0.3 ms apart.
+                let shown = try XCTUnwrap(engine.presentation(at: snapshot.arrival)?.frame)
+                XCTAssertGreaterThanOrEqual(shown.tick, lastTick, "rate \(rate) arrival at \(snapshot.arrival)")
+                lastTick = shown.tick
+            }
+            XCTAssertEqual(engine.diagnostics(at: frame).resyncRequests, 0, "A late stream is no reason to resync")
+            XCTAssertEqual(engine.diagnostics(at: frame).clockSnaps, 0, "Held-back snapshots are no stall")
+        }
+    }
+
+    /// The lobby machine judges a stopped robot's return by the welcome's rewind window:
+    /// 400 ms is 48 + 6 ticks, beyond the 36 of the release defaults.
+    func testLobbyAcceptsAStoppedRobotReturningInsideTheWelcomeRewindWindow() throws {
+        func stoppedThenReturned(after ticks: Int) throws -> Bool {
+            let (engine, socket) = try connectedLobby(state: "running", settings: ["maximumRewindMilliseconds": 400])
+            try receive(engine, socket, playing(sequence: 2, tick: 300) { runners in
+                runners[0]["status"] = "crashed"
+                runners[0]["eliminatedAtTick"] = 290
+                runners[0]["eliminationReason"] = "boundary"
+            }, at: 1)
+            try receive(engine, socket, playing(sequence: 3, tick: 290 + ticks) { _ in }, at: 1.05)
+            return try state(engine, playerID, at: 1.05).isRunning
+        }
+        XCTAssertTrue(try stoppedThenReturned(after: 54))
+        XCTAssertFalse(try stoppedThenReturned(after: 55))
+    }
+
+    func testSuccessorAndClipEstimateFollowTheWelcomeSettings() throws {
+        func snapshot(tick: Int, crashedAt: Int?) throws -> FausSwitchSnapshotDTO {
+            let data = try playing(sequence: tick, tick: tick) { runners in
+                if let crashedAt {
+                    runners[0]["status"] = "crashed"
+                    runners[0]["eliminatedAtTick"] = crashedAt
+                    runners[0]["eliminationReason"] = "boundary"
+                }
+            }
+            return try XCTUnwrap(GameRealtimeCodec.decode(data, as: FausSwitchRealtime.self).payload.snapshot)
+        }
+        func settings(rate: Int, rewind: Int64) -> FausSwitchRuntimeSettingsDTO {
+            let base = FausSwitchRuntimeSettingsDTO.releaseDefaults
+            return FausSwitchRuntimeSettingsDTO(
+                physicsRateHz: base.physicsRateHz, snapshotRateHz: rate, maximumInputRateHz: base.maximumInputRateHz,
+                maximumRewindMilliseconds: rewind, controlHeartbeatMilliseconds: base.controlHeartbeatMilliseconds,
+                controlTimeoutMilliseconds: base.controlTimeoutMilliseconds,
+                reconnectGraceMilliseconds: base.reconnectGraceMilliseconds,
+                maximumMatchMilliseconds: base.maximumMatchMilliseconds)
+        }
+        let down = try snapshot(tick: 300, crashedAt: 290)
+        // 30 Hz / 250 ms: 30 rewind + 4 snapshot ticks. 60 Hz / 100 ms: 12 + 2.
+        for (rate, rewind, window) in [(30, Int64(250), 34), (60, Int64(100), 14)] {
+            let configured = settings(rate: rate, rewind: rewind)
+            XCTAssertTrue(FausSwitchRealtime.isValidSuccessor(try snapshot(tick: 290 + window, crashedAt: nil), of: down,
+                                                             settings: configured))
+            XCTAssertFalse(FausSwitchRealtime.isValidSuccessor(try snapshot(tick: 290 + window + 1, crashedAt: nil), of: down,
+                                                              settings: configured))
+            // The flip sent at tick 126 is clipped once its ACK is older than the window.
+            for (ackTick, clipped) in [(126 + window, 0), (126 + window + 1, 1)] {
+                let (engine, socket) = try playingEngine(snapshotRateHz: rate, rewindMilliseconds: rewind)
+                try receive(engine, socket, server("controlGranted"), at: 1.01)
+                XCTAssertEqual(engine.flip(now: 1.05), .flipped)
+                try receive(engine, socket, playing(sequence: 3, tick: ackTick) { runners in
+                    runners[0]["lastProcessedInputSequence"] = 1
+                }, at: 1.07)
+                XCTAssertEqual(engine.diagnostics(at: 1.1).clippedFlips, clipped, "rate \(rate) ack \(ackTick)")
+            }
+        }
+    }
+
+    func testDiagnosticsCountSwallowedAndUnsupportedFlipsApart() throws {
+        let (engine, socket) = try running()
+        XCTAssertEqual(engine.flip(now: 1.02), .ignored, "No grant yet")
+        try receive(engine, socket, server("controlGranted"), at: 1.03)
+        XCTAssertEqual(engine.flip(now: 1.05), .flipped)
+        XCTAssertEqual(engine.flip(now: 1.07), .unsupported, "Mid-air")
+        XCTAssertEqual(engine.flip(now: 1.9), .ignored, "The snapshot is older than the extrapolation budget")
+        let diagnostics = engine.diagnostics(at: 1.9)
+        XCTAssertEqual(diagnostics.swallowedInputs, 2)
+        XCTAssertEqual(diagnostics.unsupportedInputs, 1)
+        XCTAssertEqual(diagnostics.lines.count, 9)
+        XCTAssertEqual(diagnostics.lines[7], "swallowed 2 · unsupported 1")
+    }
+
+    func testDiagnosticsKeepRemoteCorrectionsApartFromLocalOnes() throws {
+        let (engine, socket) = try running()
+        try receive(engine, socket, playing(sequence: 3, tick: 120) { runners in
+            runners[1]["x"] = ((runners[1]["x"] as? NSNumber)?.doubleValue ?? 0) + 30
+        }, at: 1.0)
+        let diagnostics = engine.diagnostics(at: 1.0)
+        XCTAssertEqual(diagnostics.remoteCorrection?.max, 30)
+        XCTAssertEqual(diagnostics.localCorrection?.max, 0)
+        XCTAssertEqual(diagnostics.remoteSnaps, 0)
+        XCTAssertEqual(diagnostics.localSnaps, 0)
+    }
+
+    func testDiagnosticsRecordSnapshotIntervalsAndAckLatency() throws {
+        let (engine, socket) = try running()
+        try receive(engine, socket, server("controlGranted"), at: 1.01)
+        XCTAssertEqual(engine.flip(now: 1.02), .flipped)
+        try receive(engine, socket, playing(sequence: 3, tick: 126) { runners in
+            runners[0]["lastProcessedInputSequence"] = 1
+        }, at: 1.07)
+        let diagnostics = engine.diagnostics(at: 1.1)
+        XCTAssertEqual(diagnostics.acknowledgement, GameDiagnosticsSpread(p50: 50, p95: 50, max: 50))
+        XCTAssertEqual(diagnostics.snapshotInterval?.max, 70, "The grant is no snapshot: 1.0 to 1.07")
+        XCTAssertEqual(diagnostics.clippedFlips, 0)
+        XCTAssertEqual(diagnostics.snapshotRateHz, 20)
     }
 
     func testStaleControlRejectionDropsControl() throws {
@@ -651,6 +897,47 @@ final class FausSwitchOnlineEngineTests: XCTestCase {
         }
     }
 
+    /// A match at tick 120 whose opponent is in the air, rising toward the ceiling.
+    private func playingEngine(snapshotRateHz: Int, rewindMilliseconds: Int64 = 250) throws -> (FausSwitchOnlineEngine, Int) {
+        let (engine, socket) = try connectedLobby(state: "running", settings: [
+            "snapshotRateHz": snapshotRateHz, "maximumRewindMilliseconds": rewindMilliseconds])
+        try receive(engine, socket, playing(sequence: 2, tick: 120) { runners in
+            runners[1]["x"] = 700
+            runners[1]["y"] = 190
+            runners[1]["gravity"] = "up"
+        }, at: 1)
+        return (engine, socket)
+    }
+
+    /// Two engines on the same stream: one has the screen at the old prediction when the next
+    /// snapshot arrives, the twin only ever saw that snapshot and so shows the prediction
+    /// itself. The snapshot repeats both robots as displayed (`old`, by player) and then
+    /// `change`s them (the opponent is the second runner).
+    private func correctedPair(rate: Int,
+                               change: ([String: FausSwitchRunnerState], inout [[String: Any]]) -> Void) throws
+        -> (engine: FausSwitchOnlineEngine, twin: FausSwitchOnlineEngine, arrival: TimeInterval) {
+        let (engine, socket) = try playingEngine(snapshotRateHz: rate)
+        let interval = 120 / rate
+        let arrival = 1 + Double(interval) / 120
+        let old = [playerID: try state(engine, playerID, at: arrival), other: try state(engine, other, at: arrival)]
+        let next = try playing(sequence: 3, tick: 120 + interval) { runners in
+            for (index, id) in [playerID, other].enumerated() {
+                runners[index]["x"] = old[id]?.x
+                runners[index]["y"] = old[id]?.y
+                runners[index]["velocityY"] = old[id]?.velocityY
+            }
+            change(old, &runners)
+        }
+        try receive(engine, socket, next, at: arrival)
+        let (twin, twinSocket) = try connectedLobby(state: "running", settings: ["snapshotRateHz": rate])
+        try receive(twin, twinSocket, next, at: arrival)
+        return (engine, twin, arrival)
+    }
+
+    private func state(_ engine: FausSwitchOnlineEngine, _ id: String, at time: TimeInterval) throws -> FausSwitchRunnerState {
+        try XCTUnwrap(engine.presentation(at: time)?.frame.runners.first { $0.id == id }?.state)
+    }
+
     private func running() throws -> (FausSwitchOnlineEngine, Int) {
         let (engine, socket) = try connectedLobby(state: "running")
         try receive(engine, socket, server("playing"), at: 1)
@@ -678,7 +965,9 @@ final class FausSwitchOnlineEngineTests: XCTestCase {
             makeID: { [unowned self] in ids += 1; return "id\(ids)" })
     }
 
-    private func connectedLobby(state: String = "lobby", color: FausSwitchColor? = nil) throws -> (FausSwitchOnlineEngine, Int) {
+    /// `settings` overrides fields of the welcome's runtime settings.
+    private func connectedLobby(state: String = "lobby", color: FausSwitchColor? = nil, settings: [String: Any] = [:])
+        throws -> (FausSwitchOnlineEngine, Int) {
         let engine = makeEngine(color: color)
         engine.start(isForeground: true, isLandscape: true, now: 0)
         guard case .ensureSession(let house, let connection) = try XCTUnwrap(engine.drainEffects().first) else {
@@ -693,7 +982,11 @@ final class FausSwitchOnlineEngineTests: XCTestCase {
         }
         XCTAssertEqual(id, sessionID)
         engine.socketOpened(connection: socket, now: 0.2)
-        try receive(engine, socket, server("welcome"), at: 0.3)
+        try receive(engine, socket, server("welcome") { message in
+            var payload = message["payload"] as! [String: Any]
+            payload["settings"] = (payload["settings"] as! [String: Any]).merging(settings) { $1 }
+            message["payload"] = payload
+        }, at: 0.3)
         try receive(engine, socket, session(version: 6, state: state, localState: state == "lobby" ? nil : "playing"), at: 0.4)
         return (engine, socket)
     }

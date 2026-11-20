@@ -370,7 +370,9 @@ private struct BellIcon: View {
     }
 }
 
+#if DEBUG
 #Preview {
     OnboardingView()
         .environmentObject(AppViewModel.preview)
 }
+#endif

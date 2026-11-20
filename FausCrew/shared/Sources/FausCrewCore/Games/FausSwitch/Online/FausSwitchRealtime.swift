@@ -67,17 +67,12 @@ public enum FausSwitchRealtime: GameRealtimeGame {
         }
     }
 
-    /// A robot that finished or crashed never runs again.
-    /// The server rewinds the world for a late flip by at most this many ticks
-    /// (`maximumRewindMilliseconds`, ADR-031).
-    public static let maximumRewindTicks: Int64 = 30
-    /// A snapshot leaves the server at most this many ticks after the step it shows (20 Hz).
-    static let snapshotTicks: Int64 = Int64(FausSwitchMetrics.physicsRate / 20)
-
     /// A robot that stopped runs again only when a late flip rewound the world to before
     /// its end: within the rewind window of the next snapshot (ADR-031). Any other return
-    /// to the race is a broken stream.
-    public static func isValidSuccessor(_ next: FausSwitchSnapshotDTO, of current: FausSwitchSnapshotDTO) -> Bool {
+    /// to the race is a broken stream. `settings` are the welcome's; the release defaults
+    /// stand in before one arrives (nil).
+    public static func isValidSuccessor(_ next: FausSwitchSnapshotDTO, of current: FausSwitchSnapshotDTO,
+                                        settings: FausSwitchRuntimeSettingsDTO?) -> Bool {
         let ends = Dictionary(current.runners.compactMap { runner -> (String, Int64)? in
             switch runner.status {
             case .running: return nil
@@ -87,8 +82,12 @@ public enum FausSwitchRealtime: GameRealtimeGame {
         }, uniquingKeysWith: { first, _ in first })
         return !next.runners.contains { runner in
             guard runner.status == .running, let end = ends[runner.playerId] else { return false }
-            return next.tick - end > maximumRewindTicks + snapshotTicks
+            return next.tick - end > (settings ?? .releaseDefaults).flipClipTicks
         }
+    }
+
+    public static func isValidSuccessor(_ next: FausSwitchSnapshotDTO, of current: FausSwitchSnapshotDTO) -> Bool {
+        isValidSuccessor(next, of: current, settings: nil)
     }
 
     public static func identities(in snapshot: FausSwitchSnapshotDTO) -> [String: FausSwitchResultPlayerIdentity] {
@@ -115,6 +114,22 @@ public enum FausSwitchRealtime: GameRealtimeGame {
 
     private struct SelectColor: Encodable {
         let color: String
+    }
+}
+
+extension FausSwitchRuntimeSettingsDTO {
+    /// How far back the server rewinds the world for a late flip (`maximumRewindMilliseconds`).
+    var maximumRewindTicks: Int64 { Self.ticks(milliseconds: maximumRewindMilliseconds) }
+
+    /// A snapshot leaves the server at most this many ticks after the step it shows.
+    var snapshotTicks: Int64 { Int64((Double(FausSwitchMetrics.physicsRate) / Double(max(1, snapshotRateHz))).rounded(.up)) }
+
+    /// A flip older than this when the snapshot that confirms it arrives was clipped by the
+    /// rewind window; it is also how long after its end a stopped robot may still return.
+    var flipClipTicks: Int64 { maximumRewindTicks + snapshotTicks }
+
+    private static func ticks(milliseconds: Int64) -> Int64 {
+        Int64((Double(milliseconds) * Double(FausSwitchMetrics.physicsRate) / 1_000).rounded(.up))
     }
 }
 

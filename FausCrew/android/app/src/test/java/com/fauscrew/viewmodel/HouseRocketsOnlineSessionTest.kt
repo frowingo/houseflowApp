@@ -6,6 +6,7 @@ import com.fauscrew.platform.OnlineFailure
 import com.fauscrew.platform.OnlineFlightUi
 import com.fauscrew.platform.OnlineLobbyUi
 import com.fauscrew.platform.OnlineOutput
+import com.fauscrew.platform.OnlineResultUi
 import com.fauscrew.platform.PlatformHttpRequest
 import com.fauscrew.platform.PlatformHttpResponse
 import com.fauscrew.platform.RealtimeSocket
@@ -30,6 +31,7 @@ import kotlinx.coroutines.test.runTest
 import kotlinx.coroutines.test.setMain
 import org.junit.After
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
@@ -160,6 +162,148 @@ class HouseRocketsOnlineSessionTest {
         val ticks = engine.events.count { it.first == "tick" }
         advanceTimeBy(100); runCurrent()
         assertEquals("No ticks after dispose", ticks, engine.events.count { it.first == "tick" })
+    }
+
+    /** A scripted engine whose debug lines and frame rate change with the frame and whose result appears on request. */
+    private class DiagnosticEngine : HouseRocketsOnlineEngine {
+        val events = mutableListOf<String>()
+        override var diagnostics = emptyList<String>()
+        override var framesPerSecond: Int? = null
+        var showsResult = false
+        override fun event(type: String, now: Double, fields: Map<String, Any?>): OnlineOutput {
+            events += type
+            val result = if (showsResult) OnlineResultUi(isVisible = true) else null
+            return OnlineOutput(emptyList(), null, result, false, null)
+        }
+        override fun receive(text: String, connection: Int, now: Double) = OnlineOutput(emptyList(), null, null, false, null)
+        override fun viewport(width: Float, height: Float, hudWidth: Float, hudHeight: Float) = Unit
+        override fun frame(now: Double): Pair<RocketsFrame, OnlineFlightUi>? = null
+        override fun close() = Unit
+    }
+
+    private fun TestScope.diagnosticSession(
+        engine: DiagnosticEngine,
+        debugLog: ((String) -> Unit)?,
+        clock: () -> Double = { 1.0 },
+    ) =
+        HouseRocketsOnlineSession(
+            scope = this, engine = engine, http = { PlatformHttpResponse(200, emptyMap(), "{}".toByteArray()) },
+            token = { null }, sockets = { _, _, _, _ -> error("No socket") }, onHaptic = {}, clock = clock,
+            debugLog = debugLog,
+        )
+
+    @Test fun debugSessionAsksForDiagnosticsAndLogsTheFinalOnesOnce() = runTest(dispatcher) {
+        val engine = DiagnosticEngine()
+        val logged = mutableListOf<String>()
+        val session = diagnosticSession(engine, logged::add)
+        session.start(isForeground = true, isLandscape = false)
+        assertEquals(listOf("start", "setDiagnostics"), engine.events)
+
+        engine.diagnostics = listOf("rtt 42 ms", "snap 20 Hz")
+        session.sampleFrame()
+        assertTrue("Nothing is drawn for the lines", logged.isEmpty())
+
+        engine.showsResult = true
+        session.intent("tick")
+        session.intent("tick")
+        assertEquals(listOf("rtt 42 ms\nsnap 20 Hz"), logged)
+        session.dispose()
+    }
+
+    @Test fun releaseSessionNeverAsksForDiagnostics() = runTest(dispatcher) {
+        val engine = DiagnosticEngine()
+        val session = diagnosticSession(engine, debugLog = null)
+        session.start(isForeground = true, isLandscape = false)
+        engine.diagnostics = listOf("rtt 42 ms")
+        session.sampleFrame()
+        assertEquals(listOf("start"), engine.events)
+        session.dispose()
+    }
+
+    @Test fun framesPerSecondReachTheSessionAtMostTwiceASecond() = runTest(dispatcher) {
+        val engine = DiagnosticEngine()
+        var time = 1.0
+        val session = diagnosticSession(engine, debugLog = null, clock = { time })
+        assertNull(session.fps.value)
+
+        session.sampleFrame()
+        assertNull("A frame without a rate leaves the chip off", session.fps.value)
+
+        engine.framesPerSecond = 58
+        session.sampleFrame()
+        assertEquals(58, session.fps.value)
+
+        engine.framesPerSecond = 30
+        time = 1.2
+        session.sampleFrame()
+        assertEquals("Held for half a second", 58, session.fps.value)
+
+        time = 1.5
+        session.sampleFrame()
+        assertEquals(30, session.fps.value)
+        session.dispose()
+    }
+
+    /** An engine whose bridge answers `ok: false` (the parser throws) from a chosen event or the frame on. */
+    private class FailingEngine(private val failingEvent: String?, private val failsFrame: Boolean = false) :
+        HouseRocketsOnlineEngine {
+        val events = mutableListOf<String>()
+        var closes = 0
+        override fun event(type: String, now: Double, fields: Map<String, Any?>): OnlineOutput {
+            events += type
+            check(type != failingEvent && type != "disconnect") { "Online bridge failed" }
+            return OnlineOutput(emptyList(), null, null, false, null)
+        }
+        override fun receive(text: String, connection: Int, now: Double) = OnlineOutput(emptyList(), null, null, false, null)
+        override fun viewport(width: Float, height: Float, hudWidth: Float, hudHeight: Float) = Unit
+        override fun frame(now: Double): Pair<RocketsFrame, OnlineFlightUi>? {
+            check(!failsFrame) { "Faus Rockets online bridge failed" }
+            return null
+        }
+        override fun close() { closes += 1 }
+    }
+
+    private fun TestScope.failingSession(engine: FailingEngine, failures: MutableList<Throwable>) =
+        HouseRocketsOnlineSession(
+            scope = this, engine = engine, http = { PlatformHttpResponse(200, emptyMap(), "{}".toByteArray()) },
+            token = { null }, sockets = { _, _, _, _ -> error("No socket") }, onHaptic = {}, clock = { 1.0 },
+            debugLog = {}, onFailure = { failures += it },
+        )
+
+    @Test fun engineFailureOnEnteringClosesTheMatchInsteadOfTheApp() = runTest(dispatcher) {
+        for (failing in listOf("start", "setDiagnostics", "tick")) {
+            val engine = FailingEngine(failing)
+            val failures = mutableListOf<Throwable>()
+            val session = failingSession(engine, failures)
+            session.start(isForeground = true, isLandscape = false)
+            advanceTimeBy(100)
+            runCurrent()
+            assertTrue(failing, session.failed.value)
+            assertTrue(failing, session.closed.value)
+            assertEquals(failing, listOf("Online bridge failed"), failures.map { it.message })
+            // Disposed once: the native handle is released and nothing ticks a dead engine.
+            assertEquals(failing, 1, engine.closes)
+            assertEquals(failing, failing, engine.events.dropLast(1).last())
+            val count = engine.events.size
+            advanceTimeBy(100)
+            runCurrent()
+            session.intent("tick")
+            assertEquals(failing, count, engine.events.size)
+        }
+    }
+
+    @Test fun frameFailureClosesTheMatchInsteadOfTheApp() = runTest(dispatcher) {
+        val engine = FailingEngine(failingEvent = null, failsFrame = true)
+        val failures = mutableListOf<Throwable>()
+        val session = failingSession(engine, failures)
+        session.start(isForeground = true, isLandscape = false)
+        session.sampleFrame()
+        assertTrue(session.failed.value)
+        assertTrue(session.closed.value)
+        assertEquals(1, failures.size)
+        assertEquals(null, session.frame.value)
+        session.sampleFrame()
+        assertEquals(1, failures.size)
     }
 
     @Test fun sendWithoutTheMatchingSocketIsReportedAsNotConnected() = runTest(dispatcher) {

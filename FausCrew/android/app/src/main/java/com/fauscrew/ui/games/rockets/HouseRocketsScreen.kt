@@ -46,6 +46,7 @@ import com.fauscrew.viewmodel.HouseRocketsViewModelFactory
 import com.fauscrew.viewmodel.RocketsMode
 import com.fauscrew.viewmodel.RocketsHaptic
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.MutableStateFlow
 
 /** Remote plaintext first, then Core's bundled House Rockets copy, then the key. */
 internal class RocketsCopy(private val strings: LocalizedText, private val bundled: Map<String, String>) {
@@ -77,12 +78,15 @@ internal fun HouseRocketsScreen(
     val frameState = model.frame.collectAsStateWithLifecycle()
     val online by model.onlineSession.collectAsStateWithLifecycle()
     val session = online
-    val onlineLobby = session?.lobby?.collectAsStateWithLifecycle()?.value
-    val onlineResult = session?.result?.collectAsStateWithLifecycle()?.value
-    val onlineFlight = session?.flight?.collectAsStateWithLifecycle()?.value
-    val onlineColors = session?.colors?.collectAsStateWithLifecycle()?.value ?: RocketsLobbyColors()
-    val noFrame = remember { mutableStateOf<RocketsFrame?>(null) }
-    val onlineFrameState = session?.frame?.collectAsStateWithLifecycle() ?: noFrame
+    // Always collected, with an empty flow while there is no session: a collector inside
+    // `session?.…` appears and disappears between compositions and shifts Compose's
+    // remembered slots, so one state could read another's value (Faus Tanks' pattern).
+    val onlineLobby = (session?.lobby ?: NoOnlineLobby).collectAsStateWithLifecycle().value
+    val onlineResult = (session?.result ?: NoOnlineResult).collectAsStateWithLifecycle().value
+    val onlineFlight = (session?.flight ?: NoOnlineFlight).collectAsStateWithLifecycle().value
+    val onlineFps = (session?.fps ?: NoOnlineFps).collectAsStateWithLifecycle().value
+    val onlineColors = (session?.colors ?: NoOnlineColors).collectAsStateWithLifecycle().value
+    val onlineFrameState = (session?.frame ?: NoOnlineFrame).collectAsStateWithLifecycle()
     val hasOnlineFrame by remember(onlineFrameState) { derivedStateOf { onlineFrameState.value != null } }
     val showsResult = onlineResult?.isVisible == true
     val hasMatch by remember(frameState) { derivedStateOf { frameState.value != null } }
@@ -336,7 +340,7 @@ internal fun HouseRocketsScreen(
                 Box(Modifier.fillMaxSize().background(HouseRocketsTheme.background))
                 HouseRocketsCourseCanvas(onlineFrameState, reduceMotion)
                 HouseRocketsOnlineFlightOverlay(
-                    frameState = onlineFrameState, flight = onlineFlight, lobby = onlineLobby, copy = copy,
+                    frameState = onlineFrameState, flight = onlineFlight, fps = onlineFps, lobby = onlineLobby, copy = copy,
                     isForeground = isForeground, onSteer = model::steer, onEndSteering = model::endSteering,
                     onAdjust = model::adjustHeading, onRetry = model::retryOnline,
                     onReclaim = model::reclaimOnlineControl, onCancel = { confirmsCancel = true }, onExit = ::exitGame,
@@ -368,3 +372,10 @@ private tailrec fun Context.findActivity(): Activity? = when (this) {
     is ContextWrapper -> baseContext.findActivity()
     else -> null
 }
+
+private val NoOnlineLobby = MutableStateFlow<com.fauscrew.platform.OnlineLobbyUi?>(null)
+private val NoOnlineResult = MutableStateFlow<com.fauscrew.platform.OnlineResultUi?>(null)
+private val NoOnlineFlight = MutableStateFlow<com.fauscrew.platform.OnlineFlightUi?>(null)
+private val NoOnlineFps = MutableStateFlow<Int?>(null)
+private val NoOnlineColors = MutableStateFlow(RocketsLobbyColors())
+private val NoOnlineFrame = MutableStateFlow<RocketsFrame?>(null)

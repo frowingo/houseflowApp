@@ -25,7 +25,9 @@ internal class HouseRocketsOnlineSession(
     onHaptic: (success: Boolean) -> Unit,
     clock: () -> Double = OnlineClock::now,
     tickMillis: Long = 25,
-) : GameOnlineSession(scope, engine, http, token, sockets, onHaptic, clock, tickMillis) {
+    debugLog: ((String) -> Unit)? = null,
+    onFailure: ((Throwable) -> Unit)? = null,
+) : GameOnlineSession(scope, engine, http, token, sockets, onHaptic, clock, tickMillis, debugLog, onFailure) {
     private val mutableFrame = MutableStateFlow<RocketsFrame?>(null)
     /** The interpolated flight; refreshed once per rendered frame by [sampleFrame]. */
     val frame: StateFlow<RocketsFrame?> = mutableFrame.asStateFlow()
@@ -39,14 +41,16 @@ internal class HouseRocketsOnlineSession(
     fun selectColor(color: RocketsColor) = intent("selectColor", mapOf("color" to color.raw))
 
     fun viewport(width: Float, height: Float, hudWidth: Float, hudHeight: Float) {
-        if (!isDisposed) engine.viewport(width, height, hudWidth, hudHeight)
+        if (!isDisposed) guarded(Unit) { engine.viewport(width, height, hudWidth, hudHeight) }
     }
 
     fun sampleFrame() {
         if (isDisposed) return
-        val sampled = engine.frame(now())
+        val sampled = guarded(null) { engine.frame(now()) }
+        if (isDisposed) return
         mutableFrame.value = sampled?.first
         if (mutableFlight.value != sampled?.second) mutableFlight.value = sampled?.second
+        sampleFps(engine.framesPerSecond)
     }
 
     override fun applied(output: OnlineOutput) {

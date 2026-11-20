@@ -76,9 +76,11 @@ struct HouseLoadingView: View {
     }
 }
 
+#if DEBUG
 #Preview {
     let viewModel = AppViewModel.preview
     HouseLoadingView()
         .environmentObject(viewModel)
         .environmentObject(viewModel.router)
 }
+#endif

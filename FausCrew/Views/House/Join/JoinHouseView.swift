@@ -215,7 +215,9 @@ struct JoinHouseView: View {
     }
 }
 
+#if DEBUG
 #Preview {
     JoinHouseView()
         .environmentObject(AppViewModel.preview)
 }
+#endif

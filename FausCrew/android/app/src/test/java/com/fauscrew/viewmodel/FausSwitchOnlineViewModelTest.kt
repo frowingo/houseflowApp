@@ -65,6 +65,7 @@ class FausSwitchOnlineViewModelTest {
         var flipAnswer = SwitchFlip.FLIPPED
         var world: SwitchWorld? = null
         var frameEvents: List<SwitchEvent> = emptyList()
+        var fps: Int? = null
         var match = SwitchOnlineMatch(ui(), null, null)
         val viewports = mutableListOf<Pair<Double, Double>>()
         var isClosed = false
@@ -93,7 +94,7 @@ class FausSwitchOnlineViewModelTest {
         override fun frame(now: Double): SwitchOnlineFrame {
             val events = frameEvents
             frameEvents = emptyList()
-            return SwitchOnlineFrame(world, match, events)
+            return SwitchOnlineFrame(world, match, events, fps)
         }
 
         override fun close() {
@@ -243,9 +244,12 @@ class FausSwitchOnlineViewModelTest {
         model.selectMode(SwitchMode.DEMO)
         assertEquals(SwitchMode.ONLINE, model.state.value.selectedMode)
 
+        assertNull(model.onlineSession.value!!.fps.value)
+        engine.fps = 59
         engine.frameEvents = listOf(SwitchEvent(SwitchEventType.HUMAN_TELEPORTED))
         model.onFrame(1)
         assertNotNull(model.frame.value)
+        assertEquals(59, model.onlineSession.value!!.fps.value)
         assertEquals(SwitchPhase.COUNTDOWN, model.match.value!!.phase)
         assertEquals(3, model.onlineMatch.value!!.roomCountdown)
         assertTrue("portal" in sound.log)

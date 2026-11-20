@@ -295,6 +295,7 @@ struct NewAnnouncementPopup: View {
     }
 }
 
+#if DEBUG
 #Preview {
     NewAnnouncementPopup(
         onPublish: { _, _ in true },
@@ -302,3 +303,4 @@ struct NewAnnouncementPopup: View {
     )
     .environmentObject(AppViewModel.preview)
 }
+#endif

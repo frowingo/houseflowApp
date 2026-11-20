@@ -10,6 +10,9 @@ final class HouseRocketsViewModel: ObservableObject {
     @Published private(set) var context: HouseRocketsLaunchContext
     @Published private(set) var onlineState = HouseRocketsOnlineLobbyState()
     @Published private(set) var onlinePresentation: HouseRocketsOnlinePresentation?
+    /// Frames drawn in the last second of an online flight (nil outside one), for the HUD's rate chip.
+    @Published private(set) var onlineFramesPerSecond: Int?
+    private var lastFramesPerSecondAt = -TimeInterval.infinity
     @Published private(set) var onlineResultState = HouseRocketsOnlineResultState()
     @Published private(set) var catalogAvailability = HouseRocketsCatalogAvailability.unknown
     /// Play Again's new room, drawn over the last flight's frozen course until the new
@@ -184,6 +187,8 @@ final class HouseRocketsViewModel: ObservableObject {
         observationTask?.cancel()
         disposeOnline()
         onlinePresentation = nil
+        onlineFramesPerSecond = nil
+        lastFramesPerSecondAt = -.infinity
         presentationCadence = .init()
         if excludingSessionID != nil { acceptanceRecorder?.begin(mode: .housemates) }
         onlineState = HouseRocketsOnlineLobbyState()
@@ -252,6 +257,15 @@ final class HouseRocketsViewModel: ObservableObject {
 
     private func sampleOnlineFrame() -> HouseRocketsRenderFrame? {
         let presentation = onlineHost?.presentation()
+        if let host = onlineHost, !host.isDisposed {
+            let now = host.uptime
+            if now - lastFramesPerSecondAt >= 0.5 {
+                lastFramesPerSecondAt = now
+                let rate = host.engine.displayFramesPerSecond(at: now)
+                let fps = rate > 0 ? rate : nil
+                if onlineFramesPerSecond != fps { onlineFramesPerSecond = fps }
+            }
+        }
         if presentation != nil, isOnlineReplayRoom { isOnlineReplayRoom = false }
         if presentationCadence.shouldPublish(presentation, at: ProcessInfo.processInfo.systemUptime) {
             onlinePresentation = presentation
@@ -262,6 +276,8 @@ final class HouseRocketsViewModel: ObservableObject {
     private func disposeOnline() {
         onlineHost?.dispose()
         onlineHost = nil
+        onlineFramesPerSecond = nil
+        lastFramesPerSecondAt = -.infinity
         resumeLeaveWaiters()
     }
 

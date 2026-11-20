@@ -127,6 +127,7 @@ final class FausSwitchOnlineBridgeTests: XCTestCase {
         let first = try object(fausSwitchOnlineFrame(handle, 1.01))
         let frame = try XCTUnwrap(first["frame"] as? [String: Any])
         XCTAssertEqual(frame["phase"] as? String, "playing")
+        XCTAssertNotNil(first["fps"] as? Int, "The HUD's frame-rate chip rides on every frame")
         let runners = try XCTUnwrap(frame["runners"] as? [[String: Any]])
         XCTAssertEqual(runners.map { $0["color"] as? String }, ["ocean", "plum"])
         XCTAssertEqual(runners.first { $0["local"] as? Bool == true }?["id"] as? String, player)
@@ -202,6 +203,22 @@ final class FausSwitchOnlineBridgeTests: XCTestCase {
         XCTAssertEqual(try object(fausSwitchCatalogResponse(house, 200, #"{"success":true,"data":[]}"#))["available"] as? Bool,
                        false)
         XCTAssertTrue(try object(fausSwitchCatalogResponse(house, 500, "oops"))["available"] is NSNull)
+    }
+
+    /// Debug builds ask for the overlay numbers once; they then ride on the frame every half second.
+    func testDiagnosticsRideOnFramesOnlyWhenEnabledAndAtMostTwicePerSecond() throws {
+        let handle = fausSwitchOnlineCreate(house, player, player, "", "")
+        defer { XCTAssertTrue(fausSwitchOnlineDestroy(handle)) }
+        XCTAssertNil(try object(fausSwitchOnlineFrame(handle, 1))["diagnostics"], "Off until asked for")
+
+        XCTAssertEqual(try event(handle, ["type": "setDiagnostics", "enabled": true, "now": 1.1])["ok"] as? Bool, true)
+        XCTAssertNotNil(try object(fausSwitchOnlineFrame(handle, 2))["diagnostics"] as? [String])
+        XCTAssertNil(try object(fausSwitchOnlineFrame(handle, 2.2))["diagnostics"])
+        XCTAssertNil(try object(fausSwitchOnlineFrame(handle, 2.49))["diagnostics"])
+        XCTAssertNotNil(try object(fausSwitchOnlineFrame(handle, 2.5))["diagnostics"])
+
+        _ = try event(handle, ["type": "setDiagnostics", "enabled": false, "now": 3])
+        XCTAssertNil(try object(fausSwitchOnlineFrame(handle, 4))["diagnostics"])
     }
 
     func testUnknownHandleFailsCleanly() throws {

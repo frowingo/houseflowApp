@@ -8,13 +8,22 @@ public struct FausSwitchPlayConfiguration: Sendable {
     public var retransmitInterval: TimeInterval = 0.25
     public var maximumRetransmits = 3
     public var inputCapacity = 16
-    /// A correction larger than this (world units) snaps instead of easing.
-    public var correctionLimit = 70.0
-    public var correctionTime: TimeInterval = 0.08
+    /// An opponent's correction larger than this (world units) snaps instead of easing. Wide,
+    /// because an opponent's flip is only known from the next snapshot and the server applies
+    /// it in the past: its predicted height is off by up to ~150 units until then.
+    public var remoteCorrectionLimit = 190.0
+    /// Time constant of an opponent's easing: about 63 % of a correction is gone after this.
+    public var remoteCorrectionTime: TimeInterval = 0.2
+    /// The same for the local robot, whose own flips are already predicted: its corrections
+    /// are small, and a slow ease would show the robot away from where the player put it.
+    public var localCorrectionLimit = 150.0
+    public var localCorrectionTime: TimeInterval = 0.11
     /// A display clock this far from the newest snapshot's pace jumps to it instead of
     /// slowing down (a stall, a resync).
     public var clockSnapLimit: TimeInterval = 0.25
-
+    /// An easing never moves a robot against its own motion faster than this share of its
+    /// speed, so a correction pulling backwards slows down instead of rubber-banding.
+    public var easingBackwardShare = 0.75
 
     public init() {}
 }
@@ -54,7 +63,8 @@ public struct FausSwitchOnlinePresentation: Equatable, Sendable {
 /// current tick by stepping the whole race (robots block each other, in the snapshot's
 /// seat order) from the newest snapshot; the player's own unconfirmed flips are
 /// replayed on top. Other players' flips are only known from the next snapshot. A new snapshot's
-/// small differences ease out over 80 ms. The tick on screen follows a display clock that
+/// differences ease out per robot, longer for opponents than for the local robot, and never
+/// pull a robot backwards faster than it runs. The tick on screen follows a display clock that
 /// never runs backward: a late snapshot (network jitter) only slows it down a little, so
 /// the camera and the course never jump back.
 final class FausSwitchOnlinePlayMachine {
@@ -65,8 +75,19 @@ final class FausSwitchOnlinePlayMachine {
         let sequence: Int64
         let clientTick: Int64
         let controlGeneration: String
+        /// When the tap was first sent (`sentUptime` moves on at each retransmit).
+        let firstSentUptime: TimeInterval
         var sentUptime: TimeInterval
         var attempts = 0
+    }
+
+    /// What is left of a snapshot's correction for one robot: the display offset from its
+    /// predicted state, eased to zero from `updatedAt` on. Easing is memoryless, so an
+    /// unrelated snapshot never restarts it.
+    private struct Correction {
+        var x: Double
+        var y: Double
+        var updatedAt: TimeInterval
     }
 
     private struct CacheKey: Equatable {
@@ -95,16 +116,16 @@ final class FausSwitchOnlinePlayMachine {
     private var snapshot: FausSwitchSnapshotDTO?
     private var receivedUptime: TimeInterval = 0
     /// The display clock: the (fractional) tick on screen at `uptime`, running at `speed`
-    /// ticks-per-tick. Nil outside a connected playing race.
-    private var clock: (uptime: TimeInterval, tick: Double, speed: Double)?
+    /// ticks-per-tick. `overLimitSince` is when it first ran more than `clockSnapLimit` ahead
+    /// of the snapshots. Nil outside a connected playing race.
+    private var clock: (uptime: TimeInterval, tick: Double, speed: Double, overLimitSince: TimeInterval?)?
     private var binding: GameRealtimeControlGrantDTO?
     private var inputs: [PendingFlip] = []
     private var inputsVersion = 0
     private var sequence: Int64 = 0
     private var lastACK: Int64 = 0
     private var cache: (key: CacheKey, tick: Int64, runners: [FausSwitchRunnerState])?
-    private var corrections: [String: (x: Double, y: Double)] = [:]
-    private var correctionAt: TimeInterval = 0
+    private var corrections: [String: Correction] = [:]
     private var lastResyncAt = -TimeInterval.infinity
     private var controlWaitStartedAt: TimeInterval?
     private var backoffUntil: TimeInterval = 0
@@ -117,12 +138,15 @@ final class FausSwitchOnlinePlayMachine {
     /// The local robot as last presented, to see a portal throw between two frames.
     private var lastPresentedLocal: (match: String, epoch: Int64, state: FausSwitchRunnerState)?
     private var reduceMotion = false
+    private var settings: FausSwitchRuntimeSettingsDTO { state.runtimeSettings ?? .releaseDefaults }
     private var isClosed = false
+    private let diagnostics: GameOnlineDiagnosticsRecorder
 
     init(localPlayerID: String, configuration: FausSwitchPlayConfiguration, course: FausSwitchCourse = .standard,
-         makeID: @escaping () -> String, send: @escaping Send, resync: @escaping () -> Void) {
+         diagnostics: GameOnlineDiagnosticsRecorder = .init(), makeID: @escaping () -> String, send: @escaping Send, resync: @escaping () -> Void) {
         self.localPlayerID = localPlayerID
         self.configuration = configuration
+        self.diagnostics = diagnostics
         baseCourse = course
         self.course = course
         self.makeID = makeID
@@ -161,12 +185,16 @@ final class FausSwitchOnlinePlayMachine {
             clock = nil
             corrections = [:]
             clearControl()
+            diagnostics.timelineRestarted()
             return
         }
         if changedConnection || incoming.connection != .connected || !incoming.isForeground || !incoming.isSynced {
             clearControl()
         }
-        if changedConnection || incoming.connection != .connected || !incoming.isSynced { clock = nil }
+        if changedConnection || incoming.connection != .connected || !incoming.isSynced {
+            clock = nil
+            diagnostics.timelineRestarted()
+        }
 
         var before: [String: FausSwitchRunnerState]?
         if game != previous {
@@ -174,13 +202,14 @@ final class FausSwitchOnlinePlayMachine {
             if sameWorld, let previous {
                 guard game.stateSequence >= previous.stateSequence else { return }
                 guard game.tick >= previous.tick else { throw GameRealtimeError.invalidResponse }
-                if !reduceMotion { before = displayed(at: now) }
+                if !reduceMotion { before = displayed(predicted(at: now), at: now) }
             } else {
                 clearControl()
                 staleGrant = nil
                 clock = nil
                 corrections = [:]
                 reportedOutcome = nil
+                diagnostics.timelineRestarted()
             }
             if game.runners.count != courseRunnerCount || game.runnerScale != courseRunnerScale {
                 courseRunnerCount = game.runners.count
@@ -190,6 +219,7 @@ final class FausSwitchOnlinePlayMachine {
             }
             snapshot = game
             receivedUptime = incoming.gameReceivedUptime ?? now
+            diagnostics.snapshotArrived(at: receivedUptime)
             cache = nil
             pace(by: game, now: now)
             // A reconnect into a match the robot already left plays no haptic again.
@@ -225,6 +255,14 @@ final class FausSwitchOnlinePlayMachine {
             guard me.lastProcessedInputSequence >= lastACK else { throw GameRealtimeError.invalidResponse }
             lastACK = me.lastProcessedInputSequence
             sequence = max(sequence, lastACK)
+            for input in inputs where input.sequence <= lastACK {
+                diagnostics.inputAcknowledged(after: receivedUptime - input.firstSentUptime)
+                // The wire carries no applied tick: a flip sent too late for the server's
+                // rewind window is clipped, which this estimates from the snapshot that ACKs it.
+                if game.tick - input.clientTick > settings.flipClipTicks {
+                    diagnostics.flipMayBeClipped()
+                }
+            }
             let count = inputs.count
             inputs.removeAll { $0.sequence <= lastACK }
             if inputs.count != count { inputsVersion += 1 }
@@ -232,26 +270,41 @@ final class FausSwitchOnlinePlayMachine {
 
         if let before {
             let after = predicted(at: now)
-            var next: [String: (x: Double, y: Double)] = [:]
+            var next: [String: Correction] = [:]
             for (id, old) in before {
                 guard let new = after[id] else { continue }
                 let dx = old.x - new.x
                 let dy = old.y - new.y
-                if hypot(dx, dy) <= configuration.correctionLimit, hypot(dx, dy) > 0.01 { next[id] = (dx, dy) }
+                let distance = hypot(dx, dy)
+                let isLocal = id == localPlayerID
+                let limit = isLocal ? configuration.localCorrectionLimit : configuration.remoteCorrectionLimit
+                let snapped = distance > limit || Self.isPortalThrow(from: old, to: new, course: course)
+                if isLocal {
+                    diagnostics.localCorrected(by: distance, snapped: snapped)
+                } else {
+                    diagnostics.remoteCorrected(by: distance, snapped: snapped)
+                }
+                if !snapped, distance > 0.01 { next[id] = Correction(x: dx, y: dy, updatedAt: now) }
             }
             corrections = next
-            correctionAt = now
         }
     }
 
     func flip(now: TimeInterval) -> FausSwitchFlipFeedback {
-        guard canFlip(at: now), let binding, let snapshot, snapshot.phase == .playing else { return .ignored }
+        guard let snapshot, snapshot.phase == .playing else { return .ignored }
+        guard canFlip(at: now), let binding else {
+            diagnostics.inputSwallowed()
+            return .ignored
+        }
         let tick = currentTick(at: now)
         let states = states(at: tick)
         guard let index = localIndex, states.indices.contains(index), states[index].isRunning else { return .ignored }
-        guard FausSwitchPhysics.isSupported(states, index: index, course: course) else { return .unsupported }
+        guard FausSwitchPhysics.isSupported(states, index: index, course: course) else {
+            diagnostics.inputUnsupported()
+            return .unsupported
+        }
         guard inputs.count < max(1, configuration.inputCapacity), sequence < Int64.max else {
-            clearControl()
+            loseControl(.other)
             requestResync(at: now)
             return .ignored
         }
@@ -259,11 +312,11 @@ final class FausSwitchOnlinePlayMachine {
         let message = FausSwitchClientMessage(messageId: makeID(), action: .gameplay(.flip(
             controlGeneration: binding.controlGeneration, inputSequence: sequence, clientTick: tick)))
         inputs.append(.init(message: message, sequence: sequence, clientTick: tick,
-                            controlGeneration: binding.controlGeneration, sentUptime: now))
+                            controlGeneration: binding.controlGeneration, firstSentUptime: now, sentUptime: now))
         inputsVersion += 1
         guard send(message, binding) else {
             guard !isClosed else { return .ignored }
-            clearControl()
+            loseControl(.other)
             requestResync(at: now)
             return .ignored
         }
@@ -281,11 +334,11 @@ final class FausSwitchOnlinePlayMachine {
             }
             // Never resync at once: that would take the robot back from a second device.
             staleGrant = binding
-            clearControl()
+            loseControl(.reject)
             return
         }
         // A rejected flip is never replayed; the next snapshot shows what the server ran.
-        clearControl()
+        loseControl(.reject)
         if rejection.code == "fausSwitch.error.control_unavailable" {
             onControlLost?()
             return
@@ -298,7 +351,7 @@ final class FausSwitchOnlinePlayMachine {
         guard !isClosed, let snapshot, snapshot.phase == .playing, state.connection == .connected,
               state.isForeground, state.isSynced, !state.controlTransferred, !state.isTerminal else { return }
         if now - receivedUptime > configuration.staleSnapshotResync {
-            clearControl()
+            loseControl(.stale)
             requestResync(at: now)
             return
         }
@@ -309,7 +362,7 @@ final class FausSwitchOnlinePlayMachine {
         guard let binding else { return }
         for index in inputs.indices where now - inputs[index].sentUptime >= configuration.retransmitInterval {
             guard inputs[index].attempts < configuration.maximumRetransmits else {
-                clearControl()
+                loseControl(.retransmit)
                 requestResync(at: now)
                 return
             }
@@ -318,7 +371,7 @@ final class FausSwitchOnlinePlayMachine {
             // The same message and sequence: the server ignores a flip it already ran.
             guard send(inputs[index].message, binding) else {
                 guard !isClosed else { return }
-                clearControl()
+                loseControl(.other)
                 requestResync(at: now)
                 return
             }
@@ -328,7 +381,8 @@ final class FausSwitchOnlinePlayMachine {
     func render(at now: TimeInterval) -> FausSwitchOnlinePresentation? {
         guard !isClosed, let snapshot else { return nil }
         let tick = currentTick(at: now)
-        let states = displayed(at: now)
+        let predictedStates = predicted(at: now)
+        let states = displayed(predictedStates, at: now)
         let age = max(0, now - receivedUptime)
         let phase: FausSwitchMatchPhase
         switch snapshot.phase {
@@ -349,7 +403,8 @@ final class FausSwitchOnlinePlayMachine {
             || (snapshot.phase == .playing && (!state.isSynced || age > configuration.maximumExtrapolation))
         let awaiting = snapshot.phase == .playing && !runners.isEmpty && runners.allSatisfy { !$0.state.isRunning }
         var events: [FausSwitchMatchEvent] = []
-        if let local = runners.first(where: \.isLocal)?.state {
+        // A portal throw is judged on the prediction: an easing offset must not hide it.
+        if let local = predictedStates[localPlayerID] {
             if let last = lastPresentedLocal, last.match == snapshot.sessionId, last.epoch == snapshot.runtimeEpoch,
                Self.isPortalThrow(from: last.state, to: local, course: course) {
                 events.append(.humanTeleported)
@@ -390,24 +445,32 @@ final class FausSwitchOnlinePlayMachine {
     /// Moves the display clock to a new snapshot. A snapshot that arrives early pulls the
     /// clock forward to it; a late one (behind the clock) is never shown by going back:
     /// the clock slows down (at most 10 %) until the snapshots catch up. Only a stall or a
-    /// resync (more than `clockSnapLimit` apart) jumps.
+    /// resync (more than `clockSnapLimit` apart) jumps, and only once it has lasted a nominal
+    /// snapshot interval: snapshots held back together arrive oldest first, even as separate
+    /// callbacks a moment apart, and the oldest alone would pull the clock back past what
+    /// the newest then confirms.
+    /// Nothing here assumes periodic snapshots.
     private func pace(by game: FausSwitchSnapshotDTO, now: TimeInterval) {
         guard game.phase == .playing, state.connection == .connected, state.isSynced else {
             clock = nil
             return
         }
         let rate = Double(FausSwitchMetrics.physicsRate)
+        let snapshotInterval = 1 / Double(max(1, settings.snapshotRateHz))
         let target = Double(game.tick) + max(0, now - receivedUptime) * rate
         guard let clock else {
-            self.clock = (now, target, 1)
+            self.clock = (now, target, 1, nil)
             return
         }
         let shown = clock.tick + max(0, now - clock.uptime) * rate * clock.speed
         let ahead = (shown - target) / rate
-        if ahead <= 0 || ahead > configuration.clockSnapLimit {
-            self.clock = (now, target, 1)
+        let over = ahead > configuration.clockSnapLimit
+        let snapped = over && clock.overLimitSince.map { now - $0 >= snapshotInterval } == true
+        diagnostics.clockPaced(ahead: ahead, snapped: snapped)
+        if ahead <= 0 || snapped {
+            self.clock = (now, target, 1, nil)
         } else {
-            self.clock = (now, shown, 1 - min(0.1, ahead * 0.5))
+            self.clock = (now, shown, 1 - min(0.1, ahead * 0.5), over ? clock.overLimitSince ?? now : nil)
         }
     }
 
@@ -416,17 +479,55 @@ final class FausSwitchOnlinePlayMachine {
         return now >= backoffUntil && now - receivedUptime <= configuration.maximumExtrapolation
     }
 
-    /// Predicted states with the easing offsets applied.
-    private func displayed(at now: TimeInterval) -> [String: FausSwitchRunnerState] {
-        var states = predicted(at: now)
-        guard !corrections.isEmpty, !reduceMotion else { return states }
-        let decay = exp(-max(0, now - correctionAt) / configuration.correctionTime)
-        guard decay > 0.01 else { return states }
-        for (id, offset) in corrections where states[id]?.isRunning == true {
-            states[id]?.x += offset.x * decay
-            states[id]?.y += offset.y * decay
+    /// Predicted states with the easing offsets applied (display only: physics, collisions
+    /// and outcomes use the predicted states).
+    private func displayed(_ predicted: [String: FausSwitchRunnerState], at now: TimeInterval)
+        -> [String: FausSwitchRunnerState] {
+        guard !corrections.isEmpty, !reduceMotion else { return predicted }
+        var states = predicted
+        let tick = currentTick(at: now)
+        var expired: [String] = []
+        // Updated in place through the values view: no copy of the dictionary per frame.
+        for index in corrections.values.indices {
+            let id = corrections.keys[index]
+            guard let robot = states[id], robot.isRunning,
+                  let eased = eased(corrections.values[index], at: now, robot: robot, tick: tick,
+                                    time: id == localPlayerID ? configuration.localCorrectionTime
+                                        : configuration.remoteCorrectionTime) else {
+                expired.append(id)
+                continue
+            }
+            corrections.values[index] = eased
+            states[id]?.x += eased.x
+            states[id]?.y += eased.y
         }
+        for id in expired { corrections[id] = nil }
         return states
+    }
+
+    /// The correction after easing up to `now`: exponential, except that on an axis where
+    /// it would move the robot against its own velocity it is held to a share of that
+    /// speed. After an opponent's late flip the robot then turns toward its new path
+    /// instead of first drifting along the old one and then snapping back. Nil once gone.
+    private func eased(_ correction: Correction, at now: TimeInterval, robot: FausSwitchRunnerState, tick: Int64,
+                       time: TimeInterval) -> Correction? {
+        let elapsed = now - correction.updatedAt
+        guard elapsed > 0 else { return correction }
+        let keep = exp(-elapsed / time)
+        let runSpeed = FausSwitchMetrics.runSpeed + (robot.isBoosted(atTick: tick) ? FausSwitchMetrics.boostExtraSpeed : 0)
+            - (robot.isSlowed(atTick: tick) ? FausSwitchMetrics.slowPenalty : 0)
+        func ease(_ offset: Double, velocity: Double) -> Double {
+            let next = offset * keep
+            // Removing the offset moves the robot by `next - offset`, against `velocity` when
+            // the offset has the velocity's sign.
+            guard offset * velocity > 0 else { return next }
+            let limit = configuration.easingBackwardShare * abs(velocity) * elapsed
+            return abs(offset - next) > limit ? offset - (offset > 0 ? limit : -limit) : next
+        }
+        let x = ease(correction.x, velocity: runSpeed)
+        let y = ease(correction.y, velocity: robot.velocityY)
+        guard abs(x) > 0.01 || abs(y) > 0.01 else { return nil }
+        return Correction(x: x, y: y, updatedAt: now)
     }
 
     private func predicted(at now: TimeInterval) -> [String: FausSwitchRunnerState] {
@@ -471,6 +572,11 @@ final class FausSwitchOnlinePlayMachine {
         }
     }
 
+    private func loseControl(_ cause: GameControlLossCause) {
+        if binding != nil { diagnostics.controlLost(cause) }
+        clearControl()
+    }
+
     private func clearControl() {
         binding = nil
         if !inputs.isEmpty { inputsVersion += 1 }
@@ -483,6 +589,7 @@ final class FausSwitchOnlinePlayMachine {
         guard state.connection == .connected, state.isForeground, !state.controlTransferred,
               !state.isTerminal, now - lastResyncAt >= 1 else { return }
         lastResyncAt = now
+        diagnostics.resyncRequested()
         resync()
     }
 }

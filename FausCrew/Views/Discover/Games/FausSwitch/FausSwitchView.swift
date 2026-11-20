@@ -108,6 +108,9 @@ struct FausSwitchView: View {
                     hudButton("xmark", label: "faus_switch_online_leave") { confirmsLeave = true }
                         .disabled(hidesLeave)
                         .opacity(hidesLeave ? 0 : 1)
+                    if !hidesLeave, let fps = model.onlineFramesPerSecond {
+                        framesPerSecond(fps)
+                    }
                 } else {
                     hudButton("pause.fill", label: "faus_switch_pause", action: model.pauseDemo)
                         .disabled(match.phase == .ended || model.showsDemoResult)
@@ -152,6 +155,25 @@ struct FausSwitchView: View {
                             in: RoundedRectangle(cornerRadius: AppDesign.CornerRadius.md, style: .continuous))
         }
         .accessibilityLabel(copy(label))
+    }
+
+    /// Frames drawn in the last second, green at a smooth rate through to red at a choppy one.
+    private func framesPerSecond(_ fps: Int) -> some View {
+        let tint = Color(hue: 0.33 * HouseTanksFrameRate.quality(fps), saturation: 0.8, brightness: 0.9)
+        return HStack(spacing: 5) {
+            Circle().fill(tint).frame(width: 8, height: 8)
+            Text(copy("faus_switch_online_fps", replacements: ["fps": "\(fps)"]))
+                .font(.system(.caption, design: .monospaced).weight(.heavy))
+                .monospacedDigit()
+                .foregroundStyle(tint)
+        }
+        .padding(.horizontal, AppDesign.Spacing.sm)
+        .frame(minWidth: 72, minHeight: 44)
+        .background(FausSwitchPalette.deepWine.opacity(0.92),
+                    in: RoundedRectangle(cornerRadius: AppDesign.CornerRadius.md, style: .continuous))
+        .allowsHitTesting(false)
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel(copy("faus_switch_online_fps_accessibility", replacements: ["fps": "\(fps)"]))
     }
 
     /// Each robot's player name beside it on its start platform, until the run starts.

@@ -495,3 +495,9 @@ Seam'ler:
    - "FausCrew Android bridge" işinde fixture ve bindings adımlarının geçtiği.
 3. İsterseniz Android workflow'unu elle tetikleyip API 30 emülatör smoke testini çalıştırın.
 4. Değişiklikleri gözden geçirin ve commit kararını verin.
+
+---
+
+## Sonradan bulunan: iOS Release build (16 Kasım 2026)
+
+F3-10'da önizleme altyapısı (`AppDependencies+Preview.swift`) yalnızca DEBUG'da derlenecek şekilde ayrılmıştı, ama 18 view dosyasındaki `#Preview` blokları Release yapılandırmasında da derlendiği için Release build kırılıyordu. Faz doğrulamaları yalnızca Debug derlediği için yakalanmadı. Düzeltme: o 18 dosyada önizleme bölümleri `#if DEBUG` içine alındı; önizleme sahteleri Release'e girmiyor. Release build artık geçiyor (`** BUILD SUCCEEDED **`).

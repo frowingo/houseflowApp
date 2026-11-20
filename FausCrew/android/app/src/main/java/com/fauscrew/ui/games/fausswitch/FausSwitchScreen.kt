@@ -41,6 +41,7 @@ import com.fauscrew.viewmodel.FausSwitchViewModel
 import com.fauscrew.viewmodel.FausSwitchViewModelFactory
 import com.fauscrew.viewmodel.SwitchHaptic
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.MutableStateFlow
 
 /**
  * `FausSwitchView`: the portrait lobby, then a landscape race against local bots. The rules
@@ -66,8 +67,12 @@ internal fun FausSwitchScreen(
     val match by model.match.collectAsStateWithLifecycle()
     val onlineSession by model.onlineSession.collectAsStateWithLifecycle()
     val onlineMatch by model.onlineMatch.collectAsStateWithLifecycle()
-    val lobby = onlineSession?.lobby?.collectAsStateWithLifecycle()?.value
-    val room = onlineSession?.room?.collectAsStateWithLifecycle()?.value
+    // Always collected, with an empty flow while there is no session: a collector inside
+    // `onlineSession?.…` appears and disappears between compositions and shifts Compose's
+    // remembered slots, so one state could read another's value (Faus Tanks' pattern).
+    val lobby = (onlineSession?.lobby ?: NoOnlineLobby).collectAsStateWithLifecycle().value
+    val onlineFps = (onlineSession?.fps ?: NoOnlineFps).collectAsStateWithLifecycle().value
+    val room = (onlineSession?.room ?: NoOnlineRoom).collectAsStateWithLifecycle().value
     val copy = remember(strings) { SwitchCopy(strings, bundledCopy(strings.prefix)) }
     val context = LocalContext.current
     val activity = context.findActivity()
@@ -253,6 +258,7 @@ internal fun FausSwitchScreen(
                     onPlayAgain = model::playOnlineAgain, onBackToLobby = model::returnToOnlineLobby,
                     onRetry = { model.retryOnline() }, onRetryResult = { model.retryOnlineResult() },
                     onReclaim = { model.reclaimOnlineControl() },
+                    fps = onlineFps,
                     replay = if (state.isOnlineReplayRoom) SwitchReplayRoomUi(
                         lobby = lobby, localColor = room?.colors?.local ?: state.color,
                         uptime = { onlineSession?.uptime() ?: 0.0 },
@@ -287,3 +293,7 @@ private tailrec fun Context.findActivity(): Activity? = when (this) {
     is ContextWrapper -> baseContext.findActivity()
     else -> null
 }
+
+private val NoOnlineLobby = MutableStateFlow<com.fauscrew.platform.OnlineLobbyUi?>(null)
+private val NoOnlineFps = MutableStateFlow<Int?>(null)
+private val NoOnlineRoom = MutableStateFlow<com.fauscrew.platform.SwitchRoom?>(null)

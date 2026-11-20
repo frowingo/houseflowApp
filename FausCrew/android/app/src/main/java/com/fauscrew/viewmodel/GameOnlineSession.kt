@@ -1,5 +1,8 @@
 package com.fauscrew.viewmodel
 
+import android.content.Context
+import android.content.pm.ApplicationInfo
+import com.fauscrew.platform.DebugCrashReport
 import com.fauscrew.platform.OnlineClock
 import com.fauscrew.platform.OnlineEffect
 import com.fauscrew.platform.OnlineFailure
@@ -24,11 +27,20 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 
+/** Debug builds only: decided at runtime so release builds need no BuildConfig. */
+internal fun Context.isDebuggable(): Boolean = applicationInfo.flags and ApplicationInfo.FLAG_DEBUGGABLE != 0
+
 /**
  * The Android host of a FausCrewCore online engine for one match (iOS: `GameOnlineHost`):
  * it performs the engine's effects (HTTP, WebSocket, haptics), reports every outcome with
  * its tag and ticks the engine every 25 ms. It decides nothing about lobby, reconnect or
  * control. All engine calls happen on [scope]'s (main) thread.
+ *
+ * A non-null [debugLog] (debug builds) asks the engine for its netcode numbers: the final ones
+ * go to [debugLog] once when the result appears; nothing is drawn on screen.
+ *
+ * An engine call that throws (a bridge `ok: false`, unreadable JSON) ends this match, not the
+ * app: the session disposes itself, [failed] and [closed] turn true and [onFailure] gets the error.
  */
 internal open class GameOnlineSession(
     private val scope: CoroutineScope,
@@ -39,6 +51,9 @@ internal open class GameOnlineSession(
     private val onHaptic: (success: Boolean) -> Unit,
     private val clock: () -> Double = OnlineClock::now,
     private val tickMillis: Long = 25,
+    private val debugLog: ((String) -> Unit)? = null,
+    /** Null: the debug crash report (a no-op in release builds). */
+    private val onFailure: ((Throwable) -> Unit)? = null,
 ) {
     private val mutableLobby = MutableStateFlow(OnlineLobbyUi())
     val lobby: StateFlow<OnlineLobbyUi> = mutableLobby.asStateFlow()
@@ -47,6 +62,14 @@ internal open class GameOnlineSession(
     private val mutableClosed = MutableStateFlow(false)
     /** The engine finished `leave`/cleanup; the screen may close. */
     val closed: StateFlow<Boolean> = mutableClosed.asStateFlow()
+    private val mutableFps = MutableStateFlow<Int?>(null)
+    /** Frames drawn in the last second, for the HUD's chip: null until a frame reports it, refreshed twice a second at most. */
+    val fps: StateFlow<Int?> = mutableFps.asStateFlow()
+    private var lastFpsAt = Double.NEGATIVE_INFINITY
+    private var loggedFinalDiagnostics = false
+    private val mutableFailed = MutableStateFlow(false)
+    /** An engine call failed and this match was closed instead of the app. */
+    val failed: StateFlow<Boolean> = mutableFailed.asStateFlow()
 
     var rematchExcludedSessionId: String? = null
         private set
@@ -58,20 +81,20 @@ internal open class GameOnlineSession(
         private set
 
     fun start(isForeground: Boolean, isLandscape: Boolean) {
-        apply(engine.event("start", clock(), mapOf("foreground" to isForeground, "landscape" to isLandscape)))
+        send("start", mapOf("foreground" to isForeground, "landscape" to isLandscape))
+        if (debugLog != null) send("setDiagnostics", mapOf("enabled" to true))
         scope.launch(work) {
             while (isActive) {
                 delay(tickMillis)
                 if (isDisposed) return@launch
-                apply(engine.event("tick", clock()))
+                send("tick")
             }
         }
     }
 
     /** A user intent: setReady, setLandscape, setForeground, retry, retryResult, cancel, reclaim, leave, and the game's own. */
     fun intent(type: String, fields: Map<String, Any?> = emptyMap()) {
-        if (isDisposed) return
-        apply(engine.event(type, clock(), fields))
+        send(type, fields)
     }
 
     /** Cleanup without a business leave (screen closed, rematch). */
@@ -81,14 +104,43 @@ internal open class GameOnlineSession(
         work.cancel()
         socket?.close()
         socket = null
-        engine.event("disconnect", clock())
-        engine.close()
+        // A failed engine may fail again here; the native handle is still released.
+        runCatching { engine.event("disconnect", clock()) }
+        runCatching { engine.close() }
+    }
+
+    /** One engine event and its output; a failing engine closes this match (see the class doc). */
+    private fun send(type: String, fields: Map<String, Any?> = emptyMap()) {
+        if (isDisposed) return
+        guarded(Unit) { apply(engine.event(type, clock(), fields)) }
+    }
+
+    /** Runs one engine call; a failure ends this match and returns [fallback]. */
+    protected fun <T> guarded(fallback: T, call: () -> T): T = try {
+        call()
+    } catch (cancel: CancellationException) {
+        throw cancel
+    } catch (error: Exception) {
+        fail(error)
+        fallback
+    }
+
+    private fun fail(error: Exception) {
+        if (isDisposed) return
+        val report = onFailure
+        if (report != null) report(error) else DebugCrashReport.recordHandled("Online match closed after an engine error", error)
+        dispose()
+        mutableFailed.value = true
+        mutableClosed.value = true
     }
 
     private fun apply(output: OnlineOutput) {
         if (isDisposed) return
         output.lobby?.let { mutableLobby.value = it }
-        output.result?.let { mutableResult.value = it }
+        output.result?.let {
+            mutableResult.value = it
+            if (it.isVisible) logFinalDiagnostics()
+        }
         rematchExcludedSessionId = output.rematchExcludedSessionId
         output.effects.forEach(::perform)
         if (output.closed) mutableClosed.value = true
@@ -99,6 +151,23 @@ internal open class GameOnlineSession(
     protected open fun applied(output: OnlineOutput) = Unit
 
     protected fun now(): Double = clock()
+
+    /** Called after each sampled frame with the rate it reported; [fps] only follows it every half second. */
+    protected fun sampleFps(reported: Int?) {
+        if (reported == null) return
+        val at = clock()
+        if (at - lastFpsAt < FpsRefreshSeconds) return
+        lastFpsAt = at
+        mutableFps.value = reported
+    }
+
+    /** Frames keep sampling during the result phase, so the lines are current within half a second. */
+    private fun logFinalDiagnostics() {
+        val log = debugLog ?: return
+        if (loggedFinalDiagnostics || engine.diagnostics.isEmpty()) return
+        loggedFinalDiagnostics = true
+        log(engine.diagnostics.joinToString("\n"))
+    }
 
     private fun perform(effect: OnlineEffect) {
         when (effect) {
@@ -168,7 +237,7 @@ internal open class GameOnlineSession(
 
     private fun listener(connection: Int) = object : RealtimeSocketListener {
         override fun onOpen() = post { report("socketOpened", mapOf("connection" to connection)) }
-        override fun onText(text: String) = post { apply(engine.receive(text, connection, clock())) }
+        override fun onText(text: String) = post { guarded(Unit) { apply(engine.receive(text, connection, clock())) } }
         override fun onFailure(failure: OnlineFailure) = post {
             val fields = when (failure) {
                 OnlineFailure.Transport -> mapOf("failure" to "transport")
@@ -184,8 +253,7 @@ internal open class GameOnlineSession(
         scope.launch(work) { if (!isDisposed) block() }
     }
 
-    private fun report(type: String, fields: Map<String, Any?>) {
-        if (isDisposed) return
-        apply(engine.event(type, clock(), fields))
-    }
+    private fun report(type: String, fields: Map<String, Any?>) = send(type, fields)
 }
+
+private const val FpsRefreshSeconds = 0.5

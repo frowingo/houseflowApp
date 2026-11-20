@@ -420,6 +420,8 @@ struct RockPaperScissorsView: View {
     }
 }
 
+#if DEBUG
 #Preview {
     NavigationStack { RockPaperScissorsView().environmentObject(AppViewModel.preview) }
 }
+#endif

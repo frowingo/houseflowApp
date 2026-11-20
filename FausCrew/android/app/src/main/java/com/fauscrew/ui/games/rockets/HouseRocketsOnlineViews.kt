@@ -62,8 +62,11 @@ import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.text.TextStyle
+import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextDecoration
@@ -121,6 +124,7 @@ internal fun CancelFlightDialog(copy: RocketsCopy, onConfirm: () -> Unit, onDism
 internal fun BoxScope.HouseRocketsOnlineFlightOverlay(
     frameState: State<RocketsFrame?>,
     flight: OnlineFlightUi?,
+    fps: Int?,
     lobby: OnlineLobbyUi,
     copy: RocketsCopy,
     isForeground: Boolean,
@@ -206,6 +210,10 @@ internal fun BoxScope.HouseRocketsOnlineFlightOverlay(
             }
         }
         FlightActionsMenu(copy, lobby, onCancel, onExit, Modifier.align(Alignment.BottomEnd).padding(8.dp))
+        // Left of the 44 dp actions menu at the bottom-end, as on iOS. Not hit-testable, so touches pass through.
+        if (model.phase == RocketsPhase.PLAYING && fps != null && fps > 0) {
+            FramesPerSecond(fps, copy, Modifier.align(Alignment.BottomEnd).padding(end = 8.dp + 44.dp + Spacing.sm, bottom = 8.dp))
+        }
         if (model.phase == RocketsPhase.COUNTDOWN && !lobby.isTerminal) {
             val now = rememberOnlineNow()
             val seconds = remaining(lobby.flightCountdownUptime, now)
@@ -231,6 +239,24 @@ internal fun BoxScope.HouseRocketsOnlineFlightOverlay(
                     Modifier.widthIn(max = minOf(430.dp, maxWidth - 48.dp)).heightIn(max = maxHeight - 96.dp))
             }
         }
+    }
+}
+
+/** Frames drawn in the last second, green at a smooth rate through to red at a choppy one (`HouseTanksFrameRate`). */
+@Composable
+private fun FramesPerSecond(fps: Int, copy: RocketsCopy, modifier: Modifier = Modifier) {
+    val quality = (fps - 20).coerceIn(0, 35) / 35f
+    val tint = Color.hsv(120f * quality, .8f, .9f)
+    Row(
+        modifier.heightIn(min = 44.dp).widthIn(min = 72.dp).background(HouseRocketsTheme.panel, RoundedCornerShape(Radius.xl))
+            .padding(horizontal = Spacing.sm)
+            .clearAndSetSemantics { contentDescription = copy.template("house_rockets_online_fps_accessibility", "fps" to "$fps") },
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(5.dp, Alignment.CenterHorizontally),
+    ) {
+        Box(Modifier.size(8.dp).clip(CircleShape).background(tint))
+        Text(copy.template("house_rockets_online_fps", "fps" to "$fps"),
+            style = TextStyle(fontFamily = FontFamily.Monospace, fontSize = 12.sp, fontWeight = FontWeight.ExtraBold), color = tint)
     }
 }
 

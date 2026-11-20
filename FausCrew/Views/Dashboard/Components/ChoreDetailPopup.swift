@@ -657,6 +657,7 @@ extension ChoreStatus {
     }
 }
 
+#if DEBUG
 // MARK: - Preview
 
 #Preview {
@@ -676,3 +677,4 @@ extension ChoreStatus {
     )
     .environmentObject(AppViewModel.preview)
 }
+#endif

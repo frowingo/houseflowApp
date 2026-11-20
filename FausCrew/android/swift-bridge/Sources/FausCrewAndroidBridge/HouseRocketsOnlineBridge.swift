@@ -22,6 +22,7 @@ final class OnlineMatchRegistry: @unchecked Sendable {
         var lastLobby: HouseRocketsOnlineLobbyState?
         var lastResult: HouseRocketsOnlineResultState?
         var lastPreferred: HouseRocketsColor?
+        var diagnostics = OnlineDiagnosticsFeed()
         init(engine: HouseRocketsOnlineEngine) { self.engine = engine }
     }
 
@@ -103,6 +104,7 @@ public func houseRocketsOnlineEvent(_ handle: Int32, _ eventJSON: String) -> Str
         case "selectColor":
             guard let color = (event["color"] as? String).flatMap(HouseRocketsColor.init(rawValue:)) else { return false }
             engine.selectColor(color, now: now)
+        case "setDiagnostics": entry.diagnostics.isEnabled = event["enabled"] as? Bool ?? false
         case "disconnect": engine.disconnect()
         default: return false
         }
@@ -128,28 +130,52 @@ public func houseRocketsOnlineViewport(
     } ?? false
 }
 
-/// The interpolated flight at `now`, in the bot frame format plus online fields.
+/// The interpolated flight at `now`, in the bot frame format plus online fields. A debug
+/// build also gets `diagnostics` (see `OnlineDiagnosticsFeed`).
 public func houseRocketsOnlineFrame(_ handle: Int32, _ now: Double) -> String {
     let result = OnlineMatchRegistry.shared.with(handle) { entry -> [String: Any] in
-        guard let presentation = entry.engine.presentation(at: now) else { return ["ok": true] }
-        let frame = presentation.frame
-        let courseKey = frame.gates.map(\.id).joined(separator: ",")
-        var object = HouseRocketsFrameJSON.render(frame: frame, viewport: entry.viewport,
-                                                  includeGates: courseKey != entry.courseKey)
-        entry.courseKey = courseKey
-        entry.frameRevision += 1
-        let lobby = entry.engine.lobby
-        object["revision"] = entry.frameRevision
-        object["winnerId"] = lobby.game?.winnerId ?? NSNull()
-        object["canSteer"] = presentation.canSteer
-        object["isSyncing"] = presentation.isSyncing
-        object["statusKey"] = HouseRocketsOnlineCopyKeys.flightStatus(lobby, presentation)
-        object["showsConnectionPanel"] = HouseRocketsOnlineCopyKeys.showsConnectionPanel(lobby, presentation)
-        object["eliminations"] = presentation.eliminations.map(\.displayName)
-        object["ok"] = true
+        var object = flightFrame(entry, now)
+        object["fps"] = entry.engine.displayFramesPerSecond(at: now)
+        if let lines = entry.diagnostics.lines(at: now, from: { entry.engine.diagnostics(at: now).lines }) {
+            object["diagnostics"] = lines
+        }
         return object
     }
     return bridgeJSON(result ?? ["ok": false, "message": "Unknown match handle"])
+}
+
+private func flightFrame(_ entry: OnlineMatchRegistry.Entry, _ now: Double) -> [String: Any] {
+    guard let presentation = entry.engine.presentation(at: now) else { return ["ok": true] }
+    let frame = presentation.frame
+    let courseKey = frame.gates.map(\.id).joined(separator: ",")
+    var object = HouseRocketsFrameJSON.render(frame: frame, viewport: entry.viewport,
+                                              includeGates: courseKey != entry.courseKey)
+    entry.courseKey = courseKey
+    entry.frameRevision += 1
+    let lobby = entry.engine.lobby
+    object["revision"] = entry.frameRevision
+    object["winnerId"] = lobby.game?.winnerId ?? NSNull()
+    object["canSteer"] = presentation.canSteer
+    object["isSyncing"] = presentation.isSyncing
+    object["statusKey"] = HouseRocketsOnlineCopyKeys.flightStatus(lobby, presentation)
+    object["showsConnectionPanel"] = HouseRocketsOnlineCopyKeys.showsConnectionPanel(lobby, presentation)
+    object["eliminations"] = presentation.eliminations.map(\.displayName)
+    object["ok"] = true
+    return object
+}
+
+/// The debug overlay's numbers, riding on the frame call so the JNI surface stays the same:
+/// off until `setDiagnostics`, then at most every half second of host uptime.
+struct OnlineDiagnosticsFeed {
+    var isEnabled = false
+    private var lastSent = -Double.infinity
+
+    /// `nil` between samples, so a frame without the key means "unchanged".
+    mutating func lines(at now: Double, from read: () -> [String]) -> [String]? {
+        guard isEnabled, now - lastSent >= 0.5 || now < lastSent else { return nil }
+        lastSent = now
+        return read()
+    }
 }
 
 private func onlineOutput(_ handle: Int32, _ action: (OnlineMatchRegistry.Entry) -> Bool) -> String {

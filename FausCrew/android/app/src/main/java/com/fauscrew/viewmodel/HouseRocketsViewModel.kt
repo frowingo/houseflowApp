@@ -1,6 +1,7 @@
 package com.fauscrew.viewmodel
 
 import android.content.Context
+import android.util.Log
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
@@ -54,6 +55,8 @@ internal class HouseRocketsOnlineDependencies(
     val token: suspend () -> String?,
     val sockets: RealtimeSocketFactory,
     val catalogAvailability: (houseId: String, status: Int, body: String) -> Boolean?,
+    /** Debug builds only: gets the final netcode lines of a match; null in release, which also keeps the numbers off. */
+    val debugLog: ((String) -> Unit)? = null,
 )
 
 internal enum class RocketsHaptic { SUCCESS, WARNING }
@@ -185,6 +188,7 @@ internal class HouseRocketsViewModel(
             engine = deps.makeEngine(houseId, userId, current.houseOwnerId.orEmpty(), excludingSessionId),
             http = deps.http, token = deps.token, sockets = deps.sockets,
             onHaptic = { mutableHaptics.tryEmit(if (it) RocketsHaptic.SUCCESS else RocketsHaptic.WARNING) },
+            debugLog = deps.debugLog,
         )
         mutableOnline.value = session
         // Core holds the pick until the player sits in the lobby, then claims it.
@@ -464,6 +468,7 @@ internal class HouseRocketsViewModelFactory(context: Context) : ViewModelProvide
             },
             sockets = OkHttpRealtimeSocketFactory(),
             catalogAvailability = HouseRocketsOnlineNative::catalogAvailability,
+            debugLog = if (appContext.isDebuggable()) ({ text: String -> Log.i("FausDiagnostics", text) }) else null,
         )) as T
     }
 }

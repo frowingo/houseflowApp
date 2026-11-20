@@ -40,6 +40,8 @@ final class GameOnlineLobbyMachine<Game: GameRealtimeGame> {
     private var bestRTT = TimeInterval.infinity
     /// The latest ping → pong round trip, for debug diagnostics.
     private(set) var lastRTT: TimeInterval?
+    /// The recent round trips (seconds), for the p50/p95 of the online diagnostics.
+    private(set) var rttSamples = GameDiagnosticsWindow(capacity: 32)
     /// Game snapshots that arrived older than (or equal to) the one held and were dropped.
     private(set) var lateSnapshots = 0
     private var pendingSyncID: String?
@@ -477,6 +479,7 @@ final class GameOnlineLobbyMachine<Game: GameRealtimeGame> {
             guard let ping = pendingPing, pong.pingId == ping.id else { return }
             let rtt = max(0, received.receivedUptime - ping.uptime)
             lastRTT = rtt
+            rttSamples.append(rtt)
             if rtt <= bestRTT {
                 bestRTT = rtt
                 state.serverClock = .init(serverTime: pong.serverTime, localUptime: ping.uptime + rtt / 2)
@@ -503,7 +506,7 @@ final class GameOnlineLobbyMachine<Game: GameRealtimeGame> {
                     lateSnapshots += 1
                     return
                 }
-                guard Game.isValidSuccessor(snapshot, of: current) else {
+                guard Game.isValidSuccessor(snapshot, of: current, settings: state.runtimeSettings) else {
                     fail(.connection(.invalidPayload))
                     return
                 }

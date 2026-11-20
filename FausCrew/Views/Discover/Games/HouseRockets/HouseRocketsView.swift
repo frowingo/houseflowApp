@@ -78,6 +78,7 @@ struct HouseRocketsView: View {
                        let presentation = model.onlinePresentation {
                         HouseRocketsOnlineFlightOverlay(state: model.onlineState, presentation: presentation,
                             canCancel: model.onlineState.canCancel(context: model.context),
+                            framesPerSecond: model.onlineFramesPerSecond,
                             onRetry: model.retryOnline, onReclaimControl: model.reclaimOnlineControl,
                             onCancel: { showsCancelConfirmation = true }, onExit: exitGame)
                     }

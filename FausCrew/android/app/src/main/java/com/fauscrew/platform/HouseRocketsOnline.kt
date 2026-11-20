@@ -127,6 +127,8 @@ internal interface OnlineGameEngine {
     fun event(type: String, now: Double, fields: Map<String, Any?> = emptyMap()): OnlineOutput
     fun receive(text: String, connection: Int, now: Double): OnlineOutput
     fun close()
+    /** The latest debug lines the frame call carried; empty until asked for with `setDiagnostics`. */
+    val diagnostics: List<String> get() = emptyList()
 }
 
 /** `HouseRocketsLobbyColors` as the room draws it: who holds which rocket color (Faus Tanks' rules). */
@@ -166,6 +168,8 @@ internal interface HouseRocketsOnlineEngine : OnlineGameEngine {
     fun frame(now: Double): Pair<RocketsFrame, OnlineFlightUi>?
     /** The latest lobby output's rocket colors. */
     val colors: RocketsLobbyColors get() = RocketsLobbyColors()
+    /** Frames drawn in the last second, as the latest frame call reported it. */
+    val framesPerSecond: Int? get() = null
 }
 
 /** Monotonic seconds shared by the engine, deadlines and frames. */
@@ -196,6 +200,13 @@ private class NativeOnlineEngine(private val handle: Int) : HouseRocketsOnlineEn
 
     override var colors = RocketsLobbyColors()
         private set
+    override var diagnostics = emptyList<String>()
+        private set
+    override var framesPerSecond: Int? = null
+        private set
+    /** One callback for every frame, so the per-frame call allocates nothing. */
+    private val onDiagnostics: (List<String>) -> Unit = { diagnostics = it }
+    private val onFps: (Int) -> Unit = { framesPerSecond = it }
 
     override fun event(type: String, now: Double, fields: Map<String, Any?>): OnlineOutput {
         val json = JSONObject().put("type", type).put("now", now)
@@ -218,7 +229,7 @@ private class NativeOnlineEngine(private val handle: Int) : HouseRocketsOnlineEn
     }
 
     override fun frame(now: Double): Pair<RocketsFrame, OnlineFlightUi>? =
-        OnlineOutputParser.frame(frames, FausCrewAndroidBridge.houseRocketsOnlineFrame(handle, now))
+        OnlineOutputParser.frame(frames, FausCrewAndroidBridge.houseRocketsOnlineFrame(handle, now), onDiagnostics, onFps)
 
     override fun close() {
         FausCrewAndroidBridge.houseRocketsOnlineDestroy(handle)
@@ -241,9 +252,20 @@ internal object OnlineOutputParser {
         )
     }
 
-    fun frame(parser: RocketsFrameParser, json: String): Pair<RocketsFrame, OnlineFlightUi>? {
+    /**
+     * [onDiagnostics] gets the debug lines of the frames that carry them; the others leave the last ones in place.
+     * [onFps] gets the frame rate the frame reports (every frame from the current bridge).
+     */
+    fun frame(
+        parser: RocketsFrameParser,
+        json: String,
+        onDiagnostics: (List<String>) -> Unit = {},
+        onFps: (Int) -> Unit = {},
+    ): Pair<RocketsFrame, OnlineFlightUi>? {
         val root = JSONObject(json)
         check(root.optBoolean("ok", false)) { root.optString("message", "Faus Rockets online bridge failed") }
+        diagnostics(root)?.let(onDiagnostics)
+        framesPerSecond(root)?.let(onFps)
         if (!root.has("matchId")) return null
         val eliminations = root.optJSONArray("eliminations")
         return parser.frame(root) to OnlineFlightUi(
@@ -254,6 +276,13 @@ internal object OnlineOutputParser {
             eliminations = List(eliminations?.length() ?: 0) { eliminations!!.getString(it) },
         )
     }
+
+    /** The optional `fps` of a frame, shared with Faus Switch's frames; absent or negative is null. */
+    fun framesPerSecond(root: JSONObject): Int? = root.optInt("fps", -1).takeIf { it >= 0 }
+
+    /** The optional `diagnostics` array of a frame, shared with Faus Switch's frames. */
+    fun diagnostics(root: JSONObject): List<String>? =
+        root.optJSONArray("diagnostics")?.let { lines -> List(lines.length()) { lines.optString(it) } }
 
     private fun effect(json: JSONObject): OnlineEffect = when (val type = json.getString("type")) {
         "ensureSession" -> OnlineEffect.EnsureSession(json.getInt("connection"), json.getString("path"),

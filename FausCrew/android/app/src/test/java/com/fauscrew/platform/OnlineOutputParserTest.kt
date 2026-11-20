@@ -62,6 +62,20 @@ class OnlineOutputParserTest {
         assertNull(OnlineOutputParser.frame(RocketsFrameParser(), """{"ok":true}"""))
     }
 
+    @Test fun framesCarryDebugDiagnosticsOnlyWhenTheBridgeSentThem() {
+        val seen = mutableListOf<List<String>>()
+        OnlineOutputParser.frame(RocketsFrameParser(), """{"ok":true,"diagnostics":["rtt 42 ms","snap 20 Hz"]}""", onDiagnostics = { seen += it })
+        OnlineOutputParser.frame(RocketsFrameParser(), """{"ok":true}""", onDiagnostics = { seen += it })
+        assertEquals(listOf(listOf("rtt 42 ms", "snap 20 Hz")), seen)
+    }
+
+    @Test fun framesCarryTheFrameRateOnlyWhenTheBridgeSentIt() {
+        val seen = mutableListOf<Int>()
+        OnlineOutputParser.frame(RocketsFrameParser(), """{"ok":true,"fps":58}""", onFps = { seen += it })
+        OnlineOutputParser.frame(RocketsFrameParser(), """{"ok":true}""", onFps = { seen += it })
+        assertEquals(listOf(58), seen)
+    }
+
     @Test fun retryAfterAcceptsSecondsAndHttpDates() {
         assertEquals(3.0, retryAfterSeconds("3")!!, 0.0)
         assertNull(retryAfterSeconds("-1"))

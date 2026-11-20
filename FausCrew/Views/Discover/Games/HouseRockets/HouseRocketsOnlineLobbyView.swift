@@ -421,6 +421,8 @@ struct HouseRocketsOnlineFlightOverlay: View {
     let state: HouseRocketsOnlineLobbyState
     let presentation: HouseRocketsOnlinePresentation
     let canCancel: Bool
+    /// Frames drawn in the last second; nil until the first sample.
+    let framesPerSecond: Int?
     let onRetry: () -> Void
     let onReclaimControl: () -> Void
     let onCancel: () -> Void
@@ -447,6 +449,14 @@ struct HouseRocketsOnlineFlightOverlay: View {
             .accessibilityLabel(copy("house_rockets_flight_actions"))
             .disabled(state.isLeaving)
             .position(x: geometry.size.width - 30, y: geometry.size.height - 30)
+
+            if let fps = framesPerSecond {
+                // Left of the flight-actions button, which sits 30pt in from the corner.
+                framesPerSecondChip(fps)
+                    .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottomTrailing)
+                    .padding(.trailing, 52 + AppDesign.Spacing.sm)
+                    .padding(.bottom, 8)
+            }
 
             ForEach(regions.indices, id: \.self) { index in
                 let region = regions[index]
@@ -528,6 +538,24 @@ struct HouseRocketsOnlineFlightOverlay: View {
     }
 
     private var statusKey: String { HouseRocketsOnlineCopyKeys.flightStatus(state, presentation) }
+
+    /// Frames drawn in the last second, green at a smooth rate through to red at a choppy one.
+    private func framesPerSecondChip(_ fps: Int) -> some View {
+        let tint = Color(hue: 0.33 * HouseTanksFrameRate.quality(fps), saturation: 0.8, brightness: 0.9)
+        return HStack(spacing: 5) {
+            Circle().fill(tint).frame(width: 8, height: 8)
+            Text(appViewModel.localized("house_rockets_online_fps", replacements: ["fps": "\(fps)"]))
+                .font(.system(.caption, design: .monospaced).weight(.heavy))
+                .monospacedDigit()
+                .foregroundStyle(tint)
+        }
+        .padding(.horizontal, AppDesign.Spacing.sm)
+        .frame(minWidth: 72, minHeight: 44)
+        .background(HouseRocketsTheme.panel, in: RoundedRectangle(cornerRadius: AppDesign.CornerRadius.md, style: .continuous))
+        .allowsHitTesting(false)
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel(appViewModel.localized("house_rockets_online_fps_accessibility", replacements: ["fps": "\(fps)"]))
+    }
 
     private func copy(_ key: String) -> String { appViewModel.localized(key, fallback: key) }
 }

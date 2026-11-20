@@ -1,6 +1,7 @@
 package com.fauscrew.viewmodel
 
 import android.content.Context
+import android.util.Log
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
@@ -40,6 +41,7 @@ import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -60,6 +62,8 @@ internal class FausSwitchOnlineDependencies(
     val catalogAvailability: (houseId: String, status: Int, body: String) -> Boolean?,
     /** The host's uptime in seconds (tests substitute a fixed clock). */
     val clock: () -> Double = OnlineClock::now,
+    /** Debug builds only: gets the final netcode lines of a race; null in release, which also keeps the numbers off. */
+    val debugLog: ((String) -> Unit)? = null,
 )
 
 internal data class FausSwitchUiState(
@@ -487,11 +491,17 @@ internal class FausSwitchViewModel(
             http = deps.http, token = deps.token, sockets = deps.sockets,
             onHaptic = { mutableHaptics.tryEmit(if (it) SwitchHaptic.SUCCESS else SwitchHaptic.WARNING) },
             clock = deps.clock,
+            debugLog = deps.debugLog,
         )
         mutableOnline.value = session
         viewport?.let { (width, height) -> session.viewport(width, height) }
         if (reduceMotion) session.setReduceMotion(true)
         lobbyJob = viewModelScope.launch {
+            // An engine error closed this race instead of the app: back to the modes, like a leave.
+            launch {
+                session.failed.first { it }
+                if (mutableOnline.value === session) leaveOnlineMatch()
+            }
             session.lobby.collect { lobby ->
                 if (!lobby.hasGame) return@collect
                 if (mutableState.value.isOnlineReplayRoom) {
@@ -606,6 +616,7 @@ internal class FausSwitchViewModelFactory(context: Context) : ViewModelProvider.
                 },
                 sockets = OkHttpRealtimeSocketFactory(),
                 catalogAvailability = FausSwitchOnlineNative::catalogAvailability,
+                debugLog = if (appContext.isDebuggable()) ({ text: String -> Log.i("FausDiagnostics", text) }) else null,
             ),
         ) as T
     }

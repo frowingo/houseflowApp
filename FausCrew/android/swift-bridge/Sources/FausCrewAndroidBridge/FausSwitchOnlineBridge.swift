@@ -25,6 +25,7 @@ final class SwitchOnlineRegistry: @unchecked Sendable {
         var lastFrame: FausSwitchRenderFrame?
         /// A rematch shows its own room until the new race's first snapshot.
         var isRematchRoom: Bool
+        var diagnostics = OnlineDiagnosticsFeed()
         init(engine: FausSwitchOnlineEngine, isRematchRoom: Bool) {
             self.engine = engine
             self.isRematchRoom = isRematchRoom
@@ -112,6 +113,7 @@ public func fausSwitchOnlineEvent(_ handle: Int32, _ eventJSON: String) -> Strin
             return ["flip": FausSwitchOnlineJSON.feedback(engine.flip(now: now))]
         case "setReduceMotion": engine.setReduceMotion(event["enabled"] as? Bool ?? false)
         case "leave": engine.leave(now: now)
+        case "setDiagnostics": entry.diagnostics.isEnabled = event["enabled"] as? Bool ?? false
         case "disconnect": engine.disconnect()
         default: return nil
         }
@@ -140,7 +142,8 @@ public func fausSwitchOnlineViewport(_ handle: Int32, _ width: Double, _ height:
 /// One drawn frame of the race: `frame` (the demo's render contract) once there is a
 /// race, `events` for the local robot (its portal throw), and always `match`, the bars
 /// and panels over it, with `result` while the result panel shows. Each event is in
-/// exactly one frame, so Android calls this once per rendered frame.
+/// exactly one frame, so Android calls this once per rendered frame. A debug build also
+/// gets `diagnostics` (see `OnlineDiagnosticsFeed`).
 public func fausSwitchOnlineFrame(_ handle: Int32, _ now: Double) -> String {
     let result = SwitchOnlineRegistry.shared.with(handle) { entry -> [String: Any] in
         let engine = entry.engine
@@ -164,6 +167,10 @@ public func fausSwitchOnlineFrame(_ handle: Int32, _ now: Double) -> String {
         ]
         if let frame = presentation?.frame ?? entry.lastFrame {
             object["frame"] = FausSwitchFrameJSON.world(frame, viewport: entry.viewport, state: &entry.render)
+        }
+        object["fps"] = engine.displayFramesPerSecond(at: now)
+        if let lines = entry.diagnostics.lines(at: now, from: { engine.diagnostics(at: now).lines }) {
+            object["diagnostics"] = lines
         }
         return object
     }

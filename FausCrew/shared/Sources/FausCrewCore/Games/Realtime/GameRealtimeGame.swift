@@ -30,11 +30,18 @@ public protocol GameRealtimeGame {
 
     /// Whether `next` may replace `current` (already ordered after it).
     static func isValidSuccessor(_ next: Snapshot, of current: Snapshot) -> Bool
+    /// The same with the session's settings (nil before a welcome), for games whose window
+    /// depends on them. By default the settings change nothing.
+    static func isValidSuccessor(_ next: Snapshot, of current: Snapshot, settings: Settings?) -> Bool
     /// Names and colors kept for the result panel while snapshots still arrive.
     static func identities(in snapshot: Snapshot) -> [String: ResultIdentity]
 }
 
 extension GameRealtimeGame {
+    public static func isValidSuccessor(_ next: Snapshot, of current: Snapshot, settings: Settings?) -> Bool {
+        isValidSuccessor(next, of: current)
+    }
+
     public static var resyncType: String { gameKey + ".resync" }
     public static var controlGrantedType: String { gameKey + ".controlGranted" }
     public static var snapshotType: String { gameKey + ".snapshot" }

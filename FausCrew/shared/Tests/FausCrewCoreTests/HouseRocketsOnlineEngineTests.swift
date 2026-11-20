@@ -77,10 +77,10 @@ final class HouseRocketsOnlineEngineTests: XCTestCase {
         XCTAssertEqual(payload["controlGeneration"] as? String, "controlA")
         XCTAssertEqual((payload["inputSequence"] as? NSNumber)?.int64Value, 43, "Continues after the server's last processed input (42)")
 
-        // Without a fresh snapshot the stream stops and asks for authority again.
-        engine.tick(now: 1.4)
+        // A silence of a second drops control and asks for authority again.
+        engine.tick(now: 2.1)
         XCTAssertTrue(try sent(engine).contains { $0["type"] as? String == "houseRockets.resync" })
-        XCTAssertFalse(engine.presentation(at: 1.4)?.canSteer ?? true)
+        XCTAssertFalse(engine.presentation(at: 2.1)?.canSteer ?? true)
     }
 
     func testTransportLossReconnectsToThePinnedMatchWithoutANewSession() throws {
@@ -316,6 +316,9 @@ final class HouseRocketsOnlineEngineTests: XCTestCase {
             now += 0.01
         }
         XCTAssertLessThanOrEqual(steers, 3, "At most 20 Hz even when the finger moves every 10 ms")
+        // The newest heading the busy rate gate held back goes out with the next host tick.
+        engine.tick(now: now)
+        steers += try sent(engine).filter { $0["type"] as? String == "houseRockets.steer" }.count
         try receive(engine, socket, playing(sequence: 3, tick: 27, elapsed: 0.225) { players in
             players[0]["lastProcessedInputSequence"] = 42 + steers
         }, at: now)
@@ -386,12 +389,15 @@ final class HouseRocketsOnlineEngineTests: XCTestCase {
     }
 
     func testPresentationNeverRunsAheadOfTheServerMoreThanTheExtrapolationBudget() throws {
+        let configuration = HouseRocketsFlightConfiguration()
         let (engine, _) = try flying()
         let fresh = try XCTUnwrap(engine.presentation(at: 1.02))
         XCTAssertFalse(fresh.isSyncing)
-        let stale = try XCTUnwrap(engine.presentation(at: 1.5))
+        let hiccup = try XCTUnwrap(engine.presentation(at: 1.3))
+        XCTAssertFalse(hiccup.isSyncing, "A 300 ms hiccup is inside the display budget")
+        let stale = try XCTUnwrap(engine.presentation(at: 1.6))
         XCTAssertTrue(stale.isSyncing, "Old authority is shown as syncing")
-        XCTAssertLessThanOrEqual(stale.frame.elapsedTime, 0.125 + 0.15 + 0.000_1)
+        XCTAssertLessThanOrEqual(stale.frame.elapsedTime, 0.125 + configuration.maximumExtrapolation + 0.000_1)
     }
 
     func testRematchRefusesTheFinishedSession() throws {
@@ -450,13 +456,344 @@ final class HouseRocketsOnlineEngineTests: XCTestCase {
         XCTAssertEqual(engine.result.result, first)
     }
 
+    // MARK: Diagnostics
+
+    /// The HUD's FPS chip counts the playing frames drawn in the last second.
+    func testDisplayFramesPerSecondCountsPlayingFrames() throws {
+        let (engine, _) = try flying()
+        XCTAssertEqual(engine.displayFramesPerSecond(at: 1.0), 0)
+        var frameTime = 1.02
+        for index in 0..<90 {
+            _ = engine.presentation(at: frameTime)
+            if index == 30 {
+                XCTAssertEqual(engine.displayFramesPerSecond(at: frameTime), 0, "No half-counted rate in the first second")
+            }
+            frameTime += 1.0 / 60
+        }
+        XCTAssertTrue((55...65).contains(engine.displayFramesPerSecond(at: frameTime)),
+                      "\(engine.displayFramesPerSecond(at: frameTime))")
+        XCTAssertEqual(engine.displayFramesPerSecond(at: frameTime + 0.5), 0, "Frames stopped: no chip")
+        // Back after a pause (the app in the background): a new second of play first.
+        _ = engine.presentation(at: frameTime + 2)
+        XCTAssertEqual(engine.displayFramesPerSecond(at: frameTime + 2), 0)
+    }
+
+    /// The display clock keeps its pace through late and early snapshots: no render steps backward.
+    func testDisplayNeverStepsBackwardUnderJitteredSnapshots() throws {
+        let run = try jitteredFlight(readingDiagnostics: true)
+        let diagnostics = run.diagnostics
+        XCTAssertEqual(diagnostics.backwardDisplaySteps, 0)
+        XCTAssertNotNil(diagnostics.displayJump)
+        let interval = try XCTUnwrap(diagnostics.snapshotInterval)
+        XCTAssertTrue((20...60).contains(interval.p50), "30 Hz stream: \(interval)")
+        XCTAssertGreaterThan(interval.max, 60, "The ±40 ms jitter shows as long gaps")
+        XCTAssertTrue((55...65).contains(diagnostics.displayFramesPerSecond), "\(diagnostics.displayFramesPerSecond)")
+        XCTAssertEqual(diagnostics.remoteTeleports, 0)
+        XCTAssertEqual(diagnostics.resyncRequests, 0)
+        XCTAssertEqual(diagnostics.lines.count, 8)
+        XCTAssertTrue(diagnostics.lines[3].hasPrefix("clock jump p95 "), diagnostics.lines[3])
+    }
+
+    func testReadingDiagnosticsNeverChangesTheFrames() throws {
+        let read = try jitteredFlight(readingDiagnostics: true)
+        let untouched = try jitteredFlight(readingDiagnostics: false)
+        XCTAssertEqual(read.frames, untouched.frames)
+    }
+
+    func testDiagnosticsCountSwallowedSteeringAndControlLoss() throws {
+        let (engine, _) = try flying()
+        engine.steer(screenHeading: 0.4, now: 1.03)
+        XCTAssertEqual(engine.diagnostics(at: 1.03).swallowedInputs, 0)
+        for step in 0..<20 { engine.steer(screenHeading: 0.9 + Double(step) * 0.01, now: 2.1) }
+        for at in [2.1, 2.125, 2.15, 2.175] { engine.tick(now: at) }
+        let diagnostics = engine.diagnostics(at: 2.175)
+        XCTAssertEqual(diagnostics.swallowedInputs, 1, "One blocked drag is one swallowed touch")
+        engine.endSteering()
+        engine.steer(screenHeading: 0.2, now: 2.2)
+        XCTAssertEqual(engine.diagnostics(at: 2.2).swallowedInputs, 2, "A new blocked gesture counts again")
+        XCTAssertEqual(diagnostics.controlLosses.stale, 1)
+        XCTAssertEqual(diagnostics.controlLosses.total, 1)
+        XCTAssertEqual(diagnostics.resyncRequests, 1)
+    }
+
+    func testPongsGiveRoundTripPercentiles() throws {
+        let (engine, socket) = try connectedLobby()
+        XCTAssertNil(engine.diagnostics(at: 1).roundTrip)
+        for (pingAt, pongAt) in [(2.6, 2.7), (6.0, 6.2)] {
+            _ = engine.drainEffects()
+            engine.tick(now: pingAt)
+            let ping = try XCTUnwrap(sent(engine).first { $0["type"] as? String == "realtime.ping" })
+            let pingID = try XCTUnwrap((ping["payload"] as? [String: Any])?["pingId"] as? String)
+            try receive(engine, socket, server("pong") { message in
+                message["payload"] = ["pingId": pingID, "serverTime": "2026-10-03T12:00:33.125Z"]
+            }, at: pongAt)
+        }
+        let spread = try XCTUnwrap(engine.diagnostics(at: 7).roundTrip)
+        XCTAssertEqual(spread, GameDiagnosticsSpread(p50: 100, p95: 200, max: 200))
+        XCTAssertEqual(engine.diagnostics(at: 7).lines.first, "RTT 100/200 ms (p50/p95)")
+    }
+
+    // MARK: Smooth flight
+
+    /// A straight flight at each snapshot rate with ±40 ms arrival jitter and a 300 ms network
+    /// stall (everything held back arrives together, a burst), drawn at 60 Hz.
+    func testDisplayAndLocalRocketNeverGoBackwardsThroughJitterStallAndBurst() throws {
+        for rate in [20.0, 30.0, 60.0] {
+            ids = 0
+            let (engine, socket) = try flying(snapshotRate: Int(rate))
+            let stallStart = 1.5, stallEnd = 1.8
+            let jitter: [TimeInterval] = [0.04, -0.04, 0.03, -0.03, 0, 0.04, -0.04, 0.02, -0.02, 0.04, -0.04, 0.01]
+            var arrivals: [(index: Int, time: TimeInterval)] = []
+            var previous = 1.0
+            for index in 1...Int(rate * 1.5) {
+                let nominal = 1 + Double(index) / rate
+                let held = nominal >= stallStart && nominal < stallEnd
+                let time = max(previous + 0.0005, held ? stallEnd : nominal + jitter[index % jitter.count])
+                arrivals.append((index, time))
+                previous = time
+            }
+            var lastElapsed = -Double.infinity
+            var lastX = -Double.infinity
+            var frameTime = 1.02
+            func draw(until end: TimeInterval) throws {
+                while frameTime < end {
+                    let presentation = try XCTUnwrap(engine.presentation(at: frameTime))
+                    let local = try XCTUnwrap(presentation.frame.players.first { $0.id == playerID })
+                    XCTAssertGreaterThanOrEqual(presentation.frame.elapsedTime, lastElapsed, "elapsed at \(frameTime), \(rate) Hz")
+                    XCTAssertGreaterThanOrEqual(local.worldX, lastX - 1e-9, "local x at \(frameTime), \(rate) Hz")
+                    XCTAssertFalse(presentation.isSyncing, "a 300 ms stall is not a sync at \(frameTime), \(rate) Hz")
+                    XCTAssertTrue(presentation.canSteer, "control at \(frameTime), \(rate) Hz")
+                    lastElapsed = presentation.frame.elapsedTime
+                    lastX = local.worldX
+                    engine.tick(now: frameTime)
+                    frameTime += 1.0 / 60
+                }
+            }
+            for arrival in arrivals {
+                try draw(until: arrival.time)
+                try receive(engine, socket, steadySnapshot(index: arrival.index, rate: rate), at: arrival.time)
+            }
+            try draw(until: previous + 0.2)
+            let diagnostics = engine.diagnostics(at: frameTime)
+            XCTAssertEqual(diagnostics.backwardDisplaySteps, 0, "\(rate) Hz")
+            XCTAssertEqual(diagnostics.resyncRequests, 0, "\(rate) Hz")
+            XCTAssertEqual(diagnostics.controlLosses.total, 0, "\(rate) Hz")
+            XCTAssertEqual(diagnostics.remoteTeleports, 0, "\(rate) Hz")
+        }
+    }
+
+    func testAShortGapKeepsControlAndInputsAndALongOneDropsThemOnce() throws {
+        let (engine, _) = try flying()
+        _ = engine.drainEffects()
+        engine.steer(screenHeading: 0.4, now: 1.02)
+        var steers = try sent(engine).filter { $0["type"] as? String == "houseRockets.steer" }
+        XCTAssertEqual(steers.count, 1)
+        for step in 1...11 {
+            engine.tick(now: 1.02 + Double(step) * 0.025)
+            steers += try sent(engine).filter { $0["type"] as? String == "houseRockets.steer" }
+        }
+        XCTAssertGreaterThan(steers.count, 1, "The unacknowledged input is still retransmitted after 300 ms")
+        XCTAssertTrue(try XCTUnwrap(engine.presentation(at: 1.3)).canSteer)
+        XCTAssertEqual(engine.diagnostics(at: 1.3).resyncRequests, 0)
+        XCTAssertEqual(engine.diagnostics(at: 1.3).controlLosses.total, 0)
+
+        for now in [2.1, 2.125, 2.2, 2.5] { engine.tick(now: now) }
+        let diagnostics = engine.diagnostics(at: 2.5)
+        XCTAssertEqual(diagnostics.controlLosses.stale, 1)
+        XCTAssertEqual(diagnostics.resyncRequests, 1, "Asked once")
+        XCTAssertFalse(try XCTUnwrap(engine.presentation(at: 2.5)).canSteer)
+    }
+
+    func testALocalCorrectionEasesAndATeleportSnaps() throws {
+        for (shift, snaps) in [(120.0, false), (250.0, true)] {
+            ids = 0
+            let (engine, socket) = try flying()
+            let arrival = 1 + 1.0 / 30
+            let before = try XCTUnwrap(localX(engine, at: arrival))
+            try receive(engine, socket, steadySnapshot(index: 1, rate: 30, shift: shift), at: arrival)
+            let after = try XCTUnwrap(localX(engine, at: arrival))
+            if snaps {
+                XCTAssertEqual(after - before, shift, accuracy: 1, "Beyond the limit it snaps")
+                XCTAssertEqual(engine.diagnostics(at: arrival).localSnaps, 1)
+            } else {
+                XCTAssertEqual(after - before, 0, accuracy: 1, "Within the limit the display stays where it was")
+                XCTAssertEqual(engine.diagnostics(at: arrival).localSnaps, 0)
+                for wait in [0.15, 0.4] {
+                    let offset = try XCTUnwrap(localX(engine, at: arrival + wait))
+                        - (before + HouseRocketsSimulation.speed * wait)
+                    XCTAssertEqual(offset, shift * (1 - exp(-wait / 0.15)), accuracy: 3, "Eases toward the server's line")
+                }
+            }
+        }
+    }
+
+    func testALocalCorrectionAgainstTheFlightNeverDragsTheRocketBackwards() throws {
+        let (engine, socket) = try flying(snapshotRate: 30)
+        let arrival = 1 + 1.0 / 30
+        let start = try XCTUnwrap(localX(engine, at: arrival))
+        try receive(engine, socket, steadySnapshot(index: 1, rate: 30, shift: -120), at: arrival)
+        var last = try XCTUnwrap(localX(engine, at: arrival))
+        XCTAssertEqual(last, start, accuracy: 1, "Eased, not snapped")
+        var now = arrival
+        while now < arrival + 0.4 {
+            now += 1.0 / 60
+            let current = try XCTUnwrap(localX(engine, at: now))
+            XCTAssertGreaterThanOrEqual(current, last - 1e-9, "x moved backwards at \(now)")
+            last = current
+        }
+        XCTAssertGreaterThan(last, start + 10, "It keeps flying forward while the offset shrinks")
+    }
+
+    func testARemoteRocketExtrapolatedPastTheNewestSnapshotEasesToTheNextOne() throws {
+        let eased = try stalledRemote(reduceMotion: false, remoteShift: 100)
+        let raw = try stalledRemote(reduceMotion: true, remoteShift: 100)
+        let jump = raw.after - raw.before
+        XCTAssertGreaterThan(jump, 50, "The snapshot does move the rocket")
+        XCTAssertLessThan(jump, 180)
+        XCTAssertEqual(eased.after, eased.before, accuracy: 1, "No jump")
+        var residual = abs(eased.after - raw.after)
+        XCTAssertEqual(residual, jump, accuracy: 1)
+        for step in 1...24 {
+            let now = eased.arrival + Double(step) / 60
+            let left = abs(try XCTUnwrap(x(of: otherID, eased.engine, at: now)) - (try XCTUnwrap(x(of: otherID, raw.engine, at: now))))
+            XCTAssertLessThanOrEqual(left, residual + 1e-9, "The offset only shrinks, at step \(step)")
+            residual = left
+            if step == 9 { XCTAssertEqual(left, jump * exp(-1), accuracy: 2, "One time constant, applied once") }
+        }
+    }
+
+    func testARemoteTeleportSnapsAndTheEasingDiesWithTheTimeline() throws {
+        let snapped = try stalledRemote(reduceMotion: false, remoteShift: 300)
+        let raw = try stalledRemote(reduceMotion: true, remoteShift: 300)
+        XCTAssertEqual(snapped.after, raw.after, accuracy: 1e-9, "Beyond the limit it is drawn where it is")
+
+        let easing = try stalledRemote(reduceMotion: false, remoteShift: 100)
+        let at = easing.arrival + 0.05
+        try receive(easing.engine, easing.socket, settingEpoch(steadySnapshot(index: 12, rate: 30), to: 8), at: at)
+        XCTAssertEqual(try XCTUnwrap(x(of: otherID, easing.engine, at: at)),
+                       250 + HouseRocketsSimulation.speed * (0.125 + 12.0 / 30), accuracy: 1e-9,
+                       "A new epoch starts without the old offset")
+    }
+
+    func testARemoteRocketThatDiesStaysWhereTheServerLeftIt() throws {
+        let run = try stalledRemote(reduceMotion: false, remoteShift: 100, dies: true)
+        XCTAssertEqual(run.after, 600, accuracy: 1e-9)
+        XCTAssertEqual(try XCTUnwrap(x(of: otherID, run.engine, at: run.arrival + 0.1)), 600, accuracy: 1e-9)
+    }
+
+    func testASnapshotBetweenAHalfAndAFullSecondOldStopsSteeringButKeepsControl() throws {
+        let (engine, socket) = try flying()
+        _ = engine.drainEffects()
+        engine.steer(screenHeading: 0.4, now: 1.03)
+        XCTAssertTrue(try XCTUnwrap(engine.presentation(at: 1.35)).canSteer, "Inside the 0.4 s freshness")
+        XCTAssertFalse(try XCTUnwrap(engine.presentation(at: 1.6)).canSteer)
+        let swallowed = engine.diagnostics(at: 1.6).swallowedInputs
+        engine.steer(screenHeading: 0.9, now: 1.6)
+        XCTAssertEqual(engine.diagnostics(at: 1.6).swallowedInputs, swallowed + 1, "The touch is counted as swallowed")
+        for now in [1.6, 1.8, 1.99] { engine.tick(now: now) }
+        let diagnostics = engine.diagnostics(at: 1.99)
+        XCTAssertEqual(diagnostics.controlLosses.total, 0)
+        XCTAssertEqual(diagnostics.resyncRequests, 0)
+        try receive(engine, socket, steadySnapshot(index: 24, rate: 30), at: 1.995)
+        XCTAssertTrue(try XCTUnwrap(engine.presentation(at: 2.0)).canSteer, "Control was kept")
+    }
+
+    func testTheFirstChangeAfterIdlingIsSentAtOnceAndLaterOnesKeepTheRate() throws {
+        let (engine, _) = try flying()
+        _ = engine.drainEffects()
+        func steers() throws -> Int {
+            try sent(engine).filter { $0["type"] as? String == "houseRockets.steer" }.count
+        }
+        engine.steer(screenHeading: 0.4, now: 1.03)
+        XCTAssertEqual(try steers(), 1, "Sent by the steer call itself")
+        engine.steer(screenHeading: 0.9, now: 1.04)
+        XCTAssertEqual(try steers(), 0, "The rate gate is closed")
+        engine.tick(now: 1.06)
+        XCTAssertEqual(try steers(), 0)
+        engine.tick(now: 1.09)
+        XCTAssertEqual(try steers(), 1, "Left to the host tick, with the newest heading")
+        engine.steer(screenHeading: 1.4, now: 1.2)
+        XCTAssertEqual(try steers(), 1, "Idle for a while: immediate again")
+    }
+
+    func testTheInterpolationDelayFollowsTheSnapshotRate() throws {
+        func lag(rate: Double) throws -> Double {
+            ids = 0
+            let (engine, socket) = try flying(snapshotRate: Int(rate))
+            var last = 1.0
+            for index in 1...Int(rate) {
+                last = 1 + Double(index) / rate
+                try receive(engine, socket, steadySnapshot(index: index, rate: rate), at: last)
+            }
+            let frame = try XCTUnwrap(engine.presentation(at: last)).frame
+            return (last - 1) + 0.125 - frame.elapsedTime
+        }
+        XCTAssertEqual(try lag(rate: 60), 0.06, accuracy: 0.005, "At 60 Hz the floor")
+        XCTAssertEqual(try lag(rate: 30), 2.0 / 30, accuracy: 0.005, "Two intervals without jitter")
+        XCTAssertEqual(try lag(rate: 20), 0.1, accuracy: 0.005, "Two intervals")
+    }
+
     // MARK: Helpers
 
-    private func flying() throws -> (engine: HouseRocketsOnlineEngine, socket: Int) {
-        let (engine, socket) = try connectedLobby(state: "running")
+    private func flying(snapshotRate: Int? = nil) throws -> (engine: HouseRocketsOnlineEngine, socket: Int) {
+        let (engine, socket) = try connectedLobby(state: "running", snapshotRate: snapshotRate)
         try receive(engine, socket, server("playing"), at: 1)
         try receive(engine, socket, server("controlGranted"), at: 1.01)
         return (engine, socket)
+    }
+
+    /// Snapshot `index` of a straight flight at `rate` Hz: every rocket on the same line,
+    /// the local one optionally off it by `shift`.
+    private func steadySnapshot(index: Int, rate: Double, shift: Double = 0, remoteShift: Double = 0,
+                                others: (inout [[String: Any]]) -> Void = { _ in }) throws -> Data {
+        let elapsed = 0.125 + Double(index) / rate
+        return try playing(sequence: 3 + index, tick: 15 + Int((Double(index) * 120 / rate).rounded()),
+                           elapsed: elapsed) { players in
+            for offset in players.indices {
+                players[offset]["worldX"] = 250 + HouseRocketsSimulation.speed * elapsed
+                    + (offset == 0 ? shift : (offset == 1 ? remoteShift : 0))
+            }
+            others(&players)
+        }
+    }
+
+    private func x(of id: String, _ engine: HouseRocketsOnlineEngine, at now: TimeInterval) -> Double? {
+        engine.presentation(at: now)?.frame.players.first { $0.id == id }?.worldX
+    }
+
+    /// A 300 ms silence (the other rockets are extrapolated), then the snapshot that is on
+    /// the server's line for everyone except the second rocket, moved by `remoteShift`.
+    /// Returns how it was drawn just before and just after that snapshot arrived.
+    private func stalledRemote(reduceMotion: Bool, remoteShift: Double, dies: Bool = false)
+        throws -> (engine: HouseRocketsOnlineEngine, socket: Int, arrival: TimeInterval, before: Double, after: Double) {
+        ids = 0
+        let (engine, socket) = try flying(snapshotRate: 30)
+        engine.setReduceMotion(reduceMotion)
+        let arrival = 1 + 10.0 / 30
+        var frame = 1.02
+        while frame < arrival - 0.001 { _ = engine.presentation(at: frame); frame += 1.0 / 60 }
+        let before = try XCTUnwrap(x(of: otherID, engine, at: arrival))
+        try receive(engine, socket, steadySnapshot(index: 10, rate: 30, remoteShift: remoteShift) { players in
+            if dies {
+                players[1]["worldX"] = 600.0
+                players[1]["isAlive"] = false
+                players[1]["eliminatedAtTick"] = 55
+                players[1]["eliminationReason"] = "behindCamera"
+            }
+        }, at: arrival)
+        return (engine, socket, arrival, before, try XCTUnwrap(x(of: otherID, engine, at: arrival)))
+    }
+
+    private func settingEpoch(_ data: Data, to epoch: Int) throws -> Data {
+        var message = try XCTUnwrap(JSONSerialization.jsonObject(with: data) as? [String: Any])
+        var payload = try XCTUnwrap(message["payload"] as? [String: Any])
+        payload["runtimeEpoch"] = epoch
+        message["payload"] = payload
+        return try JSONSerialization.data(withJSONObject: message)
+    }
+
+    private func localX(_ engine: HouseRocketsOnlineEngine, at now: TimeInterval) -> Double? {
+        engine.presentation(at: now)?.frame.players.first { $0.id == playerID }?.worldX
     }
 
     private func playing(sequence: Int, tick: Int, elapsed: Double,
@@ -472,6 +809,29 @@ final class HouseRocketsOnlineEngineTests: XCTestCase {
             message["payload"] = payload
             message["sequence"] = sequence
         }
+    }
+
+    /// A 30 Hz stream whose arrivals jitter ±40 ms, drawn at 60 Hz; optionally read like the overlay does.
+    private func jitteredFlight(readingDiagnostics: Bool) throws
+        -> (frames: [HouseRocketsOnlinePresentation?], diagnostics: GameOnlineDiagnostics) {
+        ids = 0
+        let (engine, socket) = try flying()
+        let jitter: [TimeInterval] = [0.04, -0.04, 0.03, -0.03, 0, 0.04, -0.04, 0.02, -0.02, 0.04, -0.04, 0.01]
+        var frames: [HouseRocketsOnlinePresentation?] = []
+        var frameTime = 1.02
+        var lastArrival = 1.0
+        for index in 1...30 {
+            let arrival = max(lastArrival + 0.001, 1 + Double(index) / 30 + jitter[index % jitter.count])
+            while frameTime < arrival {
+                frames.append(engine.presentation(at: frameTime))
+                if readingDiagnostics { _ = engine.diagnostics(at: frameTime) }
+                frameTime += 1.0 / 60
+            }
+            try receive(engine, socket, playing(sequence: 3 + index, tick: 15 + 4 * index,
+                                                elapsed: 0.125 + Double(index) / 30), at: arrival)
+            lastArrival = arrival
+        }
+        return (frames, engine.diagnostics(at: frameTime))
     }
 
     // MARK: Rocket colors
@@ -632,7 +992,7 @@ final class HouseRocketsOnlineEngineTests: XCTestCase {
         )
     }
 
-    private func connectedLobby(state: String = "lobby", color: HouseRocketsColor? = nil) throws
+    private func connectedLobby(state: String = "lobby", color: HouseRocketsColor? = nil, snapshotRate: Int? = nil) throws
         -> (engine: HouseRocketsOnlineEngine, socket: Int) {
         let engine = makeEngine(color: color)
         engine.start(isForeground: true, isLandscape: true, now: 0)
@@ -644,7 +1004,13 @@ final class HouseRocketsOnlineEngineTests: XCTestCase {
         }
         XCTAssertEqual(id, sessionID)
         engine.socketOpened(connection: socket, now: 0.2)
-        try receive(engine, socket, server("welcome"), at: 0.3)
+        try receive(engine, socket, server("welcome") { message in
+            guard let snapshotRate, var payload = message["payload"] as? [String: Any],
+                  var settings = payload["settings"] as? [String: Any] else { return }
+            settings["snapshotRateHz"] = snapshotRate
+            payload["settings"] = settings
+            message["payload"] = payload
+        }, at: 0.3)
         let localState: String? = state == "lobby" ? nil : "playing"
         try receive(engine, socket, session(version: 6, state: state, localState: localState), at: 0.4)
         return (engine, socket)

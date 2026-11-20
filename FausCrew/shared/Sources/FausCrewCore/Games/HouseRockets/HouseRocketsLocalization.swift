@@ -170,6 +170,8 @@ public enum HouseRocketsLocalization {
         "house_rockets_back_to_lobby": ("Lobiye dön", "Back to Lobby"),
         "house_rockets_online_replay_title": ("Yeni uçuş", "Next flight"),
         "house_rockets_online_replay_detail": ("Hazırsın. Ekip de hazır olunca uçuş 3'ten geri sayımla başlar.", "You're ready. Once the crew is ready too, the flight starts from a 3-second countdown."),
+        "house_rockets_online_fps": ("{fps} FPS", "{fps} FPS"),
+        "house_rockets_online_fps_accessibility": ("Görüntü hızı: saniyede {fps} kare", "Frame rate: {fps} frames per second"),
         "house_rockets_online_replay_not_ready": ("Uçuşa katılmak için hazır ol.", "Get ready to join the flight."),
         "house_rockets_exit": ("Oyunlara dön", "Back to games"),
     ]

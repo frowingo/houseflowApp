@@ -205,6 +205,8 @@ public enum FausSwitchLocalization {
         "faus_switch_online_lost": ("Kazanan: {name}", "{name} won"),
         "faus_switch_online_result_detail": ("Sıralama sunucuya kaydedildi.", "The standings were saved on the server."),
         "faus_switch_online_result_expired": ("Oturumun süresi doldu.", "The session expired."),
+        "faus_switch_online_fps": ("{fps} FPS", "{fps} FPS"),
+        "faus_switch_online_fps_accessibility": ("Görüntü hızı: saniyede {fps} kare", "Frame rate: {fps} frames per second"),
         "faus_switch_online_result_cancelled_by_user": ("Oda sahibi yarışı iptal etti.", "The host cancelled the race."),
         "faus_switch_online_result_insufficient_players": ("Yeterli oyuncu kalmadı.", "Not enough players were left."),
         "faus_switch_online_result_technical_cancel": ("Yarış teknik bir sorun nedeniyle kapandı.", "The race closed because of a technical problem."),

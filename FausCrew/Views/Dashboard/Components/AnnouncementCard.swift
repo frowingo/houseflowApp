@@ -380,6 +380,7 @@ private enum AnnouncementReadStore {
     }
 }
 
+#if DEBUG
 #Preview {
     AnnouncementCard(
         houseId: "preview-house",
@@ -421,3 +422,4 @@ private enum AnnouncementReadStore {
     .environmentObject(AppViewModel.preview)
     .padding()
 }
+#endif
