@@ -86,7 +86,7 @@ class AuthSessionRepositoryTest {
         fields[SessionField.AUTH_TOKEN] = "abc"
         fields[SessionField.USER_EMAIL] = "old@example.com"
         profileResponse = PlatformHttpResponse(401, emptyMap(), byteArrayOf())
-        assertEquals(AuthRestoreResult.SignedOut, repository.restore())
+        assertEquals(AuthRestoreResult.SessionRejected, repository.restore())
         assertEquals(1, clearCount)
         assertTrue(fields.isEmpty())
     }

@@ -5,12 +5,16 @@ import FausCrewCore
 /// Refactored: Component'lere bölündü, Design System kullanıyor
 struct HouseDashboardView: View {
     @EnvironmentObject private var appViewModel: AppViewModel
+    /// Observed directly: its changes do not go through `AppViewModel`.
+    @ObservedObject var routeHandler: PushRouteHandler
     @Environment(\.fausTheme) private var theme
     @State private var selectedChore: Chore? = nil
     @State private var showChoreDetail = false
     @State private var showNewAnnouncement = false
+    @State private var showNotifications = false
     @State private var catalogEntry: ChoreCatalogEntry?
     @State private var appeared = false
+    @Environment(\.fausSplashActive) private var splashActive
     
     var body: some View {
         ZStack {
@@ -63,6 +67,24 @@ struct HouseDashboardView: View {
                 appeared = true
             }
         }
+        // First sight of the dashboard, once the splash and entrance animations are done: the
+        // system prompt appears only while the permission is still undetermined.
+        .task(id: splashActive) {
+            guard !splashActive else { return }
+            try? await Task.sleep(for: .seconds(1))
+            guard !Task.isCancelled else { return }
+            _ = await PushPermission.requestIfUndetermined()
+        }
+        // A tapped push asks for a chore's detail, or for the dashboard to be cleared of popups.
+        .onChange(of: routeHandler.choreToOpen, initial: true) { _, choreID in
+            guard let choreID else { return }
+            openChoreFromPush(choreID)
+        }
+        .onChange(of: routeHandler.dashboardResetCount) { _, _ in
+            closeAllPopups()
+        }
+        // The flag is shared; a dashboard destroyed with a popup open (house switch) must not leave it set.
+        .onDisappear { appViewModel.isOverlayPresented = false }
     }
     
     // MARK: - Header Section
@@ -93,6 +115,12 @@ struct HouseDashboardView: View {
                         .minimumScaleFactor(0.72)
                 }
                 .frame(maxWidth: .infinity, alignment: .leading)
+
+                NotificationBellButton(store: appViewModel.notificationStore) {
+                    withAnimation(AppDesign.Animation.standard) {
+                        showNotifications = true
+                    }
+                }
 
                 Button {
                     withAnimation(AppDesign.Animation.standard) {
@@ -177,6 +205,19 @@ struct HouseDashboardView: View {
                 .environmentObject(appViewModel)
             }
 
+            if showNotifications {
+                NotificationsPopup(
+                    store: appViewModel.notificationStore,
+                    onSelect: { notification in
+                        dismissNotifications()
+                        openChore(notification.choreID)
+                    },
+                    onDismiss: {
+                        dismissNotifications()
+                    }
+                )
+            }
+
             if showNewAnnouncement {
                 NewAnnouncementPopup(
                     onPublish: { title, message in
@@ -193,11 +234,40 @@ struct HouseDashboardView: View {
         }
         .onChange(of: showChoreDetail) { _, _ in syncOverlayPresentation() }
         .onChange(of: showNewAnnouncement) { _, _ in syncOverlayPresentation() }
+        .onChange(of: showNotifications) { _, _ in syncOverlayPresentation() }
         .onChange(of: catalogEntry) { _, _ in syncOverlayPresentation() }
     }
 
     private func syncOverlayPresentation() {
-        appViewModel.isOverlayPresented = showChoreDetail || showNewAnnouncement || catalogEntry != nil
+        appViewModel.isOverlayPresented = showChoreDetail || showNewAnnouncement || showNotifications || catalogEntry != nil
+    }
+
+    /// Shows a chore's detail when it is in the loaded house; any popup in the way closes first.
+    private func openChore(_ choreID: String?) {
+        guard let choreID,
+              let chore = appViewModel.dashboardChores.first(where: { $0.choreApiId == choreID }) else { return }
+        closeAllPopups()
+        selectedChore = chore
+        showChoreDetail = true
+    }
+
+    private func openChoreFromPush(_ choreID: String) {
+        openChore(choreID)
+        routeHandler.consumeChoreToOpen()
+    }
+
+    private func closeAllPopups() {
+        hideKeyboard()
+        var transaction = Transaction()
+        transaction.disablesAnimations = true
+        withTransaction(transaction) {
+            showChoreDetail = false
+            selectedChore = nil
+            showNewAnnouncement = false
+            showNotifications = false
+            catalogEntry = nil
+        }
+        syncOverlayPresentation()
     }
 
     private func dismissChoreDetail() {
@@ -219,6 +289,14 @@ struct HouseDashboardView: View {
         }
     }
 
+    private func dismissNotifications() {
+        var transaction = Transaction()
+        transaction.disablesAnimations = true
+        withTransaction(transaction) {
+            showNotifications = false
+        }
+    }
+
     private func dismissNewAnnouncement() {
         UIApplication.shared.sendAction(#selector(UIResponder.resignFirstResponder), to: nil, from: nil, for: nil)
         DispatchQueue.main.async {
@@ -233,7 +311,8 @@ struct HouseDashboardView: View {
 
 #if DEBUG
 #Preview {
-    HouseDashboardView()
-        .environmentObject(AppViewModel.preview)
+    let model = AppViewModel.preview
+    return HouseDashboardView(routeHandler: model.pushRouteHandler)
+        .environmentObject(model)
 }
 #endif

@@ -58,6 +58,7 @@ public func appEventsEvent(_ handle: Int32, _ eventJSON: String) -> String {
             case .closeSocket: return ["type": "closeSocket"]
             case .refresh(let profile, let houseID):
                 return ["type": "refresh", "profile": profile, "houseId": houseID ?? NSNull()]
+            case .refreshNotifications(let houseID): return ["type": "refreshNotifications", "houseId": houseID]
             case .signedOut: return ["type": "signedOut"]
             }
         }]

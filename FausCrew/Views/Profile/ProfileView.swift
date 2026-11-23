@@ -18,8 +18,10 @@ struct ProfileView: View {
 
     @EnvironmentObject private var appViewModel: AppViewModel
     @EnvironmentObject private var themeStore: ThemeStore
+    @Environment(\.scenePhase) private var scenePhase
 
     @State private var activeOverlay: Overlay?
+    @State private var notificationsAllowed = false
     @State private var showLoginMethods = false
     @State private var showDeleteAccount = false
     @State private var appeared = false
@@ -41,6 +43,10 @@ struct ProfileView: View {
         }
         .onDisappear {
             appViewModel.isOverlayPresented = false
+        }
+        // Also runs when the app returns from the system notification settings.
+        .task(id: scenePhase) {
+            if scenePhase == .active { notificationsAllowed = await PushPermission.isAllowed() }
         }
         .onAppear {
             withAnimation(.spring(response: 0.6, dampingFraction: 0.78).delay(0.05)) {
@@ -189,6 +195,9 @@ struct ProfileView: View {
         ProfileSettingsCard(
             title: appViewModel.localized("profile_settings_title"),
             notificationsLabel: appViewModel.localized("profile_notifications_label"),
+            notificationsValue: notificationsAllowed
+                ? appViewModel.localized("profile_notifications_status_on", tr: "Açık", en: "On")
+                : appViewModel.localized("profile_notifications_status_off", tr: "Kapalı", en: "Off"),
             privacySecurityLabel: appViewModel.localized("profile_privacy_security_label"),
             helpSupportLabel: appViewModel.localized("profile_help_support_label"),
             languageSettingsLabel: appViewModel.localized("profile_language_settings_label"),
@@ -198,6 +207,7 @@ struct ProfileView: View {
             logoutLabel: appViewModel.localized("profile_logout_label", fallback: "Log out"),
             loginMethodsLabel: appViewModel.localized("profile_login_methods_label", tr: "Giriş yöntemleri", en: "Sign-in methods"),
             deleteAccountLabel: appViewModel.localized("profile_delete_account_label", tr: "Hesabı sil", en: "Delete account"),
+            onOpenNotificationSettings: { PushPermission.openSettings() },
             onOpenLanguageSettings: { present(.languageSettings) },
             onOpenThemeSettings: { present(.themeSettings) },
             onOpenAbout: { present(.about) },
@@ -278,7 +288,7 @@ struct ProfileView: View {
                 onConfirm: {
                     activeOverlay = nil
                     withAnimation(AppDesign.Animation.standard) {
-                        appViewModel.logout()
+                        appViewModel.logout(reason: .userInitiated)
                     }
                 },
                 onCancel: dismissOverlay

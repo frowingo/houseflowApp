@@ -31,7 +31,10 @@ internal data class AuthProfile(
 )
 
 internal sealed interface AuthRestoreResult {
+    /** No stored session. */
     data object SignedOut : AuthRestoreResult
+    /** A stored session was rejected (401 or unreadable): the push token must be dropped too. */
+    data object SessionRejected : AuthRestoreResult
     data class PendingEmailVerification(val email: String) : AuthRestoreResult
     data class SignedIn(val profile: AuthProfile) : AuthRestoreResult
     data class Error(val message: String?) : AuthRestoreResult
@@ -144,11 +147,12 @@ internal class AuthSessionRepository(
     suspend fun restore(): AuthRestoreResult = withContext(Dispatchers.IO) {
         when (val pending = read(SessionField.PENDING_EMAIL_VERIFICATION)) {
             is SessionReadResult.Value -> return@withContext AuthRestoreResult.PendingEmailVerification(pending.value)
-            SessionReadResult.ReauthenticationRequired -> return@withContext AuthRestoreResult.SignedOut
+            SessionReadResult.ReauthenticationRequired -> return@withContext AuthRestoreResult.SessionRejected
             SessionReadResult.Missing -> Unit
         }
         when (val token = read(SessionField.AUTH_TOKEN)) {
-            SessionReadResult.Missing, SessionReadResult.ReauthenticationRequired -> AuthRestoreResult.SignedOut
+            SessionReadResult.Missing -> AuthRestoreResult.SignedOut
+            SessionReadResult.ReauthenticationRequired -> AuthRestoreResult.SessionRejected
             is SessionReadResult.Value -> try {
                 AuthRestoreResult.SignedIn(profile(token.value))
             } catch (error: AuthRequestException) {
@@ -156,7 +160,7 @@ internal class AuthSessionRepository(
                     synchronized(storeLock) {
                         if ((read(SessionField.AUTH_TOKEN) as? SessionReadResult.Value)?.value == token.value) {
                             clear()
-                            AuthRestoreResult.SignedOut
+                            AuthRestoreResult.SessionRejected
                         } else AuthRestoreResult.Error(null)
                     }
                 } else {

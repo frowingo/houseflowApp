@@ -8,6 +8,8 @@ internal sealed interface AppEventsEffect {
     data object CloseSocket : AppEventsEffect
     /** Forced HTTP refresh of the profile/house list and/or the selected house's details. */
     data class Refresh(val profile: Boolean, val houseId: String?) : AppEventsEffect
+    /** Reload the notification panel and badge of the selected house. */
+    data class RefreshNotifications(val houseId: String) : AppEventsEffect
     data object SignedOut : AppEventsEffect
 }
 
@@ -48,6 +50,7 @@ internal object AppEventsParser {
                 "openSocket" -> AppEventsEffect.OpenSocket(effect.getInt("connection"), path)
                 "closeSocket" -> AppEventsEffect.CloseSocket
                 "refresh" -> AppEventsEffect.Refresh(effect.getBoolean("profile"), effect.optNullableString("houseId"))
+                "refreshNotifications" -> AppEventsEffect.RefreshNotifications(effect.getString("houseId"))
                 "signedOut" -> AppEventsEffect.SignedOut
                 else -> error("Unknown app events effect $type")
             }

@@ -9,6 +9,8 @@ import os
 final class AppEventsService {
     /// Forced refresh of the profile/house list and/or the given selected house.
     var onRefresh: ((_ profile: Bool, _ houseID: String?) async -> Void)?
+    /// The selected house's notification panel and badge need reloading.
+    var onNotificationsChanged: ((_ houseID: String) -> Void)?
     var onSignedOut: (() -> Void)?
 
     private let baseURL: URL
@@ -79,6 +81,7 @@ final class AppEventsService {
             case .openSocket(let connection): open(connection)
             case .closeSocket: closeSocket()
             case .refresh(let profile, let houseID): refresh(profile: profile, houseID: houseID)
+            case .refreshNotifications(let houseID): onNotificationsChanged?(houseID)
             case .signedOut: onSignedOut?()
             }
         }

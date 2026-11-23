@@ -22,7 +22,12 @@ final class AppEventsBridgeTests: XCTestCase {
         XCTAssertEqual(refresh["type"] as? String, "refresh")
         XCTAssertEqual(refresh["profile"] as? Bool, true)
         XCTAssertEqual(refresh["houseId"] as? String, "h1")
-        let refused = try event(handle, ["type": "connectionFailed", "status": 401, "connection": connection, "now": 2])
+        _ = try event(handle, ["type": "received", "text": #"{"type":"notification.created","houseId":"h1"}"#, "connection": connection, "now": 2])
+        let notified = try event(handle, ["type": "tick", "now": 3])
+        let notification = try XCTUnwrap((notified["effects"] as? [[String: Any]])?.first)
+        XCTAssertEqual(notification["type"] as? String, "refreshNotifications")
+        XCTAssertEqual(notification["houseId"] as? String, "h1")
+        let refused = try event(handle, ["type": "connectionFailed", "status": 401, "connection": connection, "now": 4])
         XCTAssertEqual((refused["effects"] as? [[String: Any]])?.map { $0["type"] as? String }, ["closeSocket", "signedOut"])
         XCTAssertEqual(try event(-3, ["type": "tick"])["ok"] as? Bool, false)
     }

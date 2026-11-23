@@ -25,6 +25,8 @@ struct ChoreDetailPopup: View {
     @State private var reviewPhotos: [Int: UIImage] = [:]
     @State private var loadingReviewPhotoRound: Int?
     @State private var viewedReviewPhoto: ViewedReviewPhoto?
+    /// The reminder window is judged once, when the popup is shown; nothing re-evaluates it later.
+    @State private var shownAt = Date()
 
     init(chore: Chore, onDismiss: @escaping () -> Void) {
         self.chore = chore
@@ -103,6 +105,9 @@ struct ChoreDetailPopup: View {
                             statusPipeline
                         }
                         infoSection
+                        if canRemind {
+                            remindButton
+                        }
                         if nextStatus != nil {
                             statusUpdateSection
                         }
@@ -306,6 +311,46 @@ struct ChoreDetailPopup: View {
                 }
             }
         }
+    }
+
+    // MARK: - Remind (someone else's chore due within 12 hours)
+
+    private var canRemind: Bool {
+        displayedChore.choreApiId != nil && ChoreReminderRules.canRemind(
+            assignedToID: displayedChore.assignedToId,
+            currentUserID: appViewModel.currentUserId,
+            status: displayedChore.status,
+            dueDate: displayedChore.dueDate,
+            now: shownAt
+        )
+    }
+
+    private var remindButton: some View {
+        let choreApiId = displayedChore.choreApiId ?? ""
+        let isReminded = appViewModel.isChoreReminded(choreApiId: choreApiId)
+        let isSending = appViewModel.isRemindingChore(choreApiId: choreApiId)
+        return Button {
+            Task { await appViewModel.remindChore(choreApiId: choreApiId) }
+        } label: {
+            HStack(spacing: AppDesign.Spacing.sm) {
+                if isSending {
+                    ProgressView().scaleEffect(0.8).tint(accentOrange)
+                } else {
+                    Image(systemName: isReminded ? "checkmark" : "bell.badge")
+                        .font(.system(size: 14, weight: .semibold))
+                }
+                Text(isReminded
+                    ? appViewModel.localized("chore_detail_reminded", tr: "Hatırlatıldı", en: "Reminded")
+                    : appViewModel.localized("chore_detail_remind_action", tr: "Hatırlat", en: "Remind"))
+                    .font(AppDesign.Typography.bodyBold)
+            }
+            .foregroundColor(isReminded ? AppDesign.Colors.textSecondary : accentOrange)
+            .frame(maxWidth: .infinity)
+            .frame(height: AppDesign.Size.buttonHeightSmall)
+            .background(isReminded ? AppDesign.Colors.secondaryBackground : accentOrange.opacity(0.1))
+            .cornerRadius(AppDesign.CornerRadius.md)
+        }
+        .disabled(isReminded || isSending)
     }
 
     // MARK: - Status Update Section (assignee only)

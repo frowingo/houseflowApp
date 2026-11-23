@@ -25,6 +25,13 @@ struct AppDependencies {
     var appEvents: AppEventsService? = nil
     /// The shared decoded REST client; nil in tests that do not need it.
     var network: NetworkService? = nil
+    /// FCM token registration with the backend; nil in tests that do not need it.
+    var pushRegistration: PushRegistrationService? = nil
+    /// The house notification panel and chore reminders; nil in tests that do not need them.
+    var notificationService: (any NotificationServicing)? = nil
+    /// Where a tapped push waits for the app, and where foreground pushes arrive; nil in tests.
+    var pushInbox: PushInbox? = nil
+    var pushCenter: PushNotificationCenter? = nil
 
     static func live(gameBaseURL: URL? = nil) -> AppDependencies {
         let keychain = KeychainService()
@@ -59,7 +66,15 @@ struct AppDependencies {
             houseTanksOnlineFactory: .live(network: gameNetwork, keychain: keychain, baseURL: gameURL),
             fausSwitchOnlineFactory: .live(network: gameNetwork, keychain: keychain, baseURL: gameURL),
             appEvents: AppEventsService(baseURL: AppEnvironment.baseURL, keychain: keychain),
-            network: network
+            network: network,
+            pushRegistration: PushRegistrationService(http: network, keychain: keychain, tokens: FirebasePushTokenProvider()),
+            notificationService: NotificationService(
+                http: network,
+                keychain: keychain,
+                onUnauthorized: { [weak network] token in network?.onUnauthorized?(token) }
+            ),
+            pushInbox: .shared,
+            pushCenter: .shared
         )
     }
 }

@@ -1,24 +1,6 @@
 import UIKit
 
 @MainActor
-final class FausCrewAppDelegate: NSObject, UIApplicationDelegate {
-    func application(
-        _ application: UIApplication,
-        didFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey: Any]? = nil
-    ) -> Bool {
-        SocialURLHandler.didFinishLaunching(application, options: launchOptions)
-        return true
-    }
-
-    func application(
-        _ application: UIApplication,
-        supportedInterfaceOrientationsFor window: UIWindow?
-    ) -> UIInterfaceOrientationMask {
-        GameOrientationController.allowedOrientations
-    }
-}
-
-@MainActor
 enum GameOrientationController {
     private(set) static var allowedOrientations: UIInterfaceOrientationMask = defaultOrientations
 

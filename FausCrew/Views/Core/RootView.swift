@@ -48,7 +48,7 @@ struct RootView: View {
             case .houseSelection:
                 HouseSelectionView()
             case .dashboard:
-                MainTabView()
+                MainTabView(routeHandler: appViewModel.pushRouteHandler)
             }
         }
     }

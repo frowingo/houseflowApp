@@ -39,8 +39,6 @@
 	<string>YOUR_FACEBOOK_CLIENT_TOKEN</string>
 	<key>FacebookDisplayName</key>
 	<string>FausCrew</string>
-	<key>GIDClientID</key>
-	<string>323555794723-67lik59bku789qqot6j58e80hcut98ka.apps.googleusercontent.com</string>
 	<key>FausCrewAppleSignInEnabled</key>
 	<true/>
 	<key>FausCrewSocialProviders</key>
@@ -50,6 +48,8 @@
 		<string>facebook</string>
 		<string>snapchat</string>
 	</array>
+	<key>GIDClientID</key>
+	<string>323555794723-67lik59bku789qqot6j58e80hcut98ka.apps.googleusercontent.com</string>
 	<key>LSApplicationQueriesSchemes</key>
 	<array>
 		<string>fbapi</string>
@@ -66,6 +66,10 @@
 	<array>
 		<string>https://auth.snapchat.com/oauth2/api/user.display_name</string>
 		<string>https://auth.snapchat.com/oauth2/api/user.external_id</string>
+	</array>
+	<key>UIBackgroundModes</key>
+	<array>
+		<string>remote-notification</string>
 	</array>
 	<key>UILaunchScreen</key>
 	<dict>

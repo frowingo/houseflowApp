@@ -35,10 +35,12 @@ class AppEventsViewModelTest {
     @Test fun parsesEffects() {
         assertEquals(
             listOf(AppEventsEffect.OpenSocket(2, "events"), AppEventsEffect.CloseSocket,
-                AppEventsEffect.Refresh(true, null), AppEventsEffect.Refresh(false, "h1"), AppEventsEffect.SignedOut),
+                AppEventsEffect.Refresh(true, null), AppEventsEffect.Refresh(false, "h1"), AppEventsEffect.RefreshNotifications("h1"),
+                AppEventsEffect.SignedOut),
             AppEventsParser.parse("""{"ok":true,"path":"events","effects":[{"type":"openSocket","connection":2},
                 {"type":"closeSocket"},{"type":"refresh","profile":true,"houseId":null},
-                {"type":"refresh","profile":false,"houseId":"h1"},{"type":"signedOut"}]}"""),
+                {"type":"refresh","profile":false,"houseId":"h1"},{"type":"refreshNotifications","houseId":"h1"},
+                {"type":"signedOut"}]}"""),
         )
     }
 
@@ -130,5 +132,16 @@ class AppEventsViewModelTest {
         assertTrue(tokenJobs.single().isCancelled)
         assertEquals(listOf("setActive"), events)
         model.update(foreground = false, authenticated = true)
+    }
+
+    @Test fun forwardsNotificationRefreshesForTheSelectedHouse() = runTest(dispatcher) {
+        val engine = object : AppEventsEngine {
+            override fun event(type: String, now: Double, fields: Map<String, Any?>): List<AppEventsEffect> =
+                if (type == "setSelectedHouse") listOf(AppEventsEffect.RefreshNotifications(fields["houseId"] as String)) else emptyList()
+            override fun close() = Unit
+        }
+        val model = AppEventsViewModel(engine, sockets = { _, _, _, _ -> error("No socket") }, token = { "t" }, clock = { 1.0 })
+        model.setSelectedHouse("h1")
+        assertEquals(AppEventsRequest.RefreshNotifications("h1"), model.requests.first())
     }
 }

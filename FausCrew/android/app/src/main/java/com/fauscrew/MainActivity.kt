@@ -2,6 +2,7 @@ package com.fauscrew
 
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.setValue
+import android.content.Intent
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.BackHandler
@@ -22,8 +23,14 @@ import androidx.compose.animation.fadeOut
 import androidx.compose.animation.core.tween
 import com.fauscrew.ui.components.dismissKeyboardOnTap
 import com.fauscrew.viewmodel.HouseLoadingPhase
+import android.Manifest
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.SideEffect
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
@@ -34,6 +41,16 @@ import com.fauscrew.platform.DebugCrashReport
 import com.fauscrew.platform.ThemeAppearance
 import com.fauscrew.platform.AppLifecycle
 import com.fauscrew.platform.SocialActivityHolder
+import com.fauscrew.push.PushChannels
+import com.fauscrew.push.PushInbox
+import com.fauscrew.push.PushRouteContext
+import com.fauscrew.push.PushRouteStep
+import com.fauscrew.push.PushRouter
+import com.fauscrew.push.isRealSignOut
+import com.fauscrew.push.notificationUserId
+import com.fauscrew.ui.dashboard.notifications.NotificationActions
+import com.fauscrew.viewmodel.NotificationEffect
+import com.fauscrew.viewmodel.NotificationViewModel
 import com.fauscrew.platform.AppVisibility
 import com.fauscrew.viewmodel.AppEventsRequest
 import com.fauscrew.viewmodel.AppEventsViewModel
@@ -62,6 +79,7 @@ import com.fauscrew.viewmodel.AuthRoute
 import com.fauscrew.viewmodel.AuthViewModel
 import com.fauscrew.viewmodel.HouseRoute
 import com.fauscrew.viewmodel.HouseViewModel
+import com.fauscrew.viewmodel.pushSessionUserId
 import android.graphics.drawable.ColorDrawable
 import androidx.compose.ui.graphics.toArgb
 import androidx.lifecycle.lifecycleScope
@@ -70,6 +88,10 @@ import com.fauscrew.ui.theme.FausCrewTheme
 import com.fauscrew.ui.theme.FausThemeController
 import com.fauscrew.ui.theme.FausThemeId
 import com.fauscrew.ui.theme.LocalFausThemeController
+import com.fauscrew.platform.PushSignOutReason
+import com.fauscrew.push.PushPermission
+import com.fauscrew.push.PushRegistrationHost
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
 
@@ -93,6 +115,8 @@ class MainActivity : ComponentActivity() {
         // The launch window shows the theme's launch color (black on Android 11); the app itself
         // sits on the theme's base.
         window.setBackgroundDrawable(ColorDrawable(themeController.theme.palette.background.toArgb()))
+        // A tapped push opens the app here; the routing effect below takes it to its house/chore.
+        if (savedInstanceState == null && !launchedFromHistory(intent)) offerPushTap(intent)
         val coldStart = savedInstanceState == null
         // Compose owns every inset (status/nav bars and the keyboard) on all API levels, matching
         // the edge-to-edge behavior Android 15+ enforces. Screens pad themselves; the IME is
@@ -115,6 +139,11 @@ class MainActivity : ComponentActivity() {
             var showsHouseRockets by rememberSaveable { mutableStateOf(false) }
             var showsHouseTanks by rememberSaveable { mutableStateOf(false) }
             var showsFausSwitch by rememberSaveable { mutableStateOf(false) }
+            // The dashboard has a popup open (it covers the dashboard for push routing).
+            var dashboardOverlay by remember { mutableStateOf(false) }
+            // Push routing asks the dashboard to close its popups / open a chore.
+            var closeDashboardPopups by remember { mutableIntStateOf(0) }
+            var openChoreRequest by remember { mutableStateOf<String?>(null) }
             // Brand intro on every cold start (not on configuration changes).
             var showsSplash by rememberSaveable { mutableStateOf(coldStart) }
             // Until the splash starts opening, the app underneath is hidden and holds its animations.
@@ -122,6 +151,11 @@ class MainActivity : ComponentActivity() {
             LaunchedEffect(state.profile) {
                 state.profile?.let(houseModel::acceptProfile) ?: houseModel.resetSession()
             }
+            // Push registration follows the fully signed-in user (verified, birthday set).
+            val pushUserId = pushSessionUserId(state.profile, state.route)
+            LaunchedEffect(pushUserId) { PushRegistrationHost.setSession(pushUserId) }
+            // The channel name follows the app language (same channel id).
+            LaunchedEffect(text.prefix) { PushChannels.ensureDefault(applicationContext) }
             LaunchedEffect(state.profile?.userId) {
                 catalogModel.setOwner(state.profile?.userId)
             }
@@ -129,12 +163,43 @@ class MainActivity : ComponentActivity() {
             val eventsModel: AppEventsViewModel = viewModel(factory = AppEventsViewModel.Factory(applicationContext))
             val visibility by AppLifecycle.bridge.visibility.collectAsStateWithLifecycle()
             val signedIn = state.profile != null && state.route is AuthRoute.Next
+            // Ask for notification permission once, a moment after the dashboard first shows (after the splash).
+            val notificationPermission = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) {}
+            var askedForPush by rememberSaveable { mutableStateOf(false) }
+            val onDashboard = signedIn && houseState.route == HouseRoute.DASHBOARD
+            LaunchedEffect(onDashboard, showsSplash) {
+                if (!onDashboard || showsSplash || askedForPush) return@LaunchedEffect
+                askedForPush = true
+                delay(1_000)
+                if (PushPermission.needsRuntimeRequest(applicationContext) && !preferences.hasRequestedNotificationPermission()) {
+                    preferences.setRequestedNotificationPermission(true)
+                    notificationPermission.launch(Manifest.permission.POST_NOTIFICATIONS)
+                }
+            }
             LaunchedEffect(visibility, signedIn) {
                 eventsModel.update(foreground = visibility == AppVisibility.ACTIVE, authenticated = signedIn)
             }
             LaunchedEffect(houseState.details?.id) { eventsModel.setSelectedHouse(houseState.details?.id) }
+            // Unread badge, notification panel and reminders follow the selected house.
+            val notificationModel: NotificationViewModel = viewModel(factory = NotificationViewModel.Factory(applicationContext))
+            val notificationState by notificationModel.state.collectAsStateWithLifecycle()
+            // A session restore blips the push user to null; keep the badge and reminders through it.
+            var lastNotificationUser by remember { mutableStateOf<String?>(null) }
+            val notificationUser = notificationUserId(lastNotificationUser, pushUserId, state.route)
+            SideEffect { lastNotificationUser = notificationUser }
+            LaunchedEffect(notificationUser, houseState.details?.id) { notificationModel.setContext(notificationUser, houseState.details?.id) }
+            LaunchedEffect(notificationModel) { PushInbox.foregroundMessages.collect(notificationModel::onForegroundPush) }
+            LaunchedEffect(notificationModel) {
+                notificationModel.effects.collect { effect ->
+                    when (effect) {
+                        NotificationEffect.SessionRejected -> model.logout(PushSignOutReason.SessionRejected)
+                        NotificationEffect.RefreshProfile -> model.refreshProfile()
+                        is NotificationEffect.RefreshHouse -> houseModel.refreshDetails(effect.houseId)
+                    }
+                }
+            }
             LaunchedEffect(houseModel) {
-                houseModel.signOutRequests.collect { model.logout() }
+                houseModel.signOutRequests.collect { model.logout(PushSignOutReason.SessionRejected) }
             }
             LaunchedEffect(eventsModel) {
                 eventsModel.requests.collect { request ->
@@ -143,7 +208,8 @@ class MainActivity : ComponentActivity() {
                             if (request.profile) model.refreshProfile()
                             request.houseId?.let(houseModel::refreshDetails)
                         }
-                        AppEventsRequest.SignOut -> model.logout()
+                        is AppEventsRequest.RefreshNotifications -> notificationModel.refresh(request.houseId)
+                        AppEventsRequest.SignOut -> model.logout(PushSignOutReason.SessionRejected)
                     }
                 }
             }
@@ -195,6 +261,40 @@ class MainActivity : ComponentActivity() {
                 AuthRoute.Restoring -> "houseLoading"
                 is AuthRoute.RestoreError -> "status"
             }
+            // A tapped push: Core says what is next; each step changes the context and runs again.
+            val pushRouter = remember { PushRouter() }
+            val pendingTap by PushInbox.pendingTap.collectAsStateWithLifecycle()
+            val routeContext = PushRouteContext(
+                isSignedIn = pushUserId != null,
+                houseIds = if (pushUserId != null && houseState.userId == pushUserId) houseState.houses.map { it.id } else null,
+                selectedHouseId = houseState.details?.id,
+                isSwitchingHouse = houseState.route != HouseRoute.DASHBOARD || houseState.busy,
+                isGameOpen = showsHouseRockets || showsHouseTanks || showsFausSwitch,
+                isDashboardShown = target == "main" && selectedTab == MainTab.HOME && !dashboardOverlay,
+                loadedChoreIds = houseState.details?.chores?.mapTo(mutableSetOf()) { it.id },
+            )
+            var hadSession by remember { mutableStateOf(false) }
+            LaunchedEffect(state.profile?.userId, state.route) {
+                if (isRealSignOut(hadSession, state.profile?.userId, state.route)) PushInbox.take()
+                if (state.route != AuthRoute.Restoring) hadSession = state.profile != null
+            }
+            LaunchedEffect(pendingTap) { pushRouter.reset() }
+            LaunchedEffect(pendingTap, routeContext) {
+                val tap = pendingTap ?: return@LaunchedEffect
+                when (val step = pushRouter.next(tap, routeContext)) {
+                    PushRouteStep.Wait -> Unit
+                    PushRouteStep.Drop, PushRouteStep.Finished -> PushInbox.take()
+                    is PushRouteStep.SwitchHouse -> houseModel.switchHouse(step.houseId)
+                    PushRouteStep.ShowDashboard -> {
+                        selectedTab = MainTab.HOME
+                        closeDashboardPopups++
+                    }
+                    is PushRouteStep.OpenChore -> {
+                        openChoreRequest = step.choreId
+                        PushInbox.take()
+                    }
+                }
+            }
             LaunchedEffect(target) {
                 nav.navigate(target) { popUpTo(nav.graph.id) { inclusive = true }; launchSingleTop = true }
             }
@@ -226,14 +326,14 @@ class MainActivity : ComponentActivity() {
                 }
                 composable("verify") {
                     val route = state.route as? AuthRoute.Next
-                    if (route != null) EmailVerificationScreen(state, text, route.email, model::logout,
+                    if (route != null) EmailVerificationScreen(state, text, route.email, { model.logout(PushSignOutReason.UserInitiated) },
                         model::sendVerificationCode, { model.setCode(it) }, model::verifyEmail, model::dismissSignupSuccess)
                 }
                 composable("birthday") {
                     BirthdaySetupScreen(state, text, model::setBirthday, model::saveBirthday)
                 }
                 composable("status") {
-                    HouseErrorScreen(text, model::restore, model::logout)
+                    HouseErrorScreen(text, model::restore) { model.logout(PushSignOutReason.UserInitiated) }
                     BackHandler { /* iOS restore error requires Retry or Log out. */ }
                 }
                 composable("houseLoading") {
@@ -256,7 +356,7 @@ class MainActivity : ComponentActivity() {
                     BackHandler { houseModel.backToSelection() }
                 }
                 composable("houseError") {
-                    HouseErrorScreen(text, houseModel::retry, model::logout)
+                    HouseErrorScreen(text, houseModel::retry) { model.logout(PushSignOutReason.UserInitiated) }
                     BackHandler { /* iOS house error requires Retry or Log out. */ }
                 }
                 composable("main") {
@@ -269,7 +369,7 @@ class MainActivity : ComponentActivity() {
                         strings = text,
                         profile = { onOverlayChange ->
                             state.profile?.let { user ->
-                                ProfileScreen(user, houseState, profileState, text, model::logout, model::updateProfile,
+                                ProfileScreen(user, houseState, profileState, text, { model.logout(PushSignOutReason.UserInitiated) }, model::updateProfile,
                                     model::loadProfileImages, model::loadLanguages, model::saveLanguage,
                                     model::clearProfileError, houseModel::joinFromProfile,
                                     houseModel::loadInfo, houseModel::clearInfo, houseModel::createInvite,
@@ -289,8 +389,16 @@ class MainActivity : ComponentActivity() {
                         dashboard = { onOverlayChange ->
                             DashboardScreen(houseState, text, houseModel::createAnnouncement, houseModel::createChore,
                                 houseModel::updateChoreStatus, houseModel::reviewChore,
-                                houseModel::clearMutationMessage, onOverlayChange,
-                                onLoadReviewPhoto = houseModel::reviewPhoto, catalog = catalogModel)
+                                houseModel::clearMutationMessage,
+                                { dashboardOverlay = it; onOverlayChange(it) },
+                                onLoadReviewPhoto = houseModel::reviewPhoto, catalog = catalogModel,
+                                notifications = notificationState,
+                                notificationActions = NotificationActions(
+                                    open = notificationModel::open, close = notificationModel::close,
+                                    reload = notificationModel::reload, loadMore = notificationModel::loadMore,
+                                    remind = notificationModel::remind, clearToast = notificationModel::clearToast),
+                                openChoreRequest = openChoreRequest, onOpenChoreHandled = { openChoreRequest = null },
+                                closePopupsSignal = closeDashboardPopups)
                         },
                         games = { onOverlayChange ->
                             // The game is a full-screen destination of the Games tab, so the
@@ -306,7 +414,7 @@ class MainActivity : ComponentActivity() {
                                         .filter { it.name.isNotBlank() }.associate { it.id to it.name },
                                     onRequireSignIn = {
                                         showsFausSwitch = false
-                                        model.logout()
+                                        model.logout(PushSignOutReason.SessionRejected)
                                     })
                             } else if (showsHouseTanks) {
                                 HouseTanksScreen(text, houseState.details?.id, state.profile?.userId,
@@ -316,7 +424,7 @@ class MainActivity : ComponentActivity() {
                                         .filter { it.name.isNotBlank() }.map { it.id to it.name },
                                     onRequireSignIn = {
                                         showsHouseTanks = false
-                                        model.logout()
+                                        model.logout(PushSignOutReason.SessionRejected)
                                     })
                             } else if (showsHouseRockets) {
                                 HouseRocketsScreen(text, houseState.details?.id, state.profile?.userId,
@@ -326,7 +434,7 @@ class MainActivity : ComponentActivity() {
                                         .associate { it.id to it.name }.filterValues(String::isNotBlank),
                                     onRequireSignIn = {
                                         showsHouseRockets = false
-                                        model.logout()
+                                        model.logout(PushSignOutReason.SessionRejected)
                                     })
                             } else {
                                 GamesHubScreen(text, onOpenHouseRockets = { showsHouseRockets = true },
@@ -350,6 +458,20 @@ class MainActivity : ComponentActivity() {
             }
         }
     }
+
+    override fun onNewIntent(intent: Intent) {
+        super.onNewIntent(intent)
+        setIntent(intent)
+        offerPushTap(intent)
+    }
+
+    private fun offerPushTap(intent: Intent?) {
+        PushInbox.fromIntent(intent)?.let(PushInbox::offer)
+    }
+
+    /** Recents relaunches the task's original intent, which would replay an old push tap. */
+    private fun launchedFromHistory(intent: Intent) =
+        intent.flags and Intent.FLAG_ACTIVITY_LAUNCHED_FROM_HISTORY != 0
 
     override fun onDestroy() {
         SocialActivityHolder.detach(this)

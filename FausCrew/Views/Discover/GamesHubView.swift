@@ -15,6 +15,8 @@ private struct GameInfo: Identifiable {
 struct GamesHubView: View {
     @EnvironmentObject private var appViewModel: AppViewModel
     @State private var appeared = false
+    /// The pushed games; a non-empty path means a game is on screen.
+    @State private var path: [Int] = []
     let houseRocketsSessionFactory: HouseRocketsSessionFactory
 
     /// iOS system orange in light mode, fixed so the cards ignore the system and the theme.
@@ -50,7 +52,7 @@ struct GamesHubView: View {
     ]
 
     var body: some View {
-        NavigationStack {
+        NavigationStack(path: $path) {
             ZStack(alignment: .top) {
                 MainScreenBackground()
 
@@ -72,6 +74,10 @@ struct GamesHubView: View {
             withAnimation(.spring(response: 0.6, dampingFraction: 0.75).delay(0.05)) {
                 appeared = true
             }
+        }
+        // A tapped push waits while a game runs and never closes it.
+        .onChange(of: path.isEmpty) { _, isEmpty in
+            appViewModel.pushRouteHandler.isGameOpen = !isEmpty
         }
     }
 

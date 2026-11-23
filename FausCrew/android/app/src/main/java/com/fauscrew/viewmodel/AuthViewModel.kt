@@ -18,6 +18,8 @@ import com.fauscrew.platform.PlatformLanguage
 import com.fauscrew.platform.ProfileChange
 import com.fauscrew.platform.ProfileImage
 import com.fauscrew.platform.ProfileRepository
+import com.fauscrew.platform.PushSignOutReason
+import com.fauscrew.push.PushRegistrationHost
 import com.fauscrew.platform.FacebookCredentialAdapter
 import com.fauscrew.platform.GoogleCredentialAdapter
 import com.fauscrew.platform.SnapchatCredentialAdapter
@@ -134,6 +136,8 @@ internal class AuthViewModel(
     private val profileRepository: ProfileRepository? = null,
     private val socialCredentials: SocialCredentialProvider = SocialCredentialRouter(emptyMap()),
     private val socialConfig: SocialAuthConfig = SocialAuthConfig(emptyList()),
+    /** Called before the stored session is cleared, so the push token is unregistered with a valid JWT. */
+    private val pushSignOut: suspend (PushSignOutReason) -> Unit = {},
 ) : ViewModel() {
     private val mutableState = MutableStateFlow(AuthUiState(socialProviders = socialConfig.shown))
     val state: StateFlow<AuthUiState> = mutableState.asStateFlow()
@@ -341,9 +345,14 @@ internal class AuthViewModel(
             mutableState.value = mutableState.value.copy(route = AuthRoute.Restoring, busy = true, error = null)
             try {
                 when (val result = session.restore()) {
-                    AuthRestoreResult.SignedOut -> {
+                    AuthRestoreResult.SignedOut, AuthRestoreResult.SessionRejected -> {
                         cancelProfileWork()
                         if (hadProfile) socialCredentials.signOutAll()
+                        // A rejected session, or one lost while signed in, had a registered token. A launch
+                        // with no session at all must not delete the FCM token every time.
+                        if (result == AuthRestoreResult.SessionRejected || hadProfile) {
+                            pushSignOut(PushSignOutReason.SessionRejected)
+                        }
                         clearSignedInState()
                     }
                     is AuthRestoreResult.PendingEmailVerification -> mutableState.value = mutableState.value.copy(
@@ -382,18 +391,19 @@ internal class AuthViewModel(
             when (result) {
                 is AuthRestoreResult.SignedIn ->
                     if (result.profile.userId == signedIn.userId) mutableState.value = current.copy(profile = result.profile)
-                AuthRestoreResult.SignedOut -> logout()
+                AuthRestoreResult.SignedOut, AuthRestoreResult.SessionRejected -> logout(PushSignOutReason.SessionRejected)
                 else -> Unit
             }
         }
     }
 
-    fun logout() {
+    fun logout(reason: PushSignOutReason) {
         sessionJob?.cancel()
         cancelProfileWork()
         sessionJob = viewModelScope.launch {
             mutableState.value = mutableState.value.copy(busy = true)
             try {
+                pushSignOut(reason)
                 session.logout()
                 socialCredentials.signOutAll()
                 clearSignedInState()
@@ -484,6 +494,7 @@ internal class AuthViewModel(
                 repository.update(current.userId, ProfileChange(language = prefix))
                 localization.select(prefix, forceRefresh = true)
                 refreshProfileJob?.cancel()
+                pushSignOut(PushSignOutReason.UserInitiated)
                 session.logout()
                 imageJob?.cancel()
                 languageJob?.cancel()
@@ -645,7 +656,7 @@ internal class AuthViewModel(
                 // 401 means a bad session *or* a bad provider token: ask auth/isAuth before signing out.
                 if ((error as? SocialAuthException)?.status == 401 && session.isSessionValid() == false) {
                     mutableAccountState.value = AccountUiState()
-                    logout()
+                    logout(PushSignOutReason.SessionRejected)
                     return@launch
                 }
                 mutableAccountState.value = accountState.value.copy(busyProvider = null, message = SocialMessages.of(error))
@@ -665,7 +676,7 @@ internal class AuthViewModel(
                 val status = (error as? SocialAuthException)?.status
                 if (status == 401) {
                     mutableAccountState.value = AccountUiState()
-                    logout()
+                    logout(PushSignOutReason.SessionRejected)
                     return@launch
                 }
                 if (status == 404) refreshProfile()
@@ -734,6 +745,7 @@ internal class AuthViewModel(
             sessionJob?.cancel(); profileJob?.cancel(); imageJob?.cancel(); languageJob?.cancel()
             refreshProfileJob?.cancel()
             socialCredentials.signOutAll()
+            pushSignOut(PushSignOutReason.AccountDeleted)
             clearSignedInState()
         }
     }
@@ -786,6 +798,7 @@ internal class AuthViewModel(
                     SocialProvider.SNAPCHAT to SnapchatCredentialAdapter(applicationContext, SocialActivityHolder::current),
                 )),
                 socialConfig = SocialAuthConfig.load(applicationContext),
+                pushSignOut = PushRegistrationHost::signOut,
             ) as T
         }
     }
@@ -795,6 +808,13 @@ internal class AuthViewModel(
         private val API_DATE = DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HH:mm:ss'Z'").withZone(ZoneOffset.UTC)
     }
 }
+
+/** The user push registration follows: signed in with a verified email and a birthday, else null. */
+internal fun pushSessionUserId(profile: AuthProfile?, route: AuthRoute): String? =
+    profile?.userId?.takeIf {
+        route is AuthRoute.Next && route.destination != AuthDestination.EMAIL_VERIFICATION &&
+            route.destination != AuthDestination.BIRTHDAY_SETUP
+    }
 
 internal fun signedOutRoute(hasSeenOnboarding: Boolean): AuthRoute =
     if (hasSeenOnboarding) AuthRoute.SignIn else AuthRoute.Onboarding

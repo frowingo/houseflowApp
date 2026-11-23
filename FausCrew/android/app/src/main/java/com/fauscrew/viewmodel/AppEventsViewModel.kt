@@ -29,6 +29,7 @@ import kotlinx.coroutines.withContext
 
 internal sealed interface AppEventsRequest {
     data class Refresh(val profile: Boolean, val houseId: String?) : AppEventsRequest
+    data class RefreshNotifications(val houseId: String) : AppEventsRequest
     data object SignOut : AppEventsRequest
 }
 
@@ -82,6 +83,7 @@ internal class AppEventsViewModel(
                 is AppEventsEffect.OpenSocket -> open(effect)
                 AppEventsEffect.CloseSocket -> closeSocket()
                 is AppEventsEffect.Refresh -> mutableRequests.trySend(AppEventsRequest.Refresh(effect.profile, effect.houseId))
+                is AppEventsEffect.RefreshNotifications -> mutableRequests.trySend(AppEventsRequest.RefreshNotifications(effect.houseId))
                 AppEventsEffect.SignedOut -> mutableRequests.trySend(AppEventsRequest.SignOut)
             }
         }

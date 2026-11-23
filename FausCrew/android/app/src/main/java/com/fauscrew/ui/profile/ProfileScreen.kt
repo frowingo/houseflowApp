@@ -22,12 +22,15 @@ import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
+import androidx.lifecycle.compose.LifecycleResumeEffect
 import com.fauscrew.platform.AuthProfile
 import com.fauscrew.platform.HouseCreationRules
 import com.fauscrew.platform.LocalizedText
 import com.fauscrew.platform.ProfileChange
 import com.fauscrew.platform.SocialProvider
+import com.fauscrew.push.PushPermission
 import com.fauscrew.ui.auth.social
 import com.fauscrew.viewmodel.AccountUiState
 import com.fauscrew.ui.components.mainScreenBackground
@@ -163,6 +166,13 @@ internal fun ProfileScreen(
     LaunchedEffect(popup != null) { overlayCallback(popup != null) }
     DisposableEffect(Unit) { onDispose { overlayCallback(false) } }
 
+    val context = LocalContext.current
+    // The system setting can change while the app is away.
+    var notificationsOn by remember { mutableStateOf(PushPermission.isGranted(context)) }
+    LifecycleResumeEffect(Unit) {
+        notificationsOn = PushPermission.isGranted(context)
+        onPauseOrDispose {}
+    }
     val hero = rememberEntrance(50)
     val account = rememberEntrance(120)
     val houses = rememberEntrance(200)
@@ -235,7 +245,11 @@ internal fun ProfileScreen(
                 ProfileModernCard(FausCrewIcons.gearshapeFill, FausCrewColors.textTertiary,
                     strings.profileValue("profile_settings_title"), listOf(FausCrewColors.textTertiary.copy(alpha = .04f), Color.Transparent),
                     Modifier.entrance(settings, 24.dp)) {
-                    ProfileSettingsRow(FausCrewIcons.bellBadgeFill, ProfileTints.notifications, strings.profileValue("profile_notifications_label"))
+                    ProfileSettingsRow(FausCrewIcons.bellBadgeFill, ProfileTints.notifications, strings.profileValue("profile_notifications_label"),
+                        value = if (notificationsOn) strings.social("profile_notifications_status_on", "Açık", "On")
+                        else strings.social("profile_notifications_status_off", "Kapalı", "Off")) {
+                        PushPermission.openSettings(context)
+                    }
                     ProfileCardDivider()
                     ProfileSettingsRow(FausCrewIcons.lockShieldFill, ProfileTints.privacy, strings.profileValue("profile_privacy_security_label"))
                     ProfileCardDivider()

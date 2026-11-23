@@ -36,6 +36,9 @@ import androidx.compose.material.icons.rounded.Info
 import androidx.compose.material.icons.rounded.KeyboardArrowDown
 import androidx.compose.material.icons.rounded.KeyboardArrowUp
 import androidx.compose.material.icons.rounded.LocalFireDepartment
+import androidx.compose.material.icons.rounded.Notifications
+import androidx.compose.material.icons.rounded.NotificationsOff
+import androidx.compose.material.icons.rounded.WifiOff
 import androidx.compose.material.icons.rounded.NotificationsActive
 import androidx.compose.material.icons.rounded.Person
 import androidx.compose.material.icons.rounded.PersonOff
@@ -134,6 +137,9 @@ internal object FausCrewIcons {
     val envelopeFill: ImageVector = Icons.Rounded.Email
     val phoneFill: ImageVector = Icons.Rounded.Phone
     val gearshapeFill: ImageVector = Icons.Rounded.Settings
+    val bellFill: ImageVector = Icons.Rounded.Notifications
+    val bellSlash: ImageVector = Icons.Rounded.NotificationsOff
+    val wifiExclamationmark: ImageVector = Icons.Rounded.WifiOff
     val bellBadgeFill: ImageVector = Icons.Rounded.NotificationsActive
     val lockShieldFill: ImageVector = Icons.Rounded.Security
     val questionmarkCircleFill: ImageVector = Icons.AutoMirrored.Rounded.Help

@@ -49,6 +49,11 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.fauscrew.platform.ChoreInput
+import com.fauscrew.platform.ChoreReminder
+import com.fauscrew.ui.dashboard.notifications.NotificationActions
+import com.fauscrew.ui.dashboard.notifications.NotificationBellButton
+import com.fauscrew.ui.dashboard.notifications.NotificationsPopup
+import com.fauscrew.viewmodel.NotificationUiState
 import com.fauscrew.platform.LocalizedText
 import com.fauscrew.platform.ReviewPhoto
 import com.fauscrew.ui.components.BrandHeroCard
@@ -86,6 +91,13 @@ internal fun DashboardScreen(
     onLoadReviewPhoto: suspend (String, Int) -> ByteArray? = { _, _ -> null },
     /** `chore/catalog`; without one (UI tests) the catalog shows its error state. */
     catalog: ChoreCatalogViewModel = remember { ChoreCatalogViewModel(null) },
+    notifications: NotificationUiState = NotificationUiState(),
+    notificationActions: NotificationActions = NotificationActions(),
+    /** A push asked for this chore's detail; [onOpenChoreHandled] acknowledges it. */
+    openChoreRequest: String? = null,
+    onOpenChoreHandled: () -> Unit = {},
+    /** Bumped by the push router to close every popup before it shows the dashboard. */
+    closePopupsSignal: Int = 0,
 ) {
     val details = state.details ?: return
     var announcementsExpanded by remember { mutableStateOf(false) }
@@ -96,6 +108,18 @@ internal fun DashboardScreen(
     var readIds by remember(details.id, state.userId) { mutableStateOf(readStore.load(details.id, state.userId)) }
 
     LaunchedEffect(details.id) { popup = null; announcementsExpanded = false }
+    LaunchedEffect(closePopupsSignal) {
+        if (closePopupsSignal > 0) {
+            popup = null
+            notificationActions.close()
+        }
+    }
+    LaunchedEffect(openChoreRequest) {
+        val id = openChoreRequest ?: return@LaunchedEffect
+        notificationActions.close()
+        popup = DashboardPopup.Chore(id)
+        onOpenChoreHandled()
+    }
     LaunchedEffect(state.mutationSerial) {
         // The catalog stays open after a create so several chores can be added in a row.
         if (state.mutationSerial > 0 && popup !is DashboardPopup.Catalog &&
@@ -103,7 +127,8 @@ internal fun DashboardScreen(
             popup = null
     }
     val overlayCallback by rememberUpdatedState(onOverlayChange)
-    LaunchedEffect(popup != null) { overlayCallback(popup != null) }
+    val panel = notifications.panel
+    LaunchedEffect(popup != null || panel != null) { overlayCallback(popup != null || panel != null) }
     DisposableEffect(Unit) { onDispose { overlayCallback(false) } }
 
     val header = rememberEntrance(50)
@@ -117,7 +142,8 @@ internal fun DashboardScreen(
             verticalArrangement = Arrangement.spacedBy(Spacing.lg),
         ) {
             item(key = "header") {
-                DashboardHeader(state, details.name, strings, Modifier.entrance(header, 12.dp)) {
+                DashboardHeader(state, details.name, strings, notifications.badge, Modifier.entrance(header, 12.dp),
+                    onNotifications = notificationActions.open) {
                     popup = DashboardPopup.Announcement
                 }
             }
@@ -154,6 +180,14 @@ internal fun DashboardScreen(
         )
     }
 
+    if (panel != null) {
+        NotificationsPopup(panel, details.name, details.members, strings, notificationActions) { item ->
+            // A reminder opens its chore when it is in the loaded house; everything else just closes.
+            notificationActions.close()
+            if (item.isChoreReminder && details.chores.any { it.id == item.choreId }) popup = DashboardPopup.Chore(item.choreId!!)
+        }
+    }
+
     when (val shown = popup) {
         DashboardPopup.Announcement -> NewAnnouncementPopup(strings, state.mutationBusy, state.mutationError,
             { popup = null }, onAnnouncement)
@@ -164,14 +198,23 @@ internal fun DashboardScreen(
             onCreate = onCreateChore, onDismiss = { popup = null },
         )
         is DashboardPopup.Chore -> details.chores.firstOrNull { it.id == shown.id }?.let { chore ->
+            // Decided once when the popup is shown (and when the chore changes); no timer.
+            val canRemind = remember(chore.id, chore.assignedTo, chore.status, chore.dueDate, state.userId) {
+                ChoreReminder.canRemind(chore, state.userId)
+            }
             ChoreDetailPopup(
                 chore = chore, members = details.members, userId = state.userId, strings = strings,
                 busy = state.mutationBusy, reviewing = reviewing, error = state.mutationError,
                 isReviewPhotoRequired = details.isChoreReviewPhotoRequired,
-                onDismiss = { popup = null },
+                onDismiss = { notificationActions.clearToast(); popup = null },
                 onStatus = { id, status, photo -> reviewing = false; onStatus(id, status, photo) },
                 onReview = { id, approved -> reviewing = true; onReview(id, approved) },
                 onLoadReviewPhoto = onLoadReviewPhoto,
+                reminder = ChoreReminderUi(
+                    canRemind = canRemind, reminded = chore.id in notifications.remindedChoreIds,
+                    sending = notifications.sendingChoreId == chore.id, result = notifications.toast,
+                    onRemind = { notificationActions.remind(chore.id) }, onClearResult = notificationActions.clearToast,
+                ),
             )
         }
         null -> Unit
@@ -189,7 +232,9 @@ private fun DashboardHeader(
     state: HouseUiState,
     houseName: String,
     strings: LocalizedText,
+    unreadNotifications: Int,
     modifier: Modifier,
+    onNotifications: () -> Unit,
     onAnnouncement: () -> Unit,
 ) {
     val houseImage = state.houses.firstOrNull { it.id == state.details?.id }?.profileImage
@@ -216,6 +261,7 @@ private fun DashboardHeader(
                     autoSize = TextAutoSize.StepBased(minFontSize = 17.sp, maxFontSize = 24.sp),
                 )
             }
+            NotificationBellButton(unreadNotifications, strings, onNotifications)
             val description = strings.get("new_announcement_action_accessibility_label", "Create announcement")
             Box(
                 Modifier.size(40.dp).clip(CircleShape).background(LocalFausTheme.current.decor.heroOrnament.copy(alpha = .18f))

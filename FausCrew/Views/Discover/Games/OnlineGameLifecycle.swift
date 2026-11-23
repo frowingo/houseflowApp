@@ -22,7 +22,7 @@ private struct OnlineGameLifecycle: ViewModifier {
                 if !authenticated { stop(); GameOrientationController.returnToPortrait() }
             }
             .onChange(of: requiresSignIn) { _, required in
-                if required { stop(); appViewModel.logout(); GameOrientationController.returnToPortrait() }
+                if required { stop(); appViewModel.logout(reason: .sessionRejected); GameOrientationController.returnToPortrait() }
             }
             .onDisappear {
                 beforeStopOnDisappear()

@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "677923984771",
+    "project_id": "fauscrew-37",
+    "storage_bucket": "fauscrew-37.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:677923984771:android:f34c3808490611710b12b6",
+        "android_client_info": {
+          "package_name": "com.fauscrew"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyDOykwuFsoW5RW_nIGQV277ekFdRK7DZvI"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

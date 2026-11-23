@@ -39,7 +39,8 @@ enum AppTab: Int, CaseIterable, Hashable {
 struct MainTabView: View {
     @EnvironmentObject private var appViewModel: AppViewModel
     @EnvironmentObject private var overlayStore: OverlayStore
-    @State private var selectedTab: AppTab = .home
+    /// Owns the selected tab; observed directly so tab changes do not re-render the whole app.
+    @ObservedObject var routeHandler: PushRouteHandler
     @State private var isHouseSwitcherPresented = false
 
     var body: some View {
@@ -59,7 +60,7 @@ struct MainTabView: View {
         }
         // The switcher belongs to the dashboard; a tap on another tab passes through the
         // popover, so leaving Home closes it.
-        .onChange(of: selectedTab) { _, tab in
+        .onChange(of: routeHandler.selectedTab) { _, tab in
             if tab != .home {
                 isHouseSwitcherPresented = false
             }
@@ -72,7 +73,7 @@ struct MainTabView: View {
             // Floating tab bar — hidden when any overlay/popup is active
             if !overlayStore.isPresented {
                 CustomTabBar(
-                    selectedTab: $selectedTab,
+                    selectedTab: $routeHandler.selectedTab,
                     bottomInset: bottomInset,
                     labels: tabLabels,
                     houses: appViewModel.availableHouses,
@@ -100,11 +101,11 @@ struct MainTabView: View {
 
     @ViewBuilder
     private var tabContent: some View {
-        switch selectedTab {
+        switch routeHandler.selectedTab {
         case .profile:
             ProfileView()
         case .home:
-            HouseDashboardView()
+            HouseDashboardView(routeHandler: routeHandler)
         case .games:
             GamesHubView(houseRocketsSessionFactory: appViewModel.houseRocketsSessionFactory)
         }

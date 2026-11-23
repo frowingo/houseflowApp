@@ -49,7 +49,9 @@ import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.disabled
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.semantics.stateDescription
 import androidx.compose.ui.text.font.FontWeight
@@ -59,6 +61,8 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.fauscrew.platform.ChoreReview
+import com.fauscrew.platform.notificationText
+import com.fauscrew.viewmodel.ReminderToast
 import com.fauscrew.platform.HouseChore
 import com.fauscrew.platform.HouseMember
 import com.fauscrew.platform.HouseVote
@@ -90,11 +94,23 @@ import com.fauscrew.ui.theme.Sizes
 import com.fauscrew.ui.theme.Spacing
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.currentCoroutineContext
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
 private val accentOrange: Color @Composable @ReadOnlyComposable get() = FausCrewColors.accentOrange
+
+/** The Remind button's state; [canRemind] is Core's rule, decided when the popup is shown. */
+internal data class ChoreReminderUi(
+    val canRemind: Boolean = false,
+    val reminded: Boolean = false,
+    val sending: Boolean = false,
+    /** Outcome of the last send; shown inside the popup, which covers the dashboard's own toast. */
+    val result: ReminderToast? = null,
+    val onRemind: () -> Unit = {},
+    val onClearResult: () -> Unit = {},
+)
 
 /**
  * `ChoreDetailPopup`: status pipeline, task info, assignee status progression and the
@@ -114,6 +130,7 @@ internal fun ChoreDetailPopup(
     onStatus: (String, Int, ReviewPhoto?) -> Unit,
     onReview: (String, Boolean) -> Unit,
     onLoadReviewPhoto: suspend (String, Int) -> ByteArray? = { _, _ -> null },
+    reminder: ChoreReminderUi = ChoreReminderUi(),
 ) {
     val status = ChoreStatusUi.of(chore.status)
     val isAssignee = userId.isNotBlank() && chore.assignedTo == userId
@@ -201,9 +218,20 @@ internal fun ChoreDetailPopup(
             { PopupBusyIndicator(strings.get(if (reviewing) "chore_detail_submitting_vote" else "chore_detail_updating")) }
         } else null,
     ) {
-        PopupError(error ?: photoError)
+        PopupError(error ?: photoError ?: (reminder.result as? ReminderToast.Failed)?.let { it.message ?: "Request failed." })
         if (status == ChoreStatusUi.FAILED) FailedStatusCard(chore.failureReason, strings) else StatusPipeline(status, strings)
         InfoSection(chore, members.firstOrNull { it.id == chore.assignedTo }, strings)
+        if (reminder.canRemind) {
+            ReminderButton(reminder, !busy, strings)
+            if (reminder.result == ReminderToast.Sent) ReminderSentNote(strings)
+        }
+        // Feedback is short-lived, like the toast it replaces.
+        LaunchedEffect(reminder.result) {
+            if (reminder.result != null) {
+                delay(4_000)
+                reminder.onClearResult()
+            }
+        }
         if (nextStatus != null) StatusUpdateSection(
             status, nextStatus, busy, strings,
             canSave = !busy && !preparingPhoto && (!requiresPhoto || photo != null),
@@ -375,6 +403,38 @@ private fun InfoSection(chore: HouseChore, assignee: HouseMember?, strings: Loca
                     style = FausCrewType.bodyBold, color = color, maxLines = 1)
             }
         }
+    }
+}
+
+@Composable
+private fun ReminderSentNote(strings: LocalizedText) {
+    Row(Modifier.fillMaxWidth().semantics(mergeDescendants = true) {}, horizontalArrangement = Arrangement.Center,
+        verticalAlignment = Alignment.CenterVertically) {
+        Icon(FausCrewIcons.checkmarkCircleFill, null, Modifier.size(15.dp), tint = FausCrewColors.accentOrangeInk)
+        Spacer(Modifier.width(6.dp))
+        Text(strings.notificationText("chore_remind_sent"), style = FausCrewType.caption, color = FausCrewColors.textSecondary)
+    }
+}
+
+/** Secondary action under the info cards; after a reminder it becomes a disabled "Reminded" label. */
+@Composable
+private fun ReminderButton(reminder: ChoreReminderUi, enabled: Boolean, strings: LocalizedText) {
+    val shape = RoundedCornerShape(Radius.md)
+    val active = !reminder.reminded
+    val tint = if (active) FausCrewColors.accentOrangeInk else FausCrewColors.textSecondary
+    Row(
+        Modifier.fillMaxWidth().height(Sizes.buttonHeightSmall).clip(shape)
+            .background(if (active) accentOrange.copy(alpha = .12f) else FausCrewColors.secondaryBackground)
+            .clickable(enabled = enabled && active && !reminder.sending, role = Role.Button, onClick = reminder.onRemind)
+            .semantics { if (!active) disabled() },
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.Center,
+    ) {
+        if (reminder.sending) CircularProgressIndicator(Modifier.size(16.dp), color = tint, strokeWidth = 2.dp)
+        else Icon(if (active) FausCrewIcons.bellBadgeFill else FausCrewIcons.checkmark, null, Modifier.size(18.dp), tint = tint)
+        Spacer(Modifier.width(Spacing.sm))
+        Text(strings.notificationText(if (active) "chore_detail_remind_action" else "chore_detail_reminded"),
+            style = FausCrewType.headline, color = tint, maxLines = 1)
     }
 }
 

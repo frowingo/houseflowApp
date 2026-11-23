@@ -11,8 +11,10 @@ import com.fauscrew.platform.AndroidPreferencesStore
 import com.fauscrew.platform.AuthSessionRepository
 import com.fauscrew.platform.AuthWire
 import com.fauscrew.platform.PlatformHttpResponse
+import com.fauscrew.platform.PushSignOutReason
 import com.fauscrew.platform.SessionField
 import com.fauscrew.platform.SessionReadResult
+import com.fauscrew.platform.SocialWire
 import com.fauscrew.platform.SocialCredential
 import com.fauscrew.platform.SocialCredentialProvider
 import com.fauscrew.platform.SocialProvider
@@ -72,14 +74,16 @@ class AuthViewModelSessionTest {
             write = { field, value -> if (value == null) fields.remove(field) else fields[field] = value },
             clear = { fields.clear() }, wire = wire,
         )
-        val model = model(session)
+        val pushed = mutableListOf<Pair<PushSignOutReason, String?>>()
+        val model = model(session, pushSignOut = { pushed += it to fields[SessionField.AUTH_TOKEN] })
         awaitProfile(model, "a")
         awaitJobs(model)
         model.refreshProfile()
         val refreshJob = model.viewModelScope.coroutineContext[Job]!!.children.single()
         withTimeout(5_000) { refreshStarted.await() }
-        model.logout()
+        model.logout(PushSignOutReason.UserInitiated)
         withTimeout(5_000) { model.state.first { it.route == AuthRoute.Onboarding && !it.busy } }
+        assertEquals("The push sign-out runs while the JWT is still stored", listOf(PushSignOutReason.UserInitiated to "a"), pushed)
         assertTrue(refreshJob.isCancelled)
         model.setEmail("b@example.com")
         model.setPassword("secret")
@@ -127,6 +131,44 @@ class AuthViewModelSessionTest {
         assertEquals(1, social.signOutCount)
     }
 
+    @Test fun deleteAccountSignsOutPushAsAccountDeleted() = runBlocking {
+        val fields = ConcurrentHashMap<SessionField, String>().apply { put(SessionField.AUTH_TOKEN, "a") }
+        val session = AuthSessionRepository(
+            send = { response(profile("a", "Ada")) },
+            read = { fields[it]?.let(SessionReadResult::Value) ?: SessionReadResult.Missing },
+            write = { field, value -> if (value == null) fields.remove(field) else fields[field] = value },
+            clear = { fields.clear() }, wire = wire,
+            socialWire = object : SocialWire {
+                override fun slug(provider: SocialProvider) = provider.slug
+                override fun signInBody(credential: SocialCredential, language: String) = "{}"
+                override fun completeCodeBody(pendingToken: String, email: String) = "{}"
+                override fun completeBody(pendingToken: String, email: String, code: String, firstName: String, lastName: String, language: String) = "{}"
+                override fun result(action: String, status: Int, body: String) = body
+            },
+        )
+        val pushed = mutableListOf<PushSignOutReason>()
+        val model = model(session, pushSignOut = { pushed += it })
+        awaitProfile(model, "a")
+        awaitJobs(model)
+        model.deleteAccount()
+        withTimeout(5_000) { model.state.first { it.route == AuthRoute.Onboarding && !it.busy } }
+        assertEquals(listOf(PushSignOutReason.AccountDeleted), pushed)
+    }
+
+    @Test fun coldStartWithARejectedSessionSignsOutPushOnceAndWithoutOneDoesNot() = runBlocking {
+        fun session(read: SessionReadResult) = AuthSessionRepository(
+            send = { error("must not send") }, read = { read }, write = { _, _ -> }, clear = {}, wire = wire,
+        )
+        val rejected = mutableListOf<PushSignOutReason>()
+        val rejectedModel = model(session(SessionReadResult.ReauthenticationRequired), pushSignOut = { rejected += it })
+        withTimeout(5_000) { rejectedModel.state.first { it.route == AuthRoute.Onboarding && !it.busy } }
+        assertEquals(listOf(PushSignOutReason.SessionRejected), rejected)
+        val none = mutableListOf<PushSignOutReason>()
+        val noSessionModel = model(session(SessionReadResult.Missing), pushSignOut = { none += it })
+        withTimeout(5_000) { noSessionModel.state.first { it.route == AuthRoute.Onboarding && !it.busy } }
+        assertEquals(emptyList<PushSignOutReason>(), none)
+    }
+
     @Test fun signedOutColdStartDoesNotSignOutSocialProviders() = runBlocking {
         val session = AuthSessionRepository(
             send = { error("must not send") }, read = { SessionReadResult.Missing },
@@ -139,12 +181,15 @@ class AuthViewModelSessionTest {
         assertEquals(0, social.signOutCount)
     }
 
-    private fun model(session: AuthSessionRepository, social: RecordingSocialCredentials = RecordingSocialCredentials()): AuthViewModel {
+    private fun model(
+        session: AuthSessionRepository, social: RecordingSocialCredentials = RecordingSocialCredentials(),
+        pushSignOut: suspend (PushSignOutReason) -> Unit = {},
+    ): AuthViewModel {
         val preferences = AndroidPreferencesStore(MemoryDataStore())
         val cache = AndroidLocalizationCache(temporaryFolder.newFolder())
         val repository = AndroidLocalizationRepository(send = { throw IOException("offline") }, cache = cache)
         return AuthViewModel(session, AndroidLocalizationState(repository, cache, preferences), preferences,
-            socialCredentials = social)
+            socialCredentials = social, pushSignOut = pushSignOut)
     }
 
     private suspend fun awaitProfile(model: AuthViewModel, userId: String) {

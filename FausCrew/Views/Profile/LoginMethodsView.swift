@@ -105,7 +105,7 @@ struct LoginMethodsView: View {
         messageIsInfo = false
         defer { busyProvider = nil }
         do {
-            if try await store.linkSocialProvider(provider) == false { appViewModel.logout() }
+            if try await store.linkSocialProvider(provider) == false { appViewModel.logout(reason: .sessionRejected) }
         } catch {
             message = error.message
             messageIsInfo = error.isInfo
@@ -118,7 +118,7 @@ struct LoginMethodsView: View {
         messageIsInfo = false
         defer { busyProvider = nil }
         do {
-            if try await store.unlinkSocialProvider(provider) == false { appViewModel.logout() }
+            if try await store.unlinkSocialProvider(provider) == false { appViewModel.logout(reason: .sessionRejected) }
         } catch {
             // 409: the only way in. Suggest a password or another provider first.
             message = error.statusCode == 409

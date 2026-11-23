@@ -1,4 +1,5 @@
 import SwiftUI
+import FausCrewCore
 
 /// Shown when house/details fails during auto-login.
 /// Gives the user options to retry or log out.
@@ -65,7 +66,7 @@ struct HouseErrorView: View {
 
                     Button(action: {
                         withAnimation(AppDesign.Animation.standard) {
-                            appViewModel.logout()
+                            appViewModel.logout(reason: .userInitiated)
                         }
                     }) {
                         Text(appViewModel.localized("house_error_logout_button"))

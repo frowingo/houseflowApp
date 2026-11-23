@@ -114,20 +114,12 @@ public enum ChoreFailureReason: String, Codable, Sendable {
     ) -> ChoreFailureReason {
         guard let failure = statusHistories.last(where: { $0.status == ChoreStatus.failed.rawValue }),
               failure.updater.trimmingCharacters(in: .whitespacesAndNewlines).lowercased() == systemUpdater,
-              let dueDate, let due = apiDate(dueDate), let failedAt = apiDate(failure.dateTime),
+              let dueDate, let due = APIDate.parse(dueDate), let failedAt = APIDate.parse(failure.dateTime),
               failedAt >= due
         else { return .unspecified }
         let rejectedInFinalRound = reviewRound >= 3
             && reviewVotes.contains { $0.reviewRound == reviewRound && !$0.isApproved }
         return rejectedInFinalRound ? .unspecified : .dueDatePassed
-    }
-
-    private static func apiDate(_ value: String) -> Date? {
-        let formatter = ISO8601DateFormatter()
-        formatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
-        if let date = formatter.date(from: value) { return date }
-        formatter.formatOptions = [.withInternetDateTime]
-        return formatter.date(from: value)
     }
 }
 

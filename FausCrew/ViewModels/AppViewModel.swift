@@ -25,6 +25,12 @@ class AppViewModel: ObservableObject {
     private var storeCancellables = Set<AnyCancellable>()
     private let appEvents: AppEventsService?
     private let network: NetworkService?
+    private let pushRegistration: PushRegistrationService?
+    /// The selected house's notification panel and unread badge.
+    let notificationStore: NotificationStore
+    private let choreReminderStore: ChoreReminderStore
+    /// Walks a tapped push to its screen; also owns the selected tab and the open-game flag.
+    let pushRouteHandler: PushRouteHandler
 
     var signupSuccessMessage: String? { sessionCoordinator.signupSuccessMessage }
 
@@ -120,7 +126,11 @@ class AppViewModel: ObservableObject {
             houseTanksOnlineFactory: dependencies.houseTanksOnlineFactory,
             fausSwitchOnlineFactory: dependencies.fausSwitchOnlineFactory,
             appEvents: dependencies.appEvents,
-            network: dependencies.network
+            network: dependencies.network,
+            pushRegistration: dependencies.pushRegistration,
+            notificationService: dependencies.notificationService,
+            pushInbox: dependencies.pushInbox,
+            pushCenter: dependencies.pushCenter
         )
     }
 
@@ -139,10 +149,15 @@ class AppViewModel: ObservableObject {
         houseTanksOnlineFactory: HouseTanksOnlineFactory = .unavailable,
         fausSwitchOnlineFactory: FausSwitchOnlineFactory = .unavailable,
         appEvents: AppEventsService? = nil,
-        network: NetworkService? = nil
+        network: NetworkService? = nil,
+        pushRegistration: PushRegistrationService? = nil,
+        notificationService: (any NotificationServicing)? = nil,
+        pushInbox: PushInbox? = nil,
+        pushCenter: PushNotificationCenter? = nil
     ) {
         self.appEvents = appEvents
         self.network = network
+        self.pushRegistration = pushRegistration
         self.authStore = authStore
         self.toastStore = toastStore
         self.overlayStore = overlayStore
@@ -154,6 +169,13 @@ class AppViewModel: ObservableObject {
         self.houseRocketsSessionFactory = houseRocketsSessionFactory ?? .localOnly
         self.houseTanksOnlineFactory = houseTanksOnlineFactory
         self.fausSwitchOnlineFactory = fausSwitchOnlineFactory
+        notificationStore = NotificationStore(service: notificationService, preferences: userDefaults)
+        choreReminderStore = ChoreReminderStore(
+            service: notificationService,
+            toastStore: toastStore,
+            localizationStore: localizationStore,
+            currentUserID: { authStore.currentUserId }
+        )
 
         let router = AppRouter(
             hasAuthToken: keychain.authToken != nil,
@@ -190,12 +212,21 @@ class AppViewModel: ObservableObject {
                 await sessionCoordinator.socialSignIn(provider)
             }
         )
-        fausCrewCoordinator = FausCrewCoordinator(
+        let fausCrewCoordinator = FausCrewCoordinator(
             authStore: authStore,
             houseStore: houseStore,
             localizationStore: localizationStore,
             toastStore: toastStore,
             router: router
+        )
+        self.fausCrewCoordinator = fausCrewCoordinator
+        pushRouteHandler = PushRouteHandler(
+            snapshot: { Self.routeSnapshot(authStore: authStore, houseStore: houseStore, router: router, overlayStore: overlayStore) },
+            switchHouse: { houseID in
+                guard let house = authStore.currentUserProfile?.houseList.first(where: { $0.houseId == houseID }) else { return }
+                Task { await fausCrewCoordinator.switchHouse(to: house) }
+            },
+            inbox: pushInbox
         )
         dashboardCoordinator = DashboardCoordinator(
             authStore: authStore,
@@ -214,11 +245,14 @@ class AppViewModel: ObservableObject {
 
         bindStoreChanges()
         bindAppEvents()
+        bindPushRegistration()
+        bindNotifications(pushCenter: pushCenter)
+        bindPushRouting()
     }
 
     /// Binds session rejection and keeps the events socket tied to app state.
     private func bindAppEvents() {
-        sessionCoordinator.onSessionRejected = { [weak self] in self?.logout() }
+        sessionCoordinator.onSessionRejected = { [weak self] in self?.logout(reason: .sessionRejected) }
         network?.onUnauthorized = { [weak sessionCoordinator] token in
             sessionCoordinator?.handleRejectedToken(token)
         }
@@ -226,7 +260,7 @@ class AppViewModel: ObservableObject {
         appEvents.onRefresh = { [weak self] profile, houseID in
             await self?.sessionCoordinator.refreshForAppEvent(profile: profile, houseID: houseID)
         }
-        appEvents.onSignedOut = { [weak self] in self?.logout() }
+        appEvents.onSignedOut = { [weak self] in self?.logout(reason: .sessionRejected) }
         authStore.$isAuthenticated
             .removeDuplicates()
             .sink { appEvents.setAuthenticated($0) }
@@ -236,6 +270,80 @@ class AppViewModel: ObservableObject {
             .removeDuplicates()
             .sink { appEvents.setSelectedHouse($0) }
             .store(in: &storeCancellables)
+    }
+
+    /// Starts push registration and tells it who is fully signed in (the user id, else nil).
+    private func bindPushRegistration() {
+        guard let pushRegistration else { return }
+        pushRegistration.start()
+        Publishers.CombineLatest(authStore.$isAuthenticated, authStore.$currentUserId)
+            .map { $0 ? $1 : nil }
+            .removeDuplicates()
+            .sink { pushRegistration.setSession(userID: $0) }
+            .store(in: &storeCancellables)
+    }
+
+    /// Keeps the notification badge on the signed-in user's selected house and refreshes it when
+    /// the events socket or a foreground push says something new arrived.
+    private func bindNotifications(pushCenter: PushNotificationCenter?) {
+        notificationStore.onAccessLost = { [weak self] in
+            Task { await self?.sessionCoordinator.refreshForAppEvent(profile: true, houseID: nil) }
+        }
+        choreReminderStore.onChoreNotFound = { [weak self] in
+            guard let self, let houseID = self.houseStore.currentHouseDetails?.id else { return }
+            Task { await self.sessionCoordinator.refreshForAppEvent(profile: false, houseID: houseID) }
+        }
+        appEvents?.onNotificationsChanged = { [weak self] houseID in
+            self?.notificationStore.notificationsChanged(houseID: houseID)
+        }
+        pushCenter?.onForegroundNotification = { [weak self] data in
+            self?.notificationStore.notificationsChanged(houseID: data["houseId"])
+        }
+        Publishers.CombineLatest3(
+            authStore.$isAuthenticated,
+            authStore.$currentUserId,
+            houseStore.$currentHouseDetails.map { $0?.id }.removeDuplicates()
+        )
+        .sink { [weak self] authenticated, userID, houseID in
+            self?.notificationStore.setContext(userID: authenticated ? userID : nil, houseID: authenticated ? houseID : nil)
+        }
+        .store(in: &storeCancellables)
+    }
+
+    /// Re-evaluates the pending push whenever anything it depends on changes: app state, the
+    /// router, an overlay, or the handler's own tab/game state.
+    private func bindPushRouting() {
+        Publishers.MergeMany(
+            objectWillChange.eraseToAnyPublisher(),
+            router.objectWillChange.map { _ in }.eraseToAnyPublisher(),
+            overlayStore.objectWillChange.map { _ in }.eraseToAnyPublisher(),
+            pushRouteHandler.objectWillChange.eraseToAnyPublisher()
+        )
+        .sink { [weak self] _ in
+            // `objectWillChange` fires before the change lands; evaluate once it has.
+            Task { self?.pushRouteHandler.evaluate() }
+        }
+        .store(in: &storeCancellables)
+        pushRouteHandler.start()
+    }
+
+    private static func routeSnapshot(
+        authStore: AuthSessionStore,
+        houseStore: HouseSessionStore,
+        router: AppRouter,
+        overlayStore: OverlayStore
+    ) -> PushRouteHandler.Snapshot {
+        var isLoading = false
+        if case .houseLoading = router.route { isLoading = true }
+        return PushRouteHandler.Snapshot(
+            isSignedIn: authStore.isAuthenticated && authStore.currentUserId != nil,
+            houseIDs: authStore.currentUserProfile?.houseList.map(\.houseId),
+            selectedHouseID: houseStore.currentHouseDetails?.id,
+            isSwitchingHouse: isLoading,
+            isDashboardRoute: router.route == .dashboard,
+            isOverlayPresented: overlayStore.isPresented,
+            loadedChoreIDs: houseStore.currentHouseDetails.map { Set($0.chores.map(\.id)) }
+        )
     }
 
     private func bindStoreChanges() {
@@ -279,6 +387,12 @@ class AppViewModel: ObservableObject {
             .store(in: &storeCancellables)
 
         localizationStore.objectWillChange
+            .sink { [weak self] _ in
+                self?.objectWillChange.send()
+            }
+            .store(in: &storeCancellables)
+
+        choreReminderStore.objectWillChange
             .sink { [weak self] _ in
                 self?.objectWillChange.send()
             }
@@ -351,7 +465,7 @@ class AppViewModel: ObservableObject {
     func saveLanguagePreferenceAndRequireLogin(prefix: String) async throws {
         try await profileCoordinator.saveLanguagePreferenceAndRequireLogin(
             prefix: prefix,
-            onRequireLogin: logout
+            onRequireLogin: { [weak self] in self?.logout(reason: .userInitiated) }
         )
     }
 
@@ -501,7 +615,12 @@ class AppViewModel: ObservableObject {
         toastStore.show(message: message, isError: isError)
     }
 
-    func logout() {
+    /// Push cleanup runs first: a user-initiated sign-out still needs the stored JWT.
+    func logout(reason: PushSignOutReason) {
+        pushRegistration?.signOut(reason: reason)
+        pushRouteHandler.clear()
+        choreReminderStore.clear()
+        notificationStore.setContext(userID: nil, houseID: nil)
         sessionCoordinator.logout { [fausCrewCoordinator, dashboardCoordinator] in
             fausCrewCoordinator.resetSession()
             dashboardCoordinator.clearSession()
@@ -521,11 +640,11 @@ class AppViewModel: ObservableObject {
     /// Deletes the account on the backend, then wipes local state and returns to sign-in.
     func deleteAccount() async throws(SocialStepError) {
         try await authStore.deleteAccount()
-        logout()
+        logout(reason: .accountDeleted)
     }
 
     func cancelEmailVerification() {
-        logout()
+        logout(reason: .userInitiated)
     }
 
     // MARK: - Announcement API
@@ -578,6 +697,19 @@ class AppViewModel: ObservableObject {
             status: status,
             reviewPhoto: reviewPhoto
         )
+    }
+
+    func isChoreReminded(choreApiId: String) -> Bool {
+        choreReminderStore.isReminded(choreApiId)
+    }
+
+    func isRemindingChore(choreApiId: String) -> Bool {
+        choreReminderStore.isSending(choreApiId)
+    }
+
+    /// Sends the reminder; the outcome shows as a toast and in `isChoreReminded`.
+    func remindChore(choreApiId: String) async {
+        await choreReminderStore.remind(choreID: choreApiId)
     }
 
     func isChoreReviewPhotoRequired(houseId: String?) -> Bool {

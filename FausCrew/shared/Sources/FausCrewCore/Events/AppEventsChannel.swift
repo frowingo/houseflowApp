@@ -6,6 +6,7 @@ public enum AppEvent: Equatable, Sendable {
     case ready
     case houseChanged(houseID: String)
     case userChanged
+    case notificationCreated(houseID: String)
 }
 
 public enum AppEventsWire {
@@ -22,6 +23,9 @@ public enum AppEventsWire {
         case "house.changed":
             guard let id = object["houseId"] as? String, !id.isEmpty else { return nil }
             return .houseChanged(houseID: id)
+        case "notification.created":
+            guard let id = object["houseId"] as? String, !id.isEmpty else { return nil }
+            return .notificationCreated(houseID: id)
         default: return nil
         }
     }
@@ -34,6 +38,8 @@ public enum AppEventsEffect: Equatable, Sendable {
     /// Forced HTTP refresh (bypassing caches): the profile/house list via `auth/isAuth`,
     /// and/or `house/details` of `houseID`, which was selected when the refresh was decided.
     case refresh(profile: Bool, houseID: String?)
+    /// Reload the notification panel and badge of `houseID`, the selected house when it was decided.
+    case refreshNotifications(houseID: String)
     /// The socket was refused with 401: run the existing sign-out flow.
     case signedOut
 }
@@ -58,6 +64,7 @@ public final class AppEventsChannel {
     private var pendingProfile = false
     private var pendingHouses: Set<String> = []
     private var pendingSelected = false
+    private var pendingNotificationHouses: Set<String> = []
     private var flushAt: TimeInterval?
 
     public init(jitter: @escaping () -> Double = { Double.random(in: 0.8...1.2) }) {
@@ -89,9 +96,13 @@ public final class AppEventsChannel {
         }
     }
 
-    /// The house whose details are on screen; `house.changed` for other houses is ignored.
+    /// The house whose details are on screen; `house.changed` and `notification.created` for other
+    /// houses are ignored.
     public func setSelectedHouse(_ houseID: String?) {
-        if houseID != selectedHouseID { pendingHouses.removeAll() }
+        if houseID != selectedHouseID {
+            pendingHouses.removeAll()
+            pendingNotificationHouses.removeAll()
+        }
         selectedHouseID = houseID
     }
 
@@ -112,6 +123,9 @@ public final class AppEventsChannel {
             schedule(now: now)
         case .houseChanged(let id):
             pendingHouses.insert(id)
+            schedule(now: now)
+        case .notificationCreated(let id):
+            pendingNotificationHouses.insert(id)
             schedule(now: now)
         }
     }
@@ -156,6 +170,7 @@ public final class AppEventsChannel {
         pendingProfile = false
         pendingSelected = false
         pendingHouses.removeAll()
+        pendingNotificationHouses.removeAll()
         effects.append(.closeSocket)
     }
 
@@ -172,11 +187,14 @@ public final class AppEventsChannel {
     private func flush() {
         flushAt = nil
         let house = selectedHouseID.flatMap { id in (pendingSelected || pendingHouses.contains(id)) ? id : nil }
+        let notifications = selectedHouseID.flatMap { id in (pendingSelected || pendingNotificationHouses.contains(id)) ? id : nil }
         let profile = pendingProfile
         pendingProfile = false
         pendingSelected = false
         pendingHouses.removeAll()
-        guard isAuthenticated, profile || house != nil else { return }
-        effects.append(.refresh(profile: profile, houseID: house))
+        pendingNotificationHouses.removeAll()
+        guard isAuthenticated else { return }
+        if profile || house != nil { effects.append(.refresh(profile: profile, houseID: house)) }
+        if let notifications { effects.append(.refreshNotifications(houseID: notifications)) }
     }
 }

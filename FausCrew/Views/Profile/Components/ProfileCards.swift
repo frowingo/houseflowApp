@@ -161,6 +161,7 @@ struct ProfileAccountInformationCard: View {
 struct ProfileSettingsCard: View {
     let title: String
     let notificationsLabel: String
+    let notificationsValue: String
     let privacySecurityLabel: String
     let helpSupportLabel: String
     let languageSettingsLabel: String
@@ -170,6 +171,7 @@ struct ProfileSettingsCard: View {
     let logoutLabel: String
     let loginMethodsLabel: String
     let deleteAccountLabel: String
+    let onOpenNotificationSettings: () -> Void
     let onOpenLanguageSettings: () -> Void
     let onOpenThemeSettings: () -> Void
     let onOpenAbout: () -> Void
@@ -187,7 +189,9 @@ struct ProfileSettingsCard: View {
             ProfileSettingsRow(
                 icon: "bell.badge.fill",
                 tint: HouseJourneyTheme.tintNotifications,
-                label: notificationsLabel
+                label: notificationsLabel,
+                value: notificationsValue,
+                action: onOpenNotificationSettings
             )
             ProfileCardDivider().overlay(AppDesign.Colors.separator)
             ProfileSettingsRow(

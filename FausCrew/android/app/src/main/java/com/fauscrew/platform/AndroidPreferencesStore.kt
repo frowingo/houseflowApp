@@ -45,7 +45,22 @@ internal class AndroidPreferencesStore internal constructor(
         store.edit { it[SELECTED_THEME] = value }
     }
 
+    /** Set once the notification permission dialog was shown, so a denial is not asked again. */
+    suspend fun hasRequestedNotificationPermission(): Boolean = store.data.first()[REQUESTED_NOTIFICATION_PERMISSION] ?: false
+
+    suspend fun setRequestedNotificationPermission(value: Boolean) {
+        store.edit { it[REQUESTED_NOTIFICATION_PERMISSION] = value }
+    }
+
+    /** Seen marker JSON of the notification panel; [key] is `fauscrew.notifications-seen.<user>.<house>`. */
+    suspend fun notificationSeen(key: String): String? = store.data.first()[stringPreferencesKey(key)]
+
+    suspend fun setNotificationSeen(key: String, markerJson: String) {
+        store.edit { it[stringPreferencesKey(key)] = markerJson }
+    }
+
     private companion object {
+        val REQUESTED_NOTIFICATION_PERMISSION = booleanPreferencesKey("requestedNotificationPermission")
         val HAS_SEEN_ONBOARDING = booleanPreferencesKey("hasSeenOnboarding")
         val CHOSEN_HOUSE = stringPreferencesKey("chosenHouse")
         val SELECTED_LANGUAGE = stringPreferencesKey("selectedLanguage")

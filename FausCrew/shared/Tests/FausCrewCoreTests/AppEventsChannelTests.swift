@@ -23,6 +23,9 @@ final class AppEventsChannelTests: XCTestCase {
         XCTAssertEqual(AppEventsWire.event(from: #"{"type":"user.changed"}"#), .userChanged)
         XCTAssertEqual(AppEventsWire.event(from: #"{"type":"house.changed","houseId":"h1"}"#), .houseChanged(houseID: "h1"))
         XCTAssertNil(AppEventsWire.event(from: #"{"type":"house.changed"}"#))
+        XCTAssertEqual(AppEventsWire.event(from: #"{"type":"notification.created","houseId":"h1"}"#), .notificationCreated(houseID: "h1"))
+        XCTAssertNil(AppEventsWire.event(from: #"{"type":"notification.created"}"#))
+        XCTAssertNil(AppEventsWire.event(from: #"{"type":"notification.created","houseId":""}"#))
         XCTAssertNil(AppEventsWire.event(from: #"{"type":"chore.created"}"#))
         XCTAssertNil(AppEventsWire.event(from: "nope"))
     }
@@ -34,7 +37,7 @@ final class AppEventsChannelTests: XCTestCase {
         channel.tick(now: 0.5)
         XCTAssertTrue(channel.drainEffects().isEmpty)
         channel.tick(now: 1.0)
-        XCTAssertEqual(channel.drainEffects(), [.refresh(profile: true, houseID: "h1")])
+        XCTAssertEqual(channel.drainEffects(), [.refresh(profile: true, houseID: "h1"), .refreshNotifications(houseID: "h1")])
     }
 
     func testNearbySignalsBecomeOneRefreshAndOtherHousesAreIgnored() throws {
@@ -53,10 +56,40 @@ final class AppEventsChannelTests: XCTestCase {
         XCTAssertEqual(channel.drainEffects(), [.refresh(profile: false, houseID: "h1")])
     }
 
+    func testNotificationCreatedRefreshesOnlyTheSelectedHouse() throws {
+        let channel = channel()
+        let connection = try open(channel)
+        channel.received(text: #"{"type":"notification.created","houseId":"other"}"#, connection: connection, now: 1)
+        channel.tick(now: 2)
+        XCTAssertTrue(channel.drainEffects().isEmpty, "The badge is per selected house")
+        channel.received(text: #"{"type":"notification.created","houseId":"h1"}"#, connection: connection, now: 3)
+        channel.received(text: #"{"type":"notification.created","houseId":"h1"}"#, connection: connection, now: 3.2)
+        channel.tick(now: 3.8)
+        XCTAssertEqual(channel.drainEffects(), [.refreshNotifications(houseID: "h1")])
+    }
+
+    func testNotificationCreatedCoalescesWithHouseChanged() throws {
+        let channel = channel()
+        let connection = try open(channel)
+        channel.received(text: #"{"type":"house.changed","houseId":"h1"}"#, connection: connection, now: 1)
+        channel.received(text: #"{"type":"notification.created","houseId":"h1"}"#, connection: connection, now: 1.3)
+        channel.tick(now: 1.8)
+        XCTAssertEqual(channel.drainEffects(), [.refresh(profile: false, houseID: "h1"), .refreshNotifications(houseID: "h1")])
+    }
+
+    func testFullRefreshWithoutASelectedHouseHasNoNotifications() throws {
+        let channel = channel()
+        let connection = try open(channel, house: nil)
+        channel.received(text: #"{"type":"ready"}"#, connection: connection, now: 0.2)
+        channel.tick(now: 1)
+        XCTAssertEqual(channel.drainEffects(), [.refresh(profile: true, houseID: nil)])
+    }
+
     func testSelectionChangeDropsSignalsForThePreviousHouse() throws {
         let channel = channel()
         let connection = try open(channel)
         channel.received(text: #"{"type":"house.changed","houseId":"h1"}"#, connection: connection, now: 1)
+        channel.received(text: #"{"type":"notification.created","houseId":"h1"}"#, connection: connection, now: 1)
         channel.setSelectedHouse("h2")
         channel.tick(now: 2)
         XCTAssertTrue(channel.drainEffects().isEmpty)
@@ -70,7 +103,7 @@ final class AppEventsChannelTests: XCTestCase {
         channel.setActive(foreground: true, authenticated: true, now: 60)
         guard case .openSocket = try XCTUnwrap(channel.drainEffects().first) else { return XCTFail() }
         channel.tick(now: 61)
-        XCTAssertEqual(channel.drainEffects(), [.refresh(profile: true, houseID: "h1")])
+        XCTAssertEqual(channel.drainEffects(), [.refresh(profile: true, houseID: "h1"), .refreshNotifications(houseID: "h1")])
     }
 
     func testDropsBackOffExponentiallyAndReadyResetsTheBackoff() throws {
