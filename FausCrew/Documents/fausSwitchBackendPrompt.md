@@ -8,8 +8,8 @@ Aşağıdaki metin `houseflowApi` backend agent'ına olduğu gibi verilmek için
 
 `houseflowApi` içinde **Faus Switch** (`gameKey = fausSwitch`) için gerçek zamanlı, sunucu
 otoriter bir oyun modülü yaz: `internal/application/game/games/fausSwitch`. Oyun 2–8 oyuncuyla
-oynanır. Modül şu an hiç yok; `games/builtin.go` yalnız `houseRockets`, `houseTanks`,
-`ticTacToe` kaydediyor.
+oynanır. Modül şu an hiç yok; `games/builtin.go` yalnız `houseRockets` ve `houseTanks`
+kaydediyor.
 
 İstemci (iOS) tarafı hazır ve bu sözleşmeyle konuşan bir sunucu bekliyor. Senin işin istemcinin
 fiziğini Go'ya **birebir** taşımak ve ortak realtime çekirdeğine bağlamak.

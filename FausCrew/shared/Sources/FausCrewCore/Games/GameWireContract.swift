@@ -13,6 +13,8 @@ public enum GameKey {
 /// `/game/sessions/{sessionId}/…` names from now on.
 public enum GameRoute: Equatable, Sendable {
     case catalog(houseId: String)
+    /// Per-game wins and completed matches of the house's current members.
+    case stats(houseId: String)
     case ensureSession(gameKey: String)
     case discoverSession(gameKey: String, houseId: String)
     case result(sessionId: String)
@@ -23,7 +25,7 @@ public enum GameRoute: Equatable, Sendable {
     public var method: String {
         switch self {
         case .ensureSession: return "PUT"
-        case .catalog, .discoverSession, .result, .realtime: return "GET"
+        case .catalog, .stats, .discoverSession, .result, .realtime: return "GET"
         }
     }
 
@@ -32,6 +34,7 @@ public enum GameRoute: Equatable, Sendable {
     public var pathComponents: [String] {
         switch self {
         case .catalog: return ["game", "catalog"]
+        case .stats: return ["game", "stats"]
         case .ensureSession(let gameKey), .discoverSession(let gameKey, _): return ["game", gameKey, "session"]
         case .result(let sessionId): return ["game", "sessions", sessionId, "result"]
         case .realtime(let sessionId): return ["game", "sessions", sessionId, "realtime"]
@@ -42,7 +45,7 @@ public enum GameRoute: Equatable, Sendable {
 
     public var queryItems: [HTTPQueryItem] {
         switch self {
-        case .catalog(let houseId), .discoverSession(_, let houseId):
+        case .catalog(let houseId), .stats(let houseId), .discoverSession(_, let houseId):
             return [HTTPQueryItem(name: "houseId", value: houseId)]
         case .realtime:
             return [HTTPQueryItem(name: "protocolVersion", value: String(Self.realtimeProtocolVersion))]
@@ -64,10 +67,6 @@ public enum GameErrorCode {
     /// HTTP 409: the game is switched off or not opened for this house. An
     /// already active session stays reachable and the same request returns it.
     public static let unavailable = "game.error.unavailable"
-    /// HTTP 409, turn-based games only.
-    public static let notYourTurn = "game.error.not_your_turn"
-    /// HTTP 400, turn-based games only.
-    public static let invalidMove = "game.error.invalid_move"
 }
 
 /// A non-2xx game response reduced to what the clients branch on. It never

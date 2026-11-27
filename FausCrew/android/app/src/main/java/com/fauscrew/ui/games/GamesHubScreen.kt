@@ -140,7 +140,7 @@ private fun HouseRocketsCard(copy: RocketsCopy, modifier: Modifier, onClick: () 
             HouseRocketsRocketMark(Modifier.size(94.dp))
         }
         Column(Modifier.fillMaxWidth().padding(Spacing.md), verticalArrangement = Arrangement.spacedBy(Spacing.xs)) {
-            Text(copy("games_house_rockets_title"), style = FausCrewType.headline,
+            Text(copy(OnlineGameVisual.HOUSE_ROCKETS.titleKey), style = FausCrewType.headline,
                 color = FausCrewColors.textPrimary)
             Text(copy("games_house_rockets_card_description"),
                 style = FausCrewType.caption, color = FausCrewColors.textSecondary, maxLines = 3,
@@ -170,7 +170,7 @@ private fun HouseTanksCard(copy: TanksCopy, modifier: Modifier, onClick: () -> U
             HouseTanksArenaTank(TanksColor.OLIVE, Modifier.size(62.dp))
         }
         Column(Modifier.fillMaxWidth().padding(Spacing.md), verticalArrangement = Arrangement.spacedBy(Spacing.xs)) {
-            Text(copy("games_house_tanks_title"), style = FausCrewType.headline, color = FausCrewColors.textPrimary)
+            Text(copy(OnlineGameVisual.HOUSE_TANKS.titleKey), style = FausCrewType.headline, color = FausCrewColors.textPrimary)
             Text(copy("games_house_tanks_card_description"), style = FausCrewType.caption,
                 color = FausCrewColors.textSecondary, maxLines = 3, overflow = TextOverflow.Ellipsis)
         }
@@ -196,7 +196,7 @@ private fun FausSwitchCard(copy: SwitchCopy, modifier: Modifier, onClick: () -> 
             FausSwitchCoverArtwork(Modifier.fillMaxSize())
         }
         Column(Modifier.fillMaxWidth().padding(Spacing.md), verticalArrangement = Arrangement.spacedBy(Spacing.xs)) {
-            Text(copy("games_faus_switch_title"), style = FausCrewType.headline, color = FausCrewColors.textPrimary)
+            Text(copy(OnlineGameVisual.FAUS_SWITCH.titleKey), style = FausCrewType.headline, color = FausCrewColors.textPrimary)
             Text(copy("games_faus_switch_card_description"), style = FausCrewType.caption,
                 color = FausCrewColors.textSecondary, maxLines = 3, overflow = TextOverflow.Ellipsis)
         }

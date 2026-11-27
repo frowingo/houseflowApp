@@ -52,6 +52,9 @@ import com.fauscrew.ui.dashboard.notifications.NotificationActions
 import com.fauscrew.ui.dashboard.archive.ChoreArchiveActions
 import com.fauscrew.viewmodel.ChoreArchiveEffect
 import com.fauscrew.viewmodel.ChoreArchiveViewModel
+import com.fauscrew.viewmodel.GameStatsEffect
+import com.fauscrew.viewmodel.GameStatsViewModel
+import com.fauscrew.ui.games.OnlineGameVisual
 import com.fauscrew.viewmodel.NotificationEffect
 import com.fauscrew.viewmodel.NotificationViewModel
 import com.fauscrew.platform.AppVisibility
@@ -210,6 +213,21 @@ class MainActivity : ComponentActivity() {
                     when (effect) {
                         ChoreArchiveEffect.SessionRejected -> model.logout(PushSignOutReason.SessionRejected)
                         ChoreArchiveEffect.RefreshProfile -> model.refreshProfile()
+                    }
+                }
+            }
+            // The dashboard stats card loads when it appears; it follows the same user, house and members.
+            val gameStatsModel: GameStatsViewModel = viewModel(
+                factory = GameStatsViewModel.Factory(applicationContext, OnlineGameVisual.knownGameKeys))
+            val gameStatsState by gameStatsModel.state.collectAsStateWithLifecycle()
+            LaunchedEffect(notificationUser, houseState.details?.id) { gameStatsModel.setContext(notificationUser, houseState.details?.id) }
+            val statsMemberIds = houseState.details?.members.orEmpty().map { it.id }
+            LaunchedEffect(statsMemberIds) { gameStatsModel.setMembers(statsMemberIds) }
+            LaunchedEffect(gameStatsModel) {
+                gameStatsModel.effects.collect { effect ->
+                    when (effect) {
+                        GameStatsEffect.SessionRejected -> model.logout(PushSignOutReason.SessionRejected)
+                        GameStatsEffect.RefreshProfile -> model.refreshProfile()
                     }
                 }
             }
@@ -417,6 +435,8 @@ class MainActivity : ComponentActivity() {
                                     open = archiveModel::open, previousMonth = archiveModel::previousMonth,
                                     nextMonth = archiveModel::nextMonth, reload = archiveModel::reload,
                                     loadMore = archiveModel::loadMore),
+                                gameStats = gameStatsState, onRefreshGameStats = gameStatsModel::refresh,
+                                currentUserId = notificationUser,
                                 openChoreRequest = openChoreRequest, onOpenChoreHandled = { openChoreRequest = null },
                                 closePopupsSignal = closeDashboardPopups)
                         },

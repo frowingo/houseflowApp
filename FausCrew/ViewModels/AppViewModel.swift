@@ -31,6 +31,8 @@ class AppViewModel: ObservableObject {
     /// The chore archive popup's month list. The view observes it directly, so it is not forwarded
     /// into this object's `objectWillChange`.
     let choreArchiveStore: ChoreArchiveStore
+    /// The dashboard stats card's standings. Observed directly by the card, like the archive.
+    let gameStatsStore: GameStatsStore
     private let choreReminderStore: ChoreReminderStore
     /// Walks a tapped push to its screen; also owns the selected tab and the open-game flag.
     let pushRouteHandler: PushRouteHandler
@@ -133,6 +135,7 @@ class AppViewModel: ObservableObject {
             pushRegistration: dependencies.pushRegistration,
             notificationService: dependencies.notificationService,
             choreArchiveService: dependencies.choreArchiveService,
+            gameStatsService: dependencies.gameStatsService,
             pushInbox: dependencies.pushInbox,
             pushCenter: dependencies.pushCenter
         )
@@ -157,6 +160,7 @@ class AppViewModel: ObservableObject {
         pushRegistration: PushRegistrationService? = nil,
         notificationService: (any NotificationServicing)? = nil,
         choreArchiveService: (any ChoreArchiveServicing)? = nil,
+        gameStatsService: (any GameStatsServicing)? = nil,
         pushInbox: PushInbox? = nil,
         pushCenter: PushNotificationCenter? = nil
     ) {
@@ -178,6 +182,7 @@ class AppViewModel: ObservableObject {
         choreArchiveStore = ChoreArchiveStore(service: choreArchiveService) { [dashboardStore, localizationStore] dto in
             dashboardStore.chore(from: dto, unassignedName: localizationStore.value(for: "common_unassigned"))
         }
+        gameStatsStore = GameStatsStore(service: gameStatsService)
         choreReminderStore = ChoreReminderStore(
             service: notificationService,
             toastStore: toastStore,
@@ -300,6 +305,9 @@ class AppViewModel: ObservableObject {
         choreArchiveStore.onAccessLost = { [weak self] in
             Task { await self?.sessionCoordinator.refreshForAppEvent(profile: true, houseID: nil) }
         }
+        gameStatsStore.onAccessLost = { [weak self] in
+            Task { await self?.sessionCoordinator.refreshForAppEvent(profile: true, houseID: nil) }
+        }
         choreReminderStore.onChoreNotFound = { [weak self] in
             guard let self, let houseID = self.houseStore.currentHouseDetails?.id else { return }
             Task { await self.sessionCoordinator.refreshForAppEvent(profile: false, houseID: houseID) }
@@ -318,6 +326,7 @@ class AppViewModel: ObservableObject {
         .sink { [weak self] authenticated, userID, houseID in
             self?.notificationStore.setContext(userID: authenticated ? userID : nil, houseID: authenticated ? houseID : nil)
             self?.choreArchiveStore.setContext(userID: authenticated ? userID : nil, houseID: authenticated ? houseID : nil)
+            self?.gameStatsStore.setContext(userID: authenticated ? userID : nil, houseID: authenticated ? houseID : nil)
         }
         .store(in: &storeCancellables)
     }

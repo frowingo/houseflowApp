@@ -1,9 +1,10 @@
 import SwiftUI
 import FausCrewCore
 
-/// The dashboard's playful progress metric: what share of the listed chores is completed.
-/// A tap squishes the card, spins the ring, pops the percentage, waves the chore dots and
-/// throws a burst of sparks; every fifth tap (and any tap at 100%) throws a bigger one.
+/// The dashboard's playful progress metric: what share of the listed chores is completed. It
+/// takes a third of the row beside the game stats card. A tap squishes the card, spins the ring,
+/// pops the percentage and throws a burst of sparks; every fifth tap (and any tap at 100%) throws
+/// a bigger one.
 struct ChoreProgressCard: View {
     @EnvironmentObject private var appViewModel: AppViewModel
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
@@ -16,12 +17,8 @@ struct ChoreProgressCard: View {
     @State private var shownProgress: Double = 0
     @State private var sparks: [ProgressSpark] = []
 
-    /// Above this many chores the dots get too thin; a plain bar takes their place.
-    private let maxDots = 12
-
-    /// The dashboard header's content height (66pt house image in a 3pt frame); with the same
-    /// vertical padding the two cards stand equally tall.
-    static let contentHeight: CGFloat = 72
+    /// The ring's size; the card stands as tall as the game stats card beside it.
+    static let ringSize: CGFloat = 72
 
     private var total: Int { chores.count }
     private var completed: Int { chores.filter { $0.choreStatus == .completed }.count }
@@ -35,17 +32,30 @@ struct ChoreProgressCard: View {
 
     var body: some View {
         Button(action: celebrate) {
-            HStack(spacing: AppDesign.Spacing.lg) {
+            VStack(spacing: AppDesign.Spacing.sm) {
                 ring
-                details
+                VStack(spacing: 2) {
+                    Text(title)
+                        .font(.system(size: 10, weight: .semibold))
+                        .foregroundStyle(AppDesign.Colors.textTertiary)
+                        .textCase(.uppercase)
+                        .tracking(0.6)
+                        .lineLimit(1)
+                        .minimumScaleFactor(0.8)
+                    Text(subtitle)
+                        .font(.system(size: 12, weight: .semibold, design: .rounded))
+                        .foregroundStyle(AppDesign.Colors.textSecondary)
+                        .multilineTextAlignment(.center)
+                        // The whole text, never cut short; a long one shrinks instead.
+                        .lineLimit(nil)
+                        .minimumScaleFactor(0.6)
+                }
             }
-            .frame(height: Self.contentHeight)
-            .padding(.horizontal, AppDesign.Spacing.lg)
-            .padding(.vertical, AppDesign.Spacing.xl)
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .background(cardBackground)
-            .overlay(cardBorder)
-            .shadow(color: HouseJourneyTheme.deepIndigo.opacity(0.09), radius: 14, x: 0, y: 6)
+            .padding(.horizontal, AppDesign.Spacing.sm)
+            .padding(.vertical, AppDesign.Spacing.md)
+            // Ring and text together always sit in the middle of the card, however long the text.
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
+            .dashboardMetricCard(glowOffset: CGSize(width: 45, height: 70))
         }
         .buttonStyle(CatalogPressStyle(scale: 0.965))
         .onAppear {
@@ -59,7 +69,7 @@ struct ChoreProgressCard: View {
             }
         }
         .accessibilityElement(children: .ignore)
-        .accessibilityLabel("\(title), \(tier.message(appViewModel))")
+        .accessibilityLabel("\(title), \(tier.message(appViewModel)), \(subtitle)")
         .accessibilityValue(percentText)
     }
 
@@ -107,161 +117,7 @@ struct ChoreProgressCard: View {
             }
             .allowsHitTesting(false)
         }
-        .frame(width: Self.contentHeight, height: Self.contentHeight)
-    }
-
-    // MARK: - Details
-
-    private var details: some View {
-        VStack(alignment: .leading, spacing: 0) {
-            HStack(alignment: .center) {
-                Text(title)
-                    .font(.system(size: 10, weight: .semibold))
-                    .foregroundStyle(AppDesign.Colors.textTertiary)
-                    .textCase(.uppercase)
-                    .tracking(0.6)
-                    .lineLimit(1)
-
-                Spacer(minLength: AppDesign.Spacing.sm)
-
-                tierBadge
-            }
-
-            Spacer(minLength: 0)
-
-            Text(tier.message(appViewModel))
-                .font(.system(size: 15, weight: .bold, design: .rounded))
-                .foregroundStyle(AppDesign.Colors.textPrimary)
-                .lineLimit(1)
-                .minimumScaleFactor(0.75)
-
-            Text(subtitle)
-                .font(.system(size: 12))
-                .foregroundStyle(AppDesign.Colors.textSecondary)
-                .lineLimit(1)
-                .minimumScaleFactor(0.8)
-
-            Spacer(minLength: 0)
-
-            if total > 0 {
-                if total <= maxDots { choreDots } else { progressBar }
-            }
-        }
-        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .leading)
-    }
-
-    private var tierBadge: some View {
-        Image(systemName: tier.symbol)
-            .font(.system(size: 11, weight: .bold))
-            .foregroundStyle(.white)
-            .symbolEffect(.bounce, value: motionTaps)
-            .frame(width: 22, height: 22)
-            .background(
-                LinearGradient(
-                    colors: [HouseJourneyTheme.accentOrange, HouseJourneyTheme.accentOrangeDeep],
-                    startPoint: .topLeading,
-                    endPoint: .bottomTrailing
-                ),
-                in: Circle()
-            )
-            .keyframeAnimator(initialValue: 0.0, trigger: motionTaps) { content, angle in
-                content.rotationEffect(.degrees(angle))
-            } keyframes: { _ in
-                KeyframeTrack {
-                    LinearKeyframe(-18, duration: 0.07)
-                    LinearKeyframe(16, duration: 0.09)
-                    LinearKeyframe(-10, duration: 0.09)
-                    LinearKeyframe(6, duration: 0.08)
-                    SpringKeyframe(0, duration: 0.2)
-                }
-            }
-    }
-
-    /// One dot per chore, completed ones first; they wave left to right on a tap.
-    private var choreDots: some View {
-        HStack(spacing: 5) {
-            ForEach(0..<total, id: \.self) { index in
-                Capsule()
-                    .fill(
-                        index < completed
-                            ? AnyShapeStyle(LinearGradient(
-                                colors: [HouseJourneyTheme.teal, HouseJourneyTheme.indigo],
-                                startPoint: .leading,
-                                endPoint: .trailing
-                            ))
-                            : AnyShapeStyle(HouseJourneyTheme.indigo.opacity(0.14))
-                    )
-                    .frame(maxWidth: .infinity)
-                    .frame(height: 6)
-                    .keyframeAnimator(initialValue: 0.0, trigger: motionTaps) { content, lift in
-                        content.offset(y: lift)
-                    } keyframes: { _ in
-                        KeyframeTrack {
-                            LinearKeyframe(0, duration: 0.001 + Double(index) * 0.045)
-                            SpringKeyframe(-6, duration: 0.13)
-                            SpringKeyframe(0, duration: 0.35, spring: .bouncy)
-                        }
-                    }
-            }
-        }
-        .animation(.spring(response: 0.5, dampingFraction: 0.8), value: completed)
-    }
-
-    private var progressBar: some View {
-        GeometryReader { geometry in
-            ZStack(alignment: .leading) {
-                Capsule().fill(HouseJourneyTheme.indigo.opacity(0.14))
-                Capsule()
-                    .fill(LinearGradient(
-                        colors: [HouseJourneyTheme.teal, HouseJourneyTheme.indigo],
-                        startPoint: .leading,
-                        endPoint: .trailing
-                    ))
-                    .frame(width: geometry.size.width * shownProgress)
-            }
-        }
-        .frame(height: 6)
-    }
-
-    // MARK: - Card chrome
-
-    private var cardBackground: some View {
-        ZStack {
-            HouseJourneyTheme.surface
-            FausCardSheen()
-
-            LinearGradient(
-                colors: [
-                    HouseJourneyTheme.teal.opacity(0.07),
-                    HouseJourneyTheme.indigo.opacity(0.04),
-                    Color.clear
-                ],
-                startPoint: .topLeading,
-                endPoint: .bottomTrailing
-            )
-
-        }
-        // An overlay, not a ZStack child: the 140pt glow is taller than the 112pt card and
-        // would otherwise stretch the background past the border.
-        .overlay {
-            Circle()
-                .fill(HouseJourneyTheme.accentOrange.opacity(0.06))
-                .frame(width: 140, height: 140)
-                .offset(x: 150, y: 50)
-        }
-        .clipShape(RoundedRectangle(cornerRadius: AppDesign.CornerRadius.xl))
-    }
-
-    private var cardBorder: some View {
-        RoundedRectangle(cornerRadius: AppDesign.CornerRadius.xl)
-            .strokeBorder(
-                LinearGradient(
-                    colors: [HouseJourneyTheme.teal.opacity(0.22), HouseJourneyTheme.indigo.opacity(0.12)],
-                    startPoint: .topLeading,
-                    endPoint: .bottomTrailing
-                ),
-                lineWidth: 1
-            )
+        .frame(width: Self.ringSize, height: Self.ringSize)
     }
 
     // MARK: - Copy
@@ -343,20 +199,55 @@ struct ChoreProgressCard: View {
     }
 }
 
+// MARK: - Card chrome
+
+extension View {
+    /// The surface, sheen, tint, orange glow and border shared by the dashboard's metric cards
+    /// (progress and game stats), so the two cards in one row read as a pair.
+    func dashboardMetricCard(glowOffset: CGSize) -> some View {
+        let shape = RoundedRectangle(cornerRadius: AppDesign.CornerRadius.xl)
+        return background {
+            ZStack {
+                HouseJourneyTheme.surface
+                FausCardSheen()
+                LinearGradient(
+                    colors: [
+                        HouseJourneyTheme.teal.opacity(0.07),
+                        HouseJourneyTheme.indigo.opacity(0.04),
+                        Color.clear
+                    ],
+                    startPoint: .topLeading,
+                    endPoint: .bottomTrailing
+                )
+            }
+            // An overlay, not a ZStack child: the glow is larger than a narrow card and would
+            // otherwise stretch the background past the border.
+            .overlay {
+                Circle()
+                    .fill(HouseJourneyTheme.accentOrange.opacity(0.06))
+                    .frame(width: 140, height: 140)
+                    .offset(glowOffset)
+            }
+            .clipShape(shape)
+        }
+        .overlay(
+            shape.strokeBorder(
+                LinearGradient(
+                    colors: [HouseJourneyTheme.teal.opacity(0.22), HouseJourneyTheme.indigo.opacity(0.12)],
+                    startPoint: .topLeading,
+                    endPoint: .bottomTrailing
+                ),
+                lineWidth: 1
+            )
+        )
+        .shadow(color: HouseJourneyTheme.deepIndigo.opacity(0.09), radius: 14, x: 0, y: 6)
+    }
+}
+
 // MARK: - Tier
 
 private enum ProgressTier {
     case empty, start, warming, closing, done
-
-    var symbol: String {
-        switch self {
-        case .empty: return "sparkles"
-        case .start: return "checklist.unchecked"
-        case .warming: return "flame.fill"
-        case .closing: return "bolt.fill"
-        case .done: return "trophy.fill"
-        }
-    }
 
     @MainActor
     func message(_ appViewModel: AppViewModel) -> String {

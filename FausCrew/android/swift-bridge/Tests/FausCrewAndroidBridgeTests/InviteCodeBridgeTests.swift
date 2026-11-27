@@ -4,7 +4,7 @@ import FausCrewCore
 
 final class InviteCodeBridgeTests: XCTestCase {
     func testVersionAndCoreRule() {
-        XCTAssertEqual(bridgeVersion(), 22)
+        XCTAssertEqual(bridgeVersion(), 23)
         XCTAssertEqual(normalizeInviteCode("ab-12 cd34xyz"), "AB12CD34")
         XCTAssertEqual(normalizeInviteCode(""), "")
         XCTAssertEqual(normalizeInviteCode("１２３４５６７８ 12345678"), "12345678")

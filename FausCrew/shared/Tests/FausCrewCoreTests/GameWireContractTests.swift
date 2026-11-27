@@ -33,9 +33,9 @@ final class GameWireContractTests: XCTestCase {
            "settings": {"physicsRateHz": 120, "schedulingRateHz": 60, "snapshotRateHz": 20, "maximumInputRateHz": 20,
              "maximumSteerMessagesPerSecond": 30, "controlHeartbeatMilliseconds": 2000, "controlTimeoutMilliseconds": 6000,
              "reconnectGraceMilliseconds": 10000, "maximumMatchMilliseconds": 300000}},
-          {"gameKey": "ticTacToe", "protocolVersion": 2, "mode": "turn", "configVersion": 3,
-           "rules": {"minimumPlayers": 2, "maximumPlayers": 2, "readyWindowMilliseconds": 30000, "countdownMilliseconds": 0},
-           "settings": {"turnTimeoutMilliseconds": 30000}},
+          {"gameKey": "futureGame", "protocolVersion": 2, "mode": "realtime", "configVersion": 3,
+           "rules": {"minimumPlayers": 2, "maximumPlayers": 4, "readyWindowMilliseconds": 30000, "countdownMilliseconds": 0},
+           "settings": {"roundMilliseconds": 30000}},
           {"gameKey": "broken"}
         ]}
         """
@@ -43,11 +43,11 @@ final class GameWireContractTests: XCTestCase {
             houseId: "h1", response: HTTPResponse(statusCode: 200, headers: [:], body: Data(body.utf8))
         )
 
-        XCTAssertEqual(catalog.entries.map(\.gameKey), ["houseRockets", "ticTacToe"])
+        XCTAssertEqual(catalog.entries.map(\.gameKey), ["houseRockets", "futureGame"])
         let rockets = try XCTUnwrap(catalog.houseRockets)
         XCTAssertEqual(rockets.rules.maximumPlayers, 8)
         XCTAssertEqual(rockets.houseRocketsSettings, .releaseDefaults)
-        XCTAssertNil(catalog.entry(for: "ticTacToe")?.houseRocketsSettings)
+        XCTAssertNil(catalog.entry(for: "futureGame")?.houseRocketsSettings)
     }
 
     func testCatalogWithoutHouseRocketsMeansGameIsClosedForTheHouse() throws {
@@ -91,8 +91,9 @@ final class GameWireContractTests: XCTestCase {
         XCTAssertNil(GameHTTPError(statusCode: 409, body: Data("conflict".utf8)).code)
         XCTAssertFalse(GameHTTPError(statusCode: 409, code: "game.error.ready_closed").isGameUnavailable)
         XCTAssertFalse(GameHTTPError(statusCode: 400, code: GameErrorCode.unavailable).isGameUnavailable)
-        XCTAssertEqual(GameHTTPError(statusCode: 409, body: Data(#"{"code": "game.error.not_your_turn"}"#.utf8)).code,
-                       GameErrorCode.notYourTurn)
+        let readyClosed = GameHTTPError(statusCode: 409, body: Data(#"{"code": "game.error.ready_closed"}"#.utf8))
+        XCTAssertEqual(readyClosed.code, "game.error.ready_closed")
+        XCTAssertFalse(readyClosed.isGameUnavailable)
     }
 
     func testEnsureSessionBody() throws {

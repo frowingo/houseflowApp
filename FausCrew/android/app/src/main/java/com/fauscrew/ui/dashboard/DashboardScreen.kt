@@ -74,7 +74,11 @@ import com.fauscrew.ui.theme.Spacing
 import com.fauscrew.ui.theme.entrance
 import com.fauscrew.ui.theme.rememberEntrance
 import com.fauscrew.ui.theme.softShadow
+import com.fauscrew.viewmodel.GameStatsUiState
 import com.fauscrew.viewmodel.HouseUiState
+
+/** The progress and game stats row: tall enough for the stats card's title, chart, caption and tiles. */
+private val MetricsRowHeight = 184.dp
 
 /**
  * `HouseDashboardView`: hero greeting, announcements, today's chores (with the chore catalog
@@ -102,12 +106,19 @@ internal fun DashboardScreen(
     onOpenChoreHandled: () -> Unit = {},
     /** Bumped by the push router to close every popup before it shows the dashboard. */
     closePopupsSignal: Int = 0,
+    /** The house's game standings beside the progress card; [onRefreshGameStats] reloads them. */
+    gameStats: GameStatsUiState = GameStatsUiState(),
+    onRefreshGameStats: () -> Unit = {},
+    currentUserId: String? = null,
 ) {
     val details = state.details ?: return
     var popup by remember { mutableStateOf<DashboardPopup?>(null) }
     var reviewing by remember { mutableStateOf(false) }
 
     LaunchedEffect(details.id) { popup = null }
+    // Every time the dashboard is shown (back from a match too) and on a house switch; no polling.
+    val refreshGameStats by rememberUpdatedState(onRefreshGameStats)
+    LaunchedEffect(details.id, currentUserId) { refreshGameStats() }
     LaunchedEffect(closePopupsSignal) {
         if (closePopupsSignal > 0) {
             popup = null
@@ -148,8 +159,14 @@ internal fun DashboardScreen(
                 }
             }
             item(key = "progress") {
-                ChoreProgressCard(details.chores, strings,
-                    Modifier.padding(horizontal = Spacing.xxl).entrance(progress, 22.dp))
+                // Progress takes a third of the row, the game standings the rest; both stand as tall.
+                Row(
+                    Modifier.padding(horizontal = Spacing.xxl).fillMaxWidth().height(MetricsRowHeight).entrance(progress, 22.dp),
+                    horizontalArrangement = Arrangement.spacedBy(Spacing.md),
+                ) {
+                    ChoreProgressCard(details.chores, strings, Modifier.weight(1f))
+                    GameStatsCard(gameStats, details.members, currentUserId, strings, onRefreshGameStats, Modifier.weight(2f))
+                }
             }
             item(key = "chores") {
                 TodaysChoresCard(details.chores, details.members, strings, { popup = DashboardPopup.Chore(it.id) },

@@ -23,13 +23,13 @@ struct GamesHubView: View {
     private static let gameOrange = Color(hex: "FF9500")
 
     private let games: [GameInfo] = [
-        GameInfo(id: 7, titleKey: "games_house_rockets_title",
+        GameInfo(id: 7, titleKey: OnlineGameVisual.houseRockets.titleKey,
                  descriptionKey: "games_house_rockets_card_description",
                  icon: "arrow.up.right", color: Color(HouseRocketsPalette.red), badgeKey: "games_house_rockets_badge"),
-        GameInfo(id: 6, titleKey: "games_house_tanks_title",
+        GameInfo(id: 6, titleKey: OnlineGameVisual.houseTanks.titleKey,
                  descriptionKey: "games_house_tanks_card_description",
                  icon: "scope", color: Self.gameOrange, badgeKey: "games_house_tanks_badge"),
-        GameInfo(id: 5, titleKey: "games_faus_switch_title",
+        GameInfo(id: 5, titleKey: OnlineGameVisual.fausSwitch.titleKey,
                  descriptionKey: "games_faus_switch_card_description",
                  icon: "arrow.up.arrow.down.circle.fill", color: FausSwitchPalette.wine, badgeKey: "games_faus_switch_badge"),
         GameInfo(id: 3, titleKey: "games_skyline_dash_title",

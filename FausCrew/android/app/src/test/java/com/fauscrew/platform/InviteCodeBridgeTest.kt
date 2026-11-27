@@ -6,7 +6,7 @@ import org.junit.Test
 
 class InviteCodeBridgeTest {
     @Test fun versionIsExplicit() {
-        assertEquals(22, InviteCodeBridge.API_VERSION)
+        assertEquals(23, InviteCodeBridge.API_VERSION)
     }
 
     @Test fun nullIsRejectedBeforeNativeCall() {

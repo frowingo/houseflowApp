@@ -16,7 +16,10 @@ struct HouseDashboardView: View {
     @State private var catalogEntry: ChoreCatalogEntry?
     @State private var appeared = false
     @Environment(\.fausSplashActive) private var splashActive
-    
+
+    /// The progress and game stats row: tall enough for the stats card's title, chart, caption and tiles.
+    private static let metricsRowHeight: CGFloat = 184
+
     var body: some View {
         ZStack {
             MainScreenBackground()
@@ -25,8 +28,21 @@ struct HouseDashboardView: View {
                 VStack(spacing: AppDesign.Spacing.lg) {
                     headerSection
 
-                    ChoreProgressCard(chores: appViewModel.dashboardChores)
-                        .padding(.horizontal, AppDesign.Spacing.xxl)
+                    // Progress takes a third of the row, the game standings the rest; both stand as tall.
+                    HStack(spacing: AppDesign.Spacing.md) {
+                        ChoreProgressCard(chores: appViewModel.dashboardChores)
+                            .containerRelativeFrame(.horizontal) { width, _ in
+                                (width - 2 * AppDesign.Spacing.xxl - AppDesign.Spacing.md) / 3
+                            }
+                        GameStatsCard(
+                            store: appViewModel.gameStatsStore,
+                            members: appViewModel.dashboardMembers,
+                            currentUserID: appViewModel.currentUserId,
+                            houseID: appViewModel.currentHouseDetails?.id
+                        )
+                    }
+                    .frame(height: Self.metricsRowHeight)
+                    .padding(.horizontal, AppDesign.Spacing.xxl)
                         .opacity(appeared ? 1 : 0)
                         .offset(y: appeared ? 0 : 22)
                         .animation(.spring(response: 0.6, dampingFraction: 0.78).delay(0.14), value: appeared)

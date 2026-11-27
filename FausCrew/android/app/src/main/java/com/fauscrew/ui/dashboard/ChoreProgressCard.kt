@@ -2,8 +2,6 @@ package com.fauscrew.ui.dashboard
 
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.core.Animatable
-import androidx.compose.animation.core.AnimationVector1D
-import androidx.compose.animation.core.LinearEasing
 import androidx.compose.animation.core.LinearOutSlowInEasing
 import androidx.compose.animation.core.Spring
 import androidx.compose.animation.core.animateFloatAsState
@@ -20,20 +18,13 @@ import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicText
 import androidx.compose.foundation.text.TextAutoSize
 import androidx.compose.material3.Icon
-import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -65,8 +56,9 @@ import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.semantics.stateDescription
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.Dp
+import androidx.compose.ui.unit.DpOffset
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.fauscrew.platform.HouseChore
@@ -87,15 +79,12 @@ import kotlin.random.Random
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
-/** The dashboard header's content height (66dp house image in a 3dp frame); with the same vertical padding both cards stand equally tall. */
-private val ContentHeight = 72.dp
-
-/** Above this many chores the dots get too thin; a plain bar takes their place. */
-private const val MaxDots = 12
+/** The ring; the card is a third of the row, so the ring, the title and the count stack in a column. */
+private val RingSize = 72.dp
 
 /**
- * iOS `ChoreProgressCard`: what share of the listed chores is completed. A tap squishes the card,
- * spins the ring, pops the percentage, wiggles the badge, waves the chore dots and throws a burst of
+ * iOS `ChoreProgressCard`: what share of the listed chores is completed, a third of the dashboard's
+ * metrics row. A tap squishes the card, spins the ring, pops the percentage and throws a burst of
  * sparks; every fifth tap (and any tap at 100%) throws a bigger one.
  */
 @Composable
@@ -129,10 +118,6 @@ internal fun ChoreProgressCard(chores: List<HouseChore>, strings: LocalizedText,
     var taps by remember { mutableIntStateOf(0) }
     val spin = remember { Animatable(0f) }
     val pop = remember { Animatable(1f) }
-    val badgeScale = remember { Animatable(1f) }
-    /** 0 → 1 drives a damped wiggle; resting at 1 means no tilt. */
-    val wiggle = remember { Animatable(1f) }
-    val dotLifts = remember(total) { List(if (total in 1..MaxDots) total else 0) { Animatable(0f) } }
     val sparks = remember { mutableStateListOf<ProgressSpark>() }
     val palette = listOf(FausCrewColors.indigo, FausCrewColors.teal, FausCrewColors.accentOrange,
         FausCrewColors.purple, FausCrewColors.blue)
@@ -149,19 +134,6 @@ internal fun ChoreProgressCard(chores: List<HouseChore>, strings: LocalizedText,
             pop.animateTo(.9f, tween(140))
             pop.animateTo(1f, spring(dampingRatio = .4f, stiffness = 420f))
         }
-        scope.launch {
-            badgeScale.animateTo(1.25f, tween(110))
-            badgeScale.animateTo(1f, spring(dampingRatio = .4f, stiffness = 500f))
-        }
-        scope.launch { wiggle.snapTo(0f); wiggle.animateTo(1f, tween(450, easing = LinearEasing)) }
-        dotLifts.forEachIndexed { index, lift ->
-            scope.launch {
-                delay(45L * index)
-                lift.animateTo(-6f, tween(130))
-                lift.animateTo(0f, spring(dampingRatio = .4f, stiffness = 500f))
-            }
-        }
-
         val count = if (big) 18 else 10
         val start = Random.nextDouble(0.0, 360.0)
         val base = System.nanoTime()
@@ -181,66 +153,68 @@ internal fun ChoreProgressCard(chores: List<HouseChore>, strings: LocalizedText,
         scope.launch { delay(950); sparks.removeAll { it.id in ids } }
     }
 
-    val shape = RoundedCornerShape(Radius.xl)
-    val glow = FausCrewColors.accentOrange.copy(alpha = .06f)
     // The chrome sits in its own clipped layer so the sparks can fly past the card's edge, as on iOS.
     Box(
-        modifier.fillMaxWidth()
+        modifier.fillMaxSize()
             .catalogPress(.965f) { celebrate() }
-            .semantics { contentDescription = "$title, $message"; stateDescription = percentText }
-            .softShadow(FausCrewColors.deepIndigo.copy(alpha = .09f), 14.dp, y = 6.dp, shape = shape),
+            .semantics { contentDescription = "$title, $message, $subtitle"; stateDescription = percentText },
     ) {
-        Box(
-            Modifier.matchParentSize().clip(shape)
-                .background(FausCrewColors.surface)
-                .fausCardSheen()
-                .background(Brush.linearGradient(listOf(
-                    FausCrewColors.teal.copy(alpha = .07f), FausCrewColors.indigo.copy(alpha = .04f), Color.Transparent,
-                )))
-                .drawBehind {
-                    drawCircle(glow, 70.dp.toPx(), Offset(size.width / 2 + 150.dp.toPx(), size.height / 2 + 50.dp.toPx()))
-                }
-                .border(1.dp, Brush.linearGradient(listOf(
-                    FausCrewColors.teal.copy(alpha = .22f), FausCrewColors.indigo.copy(alpha = .12f),
-                )), shape),
-        )
-        Row(
-            Modifier.fillMaxWidth().clearAndSetSemantics {}
-                .padding(horizontal = Spacing.lg, vertical = Spacing.xl).height(ContentHeight),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(Spacing.lg),
+        DashboardMetricChrome(DpOffset(45.dp, 70.dp), Modifier.matchParentSize())
+        Column(
+            Modifier.fillMaxSize().clearAndSetSemantics {}.padding(horizontal = Spacing.sm, vertical = Spacing.md),
+            horizontalAlignment = Alignment.CenterHorizontally,
+            // Ring and text together always sit in the middle of the card, however long the text.
+            verticalArrangement = Arrangement.spacedBy(Spacing.sm, Alignment.CenterVertically),
         ) {
             ProgressRing(shown, spin.value, pop.value, percentText, sparks)
-            Column(Modifier.weight(1f).fillMaxHeight()) {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Text(title.uppercase(), Modifier.weight(1f), fontSize = 10.sp, fontWeight = FontWeight.SemiBold,
-                        letterSpacing = .6.sp, color = FausCrewColors.textTertiary, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                    TierBadge(tier.icon, badgeScale.value, wiggleAngle(wiggle.value))
-                }
-                Spacer(Modifier.weight(1f))
-                BasicText(message,
-                    style = TextStyle(color = FausCrewColors.textPrimary, fontSize = 15.sp, fontWeight = FontWeight.Bold),
-                    maxLines = 1, autoSize = TextAutoSize.StepBased(minFontSize = 11.sp, maxFontSize = 15.sp))
-                Text(subtitle, fontSize = 12.sp, color = FausCrewColors.textSecondary, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                Spacer(Modifier.weight(1f))
-                when {
-                    dotLifts.isNotEmpty() -> ChoreDots(completed, dotLifts)
-                    total > 0 -> ProgressBar(shown)
-                }
+            Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                BasicText(title.uppercase(),
+                    style = TextStyle(color = FausCrewColors.textTertiary, fontSize = 10.sp, fontWeight = FontWeight.SemiBold,
+                        letterSpacing = .6.sp, textAlign = TextAlign.Center),
+                    maxLines = 1, autoSize = TextAutoSize.StepBased(minFontSize = 8.sp, maxFontSize = 10.sp))
+                BasicText(subtitle,
+                    style = TextStyle(color = FausCrewColors.textSecondary, fontSize = 12.sp, fontWeight = FontWeight.SemiBold,
+                        textAlign = TextAlign.Center),
+                    // The whole text, never cut short; a long one shrinks instead.
+                    autoSize = TextAutoSize.StepBased(minFontSize = 7.sp, maxFontSize = 12.sp))
             }
         }
     }
 }
 
-/** Damped shake: -18° swinging back to rest over the tap's 450ms; 0 at both ends. */
-private fun wiggleAngle(t: Float): Float =
-    if (t <= 0f || t >= 1f) 0f else (-18f * sin(t * 4f * PI.toFloat()) * (1f - t))
+/**
+ * iOS `dashboardMetricCard`: the metrics row's shared card chrome (surface, sheen, teal wash, an
+ * orange glow moved by [glowOffset] from the centre, gradient border and shadow). Laid under the
+ * content with `matchParentSize`, so whatever the content draws past the edge is not clipped.
+ */
+@Composable
+internal fun DashboardMetricChrome(glowOffset: DpOffset, modifier: Modifier = Modifier) {
+    val shape = RoundedCornerShape(Radius.xl)
+    val glow = FausCrewColors.accentOrange.copy(alpha = .06f)
+    Box(
+        modifier
+            .softShadow(FausCrewColors.deepIndigo.copy(alpha = .09f), 14.dp, y = 6.dp, shape = shape)
+            .clip(shape)
+            .background(FausCrewColors.surface)
+            .fausCardSheen()
+            .background(Brush.linearGradient(listOf(
+                FausCrewColors.teal.copy(alpha = .07f), FausCrewColors.indigo.copy(alpha = .04f), Color.Transparent,
+            )))
+            .drawBehind {
+                drawCircle(glow, 70.dp.toPx(),
+                    Offset(size.width / 2 + glowOffset.x.toPx(), size.height / 2 + glowOffset.y.toPx()))
+            }
+            .border(1.dp, Brush.linearGradient(listOf(
+                FausCrewColors.teal.copy(alpha = .22f), FausCrewColors.indigo.copy(alpha = .12f),
+            )), shape),
+    )
+}
 
 @Composable
 private fun ProgressRing(shown: Float, spin: Float, pop: Float, percentText: String, sparks: List<ProgressSpark>) {
     val track = FausCrewColors.indigo.copy(alpha = .12f)
     val arc = Brush.linearGradient(listOf(FausCrewColors.teal, FausCrewColors.indigo))
-    Box(Modifier.size(ContentHeight), contentAlignment = Alignment.Center) {
+    Box(Modifier.size(RingSize), contentAlignment = Alignment.Center) {
         Canvas(Modifier.fillMaxSize()) {
             val stroke = 7.dp.toPx()
             val inset = stroke / 2
@@ -267,45 +241,8 @@ private fun ProgressRing(shown: Float, spin: Float, pop: Float, percentText: Str
     }
 }
 
-@Composable
-private fun TierBadge(icon: ImageVector, scale: Float, angle: Float) {
-    Box(
-        Modifier.size(22.dp)
-            .graphicsLayer { scaleX = scale; scaleY = scale; rotationZ = angle }
-            .background(Brush.linearGradient(listOf(FausCrewColors.accentOrange, FausCrewColors.accentOrangeDeep)), CircleShape),
-        contentAlignment = Alignment.Center,
-    ) {
-        Icon(icon, null, Modifier.size(13.dp), tint = Color.White)
-    }
-}
-
-/** One dot per chore, completed ones first; they wave left to right on a tap. */
-@Composable
-private fun ChoreDots(completed: Int, lifts: List<Animatable<Float, AnimationVector1D>>) {
-    val done = Brush.horizontalGradient(listOf(FausCrewColors.teal, FausCrewColors.indigo))
-    val open = FausCrewColors.indigo.copy(alpha = .14f)
-    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(5.dp)) {
-        lifts.forEachIndexed { index, lift ->
-            val dot = Modifier.weight(1f).height(6.dp).graphicsLayer { translationY = lift.value.dp.toPx() }
-            Box(if (index < completed) dot.background(done, CircleShape) else dot.background(open, CircleShape))
-        }
-    }
-}
-
-@Composable
-private fun ProgressBar(shown: Float) {
-    Box(Modifier.fillMaxWidth().height(6.dp).background(FausCrewColors.indigo.copy(alpha = .14f), CircleShape)) {
-        Box(Modifier.fillMaxHeight().fillMaxWidth(shown.coerceIn(0f, 1f))
-            .background(Brush.horizontalGradient(listOf(FausCrewColors.teal, FausCrewColors.indigo)), CircleShape))
-    }
-}
-
-private enum class ProgressTier(val icon: ImageVector) {
-    EMPTY(FausCrewIcons.sparkles),
-    START(FausCrewIcons.checklistUnchecked),
-    WARMING(FausCrewIcons.flameFill),
-    CLOSING(FausCrewIcons.boltFill),
-    DONE(FausCrewIcons.trophyFill);
+private enum class ProgressTier {
+    EMPTY, START, WARMING, CLOSING, DONE;
 
     fun message(strings: LocalizedText): String = when (this) {
         EMPTY -> strings.social("chore_progress_tier_empty", "Liste boş, sahne senin!", "The list is empty, the stage is yours!")
