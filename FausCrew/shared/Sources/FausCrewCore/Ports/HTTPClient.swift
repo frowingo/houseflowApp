@@ -14,6 +14,9 @@ public struct HTTPRequest: Sendable {
     public let path: String
     public let method: String
     public let queryItems: [HTTPQueryItem]
+    /// An already percent-encoded query that the HTTP adapters use verbatim; `queryItems` is empty
+    /// when it is set.
+    public let percentEncodedQuery: String?
     public let headers: [String: String]
     public let body: Data?
 
@@ -22,11 +25,13 @@ public struct HTTPRequest: Sendable {
         method: String,
         queryItems: [HTTPQueryItem] = [],
         headers: [String: String] = [:],
-        body: Data? = nil
+        body: Data? = nil,
+        percentEncodedQuery: String? = nil
     ) {
         self.path = path
         self.method = method
         self.queryItems = queryItems
+        self.percentEncodedQuery = percentEncodedQuery
         self.headers = headers
         self.body = body
     }

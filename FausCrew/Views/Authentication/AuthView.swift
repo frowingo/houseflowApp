@@ -32,7 +32,11 @@ struct AuthView: View {
                     .padding(.horizontal, AppDesign.Spacing.xxl)
                     .padding(.top, AppDesign.Spacing.xxxl)
                     .padding(.bottom, 48)
+                    // Gaps between fields are not hit-testable by default; this lets
+                    // a tap anywhere in the sheet reach the dismiss gesture below.
+                    .contentShape(Rectangle())
                 }
+                .scrollDismissesKeyboard(.interactively)
                 .frame(maxHeight: .infinity)
                 .clipShape(UnevenRoundedRectangle(topLeadingRadius: 32, topTrailingRadius: 32))
                 .background(FausSheetBackground())
@@ -49,7 +53,7 @@ struct AuthView: View {
             }
         }
         .animation(.spring(response: 0.4, dampingFraction: 0.8), value: viewModel.successMessage)
-        .dismissKeyboardOnTap()
+        .onTapGesture { dismissKeyboard() }
         .fullScreenCover(isPresented: $viewModel.isForgotPasswordPresented) {
             ForgotPasswordView()
         }
@@ -143,6 +147,9 @@ struct AuthView: View {
                         fieldType: .firstName,
                         titleColor: AppDesign.Colors.pageText
                     )
+                    .textContentType(.givenName)
+                    .submitLabel(.next)
+                    .onSubmit { focusedField = .lastName }
                     ModernTextField(
                         title: viewModel.localized("auth_last_name_label"),
                         text: $viewModel.lastName,
@@ -153,6 +160,9 @@ struct AuthView: View {
                         fieldType: .lastName,
                         titleColor: AppDesign.Colors.pageText
                     )
+                    .textContentType(.familyName)
+                    .submitLabel(.next)
+                    .onSubmit { focusedField = .email }
                 }
                 .transition(.asymmetric(
                     insertion: .push(from: .top).combined(with: .opacity),
@@ -170,6 +180,10 @@ struct AuthView: View {
                 fieldType: .email,
                 titleColor: AppDesign.Colors.pageText
             )
+            // `.username` pairs this field with the password one for iCloud Keychain AutoFill.
+            .textContentType(.username)
+            .submitLabel(.next)
+            .onSubmit { focusedField = .password }
 
             ModernSecureField(
                 title: viewModel.localized("auth_password_label"),
@@ -180,6 +194,15 @@ struct AuthView: View {
                 fieldType: .password,
                 titleColor: AppDesign.Colors.pageText
             )
+            .textContentType(viewModel.isSignUp ? .newPassword : .password)
+            .submitLabel(.go)
+            .onSubmit {
+                if viewModel.isFormValid && !viewModel.isLoading {
+                    handlePrimaryAction()
+                } else {
+                    dismissKeyboard()
+                }
+            }
 
             if !viewModel.isSignUp {
                 HStack {
@@ -373,14 +396,22 @@ struct AuthView: View {
     // MARK: - Actions
 
     private func handlePrimaryAction() {
-        focusedField = nil
+        dismissKeyboard()
         Task {
             await viewModel.submit()
         }
     }
 
-    private func authenticateWithSocial(_ provider: SocialProvider) {
+    /// Clears SwiftUI focus as well as the UIKit responder: after a Keychain AutoFill the
+    /// responder alone can be resigned while `focusedField` still holds a field, and SwiftUI
+    /// then hands focus straight back, so the keyboard never goes away.
+    private func dismissKeyboard() {
         focusedField = nil
+        hideKeyboard()
+    }
+
+    private func authenticateWithSocial(_ provider: SocialProvider) {
+        dismissKeyboard()
         Task { await viewModel.signInWithSocial(provider) }
     }
 }

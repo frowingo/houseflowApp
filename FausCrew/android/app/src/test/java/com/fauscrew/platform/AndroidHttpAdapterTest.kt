@@ -109,6 +109,17 @@ class AndroidHttpAdapterTest {
         assertTrue(body.contains("Content-Type: image/jpeg"))
     }
 
+    @Test fun encodedQueryReachesTheServerByteForByte() = runBlocking {
+        server.enqueue(MockResponse().setResponseCode(200).setBody("{}"))
+        val query = "cursor=a%2Bb+c/d%3D%3D&houseId=h1"
+        adapter().send(PlatformHttpRequest(
+            path = "chore/archive", method = "GET",
+            queryItems = listOf(PlatformHttpQueryItem("ignored", "x")), encodedQuery = query,
+        ))
+
+        assertEquals("/api/v1/chore/archive?$query", requireNotNull(server.takeRequest(2, TimeUnit.SECONDS)).path)
+    }
+
     private fun adapter() = AndroidHttpAdapter.forTesting(
         server.url("/api/v1/"),
         OkHttpClient.Builder().callTimeout(2, TimeUnit.SECONDS).build(),

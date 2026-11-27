@@ -29,6 +29,8 @@ struct AppDependencies {
     var pushRegistration: PushRegistrationService? = nil
     /// The house notification panel and chore reminders; nil in tests that do not need them.
     var notificationService: (any NotificationServicing)? = nil
+    /// The chore archive's paged history; nil in tests that do not need it.
+    var choreArchiveService: (any ChoreArchiveServicing)? = nil
     /// Where a tapped push waits for the app, and where foreground pushes arrive; nil in tests.
     var pushInbox: PushInbox? = nil
     var pushCenter: PushNotificationCenter? = nil
@@ -69,6 +71,11 @@ struct AppDependencies {
             network: network,
             pushRegistration: PushRegistrationService(http: network, keychain: keychain, tokens: FirebasePushTokenProvider()),
             notificationService: NotificationService(
+                http: network,
+                keychain: keychain,
+                onUnauthorized: { [weak network] token in network?.onUnauthorized?(token) }
+            ),
+            choreArchiveService: ChoreArchiveService(
                 http: network,
                 keychain: keychain,
                 onUnauthorized: { [weak network] token in network?.onUnauthorized?(token) }

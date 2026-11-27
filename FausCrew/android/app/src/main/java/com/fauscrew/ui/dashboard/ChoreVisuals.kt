@@ -119,6 +119,8 @@ internal fun List<HouseChore>.splitByHistory(): Pair<List<HouseChore>, List<Hous
 internal fun ChoreFailureReason?.message(strings: LocalizedText): String = when (this ?: ChoreFailureReason.UNSPECIFIED) {
     ChoreFailureReason.DUE_DATE_PASSED -> strings.social("chore_failed_reason_due_date",
         "Son teslim tarihi geçtiği için başarısız oldu.", "Failed because the due date passed.")
+    ChoreFailureReason.REVIEW_REJECTED -> strings.social("chore_failed_reason_review_rejected",
+        "İncelemede üç kez reddedildi.", "Rejected in review three times.")
     ChoreFailureReason.UNSPECIFIED -> strings.social("chore_failed_reason_generic", "Görev başarısız oldu.", "The chore failed.")
 }
 

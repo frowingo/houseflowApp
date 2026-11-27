@@ -52,7 +52,10 @@ final class URLSessionHTTPClient: HTTPClient {
             resolvingAgainstBaseURL: true
         ) else { throw HTTPClientError.invalidURL }
 
-        if !request.queryItems.isEmpty {
+        if let encoded = request.percentEncodedQuery {
+            // Core validated it; it must reach the server untouched (a base64 cursor holds `+` and `/`).
+            components.percentEncodedQuery = encoded
+        } else if !request.queryItems.isEmpty {
             components.queryItems = request.queryItems.map {
                 URLQueryItem(name: $0.name, value: $0.value)
             }

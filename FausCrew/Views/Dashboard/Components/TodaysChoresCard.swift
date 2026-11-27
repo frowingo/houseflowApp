@@ -1,37 +1,25 @@
 import SwiftUI
 import FausCrewCore
 
-/// 🎨 Ultra-Modern Today's Chores Card with Interactive Animations
-/// Features: Swipe gestures, 3D transforms, particle effects, progress tracking
+/// The dashboard's chore list under a plain "Active Chores" title: active chores first,
+/// closed ones after as history, and a catalog prompt when nothing is listed.
 struct TodaysChoresCard: View {
     @EnvironmentObject private var appViewModel: AppViewModel
 
     let chores: [Chore]
     let onChoreDetailTap: (Chore) -> Void
-    /// Opens the chore catalog from the empty state; `nil` hides the button.
+    /// Opens the chore catalog (header button when chores are listed, empty-state button otherwise);
+    /// `nil` hides both.
     var onAddChore: (() -> Void)? = nil
+    /// Opens the chore archive; `nil` hides the entry row.
+    var onOpenArchive: (() -> Void)? = nil
 
-    @State private var iconPressed = false
-    
     var todaysChores: [Chore] {
         chores
     }
-    
-    var completedCount: Int {
-        todaysChores.filter { $0.choreStatus == .completed }.count
-    }
-    
-    var totalCount: Int {
-        todaysChores.count
-    }
-    
-    var progressPercentage: Double {
-        totalCount == 0 ? 0 : Double(completedCount) / Double(totalCount)
-    }
-    
+
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
-            // Gradient Header with Stats
             headerSection
             
             Divider().overlay(AppDesign.Colors.separator)
@@ -42,6 +30,11 @@ struct TodaysChoresCard: View {
                 emptyStateView
             } else {
                 choresListView
+            }
+
+            // Older history lives in the archive, so the row stays even when the list is empty.
+            if let onOpenArchive {
+                archiveEntryRow(onOpenArchive)
             }
         }
         .background(
@@ -86,110 +79,49 @@ struct TodaysChoresCard: View {
     }
     
     // MARK: - Header Section
-    
+
     private var headerSection: some View {
-        VStack(spacing: AppDesign.Spacing.md) {
-            HStack {
-                // Animated Icon - Only pulses when pressed
-                Button(action: {
-                    iconPressed = true
-                    let generator = UIImpactFeedbackGenerator(style: .light)
-                    generator.impactOccurred()
-                    
-                    DispatchQueue.main.asyncAfter(deadline: .now() + 1.0) {
-                        iconPressed = false
-                    }
-                }) {
-                    ZStack {
-                        Circle()
-                            .fill(
-                                LinearGradient(
-                                    colors: [
-                                        HouseJourneyTheme.indigo,
-                                        HouseJourneyTheme.teal
-                                    ],
-                                    startPoint: .topLeading,
-                                    endPoint: .bottomTrailing
-                                )
-                            )
-                            .frame(width: 44, height: 44)
-                            .scaleEffect(iconPressed ? 1.1 : 1.0)
-                            .opacity(iconPressed ? 0.6 : 1.0)
-                        
-                        Image(systemName: "list.clipboard.fill")
-                            .font(.system(size: 20))
-                            .foregroundColor(.white)
+        HStack(spacing: AppDesign.Spacing.md) {
+            // Same badge shape as House Members' header, in this card's indigo → teal order.
+            ZStack {
+                RoundedRectangle(cornerRadius: 11)
+                    .fill(
+                        LinearGradient(
+                            colors: [HouseJourneyTheme.indigo, HouseJourneyTheme.teal],
+                            startPoint: .topLeading,
+                            endPoint: .bottomTrailing
+                        )
+                    )
+                    .frame(width: 42, height: 42)
 
-                        Circle()
-                            .fill(HouseJourneyTheme.accentOrange)
-                            .frame(width: 8, height: 8)
-                            .overlay(Circle().stroke(AppDesign.Colors.cardBackground, lineWidth: 1.5))
-                            .offset(x: 16, y: 16)
-                    }
-                }
-                .buttonStyle(PlainButtonStyle())
-                .animation(AppDesign.Animation.spring.repeatForever(autoreverses: true), value: iconPressed)
-                
-                VStack(alignment: .leading, spacing: 2) {
-                    Text(appViewModel.localized("todays_tasks_title"))
-                        .font(AppDesign.Typography.headline)
-                        .foregroundColor(AppDesign.Colors.textPrimary)
-                    
-                    if totalCount > 0 {
-                        Text(appViewModel.localized(
-                            "todays_tasks_completed_template",
-                            replacements: [
-                                "completed": "\(completedCount)",
-                                "total": "\(totalCount)"
-                            ]
-                        ))
-                            .font(AppDesign.Typography.caption)
-                            .foregroundColor(AppDesign.Colors.textSecondary)
-                    }
-                }
-                
-                Spacer(minLength: AppDesign.Spacing.sm)
+                Image(systemName: "checklist")
+                    .font(.system(size: 18, weight: .semibold))
+                    .foregroundStyle(.white)
 
-                // Circular Progress Ring
-                if totalCount > 0 {
-                    CircularProgressView(progress: progressPercentage)
-                        .frame(width: 46, height: 46)
-                }
-
-                if let onAddChore {
-                    ChoreCatalogMosaicButton(action: onAddChore)
-                }
+                Circle()
+                    .fill(HouseJourneyTheme.accentOrange)
+                    .frame(width: 7, height: 7)
+                    .overlay(Circle().stroke(AppDesign.Colors.cardBackground, lineWidth: 1.5))
+                    .offset(x: 15, y: 15)
             }
-            
-            // Progress Bar
-            if totalCount > 0 {
-                GeometryReader { geometry in
-                    ZStack(alignment: .leading) {
-                        RoundedRectangle(cornerRadius: AppDesign.CornerRadius.sm)
-                            .fill(AppDesign.Colors.textSecondary.opacity(0.2))
-                            .frame(height: 6)
-                        
-                        RoundedRectangle(cornerRadius: AppDesign.CornerRadius.sm)
-                            .fill(
-                                LinearGradient(
-                                    colors: [
-                                        HouseJourneyTheme.indigo,
-                                        HouseJourneyTheme.teal
-                                    ],
-                                    startPoint: .leading,
-                                    endPoint: .trailing
-                                )
-                            )
-                            .frame(width: geometry.size.width * progressPercentage, height: 6)
-                            .animation(AppDesign.Animation.spring, value: progressPercentage)
-                    }
-                }
-                .frame(height: 6)
+            .accessibilityHidden(true)
+
+            Text(appViewModel.localized("active_chores_title", tr: "Aktif Görevler", en: "Active Chores"))
+                .font(AppDesign.Typography.headline)
+                .foregroundColor(AppDesign.Colors.textPrimary)
+                .accessibilityAddTraits(.isHeader)
+
+            Spacer(minLength: AppDesign.Spacing.sm)
+
+            // The empty state already carries its own catalog button.
+            if let onAddChore, !todaysChores.isEmpty {
+                ChoreCatalogMosaicButton(action: onAddChore)
             }
         }
+        .frame(minHeight: 48)
         .padding(AppDesign.Spacing.xl)
     }
-    
+
     // MARK: - Chores List
     
     /// Active chores first; Completed and Failed (and unknown) follow as the history.
@@ -228,6 +160,34 @@ struct TodaysChoresCard: View {
         )
     }
     
+    private func archiveEntryRow(_ action: @escaping () -> Void) -> some View {
+        VStack(spacing: 0) {
+            Divider().overlay(AppDesign.Colors.separator)
+                .padding(.horizontal, AppDesign.Spacing.xl)
+
+            Button {
+                UIImpactFeedbackGenerator(style: .light).impactOccurred()
+                action()
+            } label: {
+                HStack(spacing: AppDesign.Spacing.sm) {
+                    Image(systemName: "archivebox")
+                        .font(.system(size: 14, weight: .semibold))
+                    Text(appViewModel.localized("chore_archive_entry", tr: "Tüm geçmiş", en: "Full history"))
+                        .font(AppDesign.Typography.subheadline.weight(.semibold))
+                    Spacer(minLength: AppDesign.Spacing.sm)
+                    Image(systemName: "chevron.right")
+                        .font(.system(size: 12, weight: .bold))
+                }
+                .foregroundStyle(AppDesign.Colors.textSecondary)
+                .padding(.horizontal, AppDesign.Spacing.xl)
+                .padding(.vertical, AppDesign.Spacing.lg)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+        }
+    }
+
     // MARK: - Empty State
     
     private var emptyStateView: some View {
@@ -235,35 +195,34 @@ struct TodaysChoresCard: View {
             ZStack {
                 // Gradient background circles
                 Circle()
-                    .fill(AppDesign.Colors.success.opacity(0.2))
+                    .fill(HouseJourneyTheme.indigo.opacity(0.18))
                     .frame(width: 120, height: 120)
                     .blur(radius: 20)
-                
+
                 Circle()
-                    .fill(AppDesign.Colors.secondary.opacity(0.3))
+                    .fill(HouseJourneyTheme.teal.opacity(0.25))
                     .frame(width: 90, height: 90)
                     .scaleEffect(1.2)
                     .blur(radius: 15)
-                
-                // Main icon
-                Image(systemName: "checkmark.seal.fill")
+
+                // An empty list is not "all done": the icon invites adding, it does not celebrate.
+                Image(systemName: "list.clipboard")
                     .font(.system(size: 50))
                     .foregroundStyle(
                         LinearGradient(
-                            colors: [AppDesign.Colors.success, AppDesign.Colors.secondary],
+                            colors: [HouseJourneyTheme.indigo, HouseJourneyTheme.teal],
                             startPoint: .topLeading,
                             endPoint: .bottomTrailing
                         )
                     )
-                    .rotationEffect(.degrees(-5))
             }
             
             VStack(spacing: AppDesign.Spacing.sm) {
-                Text(appViewModel.localized("todays_tasks_empty_title"))
+                Text(appViewModel.localized("active_chores_empty_title", tr: "Şu anda aktif bir iş yok", en: "No active chores right now"))
                     .font(AppDesign.Typography.title3)
                     .foregroundColor(AppDesign.Colors.textPrimary)
                 
-                Text(appViewModel.localized("todays_tasks_empty_subtitle"))
+                Text(appViewModel.localized("active_chores_empty_subtitle", tr: "Eklemeye ne dersin?", en: "How about adding one?"))
                     .font(AppDesign.Typography.subheadline)
                     .foregroundColor(AppDesign.Colors.textSecondary)
                     .multilineTextAlignment(.center)
@@ -295,45 +254,6 @@ struct TodaysChoresCard: View {
     // Removed helper methods as they're no longer needed
 }
 
-// MARK: - Circular Progress View
-
-struct CircularProgressView: View {
-    let progress: Double
-    
-    var body: some View {
-        ZStack {
-            // Background circle
-            Circle()
-                .stroke(AppDesign.Colors.textSecondary.opacity(0.2), lineWidth: 4)
-            
-            // Progress circle
-            Circle()
-                .trim(from: 0, to: progress)
-                .stroke(
-                    LinearGradient(
-                        colors: [
-                            HouseJourneyTheme.indigo,
-                            HouseJourneyTheme.teal
-                        ],
-                        startPoint: .topLeading,
-                        endPoint: .bottomTrailing
-                    ),
-                    style: StrokeStyle(lineWidth: 4, lineCap: .round)
-                )
-                .rotationEffect(.degrees(-90))
-                .animation(AppDesign.Animation.spring, value: progress)
-            
-            // Percentage text
-            LocalizedText(
-                "progress_percent_template",
-                replacements: ["percent": "\(Int(progress * 100))"]
-            )
-                .font(.system(size: 12, weight: .bold))
-                .foregroundColor(HouseJourneyTheme.deepIndigo)
-        }
-    }
-}
-
 // MARK: - Modern Chore Row
 
 struct ModernChoreRow: View {
@@ -341,6 +261,8 @@ struct ModernChoreRow: View {
 
     let chore: Chore
     let onTap: () -> Void
+    /// An extra line under the assignee row (the archive's closing info); `nil` leaves the row as is.
+    var detail: String? = nil
 
     var body: some View {
         Button {
@@ -414,6 +336,14 @@ struct ModernChoreRow: View {
                         .clipShape(Capsule())
                         .fixedSize(horizontal: true, vertical: false)
                         .layoutPriority(1)
+                    }
+
+                    if let detail {
+                        Text(detail)
+                            .font(AppDesign.Typography.caption)
+                            .foregroundColor(AppDesign.Colors.textSecondary)
+                            .lineLimit(2)
+                            .multilineTextAlignment(.leading)
                     }
                 }
 

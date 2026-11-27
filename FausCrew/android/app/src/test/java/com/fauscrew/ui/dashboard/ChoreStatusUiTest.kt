@@ -58,6 +58,7 @@ class ChoreStatusUiTest {
         assertEquals(ChoreStatusUi.FAILED, ChoreStatusUi.of(chore.status))
         assertFalse(chore.isCompleted)
         assertEquals(ChoreFailureReason.DUE_DATE_PASSED, chore.failureReason)
+        assertEquals(ChoreFailureReason.REVIEW_REJECTED, JSONObject("""$failed,"failureReason":"reviewRejected"}""").toHouseChore().failureReason)
         assertEquals(ChoreFailureReason.UNSPECIFIED, JSONObject("""$failed,"failureReason":"unspecified"}""").toHouseChore().failureReason)
         assertNull(JSONObject("$failed}").toHouseChore().failureReason)
     }

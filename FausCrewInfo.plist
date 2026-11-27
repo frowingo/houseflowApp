@@ -50,6 +50,8 @@
 	</array>
 	<key>GIDClientID</key>
 	<string>323555794723-67lik59bku789qqot6j58e80hcut98ka.apps.googleusercontent.com</string>
+	<key>ITSAppUsesNonExemptEncryption</key>
+	<false/>
 	<key>LSApplicationQueriesSchemes</key>
 	<array>
 		<string>fbapi</string>

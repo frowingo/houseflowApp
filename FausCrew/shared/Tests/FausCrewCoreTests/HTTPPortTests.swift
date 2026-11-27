@@ -3,6 +3,14 @@ import XCTest
 @testable import FausCrewCore
 
 final class HTTPPortTests: XCTestCase {
+    func testPercentEncodedQueryDefaultsToNilAndIsStored() {
+        XCTAssertNil(HTTPRequest(path: "p", method: "GET").percentEncodedQuery)
+
+        let request = HTTPRequest(path: "p", method: "GET", percentEncodedQuery: "a=b%2B+c")
+        XCTAssertEqual(request.percentEncodedQuery, "a=b%2B+c")
+        XCTAssertTrue(request.queryItems.isEmpty)
+    }
+
     func testStatusFailurePreservesMessageThenErrorEnvelopePrecedence() {
         let both = HTTPResponse(
             statusCode: 401,

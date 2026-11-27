@@ -35,6 +35,8 @@ internal data class PlatformHttpRequest(
     val body: ByteArray? = null,
     /** When set, OkHttp builds the body and its boundary-carrying Content-Type. */
     val multipart: List<PlatformMultipartPart>? = null,
+    /** Ready-made query (`a=b%2B`), used as is instead of [queryItems]; a re-encoded server cursor would be rejected. */
+    val encodedQuery: String? = null,
 )
 
 internal data class PlatformHttpResponse(
@@ -88,7 +90,8 @@ internal class AndroidHttpAdapter private constructor(
         }
         val url = baseUrl.newBuilder().apply {
             segments.forEach(::addPathSegment)
-            input.queryItems.forEach { addQueryParameter(it.name, it.value) }
+            val encoded = input.encodedQuery
+            if (encoded != null) encodedQuery(encoded) else input.queryItems.forEach { addQueryParameter(it.name, it.value) }
         }.build()
 
         val multipart = input.multipart?.let { parts ->

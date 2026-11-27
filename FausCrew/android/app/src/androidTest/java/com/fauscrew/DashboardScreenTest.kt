@@ -27,8 +27,8 @@ class DashboardScreenTest {
     private val text = LocalizedText("en", mapOf(
         "dashboard_greeting_template" to "Hi, {first_name}", "announcement_title" to "Announcements",
         "announcement_empty_title" to "There are no active announcements.",
-        "todays_tasks_title" to "Today's Tasks", "todays_tasks_empty_title" to "All Done!",
-        "todays_tasks_empty_subtitle" to "You've completed all tasks for today",
+        "active_chores_title" to "Active Chores", "active_chores_empty_title" to "No active chores right now",
+        "active_chores_empty_subtitle" to "How about adding one?",
         "house_members_title" to "House Members", "floating_new_chore_button" to "New Chore",
         "chore_catalog_open_accessibility" to "Open the chore catalog", "chore_catalog_title" to "Chore Catalog",
         "todays_tasks_empty_add" to "Add from the catalog",
@@ -48,7 +48,7 @@ class DashboardScreenTest {
         var publishes = 0
         compose.setContent { DashboardScreen(state, text, { _, _ -> publishes++ }, {}, { _, _, _ -> }, { _, _ -> }, {}) }
         compose.onNodeWithText("Ada's home").assertExists()
-        compose.onNodeWithText("All Done!").assertExists()
+        compose.onNodeWithText("No active chores right now").assertExists()
         compose.onNode(hasScrollAction()).performScrollToNode(hasText("House Members"))
         compose.onNodeWithText("House Members").assertExists()
         compose.onNode(hasScrollAction()).performScrollToNode(hasContentDescription("Create announcement"))
@@ -57,8 +57,11 @@ class DashboardScreenTest {
         compose.runOnIdle { assertEquals(0, publishes) }
     }
 
-    @Test fun choreCatalogOpensFromTodaysTasksInsteadOfTheFab() {
-        compose.setContent { DashboardScreen(state, text, { _, _ -> }, {}, { _, _, _ -> }, { _, _ -> }, {}) }
+    @Test fun choreCatalogOpensFromActiveChoresHeaderInsteadOfTheFab() {
+        // The header tile shows only while chores are listed; the empty state has its own button.
+        val chore = com.fauscrew.platform.HouseChore("c", "h", "Dishes", "", "u", "", 1, false, false, 10, 0, 0, emptyList())
+        val withChore = state.copy(details = details.copy(chores = listOf(chore)))
+        compose.setContent { DashboardScreen(withChore, text, { _, _ -> }, {}, { _, _, _ -> }, { _, _ -> }, {}) }
         compose.onNodeWithContentDescription("New Chore").assertDoesNotExist()
         compose.onNodeWithText("Chore Catalog").assertDoesNotExist()
         compose.onNode(hasScrollAction()).performScrollToNode(hasContentDescription("Open the chore catalog"))
@@ -68,6 +71,7 @@ class DashboardScreenTest {
 
     @Test fun emptyTodaysTasksOffersTheCatalog() {
         compose.setContent { DashboardScreen(state, text, { _, _ -> }, {}, { _, _, _ -> }, { _, _ -> }, {}) }
+        compose.onNodeWithContentDescription("Open the chore catalog").assertDoesNotExist()
         compose.onNode(hasScrollAction()).performScrollToNode(hasText("Add from the catalog"))
         compose.onNodeWithText("Add from the catalog").performClick()
         compose.onNodeWithText("Chore Catalog").assertExists()

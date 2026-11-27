@@ -33,36 +33,38 @@ final class DashboardStore: ObservableObject {
         let mappedMembers = details.members.map { member in
             user(from: member, currentUserId: currentUserId, currentUserProfile: currentUserProfile)
         }
-        let membersById = Dictionary(uniqueKeysWithValues: mappedMembers.compactMap { user -> (String, User)? in
-            guard let apiId = user.apiId else { return nil }
-            return (apiId, user)
-        })
 
         setMembers(mappedMembers)
-        setChores(details.chores.map { dto in
-            let assignedUser = membersById[dto.assignedTo] ?? User(
-                id: dto.assignedTo,
-                name: dto.assignedTo.isEmpty ? fallbackUnassignedName : dto.assignedTo
-            )
-            return Chore(
-                choreApiId: dto.id,
-                houseId: dto.houseId,
-                assignedToId: dto.assignedTo,
-                title: dto.title,
-                description: dto.description,
-                assignedTo: assignedUser,
-                dueLabel: dto.dueLabelString,
-                dueDate: dto.dueDate,
-                isDone: dto.isCompleted,
-                status: dto.status,
-                level: dto.level,
-                reviewRound: dto.reviewRound,
-                reviewVotes: dto.reviewVotes,
-                reviewPhotoRounds: dto.reviewPhotoRounds,
-                failureReason: dto.failureReason,
-                category: dto.category
-            )
-        })
+        setChores(details.chores.map { chore(from: $0, unassignedName: fallbackUnassignedName) })
+    }
+
+    /// Maps a house chore with the store's current members, so `members` must be set first. The
+    /// archive reuses it for chores that are not in `chores`.
+    func chore(from dto: HouseChoreDTO, unassignedName: String) -> Chore {
+        let assignedUser = members.first { $0.apiId == dto.assignedTo } ?? User(
+            id: dto.assignedTo,
+            name: dto.assignedTo.isEmpty ? unassignedName : dto.assignedTo
+        )
+        return Chore(
+            choreApiId: dto.id,
+            houseId: dto.houseId,
+            assignedToId: dto.assignedTo,
+            title: dto.title,
+            description: dto.description,
+            assignedTo: assignedUser,
+            dueLabel: dto.dueLabelString,
+            dueDate: dto.dueDate,
+            isDone: dto.isCompleted,
+            status: dto.status,
+            level: dto.level,
+            reviewRound: dto.reviewRound,
+            reviewVotes: dto.reviewVotes,
+            reviewPhotoRounds: dto.reviewPhotoRounds,
+            failureReason: dto.failureReason,
+            category: dto.category,
+            completedAt: dto.completedAt,
+            completedBy: dto.completedBy
+        )
     }
 
     private func user(from member: HouseMemberDTO, currentUserId: String?, currentUserProfile: IsAuthUserData?) -> User {

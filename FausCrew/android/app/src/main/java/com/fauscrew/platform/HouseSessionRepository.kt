@@ -31,6 +31,9 @@ internal data class HouseChore(
     val category: Int = 0,
     /** Set for Failed chores only; Core decides it (`HouseChoreDTO.failureReason`). */
     val failureReason: ChoreFailureReason? = null,
+    /** Closing moment and who closed it (a user id, or `system` for a deadline failure); empty while open. */
+    val completedAt: String = "",
+    val completedBy: String = "",
 ) {
     val categoryKind: ChoreCategoryKind get() = ChoreCategoryKind.of(category)
 }
@@ -56,11 +59,13 @@ internal enum class ChoreCategoryKind(val raw: Int) {
 internal const val CHORE_STATUS_FAILED = 4
 
 /**
- * Why a chore failed (Core `ChoreFailureReason`). The API does not say, so Core names a reason
- * only when the status history proves it; anything else stays [UNSPECIFIED].
+ * Why a chore failed (Core `ChoreFailureReason`). The API does not say, so Core decides from
+ * `completedAt`: the due date gives [DUE_DATE_PASSED], a third-round rejection [REVIEW_REJECTED].
+ * The status-history rule is only a fallback for old cached data; anything else is [UNSPECIFIED].
  */
 internal enum class ChoreFailureReason(val wire: String) {
     DUE_DATE_PASSED("dueDatePassed"),
+    REVIEW_REJECTED("reviewRejected"),
     UNSPECIFIED("unspecified"),
     ;
 
@@ -199,6 +204,8 @@ internal fun JSONObject.toHouseChore() = HouseChore(
     }.orEmpty(),
     category = optInt("category", 0),
     failureReason = ChoreFailureReason.fromWire(optString("failureReason")),
+    completedAt = optString("completedAt"),
+    completedBy = optString("completedBy"),
 )
 
 internal fun JSONObject.toHouseVote() = HouseVote(optInt("reviewRound"), optString("reviewerId"), optBoolean("isApproved"))

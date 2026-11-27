@@ -628,7 +628,8 @@ public extension HouseChoreDTO {
             statusHistories: statusHistories,
             dueDate: dueDate,
             reviewRound: reviewRound,
-            reviewVotes: reviewVotes
+            reviewVotes: reviewVotes,
+            completedAt: completedAt
         )
     }
 }

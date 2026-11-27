@@ -49,6 +49,9 @@ import com.fauscrew.push.PushRouter
 import com.fauscrew.push.isRealSignOut
 import com.fauscrew.push.notificationUserId
 import com.fauscrew.ui.dashboard.notifications.NotificationActions
+import com.fauscrew.ui.dashboard.archive.ChoreArchiveActions
+import com.fauscrew.viewmodel.ChoreArchiveEffect
+import com.fauscrew.viewmodel.ChoreArchiveViewModel
 import com.fauscrew.viewmodel.NotificationEffect
 import com.fauscrew.viewmodel.NotificationViewModel
 import com.fauscrew.platform.AppVisibility
@@ -195,6 +198,18 @@ class MainActivity : ComponentActivity() {
                         NotificationEffect.SessionRejected -> model.logout(PushSignOutReason.SessionRejected)
                         NotificationEffect.RefreshProfile -> model.refreshProfile()
                         is NotificationEffect.RefreshHouse -> houseModel.refreshDetails(effect.houseId)
+                    }
+                }
+            }
+            // The archive loads only when its popup opens; it follows the same user and house.
+            val archiveModel: ChoreArchiveViewModel = viewModel(factory = ChoreArchiveViewModel.Factory(applicationContext))
+            val archiveState by archiveModel.state.collectAsStateWithLifecycle()
+            LaunchedEffect(notificationUser, houseState.details?.id) { archiveModel.setContext(notificationUser, houseState.details?.id) }
+            LaunchedEffect(archiveModel) {
+                archiveModel.effects.collect { effect ->
+                    when (effect) {
+                        ChoreArchiveEffect.SessionRejected -> model.logout(PushSignOutReason.SessionRejected)
+                        ChoreArchiveEffect.RefreshProfile -> model.refreshProfile()
                     }
                 }
             }
@@ -397,6 +412,11 @@ class MainActivity : ComponentActivity() {
                                     open = notificationModel::open, close = notificationModel::close,
                                     reload = notificationModel::reload, loadMore = notificationModel::loadMore,
                                     remind = notificationModel::remind, clearToast = notificationModel::clearToast),
+                                archive = archiveState,
+                                archiveActions = ChoreArchiveActions(
+                                    open = archiveModel::open, previousMonth = archiveModel::previousMonth,
+                                    nextMonth = archiveModel::nextMonth, reload = archiveModel::reload,
+                                    loadMore = archiveModel::loadMore),
                                 openChoreRequest = openChoreRequest, onOpenChoreHandled = { openChoreRequest = null },
                                 closePopupsSignal = closeDashboardPopups)
                         },

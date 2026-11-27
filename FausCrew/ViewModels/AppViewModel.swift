@@ -28,6 +28,9 @@ class AppViewModel: ObservableObject {
     private let pushRegistration: PushRegistrationService?
     /// The selected house's notification panel and unread badge.
     let notificationStore: NotificationStore
+    /// The chore archive popup's month list. The view observes it directly, so it is not forwarded
+    /// into this object's `objectWillChange`.
+    let choreArchiveStore: ChoreArchiveStore
     private let choreReminderStore: ChoreReminderStore
     /// Walks a tapped push to its screen; also owns the selected tab and the open-game flag.
     let pushRouteHandler: PushRouteHandler
@@ -129,6 +132,7 @@ class AppViewModel: ObservableObject {
             network: dependencies.network,
             pushRegistration: dependencies.pushRegistration,
             notificationService: dependencies.notificationService,
+            choreArchiveService: dependencies.choreArchiveService,
             pushInbox: dependencies.pushInbox,
             pushCenter: dependencies.pushCenter
         )
@@ -152,6 +156,7 @@ class AppViewModel: ObservableObject {
         network: NetworkService? = nil,
         pushRegistration: PushRegistrationService? = nil,
         notificationService: (any NotificationServicing)? = nil,
+        choreArchiveService: (any ChoreArchiveServicing)? = nil,
         pushInbox: PushInbox? = nil,
         pushCenter: PushNotificationCenter? = nil
     ) {
@@ -170,6 +175,9 @@ class AppViewModel: ObservableObject {
         self.houseTanksOnlineFactory = houseTanksOnlineFactory
         self.fausSwitchOnlineFactory = fausSwitchOnlineFactory
         notificationStore = NotificationStore(service: notificationService, preferences: userDefaults)
+        choreArchiveStore = ChoreArchiveStore(service: choreArchiveService) { [dashboardStore, localizationStore] dto in
+            dashboardStore.chore(from: dto, unassignedName: localizationStore.value(for: "common_unassigned"))
+        }
         choreReminderStore = ChoreReminderStore(
             service: notificationService,
             toastStore: toastStore,
@@ -289,6 +297,9 @@ class AppViewModel: ObservableObject {
         notificationStore.onAccessLost = { [weak self] in
             Task { await self?.sessionCoordinator.refreshForAppEvent(profile: true, houseID: nil) }
         }
+        choreArchiveStore.onAccessLost = { [weak self] in
+            Task { await self?.sessionCoordinator.refreshForAppEvent(profile: true, houseID: nil) }
+        }
         choreReminderStore.onChoreNotFound = { [weak self] in
             guard let self, let houseID = self.houseStore.currentHouseDetails?.id else { return }
             Task { await self.sessionCoordinator.refreshForAppEvent(profile: false, houseID: houseID) }
@@ -306,6 +317,7 @@ class AppViewModel: ObservableObject {
         )
         .sink { [weak self] authenticated, userID, houseID in
             self?.notificationStore.setContext(userID: authenticated ? userID : nil, houseID: authenticated ? houseID : nil)
+            self?.choreArchiveStore.setContext(userID: authenticated ? userID : nil, houseID: authenticated ? houseID : nil)
         }
         .store(in: &storeCancellables)
     }
@@ -621,6 +633,7 @@ class AppViewModel: ObservableObject {
         pushRouteHandler.clear()
         choreReminderStore.clear()
         notificationStore.setContext(userID: nil, houseID: nil)
+        choreArchiveStore.setContext(userID: nil, houseID: nil)
         sessionCoordinator.logout { [fausCrewCoordinator, dashboardCoordinator] in
             fausCrewCoordinator.resetSession()
             dashboardCoordinator.clearSession()

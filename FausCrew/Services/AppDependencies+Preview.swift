@@ -23,7 +23,8 @@ extension AppDependencies {
                 baseDirectory: FileManager.default.temporaryDirectory.appendingPathComponent(suite)
             ),
             houseRocketsSessionFactory: .localOnly,
-            notificationService: services
+            notificationService: services,
+            choreArchiveService: services
         )
     }
 }
@@ -44,7 +45,7 @@ private struct PreviewServiceError: Error {}
 
 /// Every request fails; the language list is empty so previews fall back to built-in copy.
 private final class PreviewServices: AuthServicing, UserServicing, HouseServicing, ChoreServicing,
-                                      LocalizationServicing, NotificationServicing {
+                                      LocalizationServicing, NotificationServicing, ChoreArchiveServicing {
     func signup(email: String, password: String, firstName: String, lastName: String) async throws -> AuthTokenResponse {
         throw PreviewServiceError()
     }
@@ -121,6 +122,10 @@ private final class PreviewServices: AuthServicing, UserServicing, HouseServicin
     func list(houseID: String, before: String?) async throws -> NotificationPage { throw PreviewServiceError() }
 
     func remind(choreID: String) async throws { throw PreviewServiceError() }
+
+    func firstPage(houseID: String, from: Date, to: Date) async throws -> ChoreArchivePage { throw PreviewServiceError() }
+
+    func nextPage(nextURL: String) async throws -> ChoreArchivePage { throw PreviewServiceError() }
 
     func fetchLanguages() async throws -> [LocalizationLanguage] { [] }
 

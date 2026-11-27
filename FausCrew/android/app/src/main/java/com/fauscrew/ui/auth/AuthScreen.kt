@@ -19,6 +19,7 @@ import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.selection.toggleable
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicTextField
@@ -31,6 +32,8 @@ import androidx.compose.material.icons.filled.Email
 import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.Lock
 import androidx.compose.material.icons.filled.Person
+import androidx.compose.material.icons.filled.Visibility
+import androidx.compose.material.icons.filled.VisibilityOff
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
@@ -49,6 +52,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalFocusManager
+import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.SpanStyle
@@ -231,6 +235,8 @@ private fun AuthTab(label: String, selected: Boolean, modifier: Modifier, onClic
 private fun AuthField(label: String, placeholder: String, value: String, onValue: (String) -> Unit,
     icon: ImageVector, secure: Boolean, keyboard: KeyboardType, ime: ImeAction, onDone: () -> Unit = {}) {
     var focused by remember { mutableStateOf(false) }
+    // Mirrors iOS ModernSecureField's eye toggle: the text starts masked.
+    var revealed by remember { mutableStateOf(false) }
     Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
         Text(label, color = FausCrewColors.pageText, fontSize = 15.sp)
         Row(
@@ -243,11 +249,19 @@ private fun AuthField(label: String, placeholder: String, value: String, onValue
             BasicTextField(value, onValue,
                 Modifier.weight(1f).onFocusChanged { focused = it.isFocused }.semantics { contentDescription = label },
                 singleLine = true, textStyle = TextStyle(fontSize = 16.sp, color = ink), cursorBrush = SolidColor(accent),
-                visualTransformation = if (secure) PasswordVisualTransformation() else VisualTransformation.None,
+                visualTransformation = if (secure && !revealed) PasswordVisualTransformation() else VisualTransformation.None,
                 keyboardOptions = KeyboardOptions(keyboardType = keyboard, imeAction = ime, autoCorrectEnabled = false),
                 keyboardActions = KeyboardActions(onDone = { onDone() }),
                 decorationBox = { inner -> Box { if (value.isEmpty()) Text(placeholder, color = secondary, fontSize = 16.sp); inner() } },
             )
+            if (secure) {
+                Icon(
+                    if (revealed) Icons.Filled.VisibilityOff else Icons.Filled.Visibility, null,
+                    Modifier.size(20.dp).clip(CircleShape)
+                        .toggleable(value = revealed, role = Role.Switch) { revealed = it },
+                    tint = secondary,
+                )
+            }
         }
     }
 }

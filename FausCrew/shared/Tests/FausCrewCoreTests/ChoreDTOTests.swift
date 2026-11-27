@@ -170,6 +170,22 @@ final class ChoreDTOTests: XCTestCase {
         XCTAssertTrue(generatedLocalChore.reviewVotes.isEmpty)
     }
 
+    func testChoreEncodedBeforeClosingDataStillDecodes() throws {
+        let closed = Chore(
+            choreApiId: "c", title: "T", assignedTo: User(name: "Ada"), dueLabel: "",
+            completedAt: "2026-11-02T12:00:00Z", completedBy: "u2"
+        )
+        XCTAssertEqual(try JSONDecoder().decode(Chore.self, from: JSONEncoder().encode(closed)), closed)
+
+        var object = try encodedObject(closed)
+        object.removeValue(forKey: "completedAt")
+        object.removeValue(forKey: "completedBy")
+        let old = try JSONDecoder().decode(Chore.self, from: JSONSerialization.data(withJSONObject: object))
+        XCTAssertNil(old.completedAt)
+        XCTAssertNil(old.completedBy)
+        XCTAssertEqual(old.title, "T")
+    }
+
     private func encodedObject<Value: Encodable>(_ value: Value) throws -> [String: Any] {
         try XCTUnwrap(
             JSONSerialization.jsonObject(with: JSONEncoder().encode(value)) as? [String: Any]

@@ -12,6 +12,7 @@ struct HouseDashboardView: View {
     @State private var showChoreDetail = false
     @State private var showNewAnnouncement = false
     @State private var showNotifications = false
+    @State private var showArchive = false
     @State private var catalogEntry: ChoreCatalogEntry?
     @State private var appeared = false
     @Environment(\.fausSplashActive) private var splashActive
@@ -24,16 +25,11 @@ struct HouseDashboardView: View {
                 VStack(spacing: AppDesign.Spacing.lg) {
                     headerSection
 
-                    AnnouncementCard(
-                        houseId: appViewModel.currentHouseDetails?.id ?? "",
-                        readerId: appViewModel.currentUser?.apiId ?? appViewModel.currentUser?.id,
-                        announcements: appViewModel.currentHouseDetails?.announcements ?? [],
-                        members: appViewModel.currentHouseDetails?.members ?? []
-                    )
-                        .padding(.horizontal, AppDesign.Spacing.xl)
+                    ChoreProgressCard(chores: appViewModel.dashboardChores)
+                        .padding(.horizontal, AppDesign.Spacing.xxl)
                         .opacity(appeared ? 1 : 0)
-                        .offset(y: appeared ? 0 : 20)
-                        .animation(.spring(response: 0.6, dampingFraction: 0.78).delay(0.12), value: appeared)
+                        .offset(y: appeared ? 0 : 22)
+                        .animation(.spring(response: 0.6, dampingFraction: 0.78).delay(0.14), value: appeared)
 
                     TodaysChoresCard(
                         chores: appViewModel.dashboardChores,
@@ -43,6 +39,11 @@ struct HouseDashboardView: View {
                         },
                         onAddChore: {
                             catalogEntry = .drafts
+                        },
+                        onOpenArchive: {
+                            withAnimation(AppDesign.Animation.standard) {
+                                showArchive = true
+                            }
                         }
                     )
                     .padding(.horizontal, AppDesign.Spacing.xxl)
@@ -218,6 +219,15 @@ struct HouseDashboardView: View {
                 )
             }
 
+            if showArchive {
+                ChoreArchivePopup(
+                    store: appViewModel.choreArchiveStore,
+                    onDismiss: {
+                        dismissArchive()
+                    }
+                )
+            }
+
             if showNewAnnouncement {
                 NewAnnouncementPopup(
                     onPublish: { title, message in
@@ -235,11 +245,12 @@ struct HouseDashboardView: View {
         .onChange(of: showChoreDetail) { _, _ in syncOverlayPresentation() }
         .onChange(of: showNewAnnouncement) { _, _ in syncOverlayPresentation() }
         .onChange(of: showNotifications) { _, _ in syncOverlayPresentation() }
+        .onChange(of: showArchive) { _, _ in syncOverlayPresentation() }
         .onChange(of: catalogEntry) { _, _ in syncOverlayPresentation() }
     }
 
     private func syncOverlayPresentation() {
-        appViewModel.isOverlayPresented = showChoreDetail || showNewAnnouncement || showNotifications || catalogEntry != nil
+        appViewModel.isOverlayPresented = showChoreDetail || showNewAnnouncement || showNotifications || showArchive || catalogEntry != nil
     }
 
     /// Shows a chore's detail when it is in the loaded house; any popup in the way closes first.
@@ -265,6 +276,7 @@ struct HouseDashboardView: View {
             selectedChore = nil
             showNewAnnouncement = false
             showNotifications = false
+            showArchive = false
             catalogEntry = nil
         }
         syncOverlayPresentation()
@@ -294,6 +306,14 @@ struct HouseDashboardView: View {
         transaction.disablesAnimations = true
         withTransaction(transaction) {
             showNotifications = false
+        }
+    }
+
+    private func dismissArchive() {
+        var transaction = Transaction()
+        transaction.disablesAnimations = true
+        withTransaction(transaction) {
+            showArchive = false
         }
     }
 

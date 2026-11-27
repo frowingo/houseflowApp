@@ -39,7 +39,6 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
@@ -53,6 +52,9 @@ import com.fauscrew.platform.ChoreReminder
 import com.fauscrew.ui.dashboard.notifications.NotificationActions
 import com.fauscrew.ui.dashboard.notifications.NotificationBellButton
 import com.fauscrew.ui.dashboard.notifications.NotificationsPopup
+import com.fauscrew.ui.dashboard.archive.ChoreArchiveActions
+import com.fauscrew.ui.dashboard.archive.ChoreArchivePopup
+import com.fauscrew.viewmodel.ChoreArchiveUiState
 import com.fauscrew.viewmodel.NotificationUiState
 import com.fauscrew.platform.LocalizedText
 import com.fauscrew.platform.ReviewPhoto
@@ -93,6 +95,8 @@ internal fun DashboardScreen(
     catalog: ChoreCatalogViewModel = remember { ChoreCatalogViewModel(null) },
     notifications: NotificationUiState = NotificationUiState(),
     notificationActions: NotificationActions = NotificationActions(),
+    archive: ChoreArchiveUiState = ChoreArchiveUiState(),
+    archiveActions: ChoreArchiveActions = ChoreArchiveActions(),
     /** A push asked for this chore's detail; [onOpenChoreHandled] acknowledges it. */
     openChoreRequest: String? = null,
     onOpenChoreHandled: () -> Unit = {},
@@ -100,14 +104,10 @@ internal fun DashboardScreen(
     closePopupsSignal: Int = 0,
 ) {
     val details = state.details ?: return
-    var announcementsExpanded by remember { mutableStateOf(false) }
     var popup by remember { mutableStateOf<DashboardPopup?>(null) }
     var reviewing by remember { mutableStateOf(false) }
-    val context = LocalContext.current
-    val readStore = remember(context) { AnnouncementReadStore(context) }
-    var readIds by remember(details.id, state.userId) { mutableStateOf(readStore.load(details.id, state.userId)) }
 
-    LaunchedEffect(details.id) { popup = null; announcementsExpanded = false }
+    LaunchedEffect(details.id) { popup = null }
     LaunchedEffect(closePopupsSignal) {
         if (closePopupsSignal > 0) {
             popup = null
@@ -132,7 +132,7 @@ internal fun DashboardScreen(
     DisposableEffect(Unit) { onDispose { overlayCallback(false) } }
 
     val header = rememberEntrance(50)
-    val announcements = rememberEntrance(120)
+    val progress = rememberEntrance(140)
     val chores = rememberEntrance(220)
     val members = rememberEntrance(320)
 
@@ -147,22 +147,15 @@ internal fun DashboardScreen(
                     popup = DashboardPopup.Announcement
                 }
             }
-            item(key = "announcements") {
-                AnnouncementCard(
-                    announcements = details.announcements, members = details.members, readIds = readIds,
-                    expanded = announcementsExpanded, strings = strings,
-                    onToggleExpanded = { announcementsExpanded = !announcementsExpanded },
-                    onToggleRead = { id ->
-                        readIds = if (id in readIds) readIds - id else readIds + id
-                        readStore.save(details.id, state.userId, readIds)
-                    },
-                    modifier = Modifier.padding(horizontal = Spacing.xl).entrance(announcements, 20.dp),
-                )
+            item(key = "progress") {
+                ChoreProgressCard(details.chores, strings,
+                    Modifier.padding(horizontal = Spacing.xxl).entrance(progress, 22.dp))
             }
             item(key = "chores") {
                 TodaysChoresCard(details.chores, details.members, strings, { popup = DashboardPopup.Chore(it.id) },
                     Modifier.padding(horizontal = Spacing.xxl).entrance(chores, 26.dp),
-                    onAddChore = { popup = DashboardPopup.Catalog(ChoreCatalogEntry.Drafts) })
+                    onAddChore = { popup = DashboardPopup.Catalog(ChoreCatalogEntry.Drafts) },
+                    onOpenArchive = { archiveActions.open(); popup = DashboardPopup.Archive })
             }
             item(key = "members") {
                 HouseMembersCard(details.members, strings,
@@ -217,6 +210,8 @@ internal fun DashboardScreen(
                 ),
             )
         }
+        DashboardPopup.Archive -> ChoreArchivePopup(archive, details, state.userId, strings, archiveActions,
+            onLoadReviewPhoto) { popup = null }
         null -> Unit
     }
 }
@@ -225,6 +220,7 @@ private sealed interface DashboardPopup {
     data object Announcement : DashboardPopup
     data class Catalog(val entry: ChoreCatalogEntry) : DashboardPopup
     data class Chore(val id: String) : DashboardPopup
+    data object Archive : DashboardPopup
 }
 
 @Composable

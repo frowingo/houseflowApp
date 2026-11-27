@@ -49,7 +49,7 @@ class HouseSessionRepositoryTest {
     @Test fun detailsReadTheBridgesNormalizedFields() = runBlocking {
         response = """{"success":true,"data":{"id":"h","name":"Home","ownerId":"u",
             "chores":[{"id":"c","houseId":"h","title":"Dishes","status":4,"dueDate":"2026-10-12T18:30:00Z","category":3,
-                "failureReason":"dueDatePassed","reviewVotes":[{"reviewRound":1,"reviewerId":"v","isApproved":false}]},
+                "failureReason":"dueDatePassed","completedAt":"2026-10-12T18:30:00Z","completedBy":"system","reviewVotes":[{"reviewRound":1,"reviewerId":"v","isApproved":false}]},
                 {"id":"d","houseId":"h","title":"Trash","status":1,"category":0}],
             "announcements":[{"id":"a","title":"Bins","message":"Tonight","createdOn":"2026-09-05T10:00:00Z","isActive":false,
                 "publisherId":"u","publisherName":"Ada A"},
@@ -61,7 +61,11 @@ class HouseSessionRepositoryTest {
         assertEquals("2026-10-12T18:30:00Z", failed.dueDate)
         assertEquals(ChoreCategoryKind.TOILET, failed.categoryKind)
         assertEquals(HouseVote(1, "v", false), failed.reviewVotes.single())
+        assertEquals("2026-10-12T18:30:00Z", failed.completedAt)
+        assertEquals("system", failed.completedBy)
         assertNull(active.failureReason)
+        assertEquals("", active.completedAt)
+        assertEquals("", active.completedBy)
         val (announcement, anonymous) = details.announcements
         assertEquals("u", announcement.publisherId)
         assertEquals("Ada A", announcement.publisherName)

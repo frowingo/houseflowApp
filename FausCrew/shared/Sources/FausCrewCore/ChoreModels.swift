@@ -94,31 +94,52 @@ public extension Array where Element == Chore {
     var historyChores: [Chore] { filter { $0.choreStatus.listGroup.isHistory } }
 }
 
-/// Why a chore failed, for the detail screen. The API does not say, so a reason is shown only
-/// when the status history proves it; anything else stays `.unspecified`.
+/// Why a chore failed, for the detail screen. The API does not say, so the reason is derived.
+/// Since the backend migration `completedAt` is the closing moment: the due date for a deadline
+/// failure, the rejection moment for a third-round rejection. The status-history rule remains only
+/// as a fallback for cached data from before the migration.
 public enum ChoreFailureReason: String, Codable, Sendable {
     case dueDatePassed
+    /// The third review round ended in a rejection.
+    case reviewRejected
     case unspecified
 
     /// `updater` of status-history entries the backend writes itself.
     public static let systemUpdater = "system"
 
-    /// `.dueDatePassed` only when the Failed entry came from the system at or after the due date
-    /// and the last review round (the third or later) holds no rejection, which would make a
-    /// review failure just as likely.
+    /// Go's zero time (`0001-01-01T00:00:00Z`) is what the backend sends for "not closed"; anything
+    /// from year 2 on is a real date.
+    private static let firstRealDate = Date(timeIntervalSince1970: -62_104_060_800)
+
+    /// In order:
+    /// 1. `completedAt` equals the due date (1 second tolerance): `.dueDatePassed`.
+    /// 2. Otherwise a real `completedAt` with a rejection in the last review round (the third or
+    ///    later): `.reviewRejected`.
+    /// 3. Otherwise a real `completedAt`: `.unspecified`.
+    /// 4. No real `completedAt` (missing or the zero time): the history rule, which gives
+    ///    `.dueDatePassed` only when the Failed entry came from the system at or after the due date
+    ///    and the last review round holds no rejection, which would make a review failure just as
+    ///    likely.
     public static func reason(
         statusHistories: [ChoreStatusHistory],
         dueDate: String?,
         reviewRound: Int,
-        reviewVotes: [ChoreReviewVote]
+        reviewVotes: [ChoreReviewVote],
+        completedAt: String?
     ) -> ChoreFailureReason {
+        let rejectedInFinalRound = reviewRound >= 3
+            && reviewVotes.contains { $0.reviewRound == reviewRound && !$0.isApproved }
+        if let closedAt = completedAt.flatMap(APIDate.parse), closedAt >= firstRealDate {
+            if let dueDate, let due = APIDate.parse(dueDate), abs(closedAt.timeIntervalSince(due)) <= 1 {
+                return .dueDatePassed
+            }
+            return rejectedInFinalRound ? .reviewRejected : .unspecified
+        }
         guard let failure = statusHistories.last(where: { $0.status == ChoreStatus.failed.rawValue }),
               failure.updater.trimmingCharacters(in: .whitespacesAndNewlines).lowercased() == systemUpdater,
               let dueDate, let due = APIDate.parse(dueDate), let failedAt = APIDate.parse(failure.dateTime),
               failedAt >= due
         else { return .unspecified }
-        let rejectedInFinalRound = reviewRound >= 3
-            && reviewVotes.contains { $0.reviewRound == reviewRound && !$0.isApproved }
         return rejectedInFinalRound ? .unspecified : .dueDatePassed
     }
 }
@@ -331,6 +352,11 @@ public struct Chore: Identifiable, Codable, Equatable, Sendable {
     public let failureReason: ChoreFailureReason?
     /// Raw value of `ChoreCategoryKind`; `0` is uncategorized.
     public let category: Int
+    /// Raw wire value; nil for local chores. The archive shows it as the closing date.
+    public let completedAt: String?
+    /// Raw wire value. A user id for Completed chores; for Failed chores the backend's `"system"`
+    /// marker, which is never a user.
+    public let completedBy: String?
 
     public var choreStatus: ChoreStatus { ChoreStatus(apiValue: status) }
     public var categoryKind: ChoreCategoryKind { ChoreCategoryKind(apiValue: category) }
@@ -352,7 +378,9 @@ public struct Chore: Identifiable, Codable, Equatable, Sendable {
         reviewVotes: [ChoreReviewVote] = [],
         reviewPhotoRounds: [Int] = [],
         failureReason: ChoreFailureReason? = nil,
-        category: Int = 0
+        category: Int = 0,
+        completedAt: String? = nil,
+        completedBy: String? = nil
     ) {
         self.id = choreApiId ?? id ?? UUID().uuidString
         self.choreApiId = choreApiId
@@ -371,6 +399,8 @@ public struct Chore: Identifiable, Codable, Equatable, Sendable {
         self.reviewPhotoRounds = reviewPhotoRounds
         self.failureReason = failureReason
         self.category = category
+        self.completedAt = completedAt
+        self.completedBy = completedBy
     }
 }
 

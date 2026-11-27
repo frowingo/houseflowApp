@@ -16,6 +16,17 @@ final class ChoreFailedStatusTests: XCTestCase {
         XCTAssertEqual(response.statusHistories.last?.updater, "system")
     }
 
+    func testFailedChoreInTheMigratedShapeParses() throws {
+        let data = failedChoreJSON(updater: "system", completedAt: "2026-10-12T18:30:00Z", completedBy: "system")
+        let response = try JSONDecoder().decode(ChoreResponse.self, from: data)
+        XCTAssertEqual(response.completedBy, "system")
+        XCTAssertEqual(response.completedAt, "2026-10-12T18:30:00Z")
+
+        let chore = try JSONDecoder().decode(HouseChoreDTO.self, from: data)
+        XCTAssertEqual(chore.completedBy, "system")
+        XCTAssertEqual(chore.failureReason, .dueDatePassed)
+    }
+
     func testFailedHouseChoreParsesWithTimeObjects() throws {
         let chore = try JSONDecoder().decode(HouseChoreDTO.self, from: failedChoreJSON(updater: "system", wrapsTimes: true))
 
@@ -105,7 +116,7 @@ final class ChoreFailedStatusTests: XCTestCase {
             .unspecified
         )
         // No Failed entry, or an unreadable date.
-        XCTAssertEqual(ChoreFailureReason.reason(statusHistories: [], dueDate: dueDate, reviewRound: 0, reviewVotes: []), .unspecified)
+        XCTAssertEqual(ChoreFailureReason.reason(statusHistories: [], dueDate: dueDate, reviewRound: 0, reviewVotes: [], completedAt: nil), .unspecified)
         XCTAssertEqual(reason(updater: "system", failedAt: "not a date"), .unspecified)
     }
 
@@ -114,6 +125,72 @@ final class ChoreFailedStatusTests: XCTestCase {
             reason(updater: "system", failedAt: "2026-10-13T00:00:00Z", reviewRound: 2, rejectedInRound: 1),
             .dueDatePassed
         )
+    }
+
+    // MARK: - Failure reason from completedAt
+
+    func testCompletedAtAtTheDueDateReadsAsDueDatePassed() {
+        XCTAssertEqual(closedReason(completedAt: dueDate), .dueDatePassed)
+        XCTAssertEqual(closedReason(completedAt: "2026-10-12T18:30:01Z"), .dueDatePassed)
+        XCTAssertEqual(closedReason(completedAt: "2026-10-12T18:29:59Z"), .dueDatePassed)
+        // The history is ignored once completedAt is real.
+        XCTAssertEqual(closedReason(completedAt: dueDate, updater: "user-1"), .dueDatePassed)
+    }
+
+    func testCompletedAtAtTheDueDateWorksForTimeObjects() throws {
+        let data = failedChoreJSON(updater: "user-1", wrapsTimes: true, completedAt: "2026-10-12T18:30:00Z", completedBy: "system")
+        let chore = try JSONDecoder().decode(HouseChoreDTO.self, from: data)
+        XCTAssertEqual(chore.failureReason, .dueDatePassed)
+    }
+
+    func testCompletedAtMoreThanASecondFromTheDueDateIsNotTheDeadline() {
+        XCTAssertEqual(closedReason(completedAt: "2026-10-12T18:30:02Z"), .unspecified)
+        XCTAssertEqual(closedReason(completedAt: "2026-10-12T18:29:58Z"), .unspecified)
+    }
+
+    func testThirdRoundRejectionReadsAsReviewRejected() {
+        let closedAt = "2026-10-12T12:00:00Z"
+        XCTAssertEqual(closedReason(completedAt: closedAt, reviewRound: 3, rejectedInRound: 3), .reviewRejected)
+        XCTAssertEqual(closedReason(completedAt: closedAt, reviewRound: 4, rejectedInRound: 4), .reviewRejected)
+        // A rejection in an earlier round, or before the third round, is not the closing one.
+        XCTAssertEqual(closedReason(completedAt: closedAt, reviewRound: 3, rejectedInRound: 2), .unspecified)
+        XCTAssertEqual(closedReason(completedAt: closedAt, reviewRound: 2, rejectedInRound: 2), .unspecified)
+    }
+
+    func testDeadlineWinsOverRejectionHistory() {
+        XCTAssertEqual(closedReason(completedAt: dueDate, reviewRound: 3, rejectedInRound: 3), .dueDatePassed)
+    }
+
+    func testDeadlineDuringReviewWithPartialVotesReadsAsDueDatePassed() {
+        let votes = [ChoreReviewVote(id: "v", choreId: "c", houseId: "h", reviewRound: 3, reviewerId: "r", isApproved: true, createdOn: dueDate)]
+        let reason = ChoreFailureReason.reason(
+            statusHistories: [], dueDate: dueDate, reviewRound: 3, reviewVotes: votes, completedAt: dueDate
+        )
+        XCTAssertEqual(reason, .dueDatePassed)
+    }
+
+    func testRealCompletedAtMatchingNeitherIsUnspecified() {
+        XCTAssertEqual(closedReason(completedAt: "2026-10-12T12:00:00Z"), .unspecified)
+    }
+
+    func testMissingOrZeroCompletedAtFallsBackToTheHistoryRule() {
+        for completedAt in [nil, "0001-01-01T00:00:00Z", "0001-01-01T00:00:00.000Z", "not a date"] {
+            let reason = ChoreFailureReason.reason(
+                statusHistories: [ChoreStatusHistory(id: "h", choreId: "c", status: 4, updater: "system", dateTime: "2026-10-13T00:00:00Z")],
+                dueDate: dueDate, reviewRound: 1, reviewVotes: [], completedAt: completedAt
+            )
+            XCTAssertEqual(reason, .dueDatePassed, completedAt ?? "nil")
+            XCTAssertEqual(
+                ChoreFailureReason.reason(statusHistories: [], dueDate: dueDate, reviewRound: 1, reviewVotes: [], completedAt: completedAt),
+                .unspecified
+            )
+        }
+    }
+
+    func testReviewRejectedTravelsAsItsRawValue() throws {
+        XCTAssertEqual(ChoreFailureReason.reviewRejected.rawValue, "reviewRejected")
+        let data = try JSONEncoder().encode([ChoreFailureReason.reviewRejected])
+        XCTAssertEqual(try JSONDecoder().decode([ChoreFailureReason].self, from: data), [.reviewRejected])
     }
 
     func testOnlyFailedHouseChoresCarryAReason() throws {
@@ -146,7 +223,26 @@ final class ChoreFailedStatusTests: XCTestCase {
             ],
             dueDate: dueDate,
             reviewRound: reviewRound,
-            reviewVotes: votes
+            reviewVotes: votes,
+            completedAt: "0001-01-01T00:00:00Z"
+        )
+    }
+
+    private func closedReason(
+        completedAt: String,
+        updater: String = "system",
+        reviewRound: Int = 1,
+        rejectedInRound: Int? = nil
+    ) -> ChoreFailureReason {
+        let votes = rejectedInRound.map {
+            [ChoreReviewVote(id: "v", choreId: "c", houseId: "h", reviewRound: $0, reviewerId: "r", isApproved: false, createdOn: completedAt)]
+        } ?? []
+        return ChoreFailureReason.reason(
+            statusHistories: [ChoreStatusHistory(id: "h2", choreId: "c", status: 4, updater: updater, dateTime: completedAt)],
+            dueDate: dueDate,
+            reviewRound: reviewRound,
+            reviewVotes: votes,
+            completedAt: completedAt
         )
     }
 
@@ -154,7 +250,12 @@ final class ChoreFailedStatusTests: XCTestCase {
         Chore(id: id, title: id, assignedTo: User(name: "Ada"), dueLabel: "Today", isDone: isDone, status: status)
     }
 
-    private func failedChoreJSON(updater: String, wrapsTimes: Bool = false) -> Data {
+    private func failedChoreJSON(
+        updater: String,
+        wrapsTimes: Bool = false,
+        completedAt: String = "0001-01-01T00:00:00Z",
+        completedBy: String = ""
+    ) -> Data {
         func time(_ value: String) -> String { wrapsTimes ? #"{ "time.Time": "\#(value)" }"# : #""\#(value)""# }
         return Data(
             """
@@ -172,8 +273,8 @@ final class ChoreFailedStatusTests: XCTestCase {
               "recurringInterval": 0,
               "status": 4,
               "createdOn": \(time("2026-10-10T09:00:00Z")),
-              "completedAt": \(time("0001-01-01T00:00:00Z")),
-              "completedBy": "",
+              "completedAt": \(time(completedAt)),
+              "completedBy": "\(completedBy)",
               "statusHistories": [
                 { "id": "h1", "choreId": "chore-failed", "status": 1, "updater": "user-2", "dateTime": \(time("2026-10-11T09:00:00Z")) },
                 { "id": "h2", "choreId": "chore-failed", "status": 4, "updater": "\(updater)", "dateTime": \(time("2026-10-12T18:30:05Z")) }

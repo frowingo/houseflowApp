@@ -2,7 +2,9 @@ package com.fauscrew.ui.theme
 
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.rounded.ArrowForward
+import androidx.compose.material.icons.automirrored.outlined.Assignment as AssignmentOutlined
 import androidx.compose.material.icons.automirrored.rounded.Assignment
+import androidx.compose.material.icons.automirrored.rounded.ListAlt
 import androidx.compose.material.icons.automirrored.rounded.FormatAlignLeft
 import androidx.compose.material.icons.automirrored.rounded.Help
 import androidx.compose.material.icons.automirrored.rounded.InsertDriveFile
@@ -14,6 +16,9 @@ import androidx.compose.material.icons.rounded.AccountCircle
 import androidx.compose.material.icons.rounded.Add
 import androidx.compose.material.icons.rounded.ArrowCircleRight
 import androidx.compose.material.icons.rounded.AutoAwesome
+import androidx.compose.material.icons.rounded.ChangeHistory
+import androidx.compose.material.icons.rounded.Circle
+import androidx.compose.material.icons.rounded.EmojiEvents
 import androidx.compose.material.icons.rounded.Badge
 import androidx.compose.material.icons.rounded.Bolt
 import androidx.compose.material.icons.rounded.Cake
@@ -101,6 +106,12 @@ internal object FausCrewIcons {
     val megaphoneFill: ImageVector = Icons.Rounded.Campaign
     val megaphone: ImageVector = Icons.Outlined.Campaign
     val listClipboardFill: ImageVector = Icons.AutoMirrored.Rounded.Assignment
+    val listClipboard: ImageVector = Icons.AutoMirrored.Outlined.AssignmentOutlined
+    val checklist: ImageVector = Icons.Rounded.Checklist
+    val checklistUnchecked: ImageVector = Icons.AutoMirrored.Rounded.ListAlt
+    val trophyFill: ImageVector = Icons.Rounded.EmojiEvents
+    val circleFill: ImageVector = Icons.Rounded.Circle
+    val triangleFill: ImageVector = Icons.Rounded.ChangeHistory
     val person3Fill: ImageVector = Icons.Rounded.Groups
     val plus: ImageVector = Icons.Rounded.Add
     val minus: ImageVector = Icons.Rounded.Remove

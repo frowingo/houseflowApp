@@ -12,7 +12,6 @@ import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.infiniteRepeatable
 import androidx.compose.animation.core.rememberInfiniteTransition
 import androidx.compose.animation.core.tween
-import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -22,9 +21,8 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.defaultMinSize
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
@@ -36,23 +34,16 @@ import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.key
-import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.blur
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.rotate
-import androidx.compose.ui.geometry.Offset
-import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.StrokeCap
-import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.platform.LocalHapticFeedback
@@ -70,18 +61,15 @@ import com.fauscrew.platform.HouseMember
 import com.fauscrew.platform.LocalizedText
 import com.fauscrew.ui.auth.social
 import com.fauscrew.ui.components.UserAvatar
-import com.fauscrew.ui.theme.FausCrewBrushes
 import com.fauscrew.ui.theme.FausCrewColors
 import com.fauscrew.ui.theme.FausCrewIcons
 import com.fauscrew.ui.theme.FausCrewType
-import com.fauscrew.ui.theme.Motion
 import com.fauscrew.ui.theme.Radius
 import com.fauscrew.ui.theme.Spacing
 import com.fauscrew.ui.theme.gradientForeground
 import com.fauscrew.ui.theme.softShadow
-import kotlinx.coroutines.delay
 
-/** `TodaysChoresCard`: progress header, divider and the tappable chore rows. */
+/** `TodaysChoresCard`: the plain "Active Chores" header, divider and the tappable chore rows. */
 @Composable
 internal fun TodaysChoresCard(
     chores: List<HouseChore>,
@@ -89,11 +77,11 @@ internal fun TodaysChoresCard(
     strings: LocalizedText,
     onChoreTap: (HouseChore) -> Unit,
     modifier: Modifier = Modifier,
-    /** Opens the chore catalog (header tile and empty state); `null` hides both entries. */
+    /** Opens the chore catalog (header tile while chores are listed, empty-state button otherwise); `null` hides both. */
     onAddChore: (() -> Unit)? = null,
+    /** Opens the archive of older closed chores; `null` hides the entry row. */
+    onOpenArchive: (() -> Unit)? = null,
 ) {
-    val completed = remember(chores) { chores.count { ChoreStatusUi.of(it.status) == ChoreStatusUi.COMPLETED } }
-    val progress = if (chores.isEmpty()) 0f else completed.toFloat() / chores.size
     val shape = RoundedCornerShape(Radius.xl)
     Column(
         modifier.fillMaxWidth()
@@ -108,7 +96,7 @@ internal fun TodaysChoresCard(
                 FausCrewColors.primary.copy(alpha = .3f), FausCrewColors.secondary.copy(alpha = .3f),
             )), shape),
     ) {
-        ChoresHeader(strings, completed, chores.size, progress, onAddChore)
+        ChoresHeader(strings, onAddChore.takeIf { chores.isNotEmpty() })
         HorizontalDivider(Modifier.padding(horizontal = Spacing.xl), thickness = .5.dp, color = FausCrewColors.separator)
         if (chores.isEmpty()) {
             ChoresEmptyState(strings, onAddChore)
@@ -130,50 +118,44 @@ internal fun TodaysChoresCard(
                 }
             }
         }
+        onOpenArchive?.let { ArchiveEntryRow(strings, it) }
     }
 }
 
+/** A subtle full-width row at the card's bottom that opens the archive. */
 @Composable
-private fun ChoresHeader(strings: LocalizedText, completed: Int, total: Int, progress: Float, onAddChore: (() -> Unit)?) {
-    val haptics = LocalHapticFeedback.current
-    var iconPressed by remember { mutableStateOf(false) }
-    LaunchedEffect(iconPressed) { if (iconPressed) { delay(1_000); iconPressed = false } }
-    val iconScale by animateFloatAsState(if (iconPressed) 1.1f else 1f, Motion.spring(), label = "choreIcon")
-    Column(Modifier.padding(Spacing.xl), verticalArrangement = Arrangement.spacedBy(Spacing.md)) {
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            Box(
-                Modifier.size(44.dp).clickable(remember { MutableInteractionSource() }, indication = null) {
-                    haptics.performHapticFeedback(HapticFeedbackType.TextHandleMove)
-                    iconPressed = true
-                },
-                contentAlignment = Alignment.Center,
-            ) {
-                Box(Modifier.size(44.dp).graphicsLayer {
-                    scaleX = iconScale; scaleY = iconScale; alpha = if (iconPressed) .6f else 1f
-                }.background(FausCrewBrushes.indigoTeal, CircleShape))
-                Icon(FausCrewIcons.listClipboardFill, null, Modifier.size(22.dp), tint = Color.White)
-                AccentDot(8.dp, FausCrewColors.cardBackground, Modifier.offset(16.dp, 16.dp))
-            }
-            Column(Modifier.weight(1f).padding(start = Spacing.sm), verticalArrangement = Arrangement.spacedBy(2.dp)) {
-                Text(strings.get("todays_tasks_title"), style = FausCrewType.headline, color = FausCrewColors.textPrimary)
-                if (total > 0) {
-                    Text(strings.template("todays_tasks_completed_template",
-                        "completed" to completed.toString(), "total" to total.toString()),
-                        style = FausCrewType.caption, color = FausCrewColors.textSecondary)
-                }
-            }
-            if (total > 0) CircularProgress(progress, strings, Modifier.padding(start = Spacing.sm).size(46.dp))
-            onAddChore?.let { ChoreCatalogMosaicButton(strings, it, Modifier.padding(start = Spacing.sm)) }
+private fun ArchiveEntryRow(strings: LocalizedText, onClick: () -> Unit) {
+    HorizontalDivider(Modifier.padding(horizontal = Spacing.xl), thickness = .5.dp, color = FausCrewColors.separator)
+    Row(
+        Modifier.fillMaxWidth().clickable(role = Role.Button, onClick = onClick)
+            .padding(horizontal = Spacing.xl, vertical = Spacing.lg),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(Spacing.sm),
+    ) {
+        Icon(FausCrewIcons.clock, null, Modifier.size(16.dp), tint = FausCrewColors.textSecondary)
+        Text(strings.social("chore_archive_entry", "Tüm geçmiş", "Full history"), Modifier.weight(1f),
+            style = FausCrewType.subheadline, fontWeight = FontWeight.Medium, color = FausCrewColors.textSecondary)
+        Icon(FausCrewIcons.chevronRight, null, Modifier.size(18.dp), tint = FausCrewColors.textTertiary)
+    }
+}
+
+/** Same badge as House Members' header, in this card's indigo → teal order; [onAddChore] adds the catalog tile. */
+@Composable
+private fun ChoresHeader(strings: LocalizedText, onAddChore: (() -> Unit)?) {
+    Row(
+        Modifier.fillMaxWidth().defaultMinSize(minHeight = 48.dp).padding(Spacing.xl),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(Spacing.md),
+    ) {
+        Box(Modifier.size(42.dp), contentAlignment = Alignment.Center) {
+            Box(Modifier.size(42.dp).background(
+                Brush.linearGradient(listOf(FausCrewColors.indigo, FausCrewColors.teal)), RoundedCornerShape(11.dp)))
+            Icon(FausCrewIcons.checklist, null, Modifier.size(22.dp), tint = Color.White)
+            AccentDot(7.dp, FausCrewColors.cardBackground, Modifier.offset(15.dp, 15.dp))
         }
-        if (total > 0) {
-            val animated by animateFloatAsState(progress, Motion.spring(), label = "choreProgress")
-            Box(Modifier.fillMaxWidth().height(6.dp).clip(RoundedCornerShape(Radius.sm))
-                .background(FausCrewColors.textSecondary.copy(alpha = .2f))) {
-                Box(Modifier.fillMaxHeight().fillMaxWidth(animated.coerceIn(0f, 1f))
-                    .clip(RoundedCornerShape(Radius.sm))
-                    .background(Brush.horizontalGradient(listOf(FausCrewColors.indigo, FausCrewColors.teal))))
-            }
-        }
+        Text(strings.social("active_chores_title", "Aktif Görevler", "Active Chores"),
+            Modifier.weight(1f).semantics { heading() }, style = FausCrewType.headline, color = FausCrewColors.textPrimary)
+        onAddChore?.let { ChoreCatalogMosaicButton(strings, it) }
     }
 }
 
@@ -184,28 +166,6 @@ internal fun AccentDot(size: androidx.compose.ui.unit.Dp, ring: Color, modifier:
         .background(FausCrewColors.accentOrange, CircleShape))
 }
 
-/** `CircularProgressView`. */
-@Composable
-private fun CircularProgress(progress: Float, strings: LocalizedText, modifier: Modifier) {
-    val animated by animateFloatAsState(progress, Motion.spring(), label = "ring")
-    Box(modifier, contentAlignment = Alignment.Center) {
-        val track = FausCrewColors.textSecondary.copy(alpha = .2f)
-        val ring = listOf(FausCrewColors.indigo, FausCrewColors.teal)
-        Canvas(Modifier.fillMaxSize()) {
-            val stroke = 4.dp.toPx()
-            val inset = stroke / 2
-            val arcSize = Size(size.width - stroke, size.height - stroke)
-            drawArc(track, 0f, 360f, false,
-                Offset(inset, inset), arcSize, style = Stroke(stroke))
-            drawArc(Brush.linearGradient(ring),
-                -90f, 360f * animated.coerceIn(0f, 1f), false, Offset(inset, inset), arcSize,
-                style = Stroke(stroke, cap = StrokeCap.Round))
-        }
-        Text(strings.template("progress_percent_template", "percent" to (progress * 100).toInt().toString(),
-            fallback = "{percent}%"), fontSize = 12.sp, fontWeight = FontWeight.Bold, color = FausCrewColors.deepIndigo)
-    }
-}
-
 @Composable
 private fun ChoresEmptyState(strings: LocalizedText, onAddChore: (() -> Unit)?) {
     val pulse = rememberInfiniteTransition(label = "emptyPulse")
@@ -214,17 +174,18 @@ private fun ChoresEmptyState(strings: LocalizedText, onAddChore: (() -> Unit)?) 
         verticalArrangement = Arrangement.spacedBy(Spacing.lg)) {
         Box(contentAlignment = Alignment.Center) {
             Box(Modifier.size(120.dp).graphicsLayer { val s = 1f + .2f * phase; scaleX = s; scaleY = s }
-                .blur(20.dp).background(FausCrewColors.success.copy(alpha = .2f), CircleShape))
+                .blur(20.dp).background(FausCrewColors.indigo.copy(alpha = .18f), CircleShape))
             Box(Modifier.size(90.dp).graphicsLayer { val s = 1.2f - .2f * phase; scaleX = s; scaleY = s }
-                .blur(15.dp).background(FausCrewColors.secondary.copy(alpha = .3f), CircleShape))
-            Icon(FausCrewIcons.checkmarkSealFill, null,
-                Modifier.size(56.dp).rotate(-5f + 10f * phase)
-                    .gradientForeground(Brush.linearGradient(listOf(FausCrewColors.success, FausCrewColors.secondary))),
+                .blur(15.dp).background(FausCrewColors.teal.copy(alpha = .25f), CircleShape))
+            // An empty list is not "all done": the icon invites adding, it does not celebrate.
+            Icon(FausCrewIcons.listClipboard, null,
+                Modifier.size(56.dp)
+                    .gradientForeground(Brush.linearGradient(listOf(FausCrewColors.indigo, FausCrewColors.teal))),
                 tint = Color.White)
         }
         Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(Spacing.sm)) {
-            Text(strings.get("todays_tasks_empty_title"), style = FausCrewType.title3, color = FausCrewColors.textPrimary)
-            Text(strings.get("todays_tasks_empty_subtitle"), style = FausCrewType.subheadline,
+            Text(strings.social("active_chores_empty_title", "Şu anda aktif bir iş yok", "No active chores right now"), style = FausCrewType.title3, color = FausCrewColors.textPrimary)
+            Text(strings.social("active_chores_empty_subtitle", "Eklemeye ne dersin?", "How about adding one?"), style = FausCrewType.subheadline,
                 color = FausCrewColors.textSecondary, textAlign = TextAlign.Center)
         }
         onAddChore?.let { open ->
@@ -244,9 +205,18 @@ private fun ChoresEmptyState(strings: LocalizedText, onAddChore: (() -> Unit)?) 
     }
 }
 
-/** `ModernChoreRow` with its pressed button style. */
+/**
+ * `ModernChoreRow` with its pressed button style. A non-null [detail] is an extra caption line
+ * below the assignee row.
+ */
 @Composable
-private fun ModernChoreRow(chore: HouseChore, assignee: HouseMember?, strings: LocalizedText, onTap: () -> Unit) {
+internal fun ModernChoreRow(
+    chore: HouseChore,
+    assignee: HouseMember?,
+    strings: LocalizedText,
+    detail: String? = null,
+    onTap: () -> Unit,
+) {
     val status = ChoreStatusUi.of(chore.status)
     val completed = status == ChoreStatusUi.COMPLETED
     // Failed reads as closed but not done: muted title, no strikethrough.
@@ -298,6 +268,10 @@ private fun ModernChoreRow(chore: HouseChore, assignee: HouseMember?, strings: L
                     style = FausCrewType.caption, color = FausCrewColors.textSecondary,
                     maxLines = 1, overflow = TextOverflow.Ellipsis)
                 StatusBadge(status, strings)
+            }
+            if (detail != null) {
+                Text(detail, style = FausCrewType.caption, color = FausCrewColors.textSecondary,
+                    maxLines = 2, overflow = TextOverflow.Ellipsis)
             }
         }
         Box(Modifier.size(26.dp).background(status.color.copy(alpha = .10f), CircleShape), contentAlignment = Alignment.Center) {

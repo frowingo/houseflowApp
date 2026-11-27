@@ -42,6 +42,7 @@ extension ChoreFailureReason {
     var localizationKey: String {
         switch self {
         case .dueDatePassed: return "chore_failed_reason_due_date"
+        case .reviewRejected: return "chore_failed_reason_review_rejected"
         case .unspecified: return "chore_failed_reason_generic"
         }
     }
@@ -49,6 +50,7 @@ extension ChoreFailureReason {
     var fallbackMessage: (tr: String, en: String) {
         switch self {
         case .dueDatePassed: return ("Son teslim tarihi geçtiği için başarısız oldu.", "Failed because the due date passed.")
+        case .reviewRejected: return ("İncelemede üç kez reddedildi.", "Rejected in review three times.")
         case .unspecified: return ("Görev başarısız oldu.", "The chore failed.")
         }
     }

@@ -35,6 +35,8 @@ func choreObject(_ chore: HouseChoreDTO) -> [String: Any] {
         "category": chore.categoryKind.rawValue,
     ]
     if let reason = chore.failureReason { object["failureReason"] = reason.rawValue }
+    if let completedAt = chore.completedAt { object["completedAt"] = completedAt }
+    if let completedBy = chore.completedBy { object["completedBy"] = completedBy }
     return object
 }
 
